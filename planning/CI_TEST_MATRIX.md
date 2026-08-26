@@ -1,7 +1,7 @@
 # CI Test Matrix
 
 **Repository:** `Hospitality-ERP-Version-2`
-**Gate:** M1 — currently slice B
+**Gate:** M1 — currently slice C
 **Governing requirement:** FR-SEC-015
 **Workflow:** `.github/workflows/m1-conformance.yml`
 
@@ -24,7 +24,7 @@ and on manual dispatch.
 |---|---|---|
 | `forbidden-surface` | `python3 tools/verify_m1.py --repo . --json-report m1_verification.json` | `PASS M1_FORBIDDEN_SURFACE`, JSON shows `passed: true`, `finding_count: 0`, exactly 92 docs files, and at least one file actually scanned |
 | `docs-package-integrity` | `sha256sum -c SHA256SUMS.txt` inside `docs/…v2.0.9/` | exactly 92 files, exactly 91 checksum lines, exactly 91 `OK` results, 0 failures |
-| `database-verification` | `tests/m1a/run_verification.sh` then `tests/m1b/run_verification.sh` against a `postgres:16` service | both suites report PASS, neither reports a failure, each ran at least its expected number of checks, and all eight negative controls were shown red **and** green |
+| `database-verification` | `tests/m1a`, `tests/m1b` and `tests/m1c` run in order against a `postgres:16` service, plus an independent schema-catalog check | all three suites report PASS, none reports a failure, each ran at least its expected number of checks, the committed catalog matches the live schema, and all thirteen negative controls were shown red **and** green |
 | `occurrence-registry` | `python3 docs/…/06_TOOLS/frozen_validator/forbidden_occurrence_validator.py docs/…v2.0.9` | emits exactly `PASS FORBIDDEN_OCCURRENCE_REGISTRY_VALID`, and its JSON block shows `passed: true`, `failure_count: 0` |
 | `mechanism-suite` | `python3 docs/…/06_TOOLS/test_occurrence_mechanism.py --package docs/…v2.0.9` | emits `28/28 correct` |
 
@@ -36,9 +36,9 @@ credential out of the repository (FR-SEC-007).
 ### Negative controls are checked for non-vacuity
 
 A control that never fails is not a control. The database job therefore greps both suite
-logs and fails the build unless each of the eight controls — `NC-M1-001` to `NC-M1-004` and
-`NC-M1B-001` to `NC-M1B-004` — appears **both** as RED with a defect planted and as GREEN
-after revert. A control that silently stopped failing is a coverage gap wearing a green
+logs and fails the build unless each of the thirteen controls — `NC-M1-001` to `NC-M1-004`,
+`NC-M1B-001` to `NC-M1B-004` and `NC-M1C-001` to `NC-M1C-005` — appears **both** as RED with
+a defect planted and as GREEN after revert. A control that silently stopped failing is a coverage gap wearing a green
 badge, and this is what catches it.
 
 Both success tokens are asserted **exactly**, not as substrings. A bare `PASS` does not
@@ -87,6 +87,7 @@ How each is enforced in the workflow:
 - install runtime dependencies beyond a Python interpreter and a PostgreSQL client
 - build or deploy anything
 - carry any credential, token or secret in the repository
+- accept a schema catalog that does not match the live database
 
 The database created by CI is ephemeral and job-local. Nothing is deployed.
 

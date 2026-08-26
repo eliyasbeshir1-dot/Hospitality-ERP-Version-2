@@ -32,6 +32,23 @@ ADMIN = os.environ["M1A_ADMIN_DSN"]
 APP = os.environ["M1A_APP_DSN"]
 
 results: list[tuple[str, bool, str]] = []
+
+
+def migration_0002_creates() -> tuple[set[str], set[tuple[str, str]]]:
+    """Return the schemas and tables that migration 0002 itself creates.
+
+    Read from the migration text rather than from the live database: the database
+    accumulates every slice, so only the migration can say what THIS slice built.
+    Comment lines are stripped first so prose naming a table is not mistaken for DDL.
+    """
+    sql = (Path(__file__).resolve().parents[2] / "migrations"
+           / "0002_identity_memberships_and_authentication.sql").read_text(encoding="utf-8")
+    code = "\n".join(line for line in sql.splitlines() if not line.lstrip().startswith("--"))
+    schemas = set(re.findall(r"CREATE\s+SCHEMA\s+(?:IF\s+NOT\s+EXISTS\s+)?([A-Za-z_][\w]*)",
+                             code, re.I))
+    tables = {(m.group(1).lower(), m.group(2).lower()) for m in re.finditer(
+        r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([A-Za-z_][\w]*)\.([A-Za-z_][\w]*)", code, re.I)}
+    return schemas, tables
 F: fx.Fixtures
 
 
@@ -458,25 +475,34 @@ def section_recovery() -> None:
     record("a properly verified recovery completes and emits a security event", proper.ok,
            "the event is emitted, not stored: durable audit storage is M1-C")
 
-    audit_tables = count(ADMIN, """
-        SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND c.relname ~* '(^|_)(audit|audit_log|audit_trail)($|_)';
-    """)
-    record("no audit table was built in this slice", audit_tables == 0,
-           f"{audit_tables} audit table(s) present; audit storage belongs to M1-C")
+    # Again scoped to slice B's migration. M1-C owns audit storage and builds it there.
+    _, created_tables = migration_0002_creates()
+    audit_built = sorted(f"{s}.{n}" for s, n in created_tables
+                         if s == "audit" or re.search(r"(^|_)(audit|audit_log|audit_trail)($|_)", n, re.I))
+    record("migration 0002 built no audit storage", not audit_built,
+           "; ".join(audit_built) if audit_built else
+           "none; M1-B emits security events and M1-C stores them")
 
 
 def section_scope_boundary() -> None:
     print("\n--- 6. Slice boundary: nothing from M1-C was built ---")
 
-    forbidden = count(ADMIN, """
-        SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND c.relname ~* '(^|_)(configuration|config|policy_store|entitlement|money|quantity|retention|seed)($|_)';
-    """)
-    record("no configuration store, entitlement, money or quantity table exists", forbidden == 0,
-           f"{forbidden} table(s) belonging to M1-C found")
+    # Scoped to this slice's own migration, not to the whole database. Later slices
+    # legitimately add configuration, audit and money tables; what must stay true
+    # forever is that slice B did not build them.
+    created_schemas, created_tables = migration_0002_creates()
+    out_of_lane = sorted({s for s in created_schemas if s not in {"identity"}}
+                         | {f"{s}.{n}" for s, n in created_tables if s != "identity"})
+    record("migration 0002 created tables only in the identity schema", not out_of_lane,
+           "; ".join(out_of_lane) if out_of_lane else
+           f"{len(created_tables)} table(s), all in identity; slice B stayed in its lane")
+
+    m1c_shaped = sorted(f"{s}.{n}" for s, n in created_tables
+                        if re.search(r"(^|_)(configuration|config|policy_store|entitlement|"
+                                     r"money|quantity|retention|seed)($|_)", n, re.I))
+    record("migration 0002 created no configuration, entitlement, money or quantity table",
+           not m1c_shaped, "; ".join(m1c_shaped) if m1c_shaped else
+           "none; those belong to M1-C and were not built here")
 
     forced = count(ADMIN, """
         SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace

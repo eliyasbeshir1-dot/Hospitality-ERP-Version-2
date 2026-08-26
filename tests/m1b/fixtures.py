@@ -75,6 +75,7 @@ class Fixtures:
 # Fixture tables cleared on reset. governed_action is deliberately absent: those rows
 # are installed by the tenant trigger and are part of the schema's behaviour, not fixture
 # data, so clearing them would hide a regression in that trigger.
+# Ordered by dependency: children first, so plain DELETEs succeed without CASCADE.
 RESET_TABLES = [
     "identity.step_up_grant", "identity.session", "identity.membership",
     "identity.credential", "identity.otp_transmission", "identity.identity_channel",
@@ -86,8 +87,17 @@ RESET_TABLES = [
 
 
 def reset(admin_dsn: str) -> None:
-    """Clear M1-B fixture rows so the suite can be run repeatedly on one database."""
-    res = run(admin_dsn, "TRUNCATE " + ", ".join(RESET_TABLES) + " CASCADE;")
+    """Clear this slice's fixture rows so the suite can be run repeatedly.
+
+    Scoped to the fixture tenant and ordered by dependency, deliberately NOT
+    ``TRUNCATE ... CASCADE``. Later slices reference identity.user_account — M1-C's
+    configuration carries the actor and approver of every change — so a cascading
+    truncate here would silently delete another slice's seed data and leave its gates
+    failing for reasons that have nothing to do with that slice.
+    """
+    statements = ";\n".join(
+        f"DELETE FROM {table} WHERE tenant_id = '{TENANT_ACME}'" for table in RESET_TABLES)
+    res = run(admin_dsn, statements + ";")
     if not res.ok:
         raise RuntimeError(f"could not reset identity fixtures: {res.err}")
 

@@ -101,7 +101,7 @@ jobs:
           echo "docs package verified: 91/91 OK, 0 failures"
 
   database-verification:
-    name: Migrations, RLS and identity (M1-A + M1-B)
+    name: Migrations, RLS, identity and configuration (M1-A + M1-B + M1-C)
     runs-on: ubuntu-latest
 
     services:
@@ -167,15 +167,39 @@ jobs:
           test "${failed:-1}" -eq 0 || { echo "::error::${failed} M1-B check(s) failed"; exit 1; }
           echo "M1-B: $checks checks, 0 failures"
 
+      - name: M1-C — configuration, audit, money, quantity, numbering, retention
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/m1c/run_verification.sh 2>&1 | tee m1c.log
+          grep -q '^PASS M1C_VERIFICATION' m1c.log || {
+            echo "::error::M1-C suite did not report PASS"; exit 1; }
+          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' m1c.log | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' m1c.log | tail -1)"
+          test "${checks:-0}" -ge 45 || { echo "::error::only ${checks:-0} M1-C checks ran"; exit 1; }
+          test "${failed:-1}" -eq 0 || { echo "::error::${failed} M1-C check(s) failed"; exit 1; }
+          echo "M1-C: $checks checks, 0 failures"
+
+      - name: The committed schema catalog must match the live schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Regenerated independently of the suite, so a catalog that drifted cannot be
+          # carried by a passing test elsewhere.
+          python3 tools/generate_schema_catalog.py \
+            --dsn "postgresql://$SUPERUSER@$PGTCP_HOST:$PGPORT/$DB" \
+            --check schema/SCHEMA_CATALOG.md
+
       - name: Every negative control must have been proved red before green
         shell: bash
         run: |
           set -euo pipefail
           # A control that never went red is a coverage gap wearing a green badge.
           for control in NC-M1-001 NC-M1-002 NC-M1-003 NC-M1-004 \
-                         NC-M1B-001 NC-M1B-002 NC-M1B-003 NC-M1B-004; do
-            red="$(grep -c "\[PASS\] $control — RED" m1a.log m1b.log | awk -F: '{s+=$2} END {print s}')"
-            green="$(grep -c "\[PASS\] $control — GREEN" m1a.log m1b.log | awk -F: '{s+=$2} END {print s}')"
+                         NC-M1B-001 NC-M1B-002 NC-M1B-003 NC-M1B-004 \
+                         NC-M1C-001 NC-M1C-002 NC-M1C-003 NC-M1C-004 NC-M1C-005; do
+            red="$(grep -c "\[PASS\] $control — RED" m1a.log m1b.log m1c.log | awk -F: '{s+=$2} END {print s}')"
+            green="$(grep -c "\[PASS\] $control — GREEN" m1a.log m1b.log m1c.log | awk -F: '{s+=$2} END {print s}')"
             if [ "${red:-0}" -lt 1 ] || [ "${green:-0}" -lt 1 ]; then
               echo "::error::$control was not shown both red and green (red=$red green=$green)"
               exit 1

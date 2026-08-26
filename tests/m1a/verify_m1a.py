@@ -22,35 +22,20 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from gates import (  # noqa: E402
     OUTLET_A1, OUTLET_A2, SIBLING_NODE, TENANT_ACME,
     cross_tenant_gate, rls_absent_context_gate, rls_alter_added_outlet_gate,
     rls_sibling_outlet_gate, runtime_role_gate,
 )
+from fenced import fenced_identifier_pattern  # noqa: E402
 from pg import count, run  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 MIGRATION = REPO / "migrations" / "0001_organizational_model_and_rls.sql"
 PACKAGE = REPO / "docs" / "Hospitality_OS_Phase_1_Clean_Build_Package_v2.0.9"
 
-
-def fenced_identifier_pattern() -> tuple[str, int]:
-    """Build an identifier-matching regex from the package's fenced vocabulary.
-
-    Terms are matched as whole identifier components — bounded by start, end or an
-    underscore — so a short term such as "hr" cannot false-positive on "threshold".
-    Multi-word terms tolerate either a space or an underscore between words.
-    """
-    rules = json.loads(
-        (PACKAGE / "02_MACHINE_READABLE" / "forbidden_surface_rules.json").read_text(encoding="utf-8")
-    )
-    terms = sorted({t for group in rules["forbidden_positive_obligations"].values() for t in group})
-    alternatives = []
-    for term in terms:
-        cleaned = "".join(ch for ch in term.lower() if ch.isalnum() or ch in " _-")
-        alternatives.append(re.sub(r"[ _-]+", "[_ ]*", cleaned.strip()))
-    return "(^|_)(" + "|".join(alternatives) + ")(_|$)", len(terms)
 
 ADMIN = os.environ["M1A_ADMIN_DSN"]
 MIGRATOR = os.environ["M1A_MIGRATOR_DSN"]

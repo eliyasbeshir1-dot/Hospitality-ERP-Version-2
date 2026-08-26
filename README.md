@@ -1,7 +1,10 @@
 # Hospitality OS — Phase 1
 
-**Gate:** M1 slice B — Identity, memberships and authentication
-**Predecessor:** M1-A — approved at `0d8d580`; M0R approved at `f53c2c7`
+**Gate:** M1 slice C — Configuration, audit, money and quantity
+**Predecessor:** M1-B — approved at `ecadbb7`; M1-A at `0d8d580`; M0R at `f53c2c7`
+
+M1 runs in four slices: A (database, RLS), B (identity), **C (configuration, audit,
+money)**, D (API surface, ops, observability).
 **Pinned package:** `b89a2d4211356be5941dc25ff2dc540728c87ed761ffd9894a3f2691ccf5b590` (v2.0.9 candidate)
 **Governing requirement:** FR-GOV-001A
 
@@ -25,16 +28,18 @@ does not widen the scope.
 M0R established a clean baseline and was approved. M1 is sliced into three parts, and only
 **slice A** has been executed.
 
-Present now: PostgreSQL, migrations `0001`–`0002`, the organizational model, row level
-security, least-privileged production roles (M1-A), and identity, memberships, sessions,
-step-up authentication and service principals (M1-B).
+Present now: PostgreSQL, migrations `0001`–`0003`, the organizational model, row level
+security and least-privileged production roles (M1-A); identity, memberships, sessions,
+step-up authentication and service principals (M1-B); and versioned configuration,
+append-only audit, exact money and quantity types, numbering, reason codes, entitlements
+and retention (M1-C).
 
 Still absent, by design:
 
 | Absent | Arrives at |
 |---|---|
-| Configuration store, policy store, entitlements | M1-C |
-| Audit tables, money and quantity types, seeds, retention | M1-C |
+| HTTP API, routes, handlers, input validation, security headers | M1-D |
+| Health endpoints, structured logs, metrics, API rate limiting | M1-D |
 | Menu, QR-bound tables, guest sessions | M2 |
 | Orders, tickets, service requests | M3 |
 | Checks, payments, tips, receipts | M4 |
@@ -67,8 +72,11 @@ tests under **FR-GOV-003**. The default position is to write fresh.
 | `migrations/` | ordered, checksum-locked SQL history beginning at `0001` |
 | `tests/m1a/` | M1-A verification: fixtures, isolation gates, four negative controls |
 | `tests/m1b/` | M1-B verification: identity fixtures, auth gates, four negative controls |
+| `tests/m1c/` | M1-C verification: money exactness, audit, entitlements, five negative controls |
+| `seeds/` | two differently branded tenants and the ten reason-code sets |
+| `schema/` | `SCHEMA_CATALOG.md`, generated from the live database, never hand-written |
 | `planning/` | architecture conformance plan, migration and domain ownership map, CI test matrix, and the known-limitations note that travels with the submission |
-| `tools/` | `migrate.py` (SQL-first runner), `bootstrap_database.sql`, `verify_m1.py` (the gate), `verify_m0r_skeleton.py` (superseded, retained as historical evidence) |
+| `tools/` | `migrate.py` (SQL-first runner), `generate_schema_catalog.py`, `bootstrap_database.sql`, `verify_m1.py` (the gate), `verify_m0r_skeleton.py` (superseded, retained as historical evidence) |
 | `.github/workflows/` | `m0r-conformance.yml` — validators only, no application tests |
 
 Directories that must **not** exist at this gate: `migrations/`, `src/`, `app/`, `db/`,
@@ -81,14 +89,17 @@ them at M0R is a P0 finding.
 
 ```bash
 python3 tools/verify_m1.py --repo .        # fenced-domain surface: must be none
-bash tests/m1b/run_verification.sh         # rebuilds from empty, runs M1-A then M1-B
+bash tests/m1c/run_verification.sh         # rebuilds from empty, runs M1-A, M1-B, M1-C
 
 # The pinned package must stay byte-identical at every gate
 cd docs/Hospitality_OS_Phase_1_Clean_Build_Package_v2.0.9 && sha256sum -c SHA256SUMS.txt
 ```
 
-Expected: `PASS M1_FORBIDDEN_SURFACE`, `PASS M1A_VERIFICATION`, `PASS M1B_VERIFICATION`
-and 91/91 OK.
+Expected: `PASS M1_FORBIDDEN_SURFACE`, `PASS M1A_VERIFICATION`, `PASS M1B_VERIFICATION`,
+`PASS M1C_VERIFICATION` and 91/91 OK.
+
+**Money is never a float.** Amounts are integer minor units beside an explicit currency,
+and the suite fails if a `float4` or `float8` column appears anywhere in the database.
 
 `tools/verify_m0r_skeleton.py` was the M0R gate and is superseded by `tools/verify_m1.py`.
 It is kept unmodified as historical evidence and is no longer run: migrations and
@@ -101,7 +112,7 @@ this project were lost to validators tuned until they went green.
 
 ## Gate sequence
 
-M0 → M0R (approved) → M1-A (approved) → **M1-B (here)** → M1-C → M2 → M3 → M4 → M5a → M5b → M6.
+M0 → M0R → M1-A → M1-B (all approved) → **M1-C (here)** → M1-D → M2 → M3 → M4 → M5a → M5b → M6.
 
 Each gate has its own independent review. A gate closes only on behavior provable at that
 gate.
