@@ -1,0 +1,13 @@
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+
+# Dependency and environment directories — never committed
+node_modules/
+.venv/
+venv/
+
+# OS noise
+.DS_Store
+Thumbs.db

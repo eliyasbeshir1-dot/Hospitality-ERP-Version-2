@@ -1,0 +1,161 @@
+# M0R conformance workflow — validators only.
+#
+# There is no application at M0R, so there are no application tests. This workflow
+# does not install runtime dependencies, does not build or deploy, and does not
+# create a database. Adding any of those here is scope creep (FR-GOV-001A).
+#
+# Fail-closed per FR-SEC-015: zero results, empty results, skipped results, stale
+# artifacts and unknown status are FAILURES, not passes. A green run with nothing
+# executed is a failure. False-green was the dominant defect class across five
+# review cycles.
+
+name: M0R Conformance
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PKG_DIR: docs/Hospitality_OS_Phase_1_Clean_Build_Package_v2.0.9
+
+jobs:
+  skeleton-conformance:
+    name: Skeleton conformance (forbidden surface)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify no forbidden surface exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/verify_m0r_skeleton.py --repo . --json-report m0r_verification.json
+
+      - name: Fail closed on an absent or unparseable report
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s m0r_verification.json || { echo "::error::verification report absent or empty"; exit 1; }
+          python3 - <<'PY'
+          import json, sys
+          r = json.load(open("m0r_verification.json"))
+          if r.get("passed") is not True:
+              sys.exit("verification did not report passed=true")
+          if r.get("finding_count") != 0:
+              sys.exit(f"verification reported {r.get('finding_count')} finding(s)")
+          if not isinstance(r.get("docs_files_counted"), int) or r["docs_files_counted"] < 90:
+              sys.exit(f"docs package incomplete: {r.get('docs_files_counted')} file(s) counted")
+          print("skeleton conformance report is complete and clean")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: m0r-verification-report
+          path: m0r_verification.json
+          if-no-files-found: error
+
+  docs-package-integrity:
+    name: Docs package integrity (91/91)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify the pinned package is byte-identical
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d "$PKG_DIR" || { echo "::error::pinned package directory is absent"; exit 1; }
+          cd "$PKG_DIR"
+          test -s SHA256SUMS.txt || { echo "::error::SHA256SUMS.txt absent or empty"; exit 1; }
+
+          expected="$(grep -c '^[0-9a-f]\{64\}[ *]' SHA256SUMS.txt)"
+          if [ "$expected" -ne 91 ]; then
+            echo "::error::expected 91 checksum lines, found $expected"
+            exit 1
+          fi
+
+          log="$GITHUB_WORKSPACE/sha256-check.log"
+          sha256sum -c SHA256SUMS.txt | tee "$log"
+          ok="$(grep -c ': OK$' "$log")"
+          if [ "$ok" -ne 91 ]; then
+            echo "::error::expected 91 OK results, found $ok"
+            exit 1
+          fi
+          echo "docs package verified: 91/91 OK, 0 failures"
+
+  occurrence-registry:
+    name: Forbidden-occurrence registry validator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # validate_package_m0.py requires a TEMP path at least three components deep
+      # and is not run here — see planning/CI_TEST_MATRIX.md and KNOWN_LIMITATIONS.
+      - name: Provide a nested temp root
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/m0r/tmp/work"
+          echo "TMPDIR=$RUNNER_TEMP/m0r/tmp/work" >> "$GITHUB_ENV"
+
+      - name: Run the occurrence validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          validator="$PKG_DIR/06_TOOLS/frozen_validator/forbidden_occurrence_validator.py"
+          test -f "$validator" || { echo "::error::occurrence validator absent at $validator"; exit 1; }
+
+          python3 "$validator" "$PKG_DIR" 2>&1 | tee occurrence.log
+          test -s occurrence.log || { echo "::error::validator produced no output — empty result is a failure"; exit 1; }
+
+          if grep -Eqi '\b(skipped|no files scanned|0 (occurrences|files) (scanned|checked))\b' occurrence.log; then
+            echo "::error::validator reported skipped or empty results"
+            exit 1
+          fi
+          grep -q 'PASS' occurrence.log || { echo "::error::validator did not report PASS"; exit 1; }
+
+  mechanism-suite:
+    name: Occurrence mechanism suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Provide a nested temp root
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/m0r/tmp/work"
+          echo "TMPDIR=$RUNNER_TEMP/m0r/tmp/work" >> "$GITHUB_ENV"
+
+      - name: Run the mechanism suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          suite="$PKG_DIR/06_TOOLS/test_occurrence_mechanism.py"
+          test -f "$suite" || { echo "::error::mechanism suite absent at $suite"; exit 1; }
+
+          python3 "$suite" --package "$PKG_DIR" 2>&1 | tee mechanism.log
+          test -s mechanism.log || { echo "::error::suite produced no output — empty result is a failure"; exit 1; }
+
+          if grep -Eqi '\b(skipped|deselected|no tests (ran|collected))\b' mechanism.log; then
+            echo "::error::suite reported skipped or zero-collected cases"
+            exit 1
+          fi
+          echo "mechanism suite completed; expected case count is 28/28"
