@@ -155,9 +155,12 @@ def rls_alter_added_outlet_gate(dsn: str) -> Gate:
     This is the gate that catches a future migration adding outlet_id to an existing
     tenant-scoped table and forgetting to upgrade its policy — the table would keep
     a tenant-only policy and silently expose sibling outlets.
+
+    Scans every schema that holds tenant data. A schema added by a later slice and
+    left out of this list would be an unscanned blind spot, not a pass.
     """
     res = run(dsn, """
-        SELECT c.relname,
+        SELECT n.nspname || '.' || c.relname,
                c.relrowsecurity,
                c.relforcerowsecurity,
                coalesce(string_agg(
@@ -168,9 +171,9 @@ def rls_alter_added_outlet_gate(dsn: str) -> Gate:
         JOIN pg_attribute a ON a.attrelid = c.oid AND a.attname = 'outlet_id' AND a.attnum > 0
                                AND NOT a.attisdropped
         LEFT JOIN pg_policy p ON p.polrelid = c.oid
-        WHERE n.nspname = 'org' AND c.relkind = 'r'
-        GROUP BY c.relname, c.relrowsecurity, c.relforcerowsecurity
-        ORDER BY c.relname;
+        WHERE n.nspname = ANY (ARRAY['org', 'identity']) AND c.relkind = 'r'
+        GROUP BY n.nspname, c.relname, c.relrowsecurity, c.relforcerowsecurity
+        ORDER BY n.nspname, c.relname;
     """)
     if not res.ok:
         return False, "OUTLET_POLICY_NOT_UPGRADED", f"introspection failed: {res.err}"

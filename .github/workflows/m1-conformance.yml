@@ -1,0 +1,266 @@
+# M1 conformance workflow.
+#
+# Replaces the M0R skeleton gate. Migrations, schema and application source are the
+# work of M1 and are no longer forbidden; what this pipeline still refuses is fenced
+# Phase 2/3 surface, v1.1 inheritance, bypass roles in deployment paths and /docs drift.
+#
+# Fail-closed per FR-SEC-015: zero results, empty results, skipped results and unknown
+# status are FAILURES. A green run with nothing executed is a failure.
+#
+# The database is a real PostgreSQL service container, and every gate runs through the
+# least-privileged application role — never the owner, never a superuser (FR-DAT-017).
+
+name: M1 Conformance
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PKG_DIR: docs/Hospitality_OS_Phase_1_Clean_Build_Package_v2.0.9
+  # Running the package validators imports modules under docs/. Without this, Python
+  # writes __pycache__/ into the pinned package, which is forbidden surface and breaks
+  # byte-identity. Do not remove.
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  forbidden-surface:
+    name: M1 forbidden surface
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify no fenced-domain surface exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/verify_m1.py --repo . --json-report m1_verification.json
+
+      - name: Fail closed on an absent or unparseable report
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s m1_verification.json || { echo "::error::verification report absent or empty"; exit 1; }
+          python3 - <<'PY'
+          import json, sys
+          r = json.load(open("m1_verification.json"))
+          if r.get("passed") is not True:
+              sys.exit("verification did not report passed=true")
+          if r.get("finding_count") != 0:
+              sys.exit(f"verification reported {r.get('finding_count')} finding(s)")
+          if r.get("docs_files_counted") != 92:
+              sys.exit(f"/docs drift: {r.get('docs_files_counted')} files, expected 92")
+          if not isinstance(r.get("repository_files_scanned"), int) or r["repository_files_scanned"] < 1:
+              sys.exit("no repository file was scanned — an empty scan is a failure, not a pass")
+          print("m1 forbidden-surface report is complete and clean")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: m1-verification-report
+          path: m1_verification.json
+          if-no-files-found: error
+
+  docs-package-integrity:
+    name: Docs package integrity (91/91)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify the pinned package is byte-identical
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d "$PKG_DIR" || { echo "::error::pinned package directory is absent"; exit 1; }
+          test "$(find "$PKG_DIR" -type f | wc -l)" -eq 92 || {
+            echo "::error::expected exactly 92 files under the package"; exit 1; }
+          cd "$PKG_DIR"
+          test -s SHA256SUMS.txt || { echo "::error::SHA256SUMS.txt absent or empty"; exit 1; }
+
+          expected="$(grep -c '^[0-9a-f]\{64\}[ *]' SHA256SUMS.txt)"
+          if [ "$expected" -ne 91 ]; then
+            echo "::error::expected 91 checksum lines, found $expected"
+            exit 1
+          fi
+
+          log="$GITHUB_WORKSPACE/sha256-check.log"
+          sha256sum -c SHA256SUMS.txt | tee "$log"
+          ok="$(grep -c ': OK$' "$log")"
+          if [ "$ok" -ne 91 ]; then
+            echo "::error::expected 91 OK results, found $ok"
+            exit 1
+          fi
+          echo "docs package verified: 91/91 OK, 0 failures"
+
+  database-verification:
+    name: Migrations, RLS and identity (M1-A + M1-B)
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          # Trust auth on an ephemeral, job-local container. This is what keeps every
+          # credential out of the repository: there is no password to check in.
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_USER: pgadmin
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U pgadmin"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      PGTCP_HOST: localhost
+      PGPORT: "5432"
+      SUPERUSER: pgadmin
+      DB: hospitality_os
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install the PostgreSQL client
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client
+          psql --version
+
+      - name: M1-A — migrations, organizational model, RLS, negative controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/m1a/run_verification.sh 2>&1 | tee m1a.log
+          grep -q '^PASS M1A_VERIFICATION' m1a.log || {
+            echo "::error::M1-A suite did not report PASS"; exit 1; }
+          # A suite that ran nothing is a failure, not a pass.
+          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' m1a.log | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' m1a.log | tail -1)"
+          test "${checks:-0}" -ge 30 || { echo "::error::only ${checks:-0} M1-A checks ran"; exit 1; }
+          test "${failed:-1}" -eq 0 || { echo "::error::${failed} M1-A check(s) failed"; exit 1; }
+          echo "M1-A: $checks checks, 0 failures"
+
+      - name: M1-B — identity, memberships, sessions, step-up, principals
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash tests/m1b/run_verification.sh 2>&1 | tee m1b.log
+          grep -q '^PASS M1B_VERIFICATION' m1b.log || {
+            echo "::error::M1-B suite did not report PASS"; exit 1; }
+          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' m1b.log | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' m1b.log | tail -1)"
+          test "${checks:-0}" -ge 25 || { echo "::error::only ${checks:-0} M1-B checks ran"; exit 1; }
+          test "${failed:-1}" -eq 0 || { echo "::error::${failed} M1-B check(s) failed"; exit 1; }
+          echo "M1-B: $checks checks, 0 failures"
+
+      - name: Every negative control must have been proved red before green
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A control that never went red is a coverage gap wearing a green badge.
+          for control in NC-M1-001 NC-M1-002 NC-M1-003 NC-M1-004 \
+                         NC-M1B-001 NC-M1B-002 NC-M1B-003 NC-M1B-004; do
+            red="$(grep -c "\[PASS\] $control — RED" m1a.log m1b.log | awk -F: '{s+=$2} END {print s}')"
+            green="$(grep -c "\[PASS\] $control — GREEN" m1a.log m1b.log | awk -F: '{s+=$2} END {print s}')"
+            if [ "${red:-0}" -lt 1 ] || [ "${green:-0}" -lt 1 ]; then
+              echo "::error::$control was not shown both red and green (red=$red green=$green)"
+              exit 1
+            fi
+            echo "$control: proved red then green"
+          done
+
+  occurrence-registry:
+    name: Forbidden-occurrence registry validator
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Provide a nested temp root
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/m1/tmp/work"
+          echo "TMPDIR=$RUNNER_TEMP/m1/tmp/work" >> "$GITHUB_ENV"
+
+      - name: Run the occurrence validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          validator="$PKG_DIR/06_TOOLS/frozen_validator/forbidden_occurrence_validator.py"
+          test -f "$validator" || { echo "::error::occurrence validator absent at $validator"; exit 1; }
+
+          python3 "$validator" "$PKG_DIR" 2>&1 | tee occurrence.log
+          test -s occurrence.log || { echo "::error::validator produced no output"; exit 1; }
+
+          grep -qx 'PASS FORBIDDEN_OCCURRENCE_REGISTRY_VALID' occurrence.log || {
+            echo "::error::validator did not emit PASS FORBIDDEN_OCCURRENCE_REGISTRY_VALID"
+            exit 1
+          }
+
+          python3 - <<'PY'
+          import json, re, sys
+          text = open("occurrence.log", encoding="utf-8").read()
+          m = re.search(r"\{.*\}", text, re.S)
+          if not m:
+              sys.exit("validator emitted no JSON result block — unknown status is a failure")
+          r = json.loads(m.group(0))
+          if r.get("passed") is not True:
+              sys.exit(f"validator reported passed={r.get('passed')!r}")
+          if r.get("failure_count") != 0:
+              sys.exit(f"validator reported {r.get('failure_count')} failure(s)")
+          print("occurrence registry valid: passed=true, failure_count=0")
+          PY
+
+  mechanism-suite:
+    name: Occurrence mechanism suite (28/28)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Provide a nested temp root
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/m1/tmp/work"
+          echo "TMPDIR=$RUNNER_TEMP/m1/tmp/work" >> "$GITHUB_ENV"
+
+      - name: Run the mechanism suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          suite="$PKG_DIR/06_TOOLS/test_occurrence_mechanism.py"
+          test -f "$suite" || { echo "::error::mechanism suite absent at $suite"; exit 1; }
+
+          python3 "$suite" --package "$PKG_DIR" 2>&1 | tee mechanism.log
+          test -s mechanism.log || { echo "::error::suite produced no output"; exit 1; }
+
+          if grep -Eqi '\b(skipped|deselected|no tests (ran|collected))\b' mechanism.log; then
+            echo "::error::suite reported skipped or zero-collected cases"
+            exit 1
+          fi
+
+          grep -q '^28/28 correct' mechanism.log || {
+            echo "::error::mechanism suite did not report 28/28 correct"
+            exit 1
+          }
+          echo "mechanism suite: 28/28 correct"

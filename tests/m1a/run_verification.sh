@@ -17,7 +17,17 @@ PGPORT="${PGPORT:-5433}"
 SUPERUSER="${SUPERUSER:-pgadmin}"
 DB="${DB:-hospitality_os}"
 
-dsn() { echo "postgresql://$1@/$2?host=$PGHOST_DIR&port=$PGPORT"; }
+# Two transports, one code path. Locally the cluster is reached over a unix socket;
+# in CI it is a TCP service container. Either way no password appears anywhere: the
+# socket uses peer/trust and the container is started with trust auth, so there is
+# nothing to check in and nothing to leak (FR-SEC-007).
+dsn() {
+    if [ -n "${PGTCP_HOST:-}" ]; then
+        echo "postgresql://$1@$PGTCP_HOST:$PGPORT/$2"
+    else
+        echo "postgresql://$1@/$2?host=$PGHOST_DIR&port=$PGPORT"
+    fi
+}
 
 ADMIN_POSTGRES="$(dsn "$SUPERUSER" postgres)"
 export M1A_ADMIN_DSN="$(dsn "$SUPERUSER" "$DB")"
@@ -36,8 +46,7 @@ BEGIN
     -- The runtime identity used by the NC-M1-004 negative control: privileged on
     -- purpose, so the readiness gate has something real to reject.
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hospitality_bypassrls') THEN
-        CREATE ROLE hospitality_bypassrls LOGIN BYPASSRLS NOSUPERUSER
-            PASSWORD 'bypass_local_only';
+        CREATE ROLE hospitality_bypassrls LOGIN BYPASSRLS NOSUPERUSER;
     END IF;
 END;
 $$;

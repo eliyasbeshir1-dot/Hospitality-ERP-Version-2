@@ -1,33 +1,52 @@
 # CI Test Matrix
 
 **Repository:** `Hospitality-ERP-Version-2`
-**Gate:** M0R — Repository Conformance
+**Gate:** M1 — currently slice B
 **Governing requirement:** FR-SEC-015
-**Workflow:** `.github/workflows/m0r-conformance.yml`
+**Workflow:** `.github/workflows/m1-conformance.yml`
 
-CI at M0R runs **validators only.** There is no application, so there are no application
-tests. Adding them now would be scope creep.
+CI ran validators only at M0R. From M1 it also runs the database suites against a real
+PostgreSQL service container, because there is now something to test.
+
+The M0R workflow has been retired. Its gate, `tools/verify_m0r_skeleton.py`, forbids
+migrations and application source — the legitimate work of M1 — so continuing to run it
+would fail the build for doing the assigned work. The script is retained unmodified as
+historical evidence and is superseded by `tools/verify_m1.py`.
 
 ---
 
 ## What runs today
 
-Four jobs, all required, none permitted to fail soft. Each runs on push, on pull request,
+Five jobs, all required, none permitted to fail soft. Each runs on push, on pull request,
 and on manual dispatch.
 
 | Job | Command | Pass condition |
 |---|---|---|
-| `skeleton-conformance` | `python3 tools/verify_m0r_skeleton.py --repo . --json-report m0r_verification.json` | `PASS M0R_SKELETON`, and the JSON report shows `passed: true` with `finding_count: 0` |
-| `docs-package-integrity` | `sha256sum -c SHA256SUMS.txt` inside `docs/…v2.0.9/` | exactly 91 checksum lines and exactly 91 `OK` results, 0 failures |
+| `forbidden-surface` | `python3 tools/verify_m1.py --repo . --json-report m1_verification.json` | `PASS M1_FORBIDDEN_SURFACE`, JSON shows `passed: true`, `finding_count: 0`, exactly 92 docs files, and at least one file actually scanned |
+| `docs-package-integrity` | `sha256sum -c SHA256SUMS.txt` inside `docs/…v2.0.9/` | exactly 92 files, exactly 91 checksum lines, exactly 91 `OK` results, 0 failures |
+| `database-verification` | `tests/m1a/run_verification.sh` then `tests/m1b/run_verification.sh` against a `postgres:16` service | both suites report PASS, neither reports a failure, each ran at least its expected number of checks, and all eight negative controls were shown red **and** green |
 | `occurrence-registry` | `python3 docs/…/06_TOOLS/frozen_validator/forbidden_occurrence_validator.py docs/…v2.0.9` | emits exactly `PASS FORBIDDEN_OCCURRENCE_REGISTRY_VALID`, and its JSON block shows `passed: true`, `failure_count: 0` |
 | `mechanism-suite` | `python3 docs/…/06_TOOLS/test_occurrence_mechanism.py --package docs/…v2.0.9` | emits `28/28 correct` |
+
+The database job runs every assertion through `hospitality_app`, the least-privileged
+runtime role — never the owner, never a superuser (FR-DAT-017). The service container uses
+trust authentication on an ephemeral, job-local database, which is what keeps every
+credential out of the repository (FR-SEC-007).
+
+### Negative controls are checked for non-vacuity
+
+A control that never fails is not a control. The database job therefore greps both suite
+logs and fails the build unless each of the eight controls — `NC-M1-001` to `NC-M1-004` and
+`NC-M1B-001` to `NC-M1B-004` — appears **both** as RED with a defect planted and as GREEN
+after revert. A control that silently stopped failing is a coverage gap wearing a green
+badge, and this is what catches it.
 
 Both success tokens are asserted **exactly**, not as substrings. A bare `PASS` does not
 satisfy the occurrence job, and `27/28` or `0/0` does not satisfy the mechanism job. Each
 was confirmed against real validator output and against deliberately degraded output before
 being pinned.
 
-`skeleton-conformance` uploads its JSON report as a build artifact, with
+`forbidden-surface` uploads its JSON report as a build artifact, with
 `if-no-files-found: error` so a missing report fails rather than passing quietly.
 
 ---
@@ -64,13 +83,12 @@ How each is enforced in the workflow:
 
 ## What CI must NOT do at this gate
 
-- run application tests — none exist
-- install runtime dependencies for an application
+- test a domain that has not been built yet
+- install runtime dependencies beyond a Python interpreter and a PostgreSQL client
 - build or deploy anything
-- create a database
+- carry any credential, token or secret in the repository
 
-The workflow installs nothing beyond a Python interpreter, and uses only the standard
-library plus the validators shipped in the pinned package.
+The database created by CI is ephemeral and job-local. Nothing is deployed.
 
 ---
 

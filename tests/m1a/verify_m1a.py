@@ -14,7 +14,9 @@ Usage:
 """
 from __future__ import annotations
 
+import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -30,6 +32,25 @@ from pg import count, run  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 MIGRATION = REPO / "migrations" / "0001_organizational_model_and_rls.sql"
+PACKAGE = REPO / "docs" / "Hospitality_OS_Phase_1_Clean_Build_Package_v2.0.9"
+
+
+def fenced_identifier_pattern() -> tuple[str, int]:
+    """Build an identifier-matching regex from the package's fenced vocabulary.
+
+    Terms are matched as whole identifier components — bounded by start, end or an
+    underscore — so a short term such as "hr" cannot false-positive on "threshold".
+    Multi-word terms tolerate either a space or an underscore between words.
+    """
+    rules = json.loads(
+        (PACKAGE / "02_MACHINE_READABLE" / "forbidden_surface_rules.json").read_text(encoding="utf-8")
+    )
+    terms = sorted({t for group in rules["forbidden_positive_obligations"].values() for t in group})
+    alternatives = []
+    for term in terms:
+        cleaned = "".join(ch for ch in term.lower() if ch.isalnum() or ch in " _-")
+        alternatives.append(re.sub(r"[ _-]+", "[_ ]*", cleaned.strip()))
+    return "(^|_)(" + "|".join(alternatives) + ")(_|$)", len(terms)
 
 ADMIN = os.environ["M1A_ADMIN_DSN"]
 MIGRATOR = os.environ["M1A_MIGRATOR_DSN"]
@@ -63,8 +84,10 @@ def section_migration() -> None:
     print("\n--- 1. Migration history (FR-DAT-001, FR-DAT-016) ---")
 
     applied = count(MIGRATOR, "SELECT count(*) FROM migration.schema_migrations;")
-    record("0001 applied to a database built from empty", applied == 1,
-           f"schema_migrations holds {applied} row(s)")
+    has_0001 = count(MIGRATOR, "SELECT count(*) FROM migration.schema_migrations WHERE version = 1;")
+    on_disk = len(list((REPO / "migrations").glob("[0-9][0-9][0-9][0-9]_*.sql")))
+    record("0001 applied to a database built from empty", has_0001 == 1 and applied == on_disk,
+           f"version 0001 recorded; {applied} of {on_disk} migration(s) on disk applied")
 
     res = run(MIGRATOR, "SELECT version, filename FROM migration.schema_migrations ORDER BY version;")
     first = res.rows[0] if res.rows else ["", ""]
@@ -262,15 +285,18 @@ def section_data_architecture() -> None:
     record("all six required entity kinds exist (FR-TEN-002A)", kinds >= 6,
            f"{kinds} node kinds defined")
 
-    # FR-TEN-002B — no storage-location entity, at any gate.
-    forbidden = count(ADMIN, """
+    # FR-TEN-002B — no fenced-domain entity, at any gate. The vocabulary is loaded from
+    # the pinned package rather than restated here: a second copy could drift from the
+    # registry the package validates against.
+    pattern, term_count = fenced_identifier_pattern()
+    forbidden = count(ADMIN, f"""
         SELECT count(*) FROM information_schema.columns
-        WHERE table_schema NOT IN ('pg_catalog','information_schema')
-          AND (table_name ~* '(storage|inventory|stock|ledger|payroll|purchase|supplier|courier|recipe|costing|loyalty|crm|campaign|pickup|delivery)'
-            OR column_name ~* '(storage_location|stock_|payroll_|supplier_|courier_|recipe_)');
+        WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+          AND (table_name ~* '{pattern}' OR column_name ~* '{pattern}');
     """)
     record("no fenced-domain table or column exists (FR-TEN-002B)", forbidden == 0,
-           f"{forbidden} forbidden-domain identifier(s) found in the schema")
+           f"{forbidden} fenced identifier(s) found; vocabulary of {term_count} terms "
+           f"loaded from the pinned package registry")
 
 
 # ===========================================================================
