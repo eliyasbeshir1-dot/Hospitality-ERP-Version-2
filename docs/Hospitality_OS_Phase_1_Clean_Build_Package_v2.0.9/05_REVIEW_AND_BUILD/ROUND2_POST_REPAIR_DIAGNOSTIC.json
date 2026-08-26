@@ -1,0 +1,121 @@
+{
+  "pack_id": "HOSPITALITY-OS-BLIND-MUTATION-PACK-ROUND-2",
+  "author": "Claude (independent reviewer)",
+  "started_at_utc": "2026-08-02T10:12:48Z",
+  "completed_at_utc": "2026-08-02T10:12:52Z",
+  "validator_sha256": "c7932b5e5f97f4663a21f868f852b22b0106b2d7aa60b2d64e6d6b9e960877bf",
+  "validator_sha256_matches_pinned": false,
+  "target_sha256": "08556bf84e3055233a5c712c10bf46132f9f5281484faa9cc2ff00829686d8c4",
+  "target_sha256_matches_pinned": false,
+  "baseline_unmutated_target": {
+    "exit_code": 0,
+    "passed": true,
+    "failure_count": 0,
+    "failure_codes": [],
+    "stderr_tail": []
+  },
+  "baseline_passes": true,
+  "mutations_run": 5,
+  "detected": 5,
+  "missed_count": 0,
+  "missed": [],
+  "apply_errors": [],
+  "by_class": {
+    "structural": {
+      "total": 2,
+      "detected": 2
+    },
+    "projection": {
+      "total": 2,
+      "detected": 2
+    },
+    "semantic": {
+      "total": 1,
+      "detected": 1
+    }
+  },
+  "results": [
+    {
+      "mutation_id": "R2-BMP-S-12",
+      "class": "structural",
+      "expected_property": "Declared counts agree with the actual record inventory",
+      "expected_result": "validator must FAIL",
+      "applied_change": "declared counts block no longer agrees with the record inventory",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 1,
+      "validator_failure_codes": [
+        "DECLARED_COUNT_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-S-18",
+      "class": "structural",
+      "expected_property": "Supersession claims are consistent with lineage status",
+      "expected_result": "validator must FAIL",
+      "applied_change": "a retained requirement now claims supersession of another active requirement",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 1,
+      "validator_failure_codes": [
+        "SUPERSESSION_STATUS_INVALID"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-P-14",
+      "class": "projection",
+      "expected_property": "Canonical-to-workbook parity on the decision register",
+      "expected_result": "validator must FAIL",
+      "applied_change": "a canonical decision target no longer equals the workbook projection",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 1,
+      "validator_failure_codes": [
+        "XLSX_DECISION_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-P-16",
+      "class": "projection",
+      "expected_property": "Canonical-to-workbook parity on component path and classification",
+      "expected_result": "validator must FAIL",
+      "applied_change": "canonical component path and classification no longer equal the workbook projection",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 2,
+      "validator_failure_codes": [
+        "XLSX_ACTIVE_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-M-24",
+      "class": "semantic",
+      "expected_property": "Tips remain optional, unselected and separate from bill allocation",
+      "expected_result": "validator must FAIL",
+      "applied_change": "a canonical decision now permits the tip to be presented inside the bill total",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 2,
+      "validator_failure_codes": [
+        "DECISION_TIP_SEPARATION_WEAKENED",
+        "XLSX_DECISION_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    }
+  ],
+  "interpretation": "Every mutation is expected to make the refrozen validator fail. A MISSED result is a validator coverage gap, not a defect in the target package. Round 2 policy: misses caused by faulty implementation or by failure to enforce an already-approved rule are blockers; misses requiring a genuinely new semantic doctrine are recorded as known coverage limits and handed to the independent Package M0 review. Under the agreed two-round cap there is no Round 3 unless the reviewer finds a P0 defect in the validator itself."
+}

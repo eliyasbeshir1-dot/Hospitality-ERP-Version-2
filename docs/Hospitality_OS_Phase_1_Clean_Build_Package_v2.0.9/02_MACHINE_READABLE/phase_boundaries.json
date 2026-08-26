@@ -1,0 +1,132 @@
+{
+  "version": "2.0.9",
+  "phase_1": {
+    "name": "Customer Service and Outlet Execution",
+    "active": [
+      "QR dine-in",
+      "English/Amharic/Arabic",
+      "waiter",
+      "KDS",
+      "counter POS",
+      "bill",
+      "separate optional tip",
+      "cash",
+      "external terminal recording",
+      "verified Telebirr/CBE Birr proof confirmation",
+      "receipt",
+      "cash shift",
+      "local Wi-Fi continuity",
+      "printing",
+      "operational reports"
+    ],
+    "excluded": [
+      "pickup",
+      "delivery",
+      "loyalty",
+      "CRM",
+      "purchasing",
+      "inventory",
+      "accounting",
+      "HR/workforce",
+      "operational recipes",
+      "costing",
+      "intelligence",
+      "supplier/Horeca runtime",
+      "Phase 2 data portability product"
+    ],
+    "payment_pilot_paths": {
+      "live": [
+        "cash",
+        "external_terminal_result_recording",
+        "telebirr_verified_proof_confirmation",
+        "cbe_birr_verified_proof_confirmation"
+      ],
+      "simulated_until_contracted": [
+        "direct_online_provider_apis"
+      ],
+      "prohibited": [
+        "raw_card_processing_or_storage",
+        "simulator_presented_as_live"
+      ]
+    },
+    "milestone_sequence": [
+      "M0",
+      "M0R",
+      "M1",
+      "M2",
+      "M3",
+      "M4",
+      "M5a",
+      "M5b",
+      "M6"
+    ],
+    "milestone_split": {
+      "M5a": "outlet execution, durable local storage, sync, print, restart and reconnection",
+      "M5b": "same-QR DNS/TLS, bidirectional lease, authority sequence and verified emergency fencing"
+    },
+    "repository_and_migration_boundary": {
+      "Package M0": "documents only",
+      "M0R": "empty repository, docs, plans, CI/scanner design; no database/schema/executable migration/application code",
+      "M1": "create PostgreSQL database and executable migration 0001 after M0R approval/adjudication"
+    },
+    "dns_acceptance": {
+      "ttl_seconds": 30,
+      "max_cloud_to_lan_transition_seconds": 60,
+      "resolver_cache_observation_seconds": 90,
+      "private_dns_supported": "system/automatic resolver using DHCP-provided outlet DNS",
+      "private_dns_unsupported": "strict custom encrypted resolver that bypasses outlet DNS",
+      "out_of_band_guidance": "DHCP Option 114 captive-portal API, router captive portal, printed Wi-Fi signage and staff POS instructions",
+      "ipv4_ipv6_matrix": {
+        "public": "A and AAAA only when routable to cloud",
+        "outlet_ipv4_only": "LAN A, AAAA NODATA",
+        "outlet_ipv6_only": "A NODATA, LAN AAAA",
+        "outlet_dual_stack": "LAN A and AAAA both resolve to the same outlet authority"
+      }
+    },
+    "printing_boundary": {
+      "M4": "minimum real production printer path for physical customer receipt",
+      "M5a": "durable local queue, retry, restart recovery, deduplication, health, outage continuity and reconciliation"
+    },
+    "authority_boundary": {
+      "M5a": "focused outlet-node services exist but no local authority claim",
+      "M5b": "bidirectional lease, same-QR DNS/TLS, sequence and fencing establish local authority continuity"
+    }
+  },
+  "phase_1_extension": {
+    "name": "Post-dine-in customer channel extension",
+    "active": [
+      "pickup",
+      "delivery"
+    ],
+    "prerequisite": "approved dine-in Phase 1 pilot and separate scope review"
+  },
+  "phase_2": {
+    "name": "Purchasing, Inventory, Accounting and Workforce",
+    "active": [
+      "purchasing",
+      "inventory",
+      "receiving",
+      "accounting",
+      "HR/workforce",
+      "loyalty",
+      "promotions",
+      "CRM",
+      "transactional supplier adapters",
+      "tenant data portability product"
+    ]
+  },
+  "phase_3": {
+    "name": "Ingredients, Recipes and Intelligence",
+    "active": [
+      "operational ingredients",
+      "recipes",
+      "yield/loss",
+      "costing",
+      "theoretical consumption",
+      "variance",
+      "menu engineering",
+      "forecasting",
+      "intelligent reordering"
+    ]
+  }
+}

@@ -1,0 +1,334 @@
+{
+  "version": "2.0.9",
+  "generation": "Vocabulary and occurrence policies are generated from the v2.0.8 Phase 1 boundary and loaded directly by the validator.",
+  "scope": [
+    "all controlled Markdown",
+    "all controlled JSON",
+    "all controlled workbook cells",
+    "build prompt",
+    "combined publications",
+    "from M0R onward dependencies/packages/migrations/schemas/routes/jobs/workers/screens/tests/configuration/generated artifacts/container contents"
+  ],
+  "forbidden_positive_obligations": {
+    "pickup": [
+      "pickup",
+      "pickup code",
+      "collection order",
+      "takeaway"
+    ],
+    "delivery": [
+      "delivery",
+      "courier",
+      "driver dispatch",
+      "route optimization"
+    ],
+    "loyalty_crm_promotions": [
+      "loyalty",
+      "reward",
+      "loyalty points",
+      "crm",
+      "campaign",
+      "promotion",
+      "marketing campaign"
+    ],
+    "purchasing_procurement_supplier": [
+      "purchase",
+      "purchasing",
+      "procurement",
+      "supplier",
+      "goods receipt",
+      "receiving"
+    ],
+    "inventory_stock_storage": [
+      "inventory",
+      "stock",
+      "warehouse",
+      "storage location",
+      "lot",
+      "expiry stock"
+    ],
+    "accounting_finance_ledger": [
+      "accounting",
+      "general ledger",
+      "journal",
+      "journal entry",
+      "posting",
+      "accounts payable",
+      "accounts receivable",
+      "cogs"
+    ],
+    "workforce_hr_payroll": [
+      "workforce",
+      "human resources",
+      "hr",
+      "payroll",
+      "attendance",
+      "roster",
+      "timekeeping",
+      "employee shift",
+      "break record"
+    ],
+    "operational_recipes_costing": [
+      "operational recipe",
+      "recipe yield",
+      "yield",
+      "food cost",
+      "costing",
+      "ingredient consumption",
+      "theoretical consumption",
+      "variance"
+    ],
+    "intelligence_ai": [
+      "forecast",
+      "forecasting",
+      "intelligence",
+      "ai recommendation",
+      "predictive",
+      "optimization recommendation"
+    ],
+    "horeca_supplier_runtime": [
+      "horeca addis",
+      "supplier connector",
+      "supplier runtime"
+    ],
+    "data_portability_product": [
+      "data portability product",
+      "tenant export product"
+    ]
+  },
+  "allowed_contexts": [
+    "explicit deferral/exclusion statement",
+    "historical evidence clearly marked",
+    "negative-control fixture",
+    "future extension contract with no Phase 1 entity/field/route/screen/test"
+  ],
+  "expected_result": "Zero positive Phase 1 obligations after semantic allowlist application.",
+  "negation_markers": [
+    "no",
+    "without",
+    "independently of",
+    "separate from",
+    "not present",
+    "does not create",
+    "creates no",
+    "contains no",
+    "has no",
+    "tests no",
+    "stores no",
+    "excluded",
+    "prohibited",
+    "never",
+    "deferred",
+    "documentation only",
+    "outside Phase 1",
+    "activates with",
+    "later phases",
+    "no Phase 1",
+    "future",
+    "do not",
+    "must not",
+    "cannot",
+    "may not",
+    "not",
+    "named only",
+    "documented only"
+  ],
+  "term_sense_exclusions": [
+    {
+      "term": "delivery",
+      "sense": "message, command, configuration or content delivery between cloud and outlet node",
+      "not": "courier fulfilment channel",
+      "example": "FR-INT-004",
+      "allowed_requirement_ids": [
+        "FR-INT-004"
+      ],
+      "allowed_patterns": [
+        "\\b(?:message|command|configuration|content|event|data)\\s+delivery\\b",
+        "\\bdelivery\\s+(?:between|from|to)\\s+(?:the\\s+)?(?:cloud|outlet\\s+node)\\b"
+      ],
+      "blocked_patterns": []
+    },
+    {
+      "term": "inventory",
+      "sense": "asset register of physical outlet equipment",
+      "not": "stock or consumable inventory",
+      "example": "FR-OPS-018",
+      "allowed_requirement_ids": [
+        "FR-MNU-001",
+        "FR-MNU-007",
+        "FR-OPS-018"
+      ],
+      "allowed_patterns": [
+        "\\b(?:outlet|asset|equipment|device)\\s+inventory\\b",
+        "\\binventory\\s+(?:of|for)\\s+(?:physical\\s+)?(?:assets|equipment|devices|nodes|routers|terminals|printers)\\b"
+      ],
+      "blocked_patterns": []
+    },
+    {
+      "term": "loyalty",
+      "sense": "guest sessions require no loyalty registration",
+      "not": "loyalty programme",
+      "example": "FR-AUTH-003",
+      "allowed_requirement_ids": [
+        "FR-AUTH-003"
+      ],
+      "allowed_patterns": [
+        "\\b(?:without|no)\\s+(?:phone,?\\s*email\\s+or\\s+)?loyalty\\s+registration\\b"
+      ],
+      "blocked_patterns": []
+    },
+    {
+      "term": "costing",
+      "sense": "separation from confidential future costing",
+      "not": "food-costing module",
+      "example": "FR-RCP-008A",
+      "allowed_requirement_ids": [
+        "FR-RCP-008A"
+      ],
+      "allowed_patterns": [
+        "\\b(?:confidential\\s+)?future\\s+(?:operational\\s+)?(?:recipes?.*?)?costing\\b",
+        "\\bseparate\\s+from.*\\bcosting\\b"
+      ],
+      "blocked_patterns": []
+    },
+    {
+      "term": "variance",
+      "sense": "cash-drawer or payment variance in a Phase 1 cash-shift context",
+      "not": "food-cost, yield or inventory variance",
+      "example": "FR-CSH-003",
+      "allowed_requirement_ids": [
+        "FR-CSH-003",
+        "FR-CSH-008"
+      ],
+      "allowed_patterns": [
+        "\\b(?:cash|drawer|payment|denomination|close|refund|payout|settlement)\\b.{0,80}\\bvariance\\b",
+        "\\bvariance\\b.{0,80}\\b(?:cash|drawer|payment|denomination|close|refund|payout|settlement)\\b"
+      ],
+      "blocked_patterns": []
+    },
+    {
+      "term": "export",
+      "sense": "tenant data export as an administrative operation, not a separate data-portability product",
+      "not": "data portability product",
+      "example": "FR-OPS-015",
+      "allowed_requirement_ids": [
+        "FR-OPS-015"
+      ],
+      "allowed_patterns": [
+        "\\b(?:tenant|administrative|data)\\s+export\\b(?!\\s+product)",
+        "\\bexport\\s+(?:operation|file|archive)\\b"
+      ],
+      "blocked_patterns": []
+    },
+    {
+      "term": "accounting",
+      "sense": "documented Phase 2 extension event contract with no Phase 1 accounting consumer",
+      "not": "accounting module or ledger implementation",
+      "example": "FR-PAY-010A",
+      "allowed_requirement_ids": [
+        "FR-PAY-010A"
+      ],
+      "allowed_patterns": [
+        "\\b(?:future|phase\\s+2)\\s+accounting\\s+(?:consumer|extension)\\b.{0,120}\\b(?:no|without)\\b.{0,20}\\b(?:consumer|phase\\s+1)\\b",
+        "\\bdocumented\\s+phase\\s+2\\s+accounting\\s+extension\\s+events\\b",
+        "\\baccounting\\s+(?:consumer|module|ledger)\\s+(?:is\\s+)?(?:absent|excluded|deferred)\\b"
+      ],
+      "blocked_patterns": []
+    },
+    {
+      "term": "workforce",
+      "sense": "Phase 2 workforce extension-contract documentation only",
+      "not": "Phase 1 workforce or payroll runtime",
+      "example": "FR-SEC-010B",
+      "allowed_requirement_ids": [
+        "FR-SEC-010B"
+      ],
+      "allowed_patterns": [
+        "\\bphase\\s+2\\s+workforce\\s+extension\\s+contract\\s+only\\b"
+      ],
+      "blocked_patterns": [
+        "\\b(?:enable|provide|manage|record|store|capture|support)\\b.{0,80}\\bworkforce\\b"
+      ]
+    },
+    {
+      "term": "payroll",
+      "sense": "Phase 2 workforce extension-contract documentation only",
+      "not": "Phase 1 workforce or payroll runtime",
+      "example": "FR-SEC-010B",
+      "allowed_requirement_ids": [
+        "FR-SEC-010B"
+      ],
+      "allowed_patterns": [
+        "\\bphase\\s+2\\s+workforce\\s+extension\\s+contract\\s+only\\b"
+      ],
+      "blocked_patterns": [
+        "\\b(?:enable|provide|manage|record|store|capture|support)\\b.{0,80}\\bpayroll\\b"
+      ]
+    }
+  ],
+  "scan_rule": "Each forbidden-term occurrence must be directly negated within its own adversative clause or match an exact approved sense pattern for the active requirement. Requirement-wide or sentence-wide authorization is prohibited.",
+  "execution_contract": {
+    "authority": "This JSON file is loaded directly by the validator. Hard-coded substitute vocabulary is prohibited.",
+    "sentence_rule": "Split on sentence boundaries and adversative clause boundaries; evaluate each occurrence only in its own clause.",
+    "token_rule": "Terms and one-word negation markers use alphanumeric token boundaries; phrases use bounded whitespace-tolerant matching.",
+    "positive_obligation_rule": "A forbidden term without same-sentence negation or an exact term-sense allowlist match fails regardless of the verb used. The positive-obligation verb list is mutation coverage, not an exhaustive permission gate.",
+    "allowlist_rule": "Every allowed ID and example ID must exist, and an allowlisted occurrence must match an approved phrase pattern.",
+    "mutation_coverage": "The four Codex v2.0.7 bypasses, cross-sentence/adversative negation, double negation, unrelated no substrings, every forbidden domain and every permitted sense are tested."
+  },
+  "positive_obligation_verbs": [
+    "activate",
+    "allow",
+    "automate",
+    "calculate",
+    "capture",
+    "collect",
+    "create",
+    "dispatch",
+    "enable",
+    "expose",
+    "generate",
+    "implement",
+    "integrate",
+    "maintain",
+    "manage",
+    "offer",
+    "operate",
+    "persist",
+    "post",
+    "process",
+    "provide",
+    "record",
+    "register",
+    "require",
+    "schedule",
+    "store",
+    "support",
+    "track",
+    "write"
+  ],
+  "occurrence_policy": {
+    "adversative_markers": [
+      "but",
+      "however",
+      "yet",
+      "nevertheless",
+      "nonetheless",
+      "except",
+      "comma-while",
+      "comma-although",
+      "semicolon"
+    ],
+    "double_negation_neutralizers": [
+      "prevent",
+      "prohibit",
+      "forbid",
+      "block",
+      "stop",
+      "restrict",
+      "disallow",
+      "disable"
+    ],
+    "max_occurrence_context_characters": 220,
+    "rule": "Split sentences and adversative clauses. A bounded negation before the occurrence is invalid if an unnegated positive-obligation verb appears between the negation and the occurrence. Post-occurrence deferral markers are occurrence-linked. Double-negation of a neutralizer is positive and fails."
+  }
+}

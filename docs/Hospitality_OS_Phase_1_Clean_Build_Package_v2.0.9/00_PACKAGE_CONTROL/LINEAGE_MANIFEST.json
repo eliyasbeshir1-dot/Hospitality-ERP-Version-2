@@ -1,0 +1,25 @@
+{
+  "package_version": "2.0.9",
+  "current_canonical_source": {
+    "file": "Hospitality_OS_Reconciled_Canonical_Register_v0.1.4.zip",
+    "sha256": "804dc9e81aaa29826f77961681287d5bd1eaa2ac6ef5ddc3ae598db4e5e0fd32",
+    "content_root_sha256": "cd6b8cfc2175004cc2057deb7d9de1ad0d6264a23c82f00e15e96faa526c0c96",
+    "role": "sole canonical content source"
+  },
+  "frozen_validator": {
+    "file": "Hospitality_OS_Validator_Freeze_v1.0.5.zip",
+    "sha256": "628ae551120497280a82fdfcf8fd8bd2a69e4c893b400cd94d1914529788cce9",
+    "script_sha256": "ee65b8ec3292db19798f785e23a2d54969eadd91f00e98888520d16051c9f7b0"
+  },
+  "historical_sources": [
+    {
+      "version": "v2.0.4",
+      "role": "historical parent and baseline registers only"
+    },
+    {
+      "version": "v2.0.3",
+      "role": "historical 500/100 row-level dispositions only"
+    }
+  ],
+  "supersession_rule": "No parallel edits to earlier lineages; all current changes are represented in the pinned reconciled source."
+}

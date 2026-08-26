@@ -1,0 +1,967 @@
+{
+  "version": "2.0.8-reconciliation-candidate",
+  "count": 120,
+  "decisions": [
+    {
+      "id": "D-001",
+      "topic": "Product identity",
+      "decision": "The product is a multi-tenant, multilingual Hospitality Operating System for cafés, restaurants, bakeries, bars, food courts, hotel outlets and related hospitality operators.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-002",
+      "topic": "Commercial posture",
+      "decision": "The product is designed for internal use and commercial sale to independent outlets, groups, franchises and enterprise operators.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-003",
+      "topic": "Working name",
+      "decision": "HospitalityOS is a working codename only; product name, trademarks and customer-facing branding are configurable and not hard-coded.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-004",
+      "topic": "Architecture horizon",
+      "decision": "The architecture must support 10–20 years of additive evolution without requiring a customer-platform rebuild.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-005",
+      "topic": "Implementation style",
+      "decision": "Start as a modular monolith with strict domain boundaries, versioned contracts and reliable events; do not begin with premature microservices.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-006",
+      "topic": "API doctrine",
+      "decision": "All business capabilities are exposed through versioned APIs; frontends do not perform direct business writes to the database.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-007",
+      "topic": "Tenant hierarchy",
+      "decision": "The hierarchy is platform → tenant → brand → legal entity → outlet → service area → station/table/device, with scopes configurable per tenant.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-008",
+      "topic": "Tenant independence",
+      "decision": "Every tenant can operate without Horeca Addis, without another supplier connector and without platform-owned payment services.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-009",
+      "topic": "Second-tenant proof",
+      "decision": "A differently branded second tenant must be included in automated tests and demonstration data to prove isolation and neutrality.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-010",
+      "topic": "Customer languages",
+      "decision": "English, Amharic and Arabic are the first-class customer launch languages. Arabic uses true right-to-left layout. Each outlet may order or disable launch languages only after approved translations remain complete.",
+      "target": "Phase 1",
+      "classification": "MODIFY",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-011",
+      "topic": "Localization model",
+      "decision": "Canonical records are language-neutral and use customer translation records with fallback, completeness and approval controls; no duplicated menu per language. Customer interfaces are fully localized, while staff and back-office interfaces are English-first but translation-ready.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-012",
+      "topic": "Guest-first ordering",
+      "decision": "A customer may browse and order as a guest; loyalty registration must never block ordinary service.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-013",
+      "topic": "Customer identity",
+      "decision": "Phase 1 is guest-first. Phone number remains the preferred future customer identity for loyalty/account features, which activate after the Phase 1 service core is approved.",
+      "target": "Phase 2",
+      "classification": "MODIFY",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-014",
+      "topic": "Table QR security",
+      "decision": "Table QR codes use opaque signed references and revocable versions; raw sequential table IDs are not exposed.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-015",
+      "topic": "Table session boundary",
+      "decision": "A table session is separate from carts, orders, checks and payments and may contain multiple participants, devices and orders.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-016",
+      "topic": "Multiple guests",
+      "decision": "Multiple customers at one table can maintain personal or shared carts, place separate orders and settle together or separately.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-017",
+      "topic": "Initial customer choices",
+      "decision": "After language and guest/loyalty choice, the customer can view the menu, call a waiter or view an active table session.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-018",
+      "topic": "Service request ownership",
+      "decision": "Every customer service request has a type, target role, assignment, acknowledgement timer, escalation and closure evidence.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-019",
+      "topic": "Order channels",
+      "decision": "Phase 1 implements dine-in QR, waiter-entered dine-in and counter/POS through one order engine. Pickup and delivery remain additive channel contracts and are not built until the dine-in release is approved.",
+      "target": "Phase 1/Core",
+      "classification": "MODIFY",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-020",
+      "topic": "Future channels",
+      "decision": "Kiosk, marketplace, room service, catering, drive-through and voice/AI ordering are additive channel adapters, not separate order systems.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-021",
+      "topic": "Order immutability",
+      "decision": "Submitted orders and accepted order lines are not silently overwritten; changes use additions, authorized amendments, cancellations, voids or reversals.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-022",
+      "topic": "Separate commercial records",
+      "decision": "Order, fulfillment ticket, check/bill, payment, stock movement and accounting entry are separate linked records.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-023",
+      "topic": "Kitchen routing",
+      "decision": "Each order line is routed to one or more production stations by a versioned preparation profile; one order may produce multiple tickets.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-024",
+      "topic": "Customer status model",
+      "decision": "Customer-facing statuses are simplified and translated in the order/session language, which is snapshotted for communications and support; internal preparation and service statuses remain operationally detailed and launch in English.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-025",
+      "topic": "Course control",
+      "decision": "Dine-in items support fire-now, hold and course sequencing; the customer cannot bypass outlet policies for controlled courses.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-026",
+      "topic": "Availability validation",
+      "decision": "Availability is checked when displaying the menu and revalidated when an order is submitted; stale availability never guarantees fulfillment.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-027",
+      "topic": "Menu identity",
+      "decision": "A menu item is distinct from a recipe, sellable variant, price, modifier set and outlet availability record.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-028",
+      "topic": "Recipe confidentiality",
+      "decision": "Customer-visible ingredient descriptions are separate from confidential operational recipes and quantities.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-029",
+      "topic": "Allergen governance",
+      "decision": "Allergen information is structured, translated, versioned and shown with approved text plus universal supporting icons; an allergy declaration triggers a prominent confirmation and kitchen alert, not a medical guarantee. Required safety translation gaps block publication in that language.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-030",
+      "topic": "Dietary labels",
+      "decision": "Vegetarian, vegan, fasting, halal and other labels are configurable claims with definitions and approval responsibility per tenant and jurisdiction.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-031",
+      "topic": "Recipe versioning",
+      "decision": "Stock consumption and costing reference the recipe/BOM version effective when the order line was accepted or fulfilled.",
+      "target": "Phase 2/3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-032",
+      "topic": "Modifier rules",
+      "decision": "Modifiers use explicit min/max, included quantity, price delta, preparation effect, allergen effect and recipe effect.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-033",
+      "topic": "Menu scheduling",
+      "decision": "Menus, prices and availability can vary by outlet, channel, daypart, date, service area and fulfillment method.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-034",
+      "topic": "Pickup scope",
+      "decision": "Pickup supports branch selection, now/scheduled slots, promised-ready time, collection code and customer-arrived notification.",
+      "target": "Phase 1 Extension",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-035",
+      "topic": "Delivery scope",
+      "decision": "Phase 1 delivery supports zones/polygons, fees, minimums, GPS pin plus landmarks, manual dispatch, own-driver or manual third-party handoff, COD and proof.",
+      "target": "Phase 1 Extension/Phase 3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-036",
+      "topic": "Advanced delivery",
+      "decision": "Automatic batching, route optimization, marketplace aggregation and fully automated courier APIs are later modules using the same delivery domain.",
+      "target": "Phase 1 Extension/Phase 3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-037",
+      "topic": "Delivery versus kitchen states",
+      "decision": "Preparation status and delivery status remain separate; a ready order may still be awaiting a driver.",
+      "target": "Phase 1 Extension/Phase 3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-038",
+      "topic": "Address doctrine",
+      "decision": "Delivery addresses support map coordinates, landmark, building/floor/unit and free-text instructions; formal street address is not mandatory.",
+      "target": "Phase 1 Extension/Phase 3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-039",
+      "topic": "Payment architecture",
+      "decision": "Payments use provider adapters and tokenized references; raw card data is never stored by the platform.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-040",
+      "topic": "Payment methods",
+      "decision": "Cash, external card-terminal result recording and verified Telebirr/CBE Birr proof confirmation are live pilot paths. Direct online-provider APIs remain adapter/simulator-only until contracted and credentialed. Raw card processing is prohibited and receipts state the actual method.",
+      "target": "Core",
+      "classification": "MODIFY",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-041",
+      "topic": "Cash and card request",
+      "decision": "A dine-in customer may request cash/card collection; staff receives a routed, timed payment-service request.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-042",
+      "topic": "Split settlement",
+      "decision": "Checks can be split by item, person, amount or equal share; partial payments and multiple tenders are supported without changing the original order history.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-043",
+      "topic": "Tips and service charge",
+      "decision": "The bill, optional tip, service charge, tax and every other fee are distinct records and presentation lines. The payment screen contains a separate optional Tip box; no tip is selected by default; total paid equals bill settlement plus separately recorded tip.",
+      "target": "Phase 1",
+      "classification": "MODIFY",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-044",
+      "topic": "Refund controls",
+      "decision": "Refunds, voids, discounts and complimentary items require configurable permissions, reason codes and audit; thresholds can require approval.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-045",
+      "topic": "Cash-shift control",
+      "decision": "Cash drawers and cashier shifts have opening float, collections, payouts, expected balance, actual count and variance approval.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-046",
+      "topic": "Receipt strategy",
+      "decision": "The platform supports digital and printed customer receipts in the order language, reprints with attribution, English internal documents and fiscal adapter hooks.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-047",
+      "topic": "Stock ledger",
+      "decision": "Inventory changes are recorded in an append-only stock ledger with lot/location/UOM context; corrections use reversals or adjustment events.",
+      "target": "Phase 2/3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-048",
+      "topic": "Negative stock",
+      "decision": "Negative stock is blocked by default; any permitted override is tenant policy, role restricted, reasoned and visibly exceptional.",
+      "target": "Phase 2/3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-049",
+      "topic": "Stock consumption timing",
+      "decision": "Default recipe consumption occurs at fulfillment completion, with configurable reservation/commit timing and explicit waste/rework adjustments.",
+      "target": "Phase 2/3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-050",
+      "topic": "Packaging inventory",
+      "decision": "Pickup and delivery packaging is modeled as stock and may be costed or charged separately.",
+      "target": "Phase 2/3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-051",
+      "topic": "Waste and staff meals",
+      "decision": "Waste, spoilage, tasting, staff meal, promotion and complimentary consumption use distinct reasoned stock events.",
+      "target": "Phase 2/3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-052",
+      "topic": "Procurement neutrality",
+      "decision": "Procurement supports manual suppliers and a generic supplier integration hub; no supplier owns the restaurant’s internal item identity.",
+      "target": "Phase 2/3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-053",
+      "topic": "Supplier mapping",
+      "decision": "Internal ingredients/items map to zero or more supplier SKUs with pack/UOM conversions, validity dates, priority and substitution rules.",
+      "target": "Phase 2/3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-054",
+      "topic": "Horeca Addis optionality",
+      "decision": "The Horeca Addis connector is optional, disabled by default and enabled by tenant/outlet entitlement and configuration.",
+      "target": "Phase 2/3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-055",
+      "topic": "Horeca Addis timing",
+      "decision": "The connector contract and simulator exist in Phase 1; basic transactional integration activates in Phase 2 and intelligent reordering in Phase 3.",
+      "target": "Phase 2/3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-056",
+      "topic": "Horeca Addis independence",
+      "decision": "The restaurant platform continues to operate if Horeca Addis is disconnected or unavailable and can convert drafts to manual supplier orders.",
+      "target": "Phase 2/3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-057",
+      "topic": "External order validation",
+      "decision": "A connected supplier order requires online validation of current price, availability, pack, minimums, account status and delivery slot before final submission.",
+      "target": "Phase 2/3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-058",
+      "topic": "Human procurement approval",
+      "decision": "Automated or forecast-based reorders create recommendations/drafts; a human or configured approval workflow authorizes purchase commitment.",
+      "target": "Phase 2/3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-059",
+      "topic": "Receiving chain",
+      "decision": "Purchase order, supplier acknowledgement, delivery, goods receipt, discrepancy, return/claim, supplier invoice and payment are distinct linked records.",
+      "target": "Phase 2/3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-060",
+      "topic": "Financial engine",
+      "decision": "The native accounting foundation uses double-entry journals, immutable postings, reversals, periods, cost centers and auditable subledgers.",
+      "target": "Phase 2",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-061",
+      "topic": "Phase 1 finance",
+      "decision": "Phase 1 records immutable operational checks, payments, refunds, tips, cash shifts and settlement summaries. It does not implement a general ledger, AP, AR, inventory accounting, COGS or financial statements.",
+      "target": "Phase 1",
+      "classification": "MODIFY",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-062",
+      "topic": "Phase 2 finance",
+      "decision": "Full AP, AR, purchasing, bank reconciliation, budgets, period close, inventory valuation and outlet/legal-entity reporting activate in Phase 2.",
+      "target": "Phase 2",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-063",
+      "topic": "External accounting",
+      "decision": "External accounting/fiscal systems connect through adapters and a system-of-record registry; duplicate authoritative ledgers are prohibited.",
+      "target": "Phase 2",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-064",
+      "topic": "HR foundation",
+      "decision": "Phase 1 includes staff identities, outlet memberships, roles and terminal access only. Employee records, rosters, clocking, attendance and workforce management activate in Phase 2.",
+      "target": "Phase 2",
+      "classification": "MODIFY",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-065",
+      "topic": "Payroll scope",
+      "decision": "Full payroll is a Phase 3 country package; the core stores payroll inputs and approved results without hard-coding one country’s law.",
+      "target": "Phase 2/3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-066",
+      "topic": "Loyalty model",
+      "decision": "Loyalty is optional per tenant and supports phone-based membership, points/tiers/rewards, consent, balances and immutable earn/redeem events.",
+      "target": "Phase 2/3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-067",
+      "topic": "Customer privacy",
+      "decision": "Guest sessions minimize personal data; loyalty and delivery PII are purpose-limited, consented, access-controlled and separately protected.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-068",
+      "topic": "Promotions",
+      "decision": "Promotions are rule-driven, versioned and conflict-resolved; staff cannot invent uncontrolled discounts at checkout.",
+      "target": "Phase 2/3",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-069",
+      "topic": "Offline customer front",
+      "decision": "The customer QR experience is cloud-connected by default but continues over restaurant Wi-Fi during outage using the same per-outlet public hostname, split-horizon DNS and public-trust TLS.",
+      "target": "Phase 1",
+      "classification": "MODIFY",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-070",
+      "topic": "Offline internal operations",
+      "decision": "Customer QR ordering, waiter/POS, KDS/bar/expo, printing, table service, bills, separate tips, cash, external-terminal recording and verified Telebirr/CBE Birr proof confirmation continue on the outlet network during outage when the underlying provider result can be verified.",
+      "target": "Phase 1",
+      "classification": "MODIFY",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-071",
+      "topic": "Cloud-only tier",
+      "decision": "A production Phase 1 outlet includes the focused local continuity node. Cloud-only mode is allowed only for development, demonstration or explicitly non-production evaluation.",
+      "target": "Phase 1",
+      "classification": "MODIFY",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-072",
+      "topic": "Edge authority",
+      "decision": "The outlet node is the authoritative writer for active dine-in operations. Cloud forwarding depends on a valid bidirectional reachability lease and the same durable monotonic signed authority sequence.",
+      "target": "Core",
+      "classification": "MODIFY",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-073",
+      "topic": "No direct replication",
+      "decision": "Direct database replication is not the business synchronization mechanism; use transactional outbox/inbox, ordered cursors, idempotency and explicit conflicts.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-074",
+      "topic": "Offline restrictions",
+      "decision": "During outage, direct online-provider payments and other external-authority actions are unavailable or queued. Cash, external-terminal recording and verified Telebirr/CBE Birr proof confirmation may continue; unverified claims remain pending.",
+      "target": "Core",
+      "classification": "MODIFY",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-075",
+      "topic": "Print resilience",
+      "decision": "Kitchen/bar/receipt printing has a local print agent, printer routing, retry/deduplication and operator-visible failure handling.",
+      "target": "Phase 1",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-076",
+      "topic": "Authentication resilience",
+      "decision": "Staff uses phone/email identity with secure sessions; trusted local terminals may offer quick PIN only for low-risk actions with step-up for sensitive work.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-077",
+      "topic": "Authorization",
+      "decision": "Permissions are deny-by-default and scoped by tenant, legal entity, outlet, role, resource and action; server-side enforcement is mandatory.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-078",
+      "topic": "Segregation of duties",
+      "decision": "High-risk finance, stock, payroll, refund and configuration actions support maker-checker and prevent self-approval where configured.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-079",
+      "topic": "Audit",
+      "decision": "Security, commercial, stock, finance, menu, permission, sync and administrative events are append-only and attributable to actor, terminal, source and correlation.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-080",
+      "topic": "Data retention",
+      "decision": "Transactional records are retained according to tenant/jurisdiction policy; ordinary users cannot hard-delete completed commercial or financial records.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-081",
+      "topic": "File safety",
+      "decision": "Uploads are private by default, type/size validated, safely named, malware-scannable, hash recorded and served through authorized signed access.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-082",
+      "topic": "Observability",
+      "decision": "Structured logs, traces, metrics, health checks, business alerts and audit are distinct; secrets and sensitive payment/PII data are redacted.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-083",
+      "topic": "Deployment",
+      "decision": "Development, CI/test, staging and production are separate; containers and adapters support managed cloud and future private/on-prem deployment.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-084",
+      "topic": "Backup and recovery",
+      "decision": "Database and file backups, encrypted off-site copies, restore drills, recovery objectives and edge/cloud reconciliation are part of completion.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-085",
+      "topic": "Update safety",
+      "decision": "Application, database, event and edge protocol versions are checked; incompatible peers pause safely and updates support rollback.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-086",
+      "topic": "Testing doctrine",
+      "decision": "Compilation or page scaffolding is not completion. Real PostgreSQL, production-role, contract, E2E, concurrency, outage, restore and production-image tests are required, with the planted negative-control registry frozen at Package M0.",
+      "target": "Core",
+      "classification": "MODIFY",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-087",
+      "topic": "Golden journeys",
+      "decision": "Mandatory end-to-end golden journeys are executable acceptance gates and must use real persistence and integrations/simulators.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-088",
+      "topic": "No fake completion",
+      "decision": "No acceptance-critical TODO, mock-only handler, fake persistence, skipped test, sample secret or manual database fix may remain at handoff.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-089",
+      "topic": "Accessibility",
+      "decision": "Customer and staff experiences support keyboard/touch, semantic structure, sufficient contrast, non-color status indicators and screen-reader essentials.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-090",
+      "topic": "Device form factors",
+      "decision": "Customer web is mobile-first; waiter/POS/KDS are touch-first; back office is responsive desktop-first; all reuse versioned APIs.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-091",
+      "topic": "Configuration over forks",
+      "decision": "Brands, taxes, service rules, roles, numbering, templates, languages, feature flags and connectors are configuration, not tenant-specific code forks.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-092",
+      "topic": "Data portability",
+      "decision": "Authorized tenants can export their master and transactional data in documented formats; platform lock-in must not rely on withholding customer data.",
+      "target": "Phase 2",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-093",
+      "topic": "AI boundary",
+      "decision": "AI may draft translations, forecasts, reorder recommendations, menus and analytics, but customer content is never translated live at runtime and AI cannot be sole authority for allergy, payment, accounting, payroll or purchase commitment.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-094",
+      "topic": "Reservations and waitlist",
+      "decision": "Reservations/waitlist are Phase 2 modules connected to the table/session domain; Phase 1 architecture reserves the capability without building a separate booking system.",
+      "target": "Future",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-095",
+      "topic": "Central kitchen and franchise",
+      "decision": "Central kitchen, commissary, inter-outlet transfer, franchise control and royalty reporting are later modules using existing tenant/outlet/inventory/finance boundaries.",
+      "target": "Future",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-096",
+      "topic": "Hotel integration",
+      "decision": "Room charge and hotel/PMS integration are optional adapters; core billing never assumes the outlet belongs to a hotel.",
+      "target": "Future",
+      "classification": "DEFER",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-097",
+      "topic": "Setup wizard",
+      "decision": "The setup workflow configures tenant, brand, outlet, English/Amharic/Arabic customer content, tables and QR codes, stations, taxes, service charges, separate tip settings, payment methods, printers and the local continuity node.",
+      "target": "Phase 1",
+      "classification": "MODIFY",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-098",
+      "topic": "Demo safety",
+      "decision": "Demo data is clearly marked, removable and never mixed into production opening balances.",
+      "target": "Core",
+      "classification": "KEEP",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-099",
+      "topic": "External blockers",
+      "decision": "Missing third-party credentials do not justify fake completion. Only explicitly activated Phase 1 providers require adapters and simulators; deferred Phase 2/3 providers must not create dormant production routes or workers.",
+      "target": "Core",
+      "classification": "MODIFY",
+      "source": "v1.1"
+    },
+    {
+      "id": "D-100",
+      "topic": "Authority and precedence",
+      "decision": "Source of Truth and locked decisions govern conflicts. Independent adverse verdicts pause progression; disputes follow builder response, reviewer rebuttal and founder decision. Overrides remain recorded, name the affected requirement/rule and are re-examined at the next audit. All duplicated narrative, JSON and workbook projections are generated from canonical structured records and parity-checked before pinning.",
+      "target": "Core",
+      "classification": "MODIFY",
+      "source": "v2.0.8 amendment AMD-V208-002"
+    },
+    {
+      "id": "D-101",
+      "topic": "Clean repository",
+      "decision": "After Package M0 approval or documented founder adjudication, Phase 1 creates a new empty repository for M0R documentation and conformance only. The PostgreSQL database and executable migration `0001` begin in M1 only after M0R approval or adjudication. The v1.1 repository remains frozen reference.",
+      "target": "Core",
+      "classification": "NEW",
+      "source": "v2.0.2"
+    },
+    {
+      "id": "D-102",
+      "topic": "Controlled code reuse",
+      "decision": "No code is copied from the frozen repository unless the unit is reviewed in isolation, dependencies and provenance are recorded, and tests written against the exact pinned package prove compliance with that package.",
+      "target": "Core",
+      "classification": "NEW",
+      "source": "v2.0.6 amendment AMD-V206-006B"
+    },
+    {
+      "id": "D-103",
+      "topic": "No dormant future modules",
+      "decision": "The Phase 1 production artifact and acceptance obligations contain no purchasing, inventory, accounting, workforce, loyalty, pickup, delivery, operational recipe, costing, supplier or intelligence routes, tables, workers, screens or tests.",
+      "target": "Phase 1",
+      "classification": "NEW",
+      "source": "v2.0.2"
+    },
+    {
+      "id": "D-104",
+      "topic": "Milestone delivery",
+      "decision": "The build sequence is Package M0 -> Repository Conformance M0R -> M1 -> M2 -> M3 -> M4 -> M5a -> M5b -> M6. M0R is documentation/conformance only; M1 begins the database and migration `0001`. Every gate closes using only approved predecessors.",
+      "target": "Phase 1",
+      "classification": "NEW",
+      "source": "v2.0.2"
+    },
+    {
+      "id": "D-105",
+      "topic": "Independent audit timing",
+      "decision": "Codex performs Package M0 before repository creation, Repository Conformance M0R before M1 coding, and audits every completed milestone. An adverse verdict pauses work; final commit/merge authority remains with the founder under documented adjudication.",
+      "target": "Core",
+      "classification": "NEW",
+      "source": "v2.0.2"
+    },
+    {
+      "id": "D-106",
+      "topic": "Ordinary-command proof",
+      "decision": "Windows and Linux acceptance must use the ordinary documented commands without CI-only environment injection, hidden PATH changes or skipped tests.",
+      "target": "Core",
+      "classification": "NEW",
+      "source": "v2.0.2"
+    },
+    {
+      "id": "D-107",
+      "topic": "Production-role proof",
+      "decision": "Readiness, migrations, backup, restore and operational journeys are tested using the exact least-privileged production identities and built production artifacts.",
+      "target": "Core",
+      "classification": "NEW",
+      "source": "v2.0.2"
+    },
+    {
+      "id": "D-108",
+      "topic": "Same QR continuity",
+      "decision": "The same table QR uses a per-outlet public hostname. Public DNS routes to cloud and split-horizon outlet DNS routes to the LAN node. A public-CA DNS-01 certificate is centrally issued and securely provisioned. DNS TTL is 30 seconds and supported cloud-to-LAN transition is at most 60 seconds. Raw IP, self-signed bypass and shared cross-outlet private keys are prohibited.",
+      "target": "Phase 1",
+      "classification": "NEW",
+      "source": "v2.0.2"
+    },
+    {
+      "id": "D-109",
+      "topic": "Split-brain prevention",
+      "decision": "Cloud forwarding uses signed bidirectional reachability proofs with 5/10/20 timing. Emergency replacement uses a durable monotonic signed authority sequence and cannot become writable until old-node power/network fence evidence and an automated LAN-unreachability probe pass.",
+      "target": "Phase 1",
+      "classification": "NEW",
+      "source": "v2.0.2"
+    },
+    {
+      "id": "D-110",
+      "topic": "Tip consent",
+      "decision": "No tip is selected by default. Suggested tips are configurable and clearly optional. Staff-entered tips require the payer's explicit instruction and remain separately auditable.",
+      "target": "Phase 1",
+      "classification": "NEW",
+      "source": "v2.0.2"
+    },
+    {
+      "id": "D-111",
+      "topic": "Tip settlement model",
+      "decision": "Each payer may add a separate tip to their payment. Tips do not change order lines, bill allocation, tax/service-charge presentation or sales revenue classification; Phase 2 defines distribution and accounting treatment.",
+      "target": "Phase 1",
+      "classification": "NEW",
+      "source": "v2.0.2"
+    },
+    {
+      "id": "D-112",
+      "topic": "Phase sequence",
+      "decision": "Phase 1 is customer service and outlet execution; Phase 2 is purchasing/inventory/accounting/workforce; Phase 3 is ingredients/recipes/cost intelligence. Pickup and delivery are deferred customer-channel extensions after the dine-in pilot.",
+      "target": "Core",
+      "classification": "NEW",
+      "source": "v2.0.2"
+    },
+    {
+      "id": "D-113",
+      "topic": "Requirement gate dependency model",
+      "decision": "Every active requirement carries an introducing gate and, where dependent behavior exists, the later gates at which it is revalidated. A gate closes on its gate-local scope only. No gate may be closed using behavior owned by a later gate, and the dependency graph is regenerated whenever a requirement or gate changes.",
+      "target": "Core",
+      "classification": "NEW",
+      "source": "v2.0.3"
+    },
+    {
+      "id": "D-114",
+      "topic": "Later-domain obligations are documentation only",
+      "decision": "Excluded domains may be named in Phase 1 only as deferral statements or extension-contract documentation. Phase 1 creates no entity, enumeration value, field, route, screen, registry entry or positive test for an excluded domain, including storage locations, later-domain systems of record, employee/payroll data and operational units of measure.",
+      "target": "Core",
+      "classification": "NEW",
+      "source": "v2.0.3"
+    },
+    {
+      "id": "D-115",
+      "topic": "Forbidden-surface vocabulary generation",
+      "decision": "The forbidden-surface scanner vocabulary is generated from the phase-boundary exclusion set, so every excluded domain has detection terms and a planted negative control. The scan covers every controlled register, narrative document and workbook, and from Repository Conformance M0R onward every dependency, package, migration, schema, route, job, worker, screen, test, configuration category and generated artifact.",
+      "target": "Core",
+      "classification": "NEW",
+      "source": "v2.0.3"
+    },
+    {
+      "id": "D-116",
+      "topic": "Per-outlet certificate lifecycle",
+      "decision": "The per-outlet public-CA certificate has a measurable lifecycle: the outlet node generates and retains the private key, submits only a CSR, central DNS-01 automation obtains the certificate and returns only the certificate chain, and the private key is never exported. Renewal begins 30 days before expiry, uses bounded retry, alerts at 14 and 7 days, records installation evidence verified from the LAN, supports compromise revocation and re-issuance, and fails safely to the cloud-served journey rather than a browser warning.",
+      "target": "Phase 1",
+      "classification": "NEW",
+      "source": "v2.0.3"
+    },
+    {
+      "id": "D-117",
+      "topic": "Same-QR client resolution acceptance",
+      "decision": "Same-QR acceptance covers cached public answers, a 30-second DNS TTL, maximum 60-second cloud-to-LAN transition, Android/iOS system-resolver modes, supported and unsupported Private DNS/DoH cases, IPv4-only, IPv6-only and dual-stack answer matrices, and out-of-band translated guidance delivered through the outlet captive portal and staff signage when local resolution is unavailable.",
+      "target": "Phase 1",
+      "classification": "NEW",
+      "source": "v2.0.3"
+    },
+    {
+      "id": "D-118",
+      "topic": "Authority replacement activation",
+      "decision": "The outlet connectivity state machine models one outlet node instance. Emergency replacement can activate only a fenced standby outlet node; the cloud remains a forwarder/control plane and is never a writable dine-in fallback. The replacement becomes writable only after fence evidence, LAN-unreachability proof, readiness and monotonic sequence confirmation, and a replacement-activated event.",
+      "target": "Phase 1",
+      "classification": "NEW",
+      "source": "v2.0.3"
+    },
+    {
+      "id": "D-119",
+      "topic": "Receipt printing milestone boundary",
+      "decision": "M4 includes the minimum real production printer path required to issue a physical customer receipt. M5a adds durable local queueing, restart recovery, retry, deduplication, printer health, internet-outage continuity and reconciliation. M4 cannot claim M5a resilience, and M5a cannot be the first point at which a real receipt is printed.",
+      "target": "Phase 1",
+      "classification": "NEW",
+      "source": "v2.0.5 reconciliation"
+    },
+    {
+      "id": "D-120",
+      "topic": "Milestone blocker and bounded P1 adjudication",
+      "decision": "Every P0 and every P1 affecting product scope, security, money, authority, milestone executability, acceptance completeness or canonical correctness blocks progression. A P1 limited to publication, projection, wording, identifier or validator coverage may proceed only through recorded founder adjudication when canonical behavior is correct, runtime behavior cannot change, the defect remains visible and repair is scheduled.",
+      "target": "Core",
+      "classification": "NEW",
+      "source": "v2.0.5 reconciliation"
+    }
+  ],
+  "created_at_utc": "2026-08-03T15:47:10.186538+00:00"
+}

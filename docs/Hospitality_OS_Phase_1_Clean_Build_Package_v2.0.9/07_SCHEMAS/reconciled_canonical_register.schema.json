@@ -1,0 +1,366 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hospitalityos.local/schemas/reconciled-canonical-register-v0.1.json",
+  "title": "Hospitality OS Reconciled Canonical Register",
+  "type": "object",
+  "required": [
+    "version",
+    "status",
+    "source_artifacts",
+    "counts",
+    "gate_counts",
+    "reconciliation_rules",
+    "active_requirements"
+  ],
+  "properties": {
+    "version": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "created_at_utc": {
+      "type": "string"
+    },
+    "source_artifacts": {
+      "type": "object"
+    },
+    "counts": {
+      "type": "object"
+    },
+    "gate_counts": {
+      "type": "object"
+    },
+    "reconciliation_rules": {
+      "type": "array"
+    },
+    "active_requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "lineage_status",
+          "domain",
+          "priority",
+          "phase",
+          "title",
+          "required_behavior",
+          "source",
+          "classification",
+          "owner",
+          "component_path",
+          "introduced_at",
+          "revalidated_at",
+          "gate_local_behavior",
+          "prerequisite_requirement_ids",
+          "journey_links",
+          "engineering_test_links",
+          "acceptance_test_ids",
+          "reconciliation_rationale",
+          "reconciliation_basis",
+          "active",
+          "clauses"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^FR-[A-Z0-9]+-[0-9]{3}[A-Z]?$"
+          },
+          "lineage_status": {
+            "enum": [
+              "retained",
+              "split_successor",
+              "new_audit_requirement"
+            ]
+          },
+          "split_from": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "supersedes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "domain": {
+            "type": "string"
+          },
+          "priority": {
+            "enum": [
+              "P0",
+              "P1",
+              "P2"
+            ]
+          },
+          "phase": {
+            "const": "Phase 1"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "required_behavior": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "classification": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "component_path": {
+            "type": "string"
+          },
+          "introduced_at": {
+            "enum": [
+              "M0",
+              "M0R",
+              "M1",
+              "M2",
+              "M3",
+              "M4",
+              "M5a",
+              "M5b",
+              "M6"
+            ]
+          },
+          "revalidated_at": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "M0",
+                "M0R",
+                "M1",
+                "M2",
+                "M3",
+                "M4",
+                "M5a",
+                "M5b",
+                "M6"
+              ]
+            }
+          },
+          "gate_local_behavior": {
+            "type": "string",
+            "minLength": 1
+          },
+          "later_behavior": {
+            "type": "string"
+          },
+          "prerequisite_components": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "prerequisite_requirement_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^FR-[A-Z0-9]+-[0-9]{3}[A-Z]?$"
+            }
+          },
+          "artifacts_available_at_introduction": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "journey_links": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^GJ-[0-9]{2}[A-Z]?$"
+            }
+          },
+          "engineering_test_links": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "acceptance_test_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "deferred_domain_risk": {
+            "type": "string"
+          },
+          "reconciliation_rationale": {
+            "type": "string"
+          },
+          "reconciliation_basis": {
+            "type": "string"
+          },
+          "review_confidence": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "active": {
+            "const": true
+          },
+          "clauses": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "clause_id",
+                "exact_clause_text",
+                "introduced_at",
+                "revalidated_at",
+                "prerequisite_components",
+                "prerequisite_requirement_ids",
+                "artifacts_available_at_introduction",
+                "gate_local_behavior",
+                "later_behavior",
+                "journey_links",
+                "engineering_test_links",
+                "deferred_domain_risk",
+                "deferred_domain_notes",
+                "reviewer_rationale",
+                "reviewer_confidence",
+                "disagreement_category",
+                "review_status"
+              ],
+              "properties": {
+                "clause_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "exact_clause_text": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "introduced_at": {
+                  "enum": [
+                    "M0",
+                    "M0R",
+                    "M1",
+                    "M2",
+                    "M3",
+                    "M4",
+                    "M5a",
+                    "M5b",
+                    "M6"
+                  ]
+                },
+                "revalidated_at": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "M0",
+                      "M0R",
+                      "M1",
+                      "M2",
+                      "M3",
+                      "M4",
+                      "M5a",
+                      "M5b",
+                      "M6"
+                    ]
+                  },
+                  "uniqueItems": true
+                },
+                "prerequisite_components": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "prerequisite_requirement_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "artifacts_available_at_introduction": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "gate_local_behavior": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "later_behavior": {
+                  "type": "string"
+                },
+                "journey_links": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "engineering_test_links": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "deferred_domain_risk": {
+                  "enum": [
+                    "none",
+                    "possible",
+                    "confirmed",
+                    "needs_founder_decision"
+                  ]
+                },
+                "deferred_domain_notes": {
+                  "type": "string"
+                },
+                "reviewer_rationale": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "reviewer_confidence": {
+                  "enum": [
+                    "high",
+                    "medium",
+                    "low"
+                  ]
+                },
+                "disagreement_category": {
+                  "const": "none"
+                },
+                "review_status": {
+                  "const": "complete"
+                },
+                "proposed_successor_requirement_id": {
+                  "type": "string"
+                },
+                "split_from": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true,
+  "version": "0.1.3"
+}

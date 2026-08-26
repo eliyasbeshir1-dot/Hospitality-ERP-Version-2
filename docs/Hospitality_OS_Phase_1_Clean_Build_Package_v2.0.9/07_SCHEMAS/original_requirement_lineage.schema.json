@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hospitalityos.local/schemas/original-requirement-lineage-v0.1.json",
+  "title": "Hospitality OS Original Requirement Lineage",
+  "type": "object",
+  "required": [
+    "original_count",
+    "mapped_count",
+    "lineage",
+    "split_register",
+    "new_requirements"
+  ],
+  "properties": {
+    "original_count": {
+      "const": 294
+    },
+    "mapped_count": {
+      "const": 294
+    },
+    "lineage": {
+      "type": "array",
+      "minItems": 294,
+      "maxItems": 294,
+      "items": {
+        "type": "object",
+        "required": [
+          "original_id",
+          "original_behavior",
+          "disposition",
+          "active_ids",
+          "semantic_coverage_attested"
+        ],
+        "properties": {
+          "original_id": {
+            "type": "string",
+            "pattern": "^FR-[A-Z0-9]+-[0-9]{3}$"
+          },
+          "disposition": {
+            "enum": [
+              "retained",
+              "superseded_by_split"
+            ]
+          },
+          "active_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          },
+          "semantic_coverage_attested": {
+            "const": true
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

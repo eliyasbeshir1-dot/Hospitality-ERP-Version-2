@@ -1,0 +1,125 @@
+{
+  "version": "2.0.9",
+  "authority_order": [
+    "canonical source ZIP v0.1.4",
+    "requirements.json",
+    "decisions.json",
+    "journeys.json",
+    "state_machines.json",
+    "phase_boundaries.json",
+    "implementation_manifest.json",
+    "m5_ownership.json",
+    "negative_controls.json",
+    "non_regression_rules.json"
+  ],
+  "counts": {
+    "active_requirements": 336,
+    "decisions": 120,
+    "journey_slices": 16,
+    "state_machines": 12,
+    "events": 80,
+    "negative_controls": 44,
+    "non_regression_rules": 96,
+    "review_questions": 14,
+    "original_requirement_dispositions": 500,
+    "original_decision_dispositions": 100,
+    "amendments": 20,
+    "findings": 22
+  },
+  "canonical_source": {
+    "filename": "Hospitality_OS_Reconciled_Canonical_Register_v0.1.4.zip",
+    "version": "v0.1.4",
+    "sha256": "804dc9e81aaa29826f77961681287d5bd1eaa2ac6ef5ddc3ae598db4e5e0fd32",
+    "content_root_sha256": "cd6b8cfc2175004cc2057deb7d9de1ad0d6264a23c82f00e15e96faa526c0c96"
+  },
+  "files": [
+    {
+      "file": "requirements.json",
+      "semantic_sha256": "0372dbfc34066ec3f27af4876cdb3c7ef54b9cc98452b091320278dae2546e6d"
+    },
+    {
+      "file": "decisions.json",
+      "semantic_sha256": "a11f4fe50504d05b755cbd58cd28acfd784a1dc55412bb43deaa1dda317f0c55"
+    },
+    {
+      "file": "journeys.json",
+      "semantic_sha256": "ef267931e31311067a53f34f756831c793f95e352adca33d40173105b2919bdc"
+    },
+    {
+      "file": "state_machines.json",
+      "semantic_sha256": "0fb90b3dc31a0cbd44736f90f360b1891884687a58f2b272debbf1230e45d563"
+    },
+    {
+      "file": "phase_boundaries.json",
+      "semantic_sha256": "0bbd17cc02388f85fd7c864b9f16c39b8df1fb44d1c909dde938a6143a90595f"
+    },
+    {
+      "file": "implementation_manifest.json",
+      "semantic_sha256": "5e758a38c1c7eb6024f18647a9b135454e69bc9d970f22e4f0eba50a61270377"
+    },
+    {
+      "file": "m5_ownership.json",
+      "semantic_sha256": "76b81683a6a9b16fd50b6bd4c3f839711baf79748c18117b115ddb2e9931868f"
+    },
+    {
+      "file": "dependency_graph.json",
+      "semantic_sha256": "e5b21930d5af1e99ac85c2421b9bea1974617fa09534b53f6e08def0900a0dc4"
+    },
+    {
+      "file": "events.json",
+      "semantic_sha256": "16f450222675c6f59faa381f2811d3f8e00576ae96029615332ce43fe0d25081"
+    },
+    {
+      "file": "negative_controls.json",
+      "semantic_sha256": "46968a833dc7a32138db1a517bfa0eaad814e6f5b35ff5991ee96d424fddc952"
+    },
+    {
+      "file": "non_regression_rules.json",
+      "semantic_sha256": "ab5fe748621c09e78df2a01730c5310ddb21df1747ae7a31325376424136e7ae"
+    },
+    {
+      "file": "forbidden_surface_rules.json",
+      "semantic_sha256": "b8e139af93112288d9a78e746fce000c778cdea84a5386c6131ab230b1ce3150"
+    },
+    {
+      "file": "review_questions.json",
+      "semantic_sha256": "773e8953cbe1a4aa449fd67ec8d84045f100d1a366ee94d4fc32f5a6723e856b"
+    },
+    {
+      "file": "original_requirement_lineage.json",
+      "semantic_sha256": "e0b7fc3d1400eadcc69b537f9ba95e206dd33df7ee6813c27fd0a4c9f0a475d4"
+    },
+    {
+      "file": "original_requirement_dispositions.json",
+      "semantic_sha256": "442f298e93e129171bcc0c159c4bab488b80733ca41ae01f0c0e7ad4a3951a41"
+    },
+    {
+      "file": "original_decision_dispositions.json",
+      "semantic_sha256": "3ea20573e927e9833d5862c6559de78285a062d861fe6f99df48aac7d93b06fc"
+    },
+    {
+      "file": "amendment_register.json",
+      "semantic_sha256": "ac3207b502159342d5e66677f572bbbbf9382711c5a8dcc8cc351ac49caee6d3"
+    },
+    {
+      "file": "finding_register.json",
+      "semantic_sha256": "a3b0b321458cd193a940e8e5ef4010750e50baded8c858b5bcd6d24af724789b"
+    },
+    {
+      "file": "reconciliation_rules.json",
+      "semantic_sha256": "1b1de4b287f9eaa3ce41c8023f4828478b550c025a4a17ed75386f2d0beeae2c"
+    },
+    {
+      "file": "reconciliation_decision_log.json",
+      "semantic_sha256": "fee1e5bf4e508aceb923d6f70adbc63dca343ca5d88551e381d1cdd650973c10"
+    },
+    {
+      "file": "residual_issues.json",
+      "semantic_sha256": "2f8b6ce598f4071de6a8c23e74471c6a04d41df6044bb88e92aa0e5c4eb08503"
+    },
+    {
+      "file": "validator_semantic_contract.json",
+      "semantic_sha256": "6f9e0b459e18e704a1cf2f4382a57203555b29ecc9dbd427e51ea0f5c42b175a"
+    }
+  ]
+}

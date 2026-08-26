@@ -1,18 +1,34 @@
-# CI Test Matrix — M0R Planning Artifact
+# CI Test Matrix
 
-CI at M0R runs **validators only**. There is no application, so there are no application
+**Repository:** `Hospitality-ERP-Version-2`
+**Gate:** M0R — Repository Conformance
+**Governing requirement:** FR-SEC-015
+**Workflow:** `.github/workflows/m0r-conformance.yml`
+
+CI at M0R runs **validators only.** There is no application, so there are no application
 tests. Adding them now would be scope creep.
 
 ---
 
-## What runs at M0R
+## What runs today
+
+Four jobs, all required, none permitted to fail soft. Each runs on push, on pull request,
+and on manual dispatch.
 
 | Job | Command | Pass condition |
 |---|---|---|
-| Skeleton conformance | `python3 tools/verify_m0r_skeleton.py --repo .` | PASS, 0 findings |
-| Docs package integrity | `sha256sum -c SHA256SUMS.txt` in `/docs/...v2.0.9` | 91/91 OK |
-| Occurrence registry | `python3 docs/.../06_TOOLS/frozen_validator/forbidden_occurrence_validator.py docs/...` | PASS |
-| Mechanism suite | `python3 docs/.../06_TOOLS/test_occurrence_mechanism.py --package docs/...` | 28/28 |
+| `skeleton-conformance` | `python3 tools/verify_m0r_skeleton.py --repo . --json-report m0r_verification.json` | `PASS M0R_SKELETON`, and the JSON report shows `passed: true` with `finding_count: 0` |
+| `docs-package-integrity` | `sha256sum -c SHA256SUMS.txt` inside `docs/…v2.0.9/` | exactly 91 checksum lines and exactly 91 `OK` results, 0 failures |
+| `occurrence-registry` | `python3 docs/…/06_TOOLS/frozen_validator/forbidden_occurrence_validator.py docs/…v2.0.9` | emits exactly `PASS FORBIDDEN_OCCURRENCE_REGISTRY_VALID`, and its JSON block shows `passed: true`, `failure_count: 0` |
+| `mechanism-suite` | `python3 docs/…/06_TOOLS/test_occurrence_mechanism.py --package docs/…v2.0.9` | emits `28/28 correct` |
+
+Both success tokens are asserted **exactly**, not as substrings. A bare `PASS` does not
+satisfy the occurrence job, and `27/28` or `0/0` does not satisfy the mechanism job. Each
+was confirmed against real validator output and against deliberately degraded output before
+being pinned.
+
+`skeleton-conformance` uploads its JSON report as a build artifact, with
+`if-no-files-found: error` so a missing report fails rather than passing quietly.
 
 ---
 
@@ -21,20 +37,75 @@ tests. Adding them now would be scope creep.
 The pipeline **fails** on any of:
 
 - zero tests collected
-- skipped tests
+- skipped or deselected tests
 - empty scan results
 - stale artifacts
 - unsupported coverage
 - unknown result status
 
-A green build with nothing executed is a failure, not a pass. This rule exists because
+**A green build with nothing executed is a failure, not a pass.** This rule exists because
 false-green was the dominant defect class across five review cycles.
+
+How each is enforced in the workflow:
+
+- every step runs under `set -euo pipefail`, so an unnoticed non-zero exit cannot be swallowed
+- no step uses `continue-on-error`; no job is optional
+- validator output is asserted to be non-empty before it is interpreted
+- exit status alone is never trusted — the success token *and* the structured result are
+  both checked
+- the occurrence job parses the validator's own JSON and fails on `passed != true` or any
+  non-zero `failure_count`
+- the mechanism job fails on any `skipped`, `deselected` or `no tests ran` marker even if
+  the case count line is present
+- the docs job counts checksum lines *before* verifying them, so a truncated
+  `SHA256SUMS.txt` fails instead of trivially passing
+
+---
+
+## What CI must NOT do at this gate
+
+- run application tests — none exist
+- install runtime dependencies for an application
+- build or deploy anything
+- create a database
+
+The workflow installs nothing beyond a Python interpreter, and uses only the standard
+library plus the validators shipped in the pinned package.
+
+---
+
+## Bytecode hygiene
+
+The workflow sets `PYTHONDONTWRITEBYTECODE=1` globally.
+
+The package validators import modules from inside `docs/`. Without this, Python writes
+`__pycache__/` into the pinned package, which is both forbidden surface under
+`tools/verify_m0r_skeleton.py` and a break in the package's byte-identity. This was observed
+in practice while wiring the pipeline, caught by the verifier, and fixed at the source
+rather than by excluding the path. **Do not remove that variable.**
+
+`mechanism_test_results.json`, `m0r_verification.json` and `sha256-check.log` are generated
+by these runs and are listed in `.gitignore`. They are build output, never committed.
+
+---
+
+## Platform note
+
+`docs/…/06_TOOLS/validate_package_m0.py` is **not** run in this pipeline. It requires a
+temp path at least three components deep and reads Windows-style separators from the
+generation manifest, so it does not run on a default Linux path. Its coverage was confirmed
+by hand instead — 26/26 generation projections matched with separators normalised, and the
+canonical content root reproduced as `32a5bd80…`. See `planning/KNOWN_LIMITATIONS.md`.
+
+The two validator jobs still export a nested `TMPDIR` under the runner temp directory, so
+that any tooling with the same assumption behaves predictably.
 
 ---
 
 ## The 44 planted negative controls
 
-Frozen at Package M0 and planted per gate. Distribution:
+Frozen at Package M0 and enumerated in `docs/…/02_MACHINE_READABLE/negative_controls.json`
+(`status: frozen_at_package_m0`). Distribution, re-derived from that file:
 
 | Gate | Controls |
 |---|---:|
@@ -46,27 +117,23 @@ Frozen at Package M0 and planted per gate. Distribution:
 | M5a | 4 |
 | M5b | 9 |
 | M6 | 5 |
+| **Total** | **44** |
 
 The 8 M0 controls — package pinning, requirement recount, phase boundary, vocabulary
-completeness, accounting/CRM/workforce alias leakage, canonical projection parity — are
-already satisfied by the pinned package under `/docs`.
+completeness, accounting/CRM/workforce alias leakage and canonical projection parity — are
+already satisfied by the pinned package under `/docs`, and the `occurrence-registry` and
+`mechanism-suite` jobs exercise that machinery on every run.
 
 Gate-specific controls are planted as each gate is implemented. **Do not plant M1+ controls
-at M0R**; there is nothing for them to break.
+at M0R** — there is nothing yet for them to break, and a control that cannot fail is a
+false-green by construction.
 
 ---
 
-## Platform note
+## The rule that governs this file
 
-`validate_package_m0.py` requires a temp path at least three components deep and reads
-Windows-style separators from the generation manifest. It runs correctly on Windows and in
-Codespaces with `TMPDIR` set to a nested path. See `KNOWN_LIMITATIONS.md`.
+**When a check fails, fix the thing — never the check.**
 
----
-
-## What CI must NOT do at M0R
-
-- run application tests (none exist)
-- install runtime dependencies for an application
-- build or deploy anything
-- create a database
+If `verify_m0r_skeleton.py` reports a finding, remove what it found. Do not add an
+exclusion, do not relax an assertion, do not edit the script. Five review cycles in this
+project were lost to validators tuned until they went green.

@@ -1,0 +1,94 @@
+{
+  "package_version": "2.0.9",
+  "generation_mode": "deterministic-no-timestamp",
+  "canonical_source_sha256": "804dc9e81aaa29826f77961681287d5bd1eaa2ac6ef5ddc3ae598db4e5e0fd32",
+  "canonical_content_root_sha256": "32a5bd80ef18f576ae1e61372236615227d880bcfe30da81bf46c1fa7fd9521b",
+  "frozen_validator_sha256": "ee65b8ec3292db19798f785e23a2d54969eadd91f00e98888520d16051c9f7b0",
+  "workbook_projection_model_sha256": "dd260efcb785f37eb49c7074aba8414b7e2c9b44fa308fdbdf14bc1f354771d7",
+  "text_projections": {
+    "03_HUMAN_READABLE\\01_SOURCE_OF_TRUTH.md": "75ed1af79beaf658731c6017d191841e09f6023dbfb0990ec95ed70fe714dfad",
+    "03_HUMAN_READABLE\\02_PRODUCT_DEFINITION.md": "b495a4facc3a507fd873e015d7234d0d146ed81538aa541b12ebf3dca7cc88d0",
+    "03_HUMAN_READABLE\\03_IMPLEMENTATION_SEQUENCE.md": "1778bc8caf74ff0e4a6f310c519ac016b2e6323e8a35adc9300f6dfee12aab89",
+    "03_HUMAN_READABLE\\04_ARCHITECTURE_AND_SECURITY.md": "01cfd31dd65bb0fff14e9731ffd2c0a76a2fc9300bf0d53759b3fe695d7c8ce9",
+    "03_HUMAN_READABLE\\05_FUNCTIONAL_REQUIREMENTS.md": "02d7bd7edbb2ed31b4c13b45a6b88df23842097261abf061c7c9e5cddc7a3623",
+    "03_HUMAN_READABLE\\06_DECISION_CATALOG.md": "0478edc86f16ce86a9bd477d4f0b9726cfafe523b8412e50822d5eb1e062d6f7",
+    "03_HUMAN_READABLE\\07_GOLDEN_JOURNEYS.md": "9989cf5a59fa253c29a2d0a9e2744d1106a9c6268d5375f4f961a6d3c9c002d5",
+    "03_HUMAN_READABLE\\08_STATE_MACHINES.md": "108c1196e68855586d5ecc9aa105c2bd096ef9c7815f4d06cb4b7b3f7ea93daa",
+    "03_HUMAN_READABLE\\09_PHASE_BOUNDARIES_AND_M5_OWNERSHIP.md": "c11fc4028c4d11abc31245cd18a1cebdabdf23b578882ab3e9ec7ecfcac28a96",
+    "03_HUMAN_READABLE\\10_TEST_AND_VALIDATION_STRATEGY.md": "81f77f9a1d434249a202419423a50d6a94f23b9e66eb329c04482edb00e93318",
+    "03_HUMAN_READABLE\\11_BUILD_CONTROL_PLAN.md": "ea1d765e03a33ac019aeab32a945d55207c735bf51f5fb35b249a9581d224e76",
+    "03_HUMAN_READABLE\\12_HISTORICAL_DISPOSITION_SUMMARY.md": "0ecbcdd7b3657280113e1ebb9198c2477e8948cb80a33026177c3c2f2ff75b5d",
+    "03_HUMAN_READABLE\\13_AMENDMENTS_AND_FINDINGS.md": "c30617dababe2423d9e4855b0fa39d69d8c861b7f99c35af553cc137e2599ccc",
+    "03_HUMAN_READABLE\\14_KNOWN_VALIDATOR_LIMITS.md": "03979646b0154ed1ae18b49add40364a9bff349cdd757ae26d50f6c85c496d01",
+    "03_HUMAN_READABLE\\15_NON_REGRESSION_RULES.md": "1c690815f1d3682f5c9cee9e48072de74852daebdf0d46e39078a16f702f0135",
+    "03_HUMAN_READABLE\\HOSPITALITY_OS_PHASE_1_MASTER_BLUEPRINT_v2.0.9.md": "e3c750178e9cead9afe30721a1e58626157ce007fdca6451a5b33e44aa8a1e56",
+    "05_REVIEW_AND_BUILD\\CODEX_PACKAGE_M0_REVIEW_BRIEF.md": "2e211eb1c64c76d2cbf2091b1206e8ad7387be3befedebc74f8494d3f0579ad9",
+    "05_REVIEW_AND_BUILD\\BUILD_IMPLEMENTATION_BRIEF.md": "06c3d1a36f832d09ef30ccfd622246b93b4a88a3e2a79496cafe34ec6ce04a80",
+    "05_REVIEW_AND_BUILD\\M0R_REPOSITORY_CONFORMANCE_PLAN.md": "2850a201c9efcc941889a92f60035b3faccc2b24fc98cd322d769c4bd40c59ec",
+    "05_REVIEW_AND_BUILD\\BUILD_CONTROL_REQUIREMENT_OWNERSHIP.md": "1c71553f2c6491ae001339040ecb49358172646ee9bcf08d500270880270e5dc",
+    "05_REVIEW_AND_BUILD\\MILESTONE_ACCEPTANCE_MATRIX.md": "b707b87bf633fa7829e4eec3dec9be79c613a0c14d61fc8cd714e620da89496e"
+  },
+  "binary_projections": {
+    "04_WORKBOOKS\\Requirements_Traceability_Matrix_v2.0.9.xlsx": "79d0d8db1cf5b29e4096a4b9dc770d462fda0b27305330d541f553e151050479",
+    "04_WORKBOOKS\\Decision_Lineage_and_Evidence_Register_v2.0.9.xlsx": "1f3265626c8e05e628f0473ec8cda483fc207cb29507631f30473691187ac9a9",
+    "04_WORKBOOKS\\Canonical_Occurrence_Registry_v2.0.9.xlsx": "0aecbecd6b81dbc9bdf9c4364bd2928f4c36254a5be456630542409187d860b0",
+    "03_HUMAN_READABLE\\HOSPITALITY_OS_PHASE_1_MASTER_BLUEPRINT_v2.0.9.docx": "e6fb003e0498f33e09fd219ae4b2bf6e1b9da4943fe6c461edb2b7389f2f401c",
+    "03_HUMAN_READABLE\\HOSPITALITY_OS_PHASE_1_MASTER_BLUEPRINT_v2.0.9.pdf": "b4c9318ba22e1b0c1b73e664e7e0a4e5edb2654609704b026e9d7d26bdd39847"
+  },
+  "synthetic_test_mode": false,
+  "input_pins": {
+    "baseline-zip": "e65fa9af0603c13a76c08961dbac44ee5da34192b3e0433c42590c7599830ba7",
+    "canonical-source-zip": "804dc9e81aaa29826f77961681287d5bd1eaa2ac6ef5ddc3ae598db4e5e0fd32",
+    "detection-module": "7bb11538491b844cbe8149efd1c9adf20e99756605d41712335b5f842b11456d",
+    "governed-fields": "7e524c6190dad135b197eecfff59954fd19c3bf8bcad2b47fa8bfb227f6528a2",
+    "mechanism-suite": "31c5c47d9c2fea22a1f31835288ff43c37b1acb7904da4611796f7fac819c144",
+    "occurrence-registry": "d4dae27e4a97bfd710b50412f488a994232c6573441f3a3778d346fdbbf9dcb2",
+    "occurrence-schema": "b501312988ce9db85151f7826c863f1de2edea379966d1bbe923b27161ac7d59",
+    "occurrence-validator": "ee65b8ec3292db19798f785e23a2d54969eadd91f00e98888520d16051c9f7b0",
+    "validator-freeze-zip": "628ae551120497280a82fdfcf8fd8bd2a69e4c893b400cd94d1914529788cce9"
+  },
+  "physical_input_artifacts": {
+    "canonical-source-zip": {
+      "path": "01_CANONICAL_SOURCE/Hospitality_OS_Reconciled_Canonical_Register_v0.1.4.zip",
+      "sha256": "804dc9e81aaa29826f77961681287d5bd1eaa2ac6ef5ddc3ae598db4e5e0fd32"
+    },
+    "validator-freeze-zip": {
+      "path": "01_CANONICAL_SOURCE/Hospitality_OS_Validator_Freeze_v1.0.5.zip",
+      "sha256": "628ae551120497280a82fdfcf8fd8bd2a69e4c893b400cd94d1914529788cce9"
+    },
+    "baseline-zip": {
+      "path": "01_CANONICAL_SOURCE/Hospitality_OS_Canonical_Baseline_Freeze_v0.1.zip",
+      "sha256": "e65fa9af0603c13a76c08961dbac44ee5da34192b3e0433c42590c7599830ba7"
+    },
+    "occurrence-registry": {
+      "path": "08_HISTORY/INPUTS/canonical_occurrence_registry.json",
+      "sha256": "d4dae27e4a97bfd710b50412f488a994232c6573441f3a3778d346fdbbf9dcb2"
+    },
+    "governed-fields": {
+      "path": "02_MACHINE_READABLE/governed_fields.json",
+      "sha256": "7e524c6190dad135b197eecfff59954fd19c3bf8bcad2b47fa8bfb227f6528a2"
+    },
+    "occurrence-schema": {
+      "path": "07_SCHEMAS/forbidden_occurrence_registry.schema.json",
+      "sha256": "b501312988ce9db85151f7826c863f1de2edea379966d1bbe923b27161ac7d59"
+    },
+    "occurrence-validator": {
+      "path": "06_TOOLS/frozen_validator/forbidden_occurrence_validator.py",
+      "sha256": "ee65b8ec3292db19798f785e23a2d54969eadd91f00e98888520d16051c9f7b0"
+    },
+    "detection-module": {
+      "path": "06_TOOLS/frozen_validator/occurrence_mechanism.py",
+      "sha256": "7bb11538491b844cbe8149efd1c9adf20e99756605d41712335b5f842b11456d"
+    },
+    "mechanism-suite": {
+      "path": "06_TOOLS/test_occurrence_mechanism.py",
+      "sha256": "31c5c47d9c2fea22a1f31835288ff43c37b1acb7904da4611796f7fac819c144"
+    }
+  },
+  "package_validator_sha256": "72b5b7d39ab651b390f79433e68d7da904e52fe7f55862cf178b2d5c2e0910b0",
+  "p208_validator_profile": {
+    "package_version": "2.0.9",
+    "validator_path": "06_TOOLS/validate_package_m0.py",
+    "validator_sha256": "72b5b7d39ab651b390f79433e68d7da904e52fe7f55862cf178b2d5c2e0910b0"
+  }
+}

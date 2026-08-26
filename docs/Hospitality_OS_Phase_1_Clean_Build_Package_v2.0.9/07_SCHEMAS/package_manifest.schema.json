@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Hospitality OS Package M0 manifest",
+  "type": "object",
+  "required": [
+    "package_name",
+    "package_version",
+    "canonical_source",
+    "validator",
+    "package_validator",
+    "counts",
+    "primary_files"
+  ]
+}

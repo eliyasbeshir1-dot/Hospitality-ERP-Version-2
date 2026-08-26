@@ -1,0 +1,166 @@
+{
+  "version": "2.0.5-reconciliation",
+  "mandatory_journey_slices": [
+    {
+      "id": "GJ-01A",
+      "name": "English guest QR dine-in order through service",
+      "milestone": "M3",
+      "mandatory": "Yes",
+      "predecessors": "M2 approved",
+      "personas": "Guest customer, waiter, kitchen",
+      "steps": "Scan opaque table QR; open English; continue as guest; browse menu; select modifiers; submit order; the current approved cloud authority persists and no local-authority claim is made before M5b; kitchen accepts and prepares; waiter serves; customer sees served status.",
+      "pass": "One table session, one accepted order, linked fulfillment and service timeline exist with no duplicate effect and correct English customer text. The cloud remains the current approved authority at M3. No check, payment, receipt or local-authority capability is required."
+    },
+    {
+      "id": "GJ-01B",
+      "name": "English bill, cash settlement and receipt",
+      "milestone": "M4",
+      "mandatory": "Yes",
+      "predecessors": "GJ-01A",
+      "personas": "Guest customer, cashier",
+      "steps": "Open the served English table session from GJ-01A; customer requests bill; cashier presents check; customer leaves no tip; cashier settles cash; issue the English digital receipt and print the English physical receipt through the minimum M4 production printer path.",
+      "pass": "Check, cash payment, no-tip decision, digital receipt, one physical receipt and audit timeline are linked to the predecessor order; bill, tip and total paid are shown separately; the physical receipt is printed without relying on M5a outage resilience."
+    },
+    {
+      "id": "GJ-02",
+      "name": "Amharic customer order and service",
+      "milestone": "M3",
+      "mandatory": "Yes",
+      "predecessors": "M2 approved",
+      "personas": "Guest customer, waiter, kitchen",
+      "steps": "Select Amharic; browse approved menu and allergen text; place order; receive localized statuses; call waiter; add another order; waiter serves.",
+      "pass": "Customer-facing text and snapshots are Amharic; staff screens remain English; cart/session/order identity is preserved; no M4 settlement dependency exists; settlement is proven by GJ-02B at M4."
+    },
+    {
+      "id": "GJ-02B",
+      "name": "Amharic bill, tip, settlement and receipt",
+      "milestone": "M4",
+      "mandatory": "Yes",
+      "predecessors": "GJ-02",
+      "personas": "Guest customer, cashier",
+      "steps": "Open the served Amharic table session from GJ-02; customer requests the bill; present the Amharic check with the separate optional tip box; customer adds a tip; settle by verified Telebirr proof confirmation; issue the Amharic digital receipt and print the Amharic physical receipt through the minimum M4 production printer path.",
+      "pass": "Bill, tip and total paid are separate values and separate visual sections in Amharic; ETB and numerals follow the approved locale policy; packaged Ethiopic fonts render on screen and on the printed receipt with no fallback loss or clipping; the receipt states the actual method, provider and permitted masked/reference identifier; the payment remains proof_pending until staff verify it in the provider app. The M4 print proves a real physical receipt but does not claim M5a durable queue or outage resilience."
+    },
+    {
+      "id": "GJ-03A",
+      "name": "Arabic RTL menu, order and service",
+      "milestone": "M3",
+      "mandatory": "Yes",
+      "predecessors": "M2 approved",
+      "personas": "Guest customer, waiter, kitchen",
+      "steps": "Select Arabic; browse true RTL menu; use search/modifiers containing Latin SKUs or item codes; view ETB prices/numerals; submit order; view Arabic status timeline; waiter serves.",
+      "pass": "Customer PWA mirrors correctly; mixed-direction strings preserve reading order; ETB and numerals follow approved locale policy; no bill or receipt capability is required."
+    },
+    {
+      "id": "GJ-03B",
+      "name": "Arabic RTL bill, tip, payment and receipt",
+      "milestone": "M4",
+      "mandatory": "Yes",
+      "predecessors": "GJ-03A",
+      "personas": "Guest customer, cashier",
+      "steps": "Open the served Arabic session from GJ-03A; request bill; view separate optional tip box; choose a tip; settle using a permitted live method; view the digital Arabic receipt and print the physical Arabic receipt through the minimum M4 production printer path.",
+      "pass": "Bill/tip/payment/receipt layout mirrors correctly; mixed Arabic/Latin provider/reference text, ETB values and numerals preserve reading order; no clipping or string-substitution-only pass is accepted. The physical receipt is real M4 output; durable local print recovery is reserved for M5a."
+    },
+    {
+      "id": "GJ-04",
+      "name": "Multi-participant table and service requests",
+      "milestone": "M3",
+      "mandatory": "Yes",
+      "predecessors": "M2 approved",
+      "personas": "Two guest customers, waiter",
+      "steps": "Two devices join one table; keep personal carts; place separate orders; call waiter; waiter acknowledges; one guest adds an order later; authorized staff move the session to another table.",
+      "pass": "Participant ownership, service SLA, add-on orders and table move are preserved without exposing another table or duplicating orders."
+    },
+    {
+      "id": "GJ-05",
+      "name": "Waiter-entered order to KDS and service",
+      "milestone": "M3",
+      "mandatory": "Yes",
+      "predecessors": "M2 approved",
+      "personas": "Waiter, kitchen/bar, expo, manager",
+      "steps": "Waiter opens table; enters dine-in order; routes lines to kitchen/bar; stations acknowledge; allergy is emphasized; expo marks ready; waiter confirms served; manager handles one authorized amendment.",
+      "pass": "Order, tickets and customer-facing statuses remain separate and consistent; unauthorized state jumps fail; no M4 check or settlement dependency exists."
+    },
+    {
+      "id": "GJ-06",
+      "name": "Split bill with separate tips",
+      "milestone": "M4",
+      "mandatory": "Yes",
+      "predecessors": "At least one M3 served order",
+      "personas": "Two payers, cashier",
+      "steps": "Split check by item; payer A pays cash and chooses no tip; payer B pays external card terminal and adds a custom tip; print one physical receipt for each payer through the minimum M4 production printer path.",
+      "pass": "Bill allocations equal bill total; each payment has independent bill and tip allocations; receipt shows bill, tip and total paid separately; no tip is selected by default. Each physical receipt is produced exactly once."
+    },
+    {
+      "id": "GJ-07",
+      "name": "Void, refund and tip correction controls",
+      "milestone": "M4",
+      "mandatory": "Yes",
+      "predecessors": "GJ-06",
+      "personas": "Cashier, manager",
+      "steps": "Attempt cashier self-approval and fail; manager performs purpose-specific step-up; reverse one payment allocation; partially refund bill and tip separately; reconcile the final receipt and print the corrected physical receipt with reprint/correction audit.",
+      "pass": "Maker-checker, exact independent bill/tip corrections, reason codes, one-time approval and append-only audit evidence are preserved. The corrected physical receipt is marked and auditable."
+    },
+    {
+      "id": "GJ-08",
+      "name": "Same QR customer service during internet outage",
+      "milestone": "M5b",
+      "mandatory": "Yes",
+      "predecessors": "M5a approved",
+      "personas": "Guest customer, waiter, kitchen, cashier",
+      "steps": "Use a real per-outlet public hostname and valid public-CA certificate; disconnect internet; connect customer to restaurant Wi-Fi; scan the same QR; browse cached menu; order; call waiter; prepare/serve; request bill; settle using an available local live method; print receipt; repeat the same-QR entry on a device that joined outlet Wi-Fi holding a cached public DNS answer, on a device with encrypted DNS (Private DNS/DoH) enabled, and on a dual-stack IPv4/IPv6 device.",
+      "pass": "Browser shows no certificate warning; local service completes without cloud; IDs and evidence persist for later synchronization; cloud-side new writes are blocked after lease expiry; cached-answer, encrypted-DNS and dual-stack devices either resolve to the trusted local endpoint or fail safe to translated staff guidance, never to a certificate warning or a manual bypass prompt; the served certificate fingerprint and expiry are verified from the LAN."
+    },
+    {
+      "id": "GJ-09",
+      "name": "Asymmetric partition and emergency authority replacement",
+      "milestone": "M5b",
+      "mandatory": "Yes",
+      "predecessors": "M5a approved",
+      "personas": "Outlet operator, platform operator, guest customer",
+      "steps": "Cut cloud-to-node and node-to-cloud paths independently; verify challenge/ack failures and 5/10/20 timing; keep LAN node serving; request replacement; record independent approval; power off or network-isolate old node; run LAN-unreachability probe; issue next monotonic signed authority sequence; activate replacement; attempt direct LAN write to old node; reconnect stale node.",
+      "pass": "Cloud forwarding expires safely while LAN authority continues; replacement is not writable before fence evidence; direct old-node LAN write fails; every writer rejects rollback; stale events quarantine; recovery requires three valid bidirectional proofs."
+    },
+    {
+      "id": "GJ-10",
+      "name": "Outlet node durability, synchronization and printing",
+      "milestone": "M5a",
+      "mandatory": "Yes",
+      "predecessors": "M4 approved",
+      "personas": "Waiter, kitchen, cashier, outlet operator",
+      "steps": "Use staff/POS/KDS endpoints directly on the outlet network; create local session/order/check/payment/tip and print jobs; restart browser, API, worker and node database; replay outbox/inbox with parent-before-child ordering; inject one conflict; reconnect to cloud. Queue a customer receipt, lose internet, restart the local print service, recover the queue, print exactly once, reconnect and reconcile the print-job status.",
+      "pass": "Local records and queues survive restart; print retries do not create unmarked duplicates; sync is idempotent and dependency ordered; conflict is visible; no same-QR public hostname, browser TLS or authority replacement claim is required. Receipt printing survives outage and restart through the M5a durable local queue with no lost or duplicate physical output."
+    },
+    {
+      "id": "GJ-11",
+      "name": "Backup and destructive restore",
+      "milestone": "M6",
+      "mandatory": "Yes",
+      "predecessors": "M5b approved",
+      "personas": "Platform operator, outlet operator",
+      "steps": "Create cloud and outlet backups from built non-root images using production roles; destroy disposable environments; restore database, configuration, queues, certificates and print evidence; start exact production services.",
+      "pass": "Post-restore M3/M4/M5a business slices pass; tenant/outlet isolation, audit, synchronization and recovery time are evidenced; missing grant/script/client makes the drill fail."
+    },
+    {
+      "id": "GJ-12",
+      "name": "Clean deployment and production-role readiness",
+      "milestone": "M6",
+      "mandatory": "Yes",
+      "predecessors": "M5b approved",
+      "personas": "Platform operator, support operator",
+      "steps": "Delete generated output and databases; execute ordinary Windows and Linux commands; build production images; start API, workers, outlet node and print agent using least-privileged roles; inspect routes, jobs, users and health.",
+      "pass": "All discovered tests run with zero skips; images are non-root and complete; readiness is truthful; no deferred route/table/worker exists; command order does not alter artifacts."
+    },
+    {
+      "id": "GJ-13",
+      "name": "Second-tenant commercial isolation",
+      "milestone": "M6",
+      "mandatory": "Yes",
+      "predecessors": "M5b approved",
+      "personas": "Two tenant administrators, platform support",
+      "steps": "Configure two differently branded tenants with sibling outlets, menus, staff, tables, devices and reports; attempt cross-tenant/outlet reads and writes; use time-bound support access; export permitted Phase 1 operational evidence only.",
+      "pass": "Branding/configuration are independent; production-role isolation blocks every unauthorized CRUD path; support access is time-bound and audited; no Phase 2 portability product is activated."
+    }
+  ],
+  "count": 16
+}

@@ -1,0 +1,6373 @@
+{
+  "version": "2.0.9",
+  "review_method": "Two independent anti-anchored clause-level reviews reconciled under RR-01 through RR-06.",
+  "requirement_count": 336,
+  "requirements": [
+    {
+      "id": "FR-GOV-004",
+      "introduced_at": "M0",
+      "revalidated_at": [
+        "M0R",
+        "M1",
+        "M2",
+        "M3",
+        "M4",
+        "M5a",
+        "M5b",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0-FR-GOV-004",
+        "TST-M0R-FR-GOV-004",
+        "TST-M1-FR-GOV-004",
+        "TST-M2-FR-GOV-004",
+        "TST-M3-FR-GOV-004",
+        "TST-M4-FR-GOV-004",
+        "TST-M5a-FR-GOV-004",
+        "TST-M5b-FR-GOV-004",
+        "TST-M6-FR-GOV-004"
+      ],
+      "gate_local_behavior": "Apply the blocker and adjudication rule to Package M0 and record the decision, affected requirement and scheduled repair.",
+      "later_behavior": "Apply the rule at every later gate and re-examine each override at the next audit."
+    },
+    {
+      "id": "FR-TST-017",
+      "introduced_at": "M0",
+      "revalidated_at": [
+        "M0R",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M0-FR-TST-017",
+        "TST-M0R-FR-TST-017",
+        "TST-M6-FR-TST-017"
+      ],
+      "gate_local_behavior": "The registry enumerates every control with all five attributes and is frozen before the repository exists.",
+      "later_behavior": "The controls are planted in CI at M0R and re-proven against the production artifact at M6."
+    },
+    {
+      "id": "FR-CFG-002B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M1",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-CFG-002B",
+        "TST-M1-FR-CFG-002B",
+        "TST-M6-FR-CFG-002B"
+      ],
+      "gate_local_behavior": "Scanner proves no Phase 2/3 policy category is present in the plan and schema.",
+      "later_behavior": "Absence holds as configuration surface grows."
+    },
+    {
+      "id": "FR-CFG-005B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M1",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-CFG-005B",
+        "TST-M1-FR-CFG-005B",
+        "TST-M6-FR-CFG-005B"
+      ],
+      "gate_local_behavior": "The scanner fails on a planted deferred route, worker, table and screen and confirms their absence from the repository plan.",
+      "later_behavior": "Re-scan the first executable artifact at M1 and the complete production artifact at M6."
+    },
+    {
+      "id": "FR-EDG-002B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M5a",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-EDG-002B",
+        "TST-M5a-FR-EDG-002B",
+        "TST-M6-FR-EDG-002B"
+      ],
+      "gate_local_behavior": "Scanner proves no ERP or intelligence module is present in the node plan or image manifest.",
+      "later_behavior": "Absence holds as the node image is built and shipped."
+    },
+    {
+      "id": "FR-FUL-016B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M3",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-FUL-016B",
+        "TST-M3-FR-FUL-016B",
+        "TST-M6-FR-FUL-016B"
+      ],
+      "gate_local_behavior": "Scanner proves no inventory or recipe-consumption entry is produced by waste recording.",
+      "later_behavior": "Absence holds as the waste surface grows."
+    },
+    {
+      "id": "FR-GOV-001A",
+      "introduced_at": "M0R",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-006"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-GOV-001A"
+      ],
+      "gate_local_behavior": "The repository contains only the approved package and conformance plans; a scan proves no schema, migration, route, worker or UI file exists.",
+      "later_behavior": "None beyond M0R for this clause."
+    },
+    {
+      "id": "FR-GOV-002",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M1",
+        "M2",
+        "M3",
+        "M4",
+        "M5a",
+        "M5b",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-GOV-002",
+        "TST-M1-FR-GOV-002",
+        "TST-M2-FR-GOV-002",
+        "TST-M3-FR-GOV-002",
+        "TST-M4-FR-GOV-002",
+        "TST-M5a-FR-GOV-002",
+        "TST-M5b-FR-GOV-002",
+        "TST-M6-FR-GOV-002"
+      ],
+      "gate_local_behavior": "Scanner runs over the repository plan with one planted fixture per excluded domain and fails on each.",
+      "later_behavior": "Every later gate adds deployable surface that must be rescanned."
+    },
+    {
+      "id": "FR-GOV-003",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-006"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-GOV-003",
+        "TST-M6-FR-GOV-003"
+      ],
+      "gate_local_behavior": "A provenance register exists and the review/dependency-analysis process is proven on any unit proposed for reuse in the M0R plan.",
+      "later_behavior": "Reuse decisions recur whenever code is written; the complete provenance audit is only possible against the final artifact."
+    },
+    {
+      "id": "FR-GOV-005",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M1",
+        "M2",
+        "M3",
+        "M4",
+        "M5a",
+        "M5b",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-001A"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-GOV-005",
+        "TST-M1-FR-GOV-005",
+        "TST-M2-FR-GOV-005",
+        "TST-M3-FR-GOV-005",
+        "TST-M4-FR-GOV-005",
+        "TST-M5a-FR-GOV-005",
+        "TST-M5b-FR-GOV-005",
+        "TST-M6-FR-GOV-005"
+      ],
+      "gate_local_behavior": "The migration/domain ownership map maps every planned unit to an active requirement and gate; no deferred requirement appears.",
+      "later_behavior": "Traceability must be re-proven as each gate implements real routes, tables, workers, screens and tests."
+    },
+    {
+      "id": "FR-GOV-006",
+      "introduced_at": "M0R",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-GOV-006"
+      ],
+      "gate_local_behavior": "The v1.1 repository is marked frozen and the new repository is established as the only release source.",
+      "later_behavior": "None beyond M0R for this clause."
+    },
+    {
+      "id": "FR-MNU-002B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M2",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-MNU-002B",
+        "TST-M2-FR-MNU-002B",
+        "TST-M6-FR-MNU-002B"
+      ],
+      "gate_local_behavior": "Scanner proves no customer-segment field, assignment rule or screen exists.",
+      "later_behavior": "Absence holds as the menu surface grows."
+    },
+    {
+      "id": "FR-ORD-001C",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M3",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-ORD-001C",
+        "TST-M3-FR-ORD-001C",
+        "TST-M6-FR-ORD-001C"
+      ],
+      "gate_local_behavior": "Scanner proves no pickup or delivery policy, fulfillment field, route or screen exists.",
+      "later_behavior": "Absence holds as the order surface grows."
+    },
+    {
+      "id": "FR-ORD-012B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M4",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-ORD-012B",
+        "TST-M4-FR-ORD-012B",
+        "TST-M6-FR-ORD-012B"
+      ],
+      "gate_local_behavior": "Scanner proves no stock or general-ledger posting path exists.",
+      "later_behavior": "Absence holds as the void and refund surfaces grow."
+    },
+    {
+      "id": "FR-ORD-016B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M3",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-ORD-016B",
+        "TST-M3-FR-ORD-016B",
+        "TST-M6-FR-ORD-016B"
+      ],
+      "gate_local_behavior": "Scanner proves no delivery, inventory or accounting event type exists in the timeline model.",
+      "later_behavior": "Absence holds as event catalog grows."
+    },
+    {
+      "id": "FR-ORD-019B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M3",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-ORD-019B",
+        "TST-M3-FR-ORD-019B",
+        "TST-M6-FR-ORD-019B"
+      ],
+      "gate_local_behavior": "Scanner proves no campaign or CRM correlation field, route or screen exists, including morphological variants of \"campaign\".",
+      "later_behavior": "Absence holds as the correlation model grows."
+    },
+    {
+      "id": "FR-PAY-010B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M4",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-PAY-010B",
+        "TST-M4-FR-PAY-010B",
+        "TST-M6-FR-PAY-010B"
+      ],
+      "gate_local_behavior": "Scanner proves no journal entry, ledger posting, accounting entity, field, route, screen or positive accounting test exists, including singular and plural morphological variants.",
+      "later_behavior": "Absence holds as the payment surface grows."
+    },
+    {
+      "id": "FR-POS-003C",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-POS-003C",
+        "TST-M3-FR-POS-003C",
+        "TST-M4-FR-POS-003C",
+        "TST-M6-FR-POS-003C"
+      ],
+      "gate_local_behavior": "Scanner proves no pickup or delivery order-creation path, field or screen exists.",
+      "later_behavior": "Absence holds as the staff ordering surface grows."
+    },
+    {
+      "id": "FR-POS-010B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M4",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-POS-010B",
+        "TST-M4-FR-POS-010B",
+        "TST-M6-FR-POS-010B"
+      ],
+      "gate_local_behavior": "Scanner proves no pickup-code or delivery search field, index or screen exists.",
+      "later_behavior": "Absence holds as the search surface grows."
+    },
+    {
+      "id": "FR-RCP-008B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M2",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-RCP-008B",
+        "TST-M2-FR-RCP-008B",
+        "TST-M6-FR-RCP-008B"
+      ],
+      "gate_local_behavior": "Scanner proves no recipe module, table or route exists.",
+      "later_behavior": "Absence holds as schema grows."
+    },
+    {
+      "id": "FR-SEC-010B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M1",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-SEC-010B",
+        "TST-M1-FR-SEC-010B",
+        "TST-M6-FR-SEC-010B"
+      ],
+      "gate_local_behavior": "Scanner proves no employee or payroll field, table or test exists.",
+      "later_behavior": "Absence holds as schema grows."
+    },
+    {
+      "id": "FR-SEC-015",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M1",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-SEC-015",
+        "TST-M1-FR-SEC-015",
+        "TST-M6-FR-SEC-015"
+      ],
+      "gate_local_behavior": "CI design proves the pipeline fails closed on unknown/empty/skipped/unsupported results, verified with planted controls in the CI plan.",
+      "later_behavior": "Testing the actual production artifacts requires those artifacts to exist."
+    },
+    {
+      "id": "FR-SRV-007B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M3",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002",
+        "FR-SEC-010B"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-SRV-007B",
+        "TST-M3-FR-SRV-007B",
+        "TST-M6-FR-SRV-007B"
+      ],
+      "gate_local_behavior": "Scanner proves no roster, shift, break, attendance, timekeeping, payroll or employment-history field or table exists, and presence records carry a retention bound.",
+      "later_behavior": "Absence holds as the staff surface grows."
+    },
+    {
+      "id": "FR-TEN-002B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M1",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-TEN-002B",
+        "TST-M1-FR-TEN-002B",
+        "TST-M6-FR-TEN-002B"
+      ],
+      "gate_local_behavior": "Scanner proves absence of any storage-location entity in the repository plan and, from M1, in schema and code.",
+      "later_behavior": "Absence must hold as schema and application surface grow."
+    },
+    {
+      "id": "FR-TEN-009B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M1",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-TEN-009B",
+        "TST-M1-FR-TEN-009B",
+        "TST-M6-FR-TEN-009B"
+      ],
+      "gate_local_behavior": "Scanner proves no excluded-domain enumeration value or registry entry exists.",
+      "later_behavior": "Absence holds as configuration surface grows."
+    },
+    {
+      "id": "FR-TST-004B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M4",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-TST-004B",
+        "TST-M4-FR-TST-004B",
+        "TST-M6-FR-TST-004B"
+      ],
+      "gate_local_behavior": "Scanner proves no supplier or courier port, simulator or contract test exists.",
+      "later_behavior": "Absence holds as the port set grows."
+    },
+    {
+      "id": "FR-TST-005B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-TST-005B",
+        "TST-M6-FR-TST-005B"
+      ],
+      "gate_local_behavior": "Scanner proves no pickup, delivery, supplier or Phase 2 back-office journey or test exists.",
+      "later_behavior": "Absence holds as the journey set grows."
+    },
+    {
+      "id": "FR-TST-007B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-TST-007B",
+        "TST-M6-FR-TST-007B"
+      ],
+      "gate_local_behavior": "Scanner proves no stock, supplier or delivery concurrency test exists.",
+      "later_behavior": "Absence holds as the concurrency suite grows."
+    },
+    {
+      "id": "FR-TST-013",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M5a",
+        "M5b",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-005"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-TST-013",
+        "TST-M3-FR-TST-013",
+        "TST-M4-FR-TST-013",
+        "TST-M5a-FR-TST-013",
+        "TST-M5b-FR-TST-013",
+        "TST-M6-FR-TST-013"
+      ],
+      "gate_local_behavior": "Every mandatory journey slice is mapped to planned test IDs, owner and evidence slots before coding begins.",
+      "later_behavior": "Evidence and defect status accrue as each gate executes its journeys."
+    },
+    {
+      "id": "FR-TST-014",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M1",
+        "M2",
+        "M3",
+        "M4",
+        "M5a",
+        "M5b",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-005"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-TST-014",
+        "TST-M1-FR-TST-014",
+        "TST-M2-FR-TST-014",
+        "TST-M3-FR-TST-014",
+        "TST-M4-FR-TST-014",
+        "TST-M5a-FR-TST-014",
+        "TST-M5b-FR-TST-014",
+        "TST-M6-FR-TST-014"
+      ],
+      "gate_local_behavior": "Every active requirement maps to a planned component and test before coding begins.",
+      "later_behavior": "Each implementing gate populates real components, tests and evidence."
+    },
+    {
+      "id": "FR-TST-019",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M1",
+        "M2",
+        "M3",
+        "M4",
+        "M5a",
+        "M5b",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-004"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-TST-019",
+        "TST-M1-FR-TST-019",
+        "TST-M2-FR-TST-019",
+        "TST-M3-FR-TST-019",
+        "TST-M4-FR-TST-019",
+        "TST-M5a-FR-TST-019",
+        "TST-M5b-FR-TST-019",
+        "TST-M6-FR-TST-019"
+      ],
+      "gate_local_behavior": "The audit branch structure exists and the M0R review itself produces immutable commands, evidence and a decision against an exact commit.",
+      "later_behavior": "Every subsequent gate produces its own audit branch and decision."
+    },
+    {
+      "id": "FR-UX-001B",
+      "introduced_at": "M0R",
+      "revalidated_at": [
+        "M2",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M0R-FR-UX-001B",
+        "TST-M2-FR-UX-001B",
+        "TST-M6-FR-UX-001B"
+      ],
+      "gate_local_behavior": "Scanner proves no pickup or delivery screen or journey exists.",
+      "later_behavior": "Absence holds as customer UX grows."
+    },
+    {
+      "id": "FR-AUTH-001",
+      "introduced_at": "M1",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-AUTH-001"
+      ],
+      "gate_local_behavior": "Staff authenticate by verified phone or email with password or OTP; the provider adapter is replaceable behind an interface.",
+      "later_behavior": "None beyond M1 for this clause."
+    },
+    {
+      "id": "FR-AUTH-004",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-001",
+        "FR-AUTH-008"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-AUTH-004",
+        "TST-M5a-FR-AUTH-004"
+      ],
+      "gate_local_behavior": "Sessions and devices are listable and revocable; tokens rotate; role removal invalidates access immediately.",
+      "later_behavior": "Edge-node and print-agent principals become revocable subjects when they exist."
+    },
+    {
+      "id": "FR-AUTH-005",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-001",
+        "FR-SEC-014",
+        "FR-AUTH-006"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-AUTH-005A",
+        "TST-M1-FR-AUTH-005B",
+        "TST-M4-FR-AUTH-005B"
+      ],
+      "gate_local_behavior": "Quick PIN re-entry works only on registered trusted terminals and only for low-risk actions. | Configuration changes at M1 require step-up; the sensitive-action list is enforced for actions that exist.",
+      "later_behavior": "None beyond M1 for this clause. | Refunds, voids and high discounts exist only at M4 and must be proven to demand step-up there."
+    },
+    {
+      "id": "FR-AUTH-006",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-001"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-AUTH-006",
+        "TST-M4-FR-AUTH-006",
+        "TST-M6-FR-AUTH-006"
+      ],
+      "gate_local_behavior": "Step-up challenge with recency window enforced for role changes and configuration at M1.",
+      "later_behavior": "Refunds, reversals and payout exist at M4; export actions at M6."
+    },
+    {
+      "id": "FR-AUTH-007",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-AUTH-007",
+        "TST-M6-FR-AUTH-007"
+      ],
+      "gate_local_behavior": "Authentication and OTP endpoints enforce rate limits and lockout with secure credential handling.",
+      "later_behavior": "Distributed production enforcement is only demonstrable on the deployed artifact."
+    },
+    {
+      "id": "FR-AUTH-008",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TEN-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-AUTH-008",
+        "TST-M3-FR-AUTH-008",
+        "TST-M4-FR-AUTH-008",
+        "TST-M5a-FR-AUTH-008"
+      ],
+      "gate_local_behavior": "Access resolves only through membership records; absent tenant/outlet context returns no data and permits no write.",
+      "later_behavior": "New authorized surfaces must continue to fail closed."
+    },
+    {
+      "id": "FR-AUTH-009",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-004"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-AUTH-009",
+        "TST-M5a-FR-AUTH-009"
+      ],
+      "gate_local_behavior": "Cloud workers and integrations authenticate as scoped service principals with rotation and revocation.",
+      "later_behavior": "Edge node and print agent principals exist only at M5a."
+    },
+    {
+      "id": "FR-AUTH-010",
+      "introduced_at": "M1",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-001",
+        "FR-SEC-009"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-AUTH-010"
+      ],
+      "gate_local_behavior": "Administrator-controlled recovery executes with identity verification, revocation of old factors and an audit record.",
+      "later_behavior": "None beyond M1 for this clause."
+    },
+    {
+      "id": "FR-CFG-001A",
+      "introduced_at": "M1",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-TEN-002A",
+        "FR-AUTH-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-CFG-001A"
+      ],
+      "gate_local_behavior": "Complete the organizational setup and verify that the new administrator can access only the created tenant and outlet.",
+      "later_behavior": ""
+    },
+    {
+      "id": "FR-CFG-002A",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TEN-003"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-CFG-002A",
+        "TST-M3-FR-CFG-002A",
+        "TST-M4-FR-CFG-002A",
+        "TST-M5a-FR-CFG-002A"
+      ],
+      "gate_local_behavior": "Policy records for the named Phase 1 categories exist with validation and effective dating.",
+      "later_behavior": "Policy enforcement is provable only where the governed behavior exists: ordering/service/cancellation at M3, discount/refund/tip/cash/approval at M4, local continuity at M5a."
+    },
+    {
+      "id": "FR-CFG-003",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TEN-003"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-CFG-003",
+        "TST-M3-FR-CFG-003",
+        "TST-M4-FR-CFG-003",
+        "TST-M5a-FR-CFG-003"
+      ],
+      "gate_local_behavior": "Localized reason-code sets are managed as configuration data with the Phase 1 category list.",
+      "later_behavior": "Each code is exercised only where its action exists: cancellation and service failure at M3, void/refund/discount/complimentary/reversal/tip correction/override at M4, printer failure at M5a."
+    },
+    {
+      "id": "FR-CFG-004",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-003"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-CFG-004",
+        "TST-M4-FR-CFG-004"
+      ],
+      "gate_local_behavior": "Numbering service issues collision-safe numbers under concurrency for the document types defined at M1.",
+      "later_behavior": "Bill and receipt document types are numbered when they exist."
+    },
+    {
+      "id": "FR-CFG-005A",
+      "introduced_at": "M1",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-TEN-004"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-CFG-005A"
+      ],
+      "gate_local_behavior": "Unknown, absent or disabled entitlement values deny the feature and expose no route or operation.",
+      "later_behavior": ""
+    },
+    {
+      "id": "FR-CFG-006",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4",
+        "M5b"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TEN-003"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-CFG-006",
+        "TST-M4-FR-CFG-006",
+        "TST-M5b-FR-CFG-006"
+      ],
+      "gate_local_behavior": "Branding attributes are configurable per tenant and consumed from configuration rather than build-time constants.",
+      "later_behavior": "Receipt/footer text is only rendered on a real receipt at M4; public-domain mapping only takes effect with per-outlet hostname routing at M5b."
+    },
+    {
+      "id": "FR-CFG-007A",
+      "introduced_at": "M1",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-013"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-CFG-007A"
+      ],
+      "gate_local_behavior": "Demo fixtures are explicitly marked and reset works only in non-production environments.",
+      "later_behavior": "None beyond M1 for this clause."
+    },
+    {
+      "id": "FR-COM-002",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4",
+        "M5b"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-CFG-006"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-COM-002",
+        "TST-M4-FR-COM-002",
+        "TST-M5b-FR-COM-002"
+      ],
+      "gate_local_behavior": "Brand and template selection resolve per tenant with configurable platform attribution.",
+      "later_behavior": "Receipt templates render at M4; per-outlet public domains take effect at M5b."
+    },
+    {
+      "id": "FR-COM-007",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M2",
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TEN-003"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-COM-007",
+        "TST-M2-FR-COM-007",
+        "TST-M4-FR-COM-007"
+      ],
+      "gate_local_behavior": "Templates exist as data with no tenant-specific constant in code.",
+      "later_behavior": "Menu and language templates become substantive at M2; tax and workflow templates at M3/M4."
+    },
+    {
+      "id": "FR-COM-009",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M5a",
+        "M5b"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TEN-003"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-COM-009",
+        "TST-M5a-FR-COM-009",
+        "TST-M5b-FR-COM-009"
+      ],
+      "gate_local_behavior": "Application and schema versions are tracked per tenant/deployment.",
+      "later_behavior": "Edge and connector versions exist only once the node and connectors exist; compatibility posture is part of the M5b lease."
+    },
+    {
+      "id": "FR-COM-010",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M2",
+        "M4",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-COM-007"
+      ],
+      "journey_links": [
+        "GJ-13"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-COM-010",
+        "TST-M2-FR-COM-010",
+        "TST-M4-FR-COM-010",
+        "TST-M6-FR-COM-010"
+      ],
+      "gate_local_behavior": "No hard-coded tenant identifier or provider name in the M1 API surface.",
+      "later_behavior": "Customer screens at M2, payment provider surfaces at M4, and the full production artifact at M6."
+    },
+    {
+      "id": "FR-DAT-001",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-001A"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-DAT-001",
+        "TST-M6-FR-DAT-001"
+      ],
+      "gate_local_behavior": "Migration 0001 applies to an empty database; ordered history builds cleanly; no v1.1 migration is present.",
+      "later_behavior": "Upgrade from a prior approved baseline is exercised with a populated schema."
+    },
+    {
+      "id": "FR-DAT-002",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M3",
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-DAT-002",
+        "TST-M3-FR-DAT-002",
+        "TST-M4-FR-DAT-002"
+      ],
+      "gate_local_behavior": "Constraints exist and reject invalid rows for the M1 schema.",
+      "later_behavior": "Order and fulfillment state relationships at M3; financial state relationships at M4."
+    },
+    {
+      "id": "FR-DAT-003",
+      "introduced_at": "M1",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-DAT-003"
+      ],
+      "gate_local_behavior": "All primary identifiers are opaque; human numbers are separate columns.",
+      "later_behavior": "None beyond M1."
+    },
+    {
+      "id": "FR-DAT-004",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TEN-002A"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-DAT-004",
+        "TST-M4-FR-DAT-004",
+        "TST-M5a-FR-DAT-004"
+      ],
+      "gate_local_behavior": "Timestamps are UTC with outlet timezone context; authoritative events use server time.",
+      "later_behavior": "Cash-shift and fiscal-period boundaries make timezone correctness financially material at M4; outlet-local event time under outage at M5a."
+    },
+    {
+      "id": "FR-DAT-005",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-001"
+      ],
+      "journey_links": [
+        "GJ-06"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-DAT-005",
+        "TST-M4-FR-DAT-005"
+      ],
+      "gate_local_behavior": "Money columns use exact types with explicit currency; no float path exists in the M1 code.",
+      "later_behavior": "Actual financial computation (bill, tax, service charge, tip, allocation) occurs at M4."
+    },
+    {
+      "id": "FR-DAT-006",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-005"
+      ],
+      "journey_links": [
+        "GJ-06"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-DAT-006",
+        "TST-M4-FR-DAT-006"
+      ],
+      "gate_local_behavior": "Quantity/percentage precision, rounding mode and validation are defined and enforced.",
+      "later_behavior": "Tip and bill total arithmetic exists only at M4."
+    },
+    {
+      "id": "FR-DAT-007",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M3",
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-DAT-007",
+        "TST-M3-FR-DAT-007",
+        "TST-M4-FR-DAT-007"
+      ],
+      "gate_local_behavior": "Mutable aggregates carry a version and concurrent writes return an explicit conflict.",
+      "later_behavior": "Order and check aggregates are the operationally contended ones."
+    },
+    {
+      "id": "FR-DAT-009",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M2",
+        "M3"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-DAT-009",
+        "TST-M2-FR-DAT-009",
+        "TST-M3-FR-DAT-009"
+      ],
+      "gate_local_behavior": "Master records deactivate/archive without breaking references; historical versions remain readable.",
+      "later_behavior": "Menu items and prices are the first heavily versioned master data; order snapshots reference them."
+    },
+    {
+      "id": "FR-DAT-013",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M2"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TEN-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-DAT-013",
+        "TST-M2-FR-DAT-013"
+      ],
+      "gate_local_behavior": "Two branded tenants and two outlets are seeded and isolation is provable at the M1 surface.",
+      "later_behavior": "Three-language content requires the localization and menu surfaces."
+    },
+    {
+      "id": "FR-DAT-015",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-DAT-015",
+        "TST-M4-FR-DAT-015",
+        "TST-M6-FR-DAT-015"
+      ],
+      "gate_local_behavior": "Catalog and diagrams generate from the live schema and match it.",
+      "later_behavior": "The catalog must remain current as the schema grows."
+    },
+    {
+      "id": "FR-DAT-016",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-001"
+      ],
+      "journey_links": [
+        "GJ-11"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-DAT-016",
+        "TST-M6-FR-DAT-016"
+      ],
+      "gate_local_behavior": "Checksum locking and preflight reject edited migrations; forward-only policy enforced.",
+      "later_behavior": "Backup-and-tested-recovery around a production migration requires production backup capability."
+    },
+    {
+      "id": "FR-DAT-017",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-DAT-017",
+        "TST-M4-FR-DAT-017",
+        "TST-M5a-FR-DAT-017"
+      ],
+      "gate_local_behavior": "Integration, migration and RLS tests execute against real PostgreSQL using production roles, not a superuser.",
+      "later_behavior": "Financial tests exist at M4; synchronization tests at M5a."
+    },
+    {
+      "id": "FR-DAT-018",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-002",
+        "FR-SEC-009"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-DAT-018",
+        "TST-M4-FR-DAT-018",
+        "TST-M5a-FR-DAT-018"
+      ],
+      "gate_local_behavior": "Retention/archive policy is configurable and cannot delete append-only ledger or audit rows.",
+      "later_behavior": "Financial ledgers exist at M4; archived synchronization evidence at M5a."
+    },
+    {
+      "id": "FR-GOV-001B",
+      "introduced_at": "M1",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-001A",
+        "FR-DAT-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-GOV-001B"
+      ],
+      "gate_local_behavior": "Migration 0001 is created and applied at M1 only, with M0R approval recorded as its precondition.",
+      "later_behavior": "None beyond M1 for this clause."
+    },
+    {
+      "id": "FR-I18N-007",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M3",
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-CFG-006"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-I18N-007",
+        "TST-M3-FR-I18N-007",
+        "TST-M4-FR-I18N-007"
+      ],
+      "gate_local_behavior": "The administration surface launches in English on a translation-ready framework.",
+      "later_behavior": "Waiter and KDS surfaces exist at M3; POS at M4. Each must launch in English on the same framework."
+    },
+    {
+      "id": "FR-INT-010",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-SEC-007"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-INT-010",
+        "TST-M4-FR-INT-010",
+        "TST-M5a-FR-INT-010"
+      ],
+      "gate_local_behavior": "Cloud credentials are stored per tenant/outlet/environment and no real secret appears in source, images or fixtures.",
+      "later_behavior": "Payment-adapter credentials exist at M4; outlet-node and printer credentials at M5a."
+    },
+    {
+      "id": "FR-OPS-001",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M5a",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-017",
+        "FR-SEC-001"
+      ],
+      "journey_links": [
+        "GJ-10",
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-OPS-001",
+        "TST-M5a-FR-OPS-001",
+        "TST-M6-FR-OPS-001"
+      ],
+      "gate_local_behavior": "The cloud process refuses to report healthy under owner, superuser, BYPASSRLS or maintenance credentials and validates environment, paths and binaries first.",
+      "later_behavior": "The outlet node is a second process with its own identity and certificate checks; the production artifact is the final subject."
+    },
+    {
+      "id": "FR-OPS-002",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M5a",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-OPS-001"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-OPS-002",
+        "TST-M5a-FR-OPS-002",
+        "TST-M6-FR-OPS-002"
+      ],
+      "gate_local_behavior": "Cloud health truthfully verifies migrations, production-role access and required jobs, and reports unhealthy when any is unavailable.",
+      "later_behavior": "Outlet authority, local storage, printer status and synchronization dependencies exist on the node."
+    },
+    {
+      "id": "FR-OPS-003",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-004",
+        "FR-SEC-007"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-OPS-003",
+        "TST-M5a-FR-OPS-003"
+      ],
+      "gate_local_behavior": "Cloud logs carry correlation, tenant/outlet, actor, event and error classification with sensitive values redacted.",
+      "later_behavior": "The node emits its own log stream that must satisfy the same contract."
+    },
+    {
+      "id": "FR-OPS-004",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-OPS-003"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-OPS-004",
+        "TST-M6-FR-OPS-004"
+      ],
+      "gate_local_behavior": "Latency, error and queue metrics emit through a replaceable provider interface.",
+      "later_behavior": "Domain SLA measures and production thresholds are confirmed on the deployed artifact."
+    },
+    {
+      "id": "FR-OPS-005",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M3",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-OPS-002",
+        "FR-GOV-002"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-OPS-005",
+        "TST-M3-FR-OPS-005",
+        "TST-M5a-FR-OPS-005"
+      ],
+      "gate_local_behavior": "Only Phase 1 jobs are registered and readiness turns unhealthy when an advertised job cannot do real work.",
+      "later_behavior": "Notification jobs arrive at M3 and synchronization jobs at M5a; each must satisfy the same rule."
+    },
+    {
+      "id": "FR-OPS-008",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M5a",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-002"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-OPS-008",
+        "TST-M5a-FR-OPS-008",
+        "TST-M6-FR-OPS-008"
+      ],
+      "gate_local_behavior": "The cloud artifact builds deterministically from clean source and route/module checks run against that same build with no second profile build.",
+      "later_behavior": "The outlet node artifact is built at M5a; both production artifacts are confirmed at M6."
+    },
+    {
+      "id": "FR-OPS-020",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M5a",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-OPS-001",
+        "FR-DAT-017"
+      ],
+      "journey_links": [
+        "GJ-11"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-OPS-020",
+        "TST-M5a-FR-OPS-020",
+        "TST-M6-FR-OPS-020"
+      ],
+      "gate_local_behavior": "API and workers pass readiness under exact least-privileged production identities with no fallback path.",
+      "later_behavior": "The outlet node is a further identity at M5a; backup and restore identities are exercised at M6."
+    },
+    {
+      "id": "FR-OPS-021",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-OPS-008"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-OPS-021",
+        "TST-M6-FR-OPS-021"
+      ],
+      "gate_local_behavior": "The documented commands run on both platforms from a clean shell and fail clearly when a tool is missing.",
+      "later_behavior": "The complete command set including node and backup operations is confirmed at M6."
+    },
+    {
+      "id": "FR-SEC-001",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M2",
+        "M3",
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TEN-001",
+        "FR-AUTH-008"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-SEC-001",
+        "TST-M2-FR-SEC-001",
+        "TST-M3-FR-SEC-001",
+        "TST-M4-FR-SEC-001",
+        "TST-M5a-FR-SEC-001"
+      ],
+      "gate_local_behavior": "All M1 API routes, policies, jobs, cache and file paths deny without full context.",
+      "later_behavior": "Each later gate adds new paths; the synchronization path clause is only executable when sync exists."
+    },
+    {
+      "id": "FR-SEC-002A",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TEN-001",
+        "FR-SEC-001"
+      ],
+      "journey_links": [
+        "GJ-13"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-SEC-002A",
+        "TST-M3-FR-SEC-002A",
+        "TST-M4-FR-SEC-002A",
+        "TST-M6-FR-SEC-002A"
+      ],
+      "gate_local_behavior": "Populated foreign-tenant and sibling-outlet fixtures fail closed for all four verbs on cloud routes.",
+      "later_behavior": "New cloud resources at later gates must be covered; the complete production surface is revalidated at M6."
+    },
+    {
+      "id": "FR-SEC-003",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-SEC-003",
+        "TST-M3-FR-SEC-003",
+        "TST-M4-FR-SEC-003",
+        "TST-M6-FR-SEC-003"
+      ],
+      "gate_local_behavior": "Enforced across every route, template and data access path existing at M1.",
+      "later_behavior": "Later gates add routes and rendering surfaces subject to the same rule."
+    },
+    {
+      "id": "FR-SEC-004",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-SEC-004",
+        "TST-M3-FR-SEC-004",
+        "TST-M4-FR-SEC-004",
+        "TST-M6-FR-SEC-004"
+      ],
+      "gate_local_behavior": "Enforced across every route, template and data access path existing at M1.",
+      "later_behavior": "Later gates add routes and rendering surfaces subject to the same rule."
+    },
+    {
+      "id": "FR-SEC-005",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-SEC-005",
+        "TST-M3-FR-SEC-005",
+        "TST-M4-FR-SEC-005",
+        "TST-M6-FR-SEC-005"
+      ],
+      "gate_local_behavior": "Enforced across every route, template and data access path existing at M1.",
+      "later_behavior": "Later gates add routes and rendering surfaces subject to the same rule."
+    },
+    {
+      "id": "FR-SEC-006",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M2",
+        "M3",
+        "M4",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-007"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-SEC-006",
+        "TST-M2-FR-SEC-006",
+        "TST-M3-FR-SEC-006",
+        "TST-M4-FR-SEC-006",
+        "TST-M6-FR-SEC-006"
+      ],
+      "gate_local_behavior": "Contextual limits enforced on the authentication and search surfaces existing at M1.",
+      "later_behavior": "QR resolution at M2, ordering at M3, payment and webhooks at M4, exports at M6."
+    },
+    {
+      "id": "FR-SEC-007",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-SEC-007",
+        "TST-M3-FR-SEC-007",
+        "TST-M4-FR-SEC-007",
+        "TST-M6-FR-SEC-007"
+      ],
+      "gate_local_behavior": "Enforced across every route, template and data access path existing at M1.",
+      "later_behavior": "Later gates add routes and rendering surfaces subject to the same rule."
+    },
+    {
+      "id": "FR-SEC-008",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M5b",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-001"
+      ],
+      "journey_links": [
+        "GJ-11"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-SEC-008",
+        "TST-M5b-FR-SEC-008",
+        "TST-M6-FR-SEC-008"
+      ],
+      "gate_local_behavior": "Cloud transport uses TLS and data at rest is encrypted; selected high-risk fields are encrypted.",
+      "later_behavior": "Per-outlet public-trust TLS on the local node is an M5b concern; backup encryption is proven with backup/restore."
+    },
+    {
+      "id": "FR-SEC-009",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-002",
+        "FR-DAT-017"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-SEC-009",
+        "TST-M4-FR-SEC-009",
+        "TST-M5a-FR-SEC-009"
+      ],
+      "gate_local_behavior": "Application roles cannot UPDATE or DELETE audit rows; append-only enforced at database level.",
+      "later_behavior": "Later gates write new audit categories under the same constraint."
+    },
+    {
+      "id": "FR-SEC-010A",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M3"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-008"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-SEC-010A",
+        "TST-M3-FR-SEC-010A"
+      ],
+      "gate_local_behavior": "Data classification exists and customer contact/complaint fields are restricted by role.",
+      "later_behavior": "Complaint and service-failure data is generated at M3; restriction is revalidated once real records exist."
+    },
+    {
+      "id": "FR-SEC-011",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-SEC-007"
+      ],
+      "journey_links": [
+        "GJ-01B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-SEC-011",
+        "TST-M4-FR-SEC-011"
+      ],
+      "gate_local_behavior": "No schema field or log sink accepts PAN/CVV; scanner and log assertions prove absence.",
+      "later_behavior": "The payment surface where such data could appear exists at M4; external terminal recording at M4 and proof images must be re-proven."
+    },
+    {
+      "id": "FR-SEC-012",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-SEC-003"
+      ],
+      "journey_links": [
+        "GJ-02B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-SEC-012",
+        "TST-M4-FR-SEC-012"
+      ],
+      "gate_local_behavior": "Uploads are validated, scanned, hashed and served through signed expiring authorized URLs.",
+      "later_behavior": "The first real private-file class is the Telebirr/CBE payment proof at M4."
+    },
+    {
+      "id": "FR-SEC-013",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-006",
+        "FR-AUTH-010"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-SEC-013",
+        "TST-M4-FR-SEC-013"
+      ],
+      "gate_local_behavior": "Step-up MFA is available for high-risk actions with administrator-controlled enrolment; documentation states the true enrolment posture.",
+      "later_behavior": "High-risk financial actions appear at M4."
+    },
+    {
+      "id": "FR-SEC-014",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-004"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-SEC-014",
+        "TST-M5a-FR-SEC-014"
+      ],
+      "gate_local_behavior": "Staff devices and terminals are registered, named, revocable and monitored.",
+      "later_behavior": "Edge nodes are registrable subjects only once they exist."
+    },
+    {
+      "id": "FR-SEC-016",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M2",
+        "M5b"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-SEC-004"
+      ],
+      "journey_links": [
+        "GJ-08"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-SEC-016",
+        "TST-M2-FR-SEC-016",
+        "TST-M5b-FR-SEC-016"
+      ],
+      "gate_local_behavior": "Security headers are set correctly for each application surface existing at M1.",
+      "later_behavior": "Customer PWA at M2 and the locally served same-QR surface at M5b are additional apps with their own header posture."
+    },
+    {
+      "id": "FR-SEC-018",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-018"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-SEC-018",
+        "TST-M4-FR-SEC-018",
+        "TST-M6-FR-SEC-018"
+      ],
+      "gate_local_behavior": "Anonymization/erasure workflow and legal hold flags exist and respect ledger integrity for M1 data.",
+      "later_behavior": "Customer session and order data subject to erasure exist from M2 and M3; ledger-protected financial records at M4."
+    },
+    {
+      "id": "FR-SEC-020",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-004",
+        "FR-SEC-009"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-SEC-020",
+        "TST-M6-FR-SEC-020"
+      ],
+      "gate_local_behavior": "Runbook exists and credential rotation, containment and evidence preservation are executable against M1 capability.",
+      "later_behavior": "Detection depends on production monitoring; tenant notification on the deployed multi-tenant artifact."
+    },
+    {
+      "id": "FR-TEN-001",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M2",
+        "M3",
+        "M4",
+        "M5a",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-TEN-001",
+        "TST-M2-FR-TEN-001",
+        "TST-M3-FR-TEN-001",
+        "TST-M4-FR-TEN-001",
+        "TST-M5a-FR-TEN-001",
+        "TST-M6-FR-TEN-001"
+      ],
+      "gate_local_behavior": "Deny cross-tenant SELECT/INSERT/UPDATE/DELETE on the tables existing at M1 through production roles, with populated foreign-tenant fixtures.",
+      "later_behavior": "Each later gate adds new tenant-owned records and new access paths that the same rule must cover."
+    },
+    {
+      "id": "FR-TEN-002A",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M2",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-TEN-002A",
+        "TST-M2-FR-TEN-002A",
+        "TST-M5a-FR-TEN-002A"
+      ],
+      "gate_local_behavior": "Brand, legal entity, outlet, service area, preparation station and device entities exist with configurable depth; no fixed-level assumption in schema or queries.",
+      "later_behavior": "Table entity becomes operationally exercised when QR/table sessions exist; device registration extends to outlet nodes and print agents."
+    },
+    {
+      "id": "FR-TEN-003",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-001",
+        "FR-TEN-010"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-TEN-003",
+        "TST-M4-FR-TEN-003",
+        "TST-M5a-FR-TEN-003"
+      ],
+      "gate_local_behavior": "Versioned configuration records exist and are readable/writable per tenant with effective dating for the categories above.",
+      "later_behavior": "Payment and connector configuration values are only exercised once payment execution (M4) and outlet connectors (M5a) exist."
+    },
+    {
+      "id": "FR-TEN-004",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TEN-003"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-TEN-004",
+        "TST-M6-FR-TEN-004"
+      ],
+      "gate_local_behavior": "Entitlement records resolve per tenant/entity/outlet and gate feature availability at runtime with no forked build.",
+      "later_behavior": "Entitlement effect on later feature surfaces is confirmed as those surfaces appear."
+    },
+    {
+      "id": "FR-TEN-005",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M2",
+        "M4",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TEN-001",
+        "FR-DAT-013"
+      ],
+      "journey_links": [
+        "GJ-13"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-TEN-005",
+        "TST-M2-FR-TEN-005",
+        "TST-M4-FR-TEN-005",
+        "TST-M6-FR-TEN-005"
+      ],
+      "gate_local_behavior": "A second tenant is seeded with distinct branding and entitlements and proven isolated at the M1 surface.",
+      "later_behavior": "Different language defaults require the localization surface; tax settings require billing; full commercial isolation is proven by the M6 second-tenant journey."
+    },
+    {
+      "id": "FR-TEN-009A",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TEN-003"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-TEN-009A",
+        "TST-M4-FR-TEN-009A"
+      ],
+      "gate_local_behavior": "A system-of-record registry entry exists per tenant/legal entity with the Phase 1 enumeration only.",
+      "later_behavior": "The registry governs actual fiscal document and payment behavior once those exist."
+    },
+    {
+      "id": "FR-TEN-010",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-008",
+        "FR-SEC-009"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-TEN-010",
+        "TST-M4-FR-TEN-010"
+      ],
+      "gate_local_behavior": "Each configuration change writes an append-only audit record with actor, approval and effective date.",
+      "later_behavior": "Policy categories introduced later produce the same audit evidence."
+    },
+    {
+      "id": "FR-TST-001",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M2",
+        "M3",
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-005",
+        "FR-AUTH-008"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-TST-001",
+        "TST-M2-FR-TST-001",
+        "TST-M3-FR-TST-001",
+        "TST-M4-FR-TST-001"
+      ],
+      "gate_local_behavior": "Unit tests cover M1 domain policies, money types and permissions with meaningful assertions.",
+      "later_behavior": "State machines and translations mature at M2 and M3; money calculations become substantive at M4."
+    },
+    {
+      "id": "FR-TST-002",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-017",
+        "FR-SEC-002A"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-TST-002",
+        "TST-M3-FR-TST-002",
+        "TST-M4-FR-TST-002",
+        "TST-M5a-FR-TST-002"
+      ],
+      "gate_local_behavior": "Constraints, transactions, locks, RLS and migrations are tested on real PostgreSQL through raw production-role pools.",
+      "later_behavior": "Order and financial state relationships at M3 and M4; the local database at M5a."
+    },
+    {
+      "id": "FR-TST-003",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M3",
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-001",
+        "FR-AUTH-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-TST-003",
+        "TST-M3-FR-TST-003",
+        "TST-M4-FR-TST-003"
+      ],
+      "gate_local_behavior": "API tests cover validation, auth, idempotency, concurrency, error contracts and pagination for M1 routes.",
+      "later_behavior": "Each later gate adds substantial route surface subject to the same suite."
+    },
+    {
+      "id": "FR-TST-004A",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-001",
+        "FR-SEC-012"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-TST-004A",
+        "TST-M4-FR-TST-004A",
+        "TST-M5a-FR-TST-004A"
+      ],
+      "gate_local_behavior": "Messaging and storage ports are tested against production-equivalent simulators.",
+      "later_behavior": "Payment and fiscal ports exist at M4; outlet-node, synchronization and print ports at M5a."
+    },
+    {
+      "id": "FR-TST-006",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M5a",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-SEC-002A",
+        "FR-TST-017"
+      ],
+      "journey_links": [
+        "GJ-13"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-TST-006",
+        "TST-M3-FR-TST-006",
+        "TST-M4-FR-TST-006",
+        "TST-M5a-FR-TST-006",
+        "TST-M6-FR-TST-006"
+      ],
+      "gate_local_behavior": "Security tests run against owner-confirmed populated fixtures and fail when a policy is deliberately weakened.",
+      "later_behavior": "Each gate adds new policy surface that must be tested the same way; the complete production surface is revalidated at M6."
+    },
+    {
+      "id": "FR-TST-012",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-001",
+        "FR-DAT-016"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-TST-012",
+        "TST-M6-FR-TST-012"
+      ],
+      "gate_local_behavior": "A fresh migration applies cleanly with checksum lock and correct line endings under ordinary Windows and Linux invocation.",
+      "later_behavior": "The supported upgrade path from a prior baseline is exercised against the production schema."
+    },
+    {
+      "id": "FR-TST-015",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TST-017"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-TST-015",
+        "TST-M6-FR-TST-015"
+      ],
+      "gate_local_behavior": "Each confirmed defect produces an unchanged regression gate and, where the assertion could be vacuous, an independent stronger negative control.",
+      "later_behavior": "The complete defect and control set is audited against the final artifact."
+    },
+    {
+      "id": "FR-TST-016",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-004"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-TST-016",
+        "TST-M6-FR-TST-016"
+      ],
+      "gate_local_behavior": "Each gate produces an evidence report containing all seven named elements.",
+      "later_behavior": "The consolidated pilot evidence report is produced at handover."
+    },
+    {
+      "id": "FR-TST-020",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-OPS-008"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M1-FR-TST-020",
+        "TST-M6-FR-TST-020"
+      ],
+      "gate_local_behavior": "Results are identical from a clean checkout regardless of command order and stale artifacts cannot influence a pass.",
+      "later_behavior": "Order independence is re-proven across the full production build including the node artifact."
+    },
+    {
+      "id": "FR-UX-003",
+      "introduced_at": "M1",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-I18N-007"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M1-FR-UX-003",
+        "TST-M6-FR-UX-003"
+      ],
+      "gate_local_behavior": "The administration surface supports dense responsive layout, filters, saved views and keyboard navigation.",
+      "later_behavior": "The reporting and back-office surfaces extend this at M6."
+    },
+    {
+      "id": "FR-AUTH-003",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-001",
+        "FR-TAB-003"
+      ],
+      "journey_links": [
+        "GJ-01A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-AUTH-003",
+        "TST-M3-FR-AUTH-003"
+      ],
+      "gate_local_behavior": "Scanning a table QR creates a guest session holding no phone, email or account identifier.",
+      "later_behavior": "The M3 dine-in ordering journey revalidates that the privacy-minimized session remains anonymous when it submits an order."
+    },
+    {
+      "id": "FR-CFG-001B",
+      "introduced_at": "M2",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-I18N-001A",
+        "FR-TAB-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-CFG-001B"
+      ],
+      "gate_local_behavior": "Complete locale, currency, timezone, station, table and QR setup and prove that the generated QR resolves to the configured outlet and table.",
+      "later_behavior": ""
+    },
+    {
+      "id": "FR-CST-002",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-003"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-CST-002",
+        "TST-M6-FR-CST-002"
+      ],
+      "gate_local_behavior": "A guest profile is created only where operationally required by the session, and optional data carries an expiry/anonymization policy.",
+      "later_behavior": "Retention execution over accumulated customer data is proven with the retention workflow."
+    },
+    {
+      "id": "FR-I18N-001A",
+      "introduced_at": "M2",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-I18N-011",
+        "FR-MNU-004"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-I18N-001A"
+      ],
+      "gate_local_behavior": "Exactly three customer locales are offered and menu content plus the QR/session surface renders completely in the selected language.",
+      "later_behavior": "Service text, bills and receipts do not exist at M2."
+    },
+    {
+      "id": "FR-I18N-002",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3",
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-I18N-001A",
+        "FR-MNU-006"
+      ],
+      "journey_links": [
+        "GJ-03A",
+        "GJ-03B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-I18N-002",
+        "TST-M3-FR-I18N-002",
+        "TST-M4-FR-I18N-002"
+      ],
+      "gate_local_behavior": "Menu, modifier and price surfaces render true RTL with correct ETB and numeral formatting and mixed Arabic/Latin strings.",
+      "later_behavior": "Status timelines exist at M3; bill and receipt layouts at M4."
+    },
+    {
+      "id": "FR-I18N-003",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3",
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-009"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-I18N-003",
+        "TST-M3-FR-I18N-003",
+        "TST-M4-FR-I18N-003"
+      ],
+      "gate_local_behavior": "Translation records exist separately from canonical records and are populated and approved for menu, modifier, allergen and dietary content.",
+      "later_behavior": "Service and order-status content types exist at M3; bill, tip and receipt content types at M4."
+    },
+    {
+      "id": "FR-I18N-004",
+      "introduced_at": "M2",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-003",
+        "FR-TAB-005"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-I18N-004"
+      ],
+      "gate_local_behavior": "Explicit three-language selection persists on the table session and switching preserves cart contents.",
+      "later_behavior": "None beyond M2 for this clause."
+    },
+    {
+      "id": "FR-I18N-005",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3",
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-004",
+        "FR-TAB-003"
+      ],
+      "journey_links": [
+        "GJ-02B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-I18N-005",
+        "TST-M3-FR-I18N-005",
+        "TST-M4-FR-I18N-005"
+      ],
+      "gate_local_behavior": "Formatting is locale-correct with canonical storage, and the selected locale is snapshotted on the table session.",
+      "later_behavior": "The order-level snapshot exists at M3; receipt consumption of the snapshot at M4."
+    },
+    {
+      "id": "FR-I18N-006",
+      "introduced_at": "M2",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-MNU-003",
+        "FR-SAF-007"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-I18N-006"
+      ],
+      "gate_local_behavior": "Publication is blocked when any of the three locales lacks required customer or safety text, and no runtime translation path exists.",
+      "later_behavior": "None beyond M2 for this clause."
+    },
+    {
+      "id": "FR-I18N-010",
+      "introduced_at": "M2",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-I18N-003",
+        "FR-I18N-006"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-I18N-010"
+      ],
+      "gate_local_behavior": "Draft translations carry provenance and require human approval; no runtime translation path and no automatic safety publication exists.",
+      "later_behavior": "None beyond M2 for this clause."
+    },
+    {
+      "id": "FR-I18N-011",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3",
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [],
+      "journey_links": [
+        "GJ-03A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-I18N-011",
+        "TST-M3-FR-I18N-011",
+        "TST-M4-FR-I18N-011"
+      ],
+      "gate_local_behavior": "The locale registry contains exactly en, am and ar for customers, and Arabic renders true RTL on the customer surface.",
+      "later_behavior": "The staff-English clause is revalidated wherever a staff surface is introduced."
+    },
+    {
+      "id": "FR-MNU-001",
+      "introduced_at": "M2",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-009"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-MNU-001"
+      ],
+      "gate_local_behavior": "The menu hierarchy exists and carries no recipe or inventory identity reference.",
+      "later_behavior": "None beyond M2 for this clause."
+    },
+    {
+      "id": "FR-MNU-002A",
+      "introduced_at": "M2",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-MNU-001",
+        "FR-TEN-002A"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-MNU-002A"
+      ],
+      "gate_local_behavior": "Menu assignment resolves correctly by outlet, service area, channel, daypart and date range.",
+      "later_behavior": "None beyond M2 for this clause."
+    },
+    {
+      "id": "FR-MNU-003",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-MNU-001",
+        "FR-DAT-009"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-MNU-003",
+        "TST-M3-FR-MNU-003"
+      ],
+      "gate_local_behavior": "All six publication states and transitions work, and published snapshots are immutable.",
+      "later_behavior": "Order-time price/content snapshots reference these publication snapshots."
+    },
+    {
+      "id": "FR-MNU-004",
+      "introduced_at": "M2",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-MNU-001",
+        "FR-I18N-003"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-MNU-004"
+      ],
+      "gate_local_behavior": "All named content fields store and render per locale.",
+      "later_behavior": "None beyond M2 for this clause."
+    },
+    {
+      "id": "FR-MNU-005",
+      "introduced_at": "M2",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-MNU-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-MNU-005"
+      ],
+      "gate_local_behavior": "Variants carry independent prices and availability states.",
+      "later_behavior": "None beyond M2 for this clause."
+    },
+    {
+      "id": "FR-MNU-006",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-MNU-005"
+      ],
+      "journey_links": [
+        "GJ-01A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-MNU-006",
+        "TST-M3-FR-MNU-006"
+      ],
+      "gate_local_behavior": "Modifier group rules, price deltas and incompatibility constraints validate correctly.",
+      "later_behavior": "Modifier selection is exercised against real submitted orders at M3."
+    },
+    {
+      "id": "FR-MNU-007",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-MNU-001"
+      ],
+      "journey_links": [
+        "GJ-01A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-MNU-007",
+        "TST-M3-FR-MNU-007"
+      ],
+      "gate_local_behavior": "All five availability states publish correctly and no exact stock quantity is exposed anywhere.",
+      "later_behavior": "Availability revalidation at order submission occurs at M3."
+    },
+    {
+      "id": "FR-MNU-008",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-MNU-007",
+        "FR-CFG-003"
+      ],
+      "journey_links": [
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-MNU-008",
+        "TST-M3-FR-MNU-008"
+      ],
+      "gate_local_behavior": "Authorized staff pause an item/variant/modifier with a reason code and optional expected return time.",
+      "later_behavior": "Station-initiated sold-out during service is exercised with the kitchen surface."
+    },
+    {
+      "id": "FR-MNU-009",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-MNU-005",
+        "FR-DAT-005"
+      ],
+      "journey_links": [
+        "GJ-01A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-MNU-009",
+        "TST-M3-FR-MNU-009"
+      ],
+      "gate_local_behavior": "Effective-dated prices resolve correctly across outlet, channel, variant, currency and tax context.",
+      "later_behavior": "Price snapshots on orders require orders to exist."
+    },
+    {
+      "id": "FR-MNU-010",
+      "introduced_at": "M2",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-MNU-002A",
+        "FR-DAT-004"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-MNU-010"
+      ],
+      "gate_local_behavior": "Daypart windows activate and deactivate menus using outlet-local time including boundary cases.",
+      "later_behavior": "None beyond M2 for this clause."
+    },
+    {
+      "id": "FR-MNU-011",
+      "introduced_at": "M2",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-MNU-004",
+        "FR-SEC-012"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-MNU-011"
+      ],
+      "gate_local_behavior": "Responsive derivatives, alt text and focal crop work; source assets remain private and authorized.",
+      "later_behavior": "None beyond M2 for this clause."
+    },
+    {
+      "id": "FR-MNU-012",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-MNU-004",
+        "FR-SAF-002"
+      ],
+      "journey_links": [
+        "GJ-03A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-MNU-012",
+        "TST-M3-FR-MNU-012"
+      ],
+      "gate_local_behavior": "Search returns correct results across all three locales including mixed-script queries, and every named filter works.",
+      "later_behavior": "The M3 Arabic ordering journey revalidates mixed-script search against the live order-entry surface."
+    },
+    {
+      "id": "FR-RCP-008A",
+      "introduced_at": "M2",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-MNU-004",
+        "FR-SAF-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-RCP-008A"
+      ],
+      "gate_local_behavior": "Customer-visible ingredient text and allergen declarations are stored as customer content with no operational recipe linkage.",
+      "later_behavior": "None beyond M2 for this clause."
+    },
+    {
+      "id": "FR-SAF-001",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-I18N-003"
+      ],
+      "journey_links": [
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-SAF-001",
+        "TST-M3-FR-SAF-001"
+      ],
+      "gate_local_behavior": "The catalog is configurable per tenant/jurisdiction with translated text, icons and English kitchen codes, and no icon-only warning path exists.",
+      "later_behavior": "English kitchen codes are consumed by kitchen tickets at M3."
+    },
+    {
+      "id": "FR-SAF-002",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-SAF-001",
+        "FR-MNU-005"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-SAF-002",
+        "TST-M3-FR-SAF-002"
+      ],
+      "gate_local_behavior": "All three warning classes record per item/variant/modifier with effective versioning.",
+      "later_behavior": "Declarations are propagated to order and kitchen surfaces at M3."
+    },
+    {
+      "id": "FR-SAF-003",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-003",
+        "FR-SAF-001"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-SAF-003",
+        "TST-M3-FR-SAF-003"
+      ],
+      "gate_local_behavior": "A table-level allergy flag is recorded with explicit acknowledgement text on the session.",
+      "later_behavior": "The order-level flag and waiter-initiated flagging require the M3 order and waiter surfaces."
+    },
+    {
+      "id": "FR-SAF-005",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-SAF-002",
+        "FR-MNU-006"
+      ],
+      "journey_links": [
+        "GJ-01A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-SAF-005",
+        "TST-M3-FR-SAF-005"
+      ],
+      "gate_local_behavior": "Selecting a modifier that alters ingredients re-evaluates the declaration in the menu/cart surface.",
+      "later_behavior": "Substitutions during an accepted order are an M3 behavior."
+    },
+    {
+      "id": "FR-SAF-006",
+      "introduced_at": "M2",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-SAF-001",
+        "FR-TEN-002A"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-SAF-006"
+      ],
+      "gate_local_behavior": "Dietary claims carry definitions, evidence owner, review date and outlet applicability.",
+      "later_behavior": "None beyond M2 for this clause."
+    },
+    {
+      "id": "FR-SAF-007",
+      "introduced_at": "M2",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-MNU-003",
+        "FR-SAF-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-SAF-007"
+      ],
+      "gate_local_behavior": "Publication is blocked when safety translation or allergen review is incomplete, in all three locales.",
+      "later_behavior": "None beyond M2 for this clause."
+    },
+    {
+      "id": "FR-SAF-008",
+      "introduced_at": "M2",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-SEC-009",
+        "FR-MNU-003"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-SAF-008"
+      ],
+      "gate_local_behavior": "Every safety-content state transition records actor and timestamp in append-only audit.",
+      "later_behavior": "None beyond M2 for this clause."
+    },
+    {
+      "id": "FR-SAF-009",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-SAF-001",
+        "FR-CFG-006"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-SAF-009",
+        "TST-M4-FR-SAF-009"
+      ],
+      "gate_local_behavior": "The tenant-approved disclaimer renders on the customer menu surface in all three locales.",
+      "later_behavior": "The disclaimer must also appear on the printed and digital receipt where the tenant requires it."
+    },
+    {
+      "id": "FR-TAB-001",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M5b"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TEN-002A",
+        "FR-DAT-003"
+      ],
+      "journey_links": [
+        "GJ-08"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-TAB-001",
+        "TST-M5b-FR-TAB-001"
+      ],
+      "gate_local_behavior": "A signed opaque QR resolves to the correct tenant/outlet/service area/table with no internal identifier in the URL or payload.",
+      "later_behavior": "The same QR must also resolve locally during outage under split-horizon DNS."
+    },
+    {
+      "id": "FR-TAB-002",
+      "introduced_at": "M2",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-TAB-002"
+      ],
+      "gate_local_behavior": "Tokens rotate and revoke; revoked tokens fail resolution; printable version history is retained.",
+      "later_behavior": "None beyond M2 for this clause."
+    },
+    {
+      "id": "FR-TAB-003",
+      "introduced_at": "M2",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-001",
+        "FR-DAT-004"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-TAB-003"
+      ],
+      "gate_local_behavior": "A table session is created with all named attributes and correct UTC/outlet-time handling.",
+      "later_behavior": "None beyond M2 for this clause."
+    },
+    {
+      "id": "FR-TAB-004",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-003"
+      ],
+      "journey_links": [
+        "GJ-04"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-TAB-004",
+        "TST-M3-FR-TAB-004"
+      ],
+      "gate_local_behavior": "Multiple devices join one session under the configured visibility rule and see only permitted content.",
+      "later_behavior": "Multi-participant behavior under real ordering and service requests is proven operationally at M3."
+    },
+    {
+      "id": "FR-TAB-005",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-004",
+        "FR-MNU-005"
+      ],
+      "journey_links": [
+        "GJ-04"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-TAB-005",
+        "TST-M3-FR-TAB-005"
+      ],
+      "gate_local_behavior": "Personal and shared baskets exist and items transfer between them prior to submission.",
+      "later_behavior": "Submission boundary behavior is exercised when orders exist."
+    },
+    {
+      "id": "FR-TAB-006",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-008",
+        "FR-TAB-003"
+      ],
+      "journey_links": [
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-TAB-006",
+        "TST-M3-FR-TAB-006"
+      ],
+      "gate_local_behavior": "A primary waiter/section is assignable to a table session with the ownership record stored.",
+      "later_behavior": "Acknowledged transfer and supervisor reassignment are service operations exercised with real waiter workflow."
+    },
+    {
+      "id": "FR-TAB-010",
+      "introduced_at": "M2",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-001",
+        "FR-TAB-004"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-TAB-010"
+      ],
+      "gate_local_behavior": "A QR captured from an earlier occupancy cannot silently join a new session; configured verification is required.",
+      "later_behavior": "None beyond M2 for this clause."
+    },
+    {
+      "id": "FR-TST-011",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-UX-011",
+        "FR-I18N-002"
+      ],
+      "journey_links": [
+        "GJ-03A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-TST-011",
+        "TST-M3-FR-TST-011",
+        "TST-M6-FR-TST-011"
+      ],
+      "gate_local_behavior": "Automated accessibility checks and manual keyboard, screen-reader and RTL reviews run on the customer surface.",
+      "later_behavior": "Staff surfaces and the final production artifact are reviewed the same way."
+    },
+    {
+      "id": "FR-UX-001A",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3",
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-001",
+        "FR-MNU-004"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-01B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-UX-001A",
+        "TST-M3-FR-UX-001A",
+        "TST-M4-FR-UX-001A"
+      ],
+      "gate_local_behavior": "The QR entry and menu journey is one-handed, fast to first content and free of unnecessary mandatory fields.",
+      "later_behavior": "Service-request journeys exist at M3; bill, tip and payment-request journeys at M4."
+    },
+    {
+      "id": "FR-UX-005",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-I18N-001A",
+        "FR-TAB-003"
+      ],
+      "journey_links": [
+        "GJ-05",
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-UX-005",
+        "TST-M3-FR-UX-005",
+        "TST-M4-FR-UX-005",
+        "TST-M5a-FR-UX-005"
+      ],
+      "gate_local_behavior": "Customer status uses text and icon with timestamps, never colour alone.",
+      "later_behavior": "Kitchen allergy salience at M3, payment state at M4, and connectivity state at M5a are all critical-state surfaces."
+    },
+    {
+      "id": "FR-UX-006",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3",
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-005"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-01B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-UX-006",
+        "TST-M3-FR-UX-006",
+        "TST-M4-FR-UX-006"
+      ],
+      "gate_local_behavior": "A failure preserves cart contents, explains the issue and offers safe retry without duplicating anything.",
+      "later_behavior": "Duplicate commitment becomes materially harmful once orders and payments exist."
+    },
+    {
+      "id": "FR-UX-007",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-UX-006"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-UX-007",
+        "TST-M5a-FR-UX-007"
+      ],
+      "gate_local_behavior": "Loading, stale and failed states are distinguishable on the customer surface.",
+      "later_behavior": "Locally saved, queued and synchronized states are produced by the synchronization subsystem."
+    },
+    {
+      "id": "FR-UX-011",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-UX-005"
+      ],
+      "journey_links": [
+        "GJ-03A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-UX-011",
+        "TST-M3-FR-UX-011",
+        "TST-M4-FR-UX-011",
+        "TST-M6-FR-UX-011"
+      ],
+      "gate_local_behavior": "The customer surface meets WCAG-aligned keyboard, focus, label, contrast, zoom and screen-reader essentials in all three locales.",
+      "later_behavior": "Staff surfaces at M3 and M4, and the reporting surface at M6, must meet the same standard."
+    },
+    {
+      "id": "FR-UX-012",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-UX-001A"
+      ],
+      "journey_links": [
+        "GJ-01A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-UX-012",
+        "TST-M3-FR-UX-012",
+        "TST-M6-FR-UX-012"
+      ],
+      "gate_local_behavior": "Menu and QR entry pages meet defined budgets on realistic devices and networks.",
+      "later_behavior": "Queue update budgets require the KDS realtime surface; production thresholds are confirmed on the deployment."
+    },
+    {
+      "id": "FR-UX-013",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-I18N-002"
+      ],
+      "journey_links": [
+        "GJ-02B",
+        "GJ-03B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-UX-013",
+        "TST-M4-FR-UX-013"
+      ],
+      "gate_local_behavior": "Longer Amharic strings and Arabic RTL render without clipping or hard-coded widths on the menu surface.",
+      "later_behavior": "Bill, tip and receipt layouts are the tightest constrained surfaces."
+    },
+    {
+      "id": "FR-UX-014",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-UX-006"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M2-FR-UX-014",
+        "TST-M6-FR-UX-014"
+      ],
+      "gate_local_behavior": "Empty and error states are instructive and no placeholder or fabricated figure is displayed.",
+      "later_behavior": "The no-fabricated-analytics rule bites hardest on the reporting surface."
+    },
+    {
+      "id": "FR-UX-020",
+      "introduced_at": "M2",
+      "revalidated_at": [
+        "M3",
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-CFG-006"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M2-FR-UX-020",
+        "TST-M3-FR-UX-020",
+        "TST-M4-FR-UX-020"
+      ],
+      "gate_local_behavior": "A shared token and component system drives the customer surface with tenant branding applied through configuration.",
+      "later_behavior": "Staff surfaces at M3 and M4 consume the same system."
+    },
+    {
+      "id": "FR-DAT-008A",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-002",
+        "FR-SEC-009"
+      ],
+      "journey_links": [
+        "GJ-01A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-DAT-008A"
+      ],
+      "gate_local_behavior": "Accepted orders are append-only or reversal-based; no destructive edit path exists.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-DAT-010",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-008A"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-DAT-010",
+        "TST-M4-FR-DAT-010",
+        "TST-M5a-FR-DAT-010"
+      ],
+      "gate_local_behavior": "Order projections rebuild from authoritative events and compare byte-deterministically.",
+      "later_behavior": "Financial projections at M4; projections rebuilt after outage replay at M5a."
+    },
+    {
+      "id": "FR-FUL-001",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TEN-002A",
+        "FR-ORD-001A"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-FUL-001",
+        "TST-M5a-FR-FUL-001"
+      ],
+      "gate_local_behavior": "Accepted line units route to the correct station by versioned rule, including multi-station orders.",
+      "later_behavior": "Routing must continue to function on the outlet node during an outage."
+    },
+    {
+      "id": "FR-FUL-002",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-FUL-001"
+      ],
+      "journey_links": [
+        "GJ-01A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-FUL-002"
+      ],
+      "gate_local_behavior": "Tickets exist as records distinct from the order and one order fans out to multiple station tickets.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-FUL-003",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-FUL-002"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-05",
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-FUL-003",
+        "TST-M5a-FR-FUL-003"
+      ],
+      "gate_local_behavior": "All seven ticket states render on KDS with correct elapsed and SLA time.",
+      "later_behavior": "The same KDS must operate from the local node during an outage."
+    },
+    {
+      "id": "FR-FUL-004",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-FUL-003"
+      ],
+      "journey_links": [
+        "GJ-01A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-FUL-004"
+      ],
+      "gate_local_behavior": "Line-unit quantities and statuses support partial preparation and partial readiness.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-FUL-005",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-FUL-003",
+        "FR-DAT-008A"
+      ],
+      "journey_links": [
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-FUL-005"
+      ],
+      "gate_local_behavior": "Stations accept tickets and recall recently completed ones within policy, with immutable audit.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-FUL-006",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-FUL-003"
+      ],
+      "journey_links": [
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-FUL-006"
+      ],
+      "gate_local_behavior": "Courses hold and fire on authorized command or configured timing.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-FUL-007",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-FUL-003",
+        "FR-CFG-003"
+      ],
+      "journey_links": [
+        "GJ-04"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-FUL-007"
+      ],
+      "gate_local_behavior": "Three priority levels apply with authorized reason and visible attribution on KDS.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-FUL-008",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-SAF-004"
+      ],
+      "journey_links": [
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-FUL-008",
+        "TST-M5a-FR-FUL-008"
+      ],
+      "gate_local_behavior": "Allergy concerns render with non-color-only salience and require station acknowledgement where configured.",
+      "later_behavior": "The same salience must survive the printed station ticket."
+    },
+    {
+      "id": "FR-FUL-009",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-FUL-003",
+        "FR-FUL-004"
+      ],
+      "journey_links": [
+        "GJ-01A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-FUL-009"
+      ],
+      "gate_local_behavior": "Expo view aggregates station readiness and blocks service of incomplete sets.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-FUL-010",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-NOT-001",
+        "FR-FUL-009"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-FUL-010",
+        "TST-M5a-FR-FUL-010"
+      ],
+      "gate_local_behavior": "Ready notifications reach the assigned waiter and uncollected items escalate per policy.",
+      "later_behavior": "Notification delivery must continue from the local node during an outage."
+    },
+    {
+      "id": "FR-FUL-011",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-FUL-009",
+        "FR-AUTH-008"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-FUL-011"
+      ],
+      "gate_local_behavior": "Collection and service are recorded with actor identity and missing/wrong-item exceptions are capturable.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-FUL-012",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-FUL-003",
+        "FR-DAT-004"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M3-FR-FUL-012",
+        "TST-M6-FR-FUL-012"
+      ],
+      "gate_local_behavior": "Prep and wait times compute correctly per station, item and order for live operational use.",
+      "later_behavior": "Analytical consumption of these measures belongs to operational reporting."
+    },
+    {
+      "id": "FR-FUL-013",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-FUL-012",
+        "FR-CFG-002A"
+      ],
+      "journey_links": [
+        "GJ-01A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-FUL-013"
+      ],
+      "gate_local_behavior": "Throttling or promise-time adjustment triggers when configured workload thresholds are exceeded.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-FUL-014",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-FUL-002"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-FUL-014",
+        "TST-M5a-FR-FUL-014"
+      ],
+      "gate_local_behavior": "Station ticket documents render with deduplication logic and correct content when KDS is unavailable or policy requires paper.",
+      "later_behavior": "Physical printing, print-agent delivery and print-job deduplication across restart belong to the local print path."
+    },
+    {
+      "id": "FR-FUL-015",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-FUL-001"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-FUL-015",
+        "TST-M5a-FR-FUL-015"
+      ],
+      "gate_local_behavior": "Authorized reroute moves a ticket to another station without duplicating line units.",
+      "later_behavior": "Rerouting must behave correctly when the outlet node is authoritative during an outage."
+    },
+    {
+      "id": "FR-FUL-016A",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-CFG-003",
+        "FR-FUL-002"
+      ],
+      "journey_links": [
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-FUL-016A"
+      ],
+      "gate_local_behavior": "Rework, remake and service-waste events record reason, actor and the linked order/ticket.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-I18N-001B",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-I18N-001A",
+        "FR-ORD-016A"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-02",
+        "GJ-03A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-I18N-001B"
+      ],
+      "gate_local_behavior": "Order status and service text render in the session language across the ordering and service journeys.",
+      "later_behavior": "Bills and receipts remain outside this clause."
+    },
+    {
+      "id": "FR-I18N-008",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-I18N-005",
+        "FR-NOT-001"
+      ],
+      "journey_links": [
+        "GJ-02",
+        "GJ-02B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-I18N-008",
+        "TST-M4-FR-I18N-008"
+      ],
+      "gate_local_behavior": "Status and service communications render in the snapshotted language with approved fallback.",
+      "later_behavior": "Receipt communications exist at M4."
+    },
+    {
+      "id": "FR-INT-005",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-ORD-004"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-INT-005",
+        "TST-M4-FR-INT-005",
+        "TST-M5a-FR-INT-005"
+      ],
+      "gate_local_behavior": "Repeated M3 commands return the original outcome with no duplicate order or ticket.",
+      "later_behavior": "Payment and tip commands carry commercial effect from M4; replayed sync events from M5a."
+    },
+    {
+      "id": "FR-INT-007",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-NOT-001"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-INT-007",
+        "TST-M4-FR-INT-007",
+        "TST-M5a-FR-INT-007"
+      ],
+      "gate_local_behavior": "Repeatedly failing notification jobs move to an operator-visible dead-letter queue with reason and safe replay.",
+      "later_behavior": "Payment-adapter failures at M4 and synchronization work at M5a use the same queue."
+    },
+    {
+      "id": "FR-INT-014",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-ORD-019A"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-INT-014",
+        "TST-M4-FR-INT-014",
+        "TST-M5a-FR-INT-014"
+      ],
+      "gate_local_behavior": "Correlation IDs propagate from customer command through persistence, kitchen ticket and audit records.",
+      "later_behavior": "Bill, payment and tip records exist at M4; outlet persistence and sync records at M5a."
+    },
+    {
+      "id": "FR-NOT-001",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4",
+        "M5a",
+        "M5b"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-ORD-016A",
+        "FR-FUL-003"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-04"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-NOT-001",
+        "TST-M4-FR-NOT-001",
+        "TST-M5a-FR-NOT-001",
+        "TST-M5b-FR-NOT-001"
+      ],
+      "gate_local_behavior": "Order, kitchen and service-request events generate in-app notifications to the correct recipients.",
+      "later_behavior": "Bill, payment and tip events exist at M4; outage and synchronization events at M5a and M5b."
+    },
+    {
+      "id": "FR-NOT-003",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-I18N-003",
+        "FR-NOT-001"
+      ],
+      "journey_links": [
+        "GJ-02"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-NOT-003",
+        "TST-M4-FR-NOT-003"
+      ],
+      "gate_local_behavior": "Approved templates exist in three customer languages plus English staff templates and render for M3 events.",
+      "later_behavior": "Bill, payment and tip templates are added when those events exist."
+    },
+    {
+      "id": "FR-NOT-005",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-NOT-001",
+        "FR-AUTH-008"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-NOT-005",
+        "TST-M4-FR-NOT-005",
+        "TST-M5a-FR-NOT-005"
+      ],
+      "gate_local_behavior": "Security and operational alerts existing at M3 route to accountable staff with correct escalation.",
+      "later_behavior": "Payment mismatch requires payments; printer failure, local-node failure and sync conflict require the outlet node."
+    },
+    {
+      "id": "FR-NOT-007",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-NOT-001"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-NOT-007",
+        "TST-M5a-FR-NOT-007"
+      ],
+      "gate_local_behavior": "Repeated notifications for one event and recipient collapse while deliberate repeat requests still notify.",
+      "later_behavior": "Deduplication must hold when notifications replay after reconnection."
+    },
+    {
+      "id": "FR-NOT-009",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-NOT-001",
+        "FR-AUTH-008"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-NOT-009",
+        "TST-M5a-FR-NOT-009"
+      ],
+      "gate_local_behavior": "Notification links open the correct cloud screen and enforce outlet/session authorization.",
+      "later_behavior": "The local screen target does not exist until the outlet node serves screens."
+    },
+    {
+      "id": "FR-NOT-010",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-SEC-011",
+        "FR-NOT-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M3-FR-NOT-010",
+        "TST-M4-FR-NOT-010",
+        "TST-M5a-FR-NOT-010"
+      ],
+      "gate_local_behavior": "Notification payloads and logs contain no sensitive customer or authentication data for M3 event classes.",
+      "later_behavior": "Payment data does not exist in any payload until payments exist."
+    },
+    {
+      "id": "FR-NOT-011",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-NOT-005",
+        "FR-SRV-004"
+      ],
+      "journey_links": [
+        "GJ-04"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-NOT-011",
+        "TST-M5a-FR-NOT-011"
+      ],
+      "gate_local_behavior": "Unacknowledged service and operational alerts escalate per outlet policy with recorded escalation events.",
+      "later_behavior": "Operational alert classes originating at the outlet node escalate through the same policy."
+    },
+    {
+      "id": "FR-NOT-012",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-NOT-001",
+        "FR-ORD-016A"
+      ],
+      "journey_links": [
+        "GJ-02"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-NOT-012",
+        "TST-M4-FR-NOT-012"
+      ],
+      "gate_local_behavior": "Staff notification center renders in English and the customer status timeline renders in the session language.",
+      "later_behavior": "The customer timeline gains check and payment entries at M4."
+    },
+    {
+      "id": "FR-ORD-001A",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-005",
+        "FR-MNU-009"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-ORD-001A"
+      ],
+      "gate_local_behavior": "A single order aggregate serves both QR dine-in and waiter-entered dine-in with channel-specific policy fields.",
+      "later_behavior": "The counter POS channel does not exist until the POS surface is built."
+    },
+    {
+      "id": "FR-ORD-002",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-005"
+      ],
+      "journey_links": [
+        "GJ-01A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-ORD-002",
+        "TST-M4-FR-ORD-002"
+      ],
+      "gate_local_behavior": "Draft carts persist with no reservation record and no financial obligation created.",
+      "later_behavior": "The no-financial-commitment claim is re-proven once checks and payments exist."
+    },
+    {
+      "id": "FR-ORD-003",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-MNU-009",
+        "FR-MNU-007"
+      ],
+      "journey_links": [
+        "GJ-01A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-ORD-003",
+        "TST-M4-FR-ORD-003"
+      ],
+      "gate_local_behavior": "Preview is calculated server-side and returns every named component with no client-side price authority.",
+      "later_behavior": "Tax, fee and discount figures become financially binding when they flow into a check."
+    },
+    {
+      "id": "FR-ORD-004",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-007"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-ORD-004",
+        "TST-M5a-FR-ORD-004"
+      ],
+      "gate_local_behavior": "Duplicate submission with the same key returns the original outcome and creates no second order.",
+      "later_behavior": "The same guarantee must hold when submissions are replayed through the outlet outbox after an outage."
+    },
+    {
+      "id": "FR-ORD-005",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-MNU-009",
+        "FR-I18N-005"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-02B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-ORD-005",
+        "TST-M4-FR-ORD-005"
+      ],
+      "gate_local_behavior": "Acceptance snapshots persist for every named component with the locale recorded on the order.",
+      "later_behavior": "The receipt evidence use of these snapshots exists only at M4."
+    },
+    {
+      "id": "FR-ORD-006",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-MNU-007",
+        "FR-FUL-013"
+      ],
+      "journey_links": [
+        "GJ-01A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-ORD-006"
+      ],
+      "gate_local_behavior": "Submission re-checks availability, hours, channel, quantity and station capacity and rejects stale carts.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-ORD-007A",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-CFG-002A"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-ORD-007A"
+      ],
+      "gate_local_behavior": "Automatic and staff-confirmed acceptance resolve per channel and outlet policy.",
+      "later_behavior": "Payment-dependent acceptance requires payment authorization to exist."
+    },
+    {
+      "id": "FR-ORD-008",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-004",
+        "FR-ORD-001A"
+      ],
+      "journey_links": [
+        "GJ-04",
+        "GJ-06"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-ORD-008",
+        "TST-M4-FR-ORD-008"
+      ],
+      "gate_local_behavior": "Lines optionally carry a participant reference and unregistered guests can still order.",
+      "later_behavior": "Participant attribution becomes financially material when bills are split per payer."
+    },
+    {
+      "id": "FR-ORD-009",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-ORD-001A",
+        "FR-FUL-002"
+      ],
+      "journey_links": [
+        "GJ-04"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-ORD-009",
+        "TST-M4-FR-ORD-009"
+      ],
+      "gate_local_behavior": "Add-on orders create distinct orders and tickets in one session with independent timestamps.",
+      "later_behavior": "Add-on orders must consolidate correctly onto one check."
+    },
+    {
+      "id": "FR-ORD-010",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-008A",
+        "FR-FUL-003"
+      ],
+      "journey_links": [
+        "GJ-01A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-ORD-010"
+      ],
+      "gate_local_behavior": "Pre-preparation amendments emit explicit events retaining before/after detail; post-preparation changes are refused.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-ORD-011",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-CFG-002A",
+        "FR-CFG-003"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-ORD-011",
+        "TST-M4-FR-ORD-011"
+      ],
+      "gate_local_behavior": "Cancellation is permitted or refused per state, channel, reason and preparation progress.",
+      "later_behavior": "The payment dimension of the policy requires payments to exist."
+    },
+    {
+      "id": "FR-ORD-012A",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-006",
+        "FR-DAT-008A"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-ORD-012A",
+        "TST-M4-FR-ORD-012A"
+      ],
+      "gate_local_behavior": "Authorized void after acceptance records reason and immutable audit for an unpaid order.",
+      "later_behavior": "Linked payment and tip correction cannot be proven before payments and tips exist."
+    },
+    {
+      "id": "FR-ORD-013",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-SAF-003",
+        "FR-AUTH-008"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-ORD-013"
+      ],
+      "gate_local_behavior": "Four note classes are stored separately with correct audience filtering; private staff notes never reach the customer surface.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-ORD-016A",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-010",
+        "FR-ORD-013"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-01B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-ORD-016A",
+        "TST-M4-FR-ORD-016A"
+      ],
+      "gate_local_behavior": "Timeline renders order, station and service events chronologically with audience filtering.",
+      "later_behavior": "Check and payment events do not exist until M4."
+    },
+    {
+      "id": "FR-ORD-017",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-ORD-004",
+        "FR-ORD-009"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-ORD-017",
+        "TST-M5a-FR-ORD-017"
+      ],
+      "gate_local_behavior": "Suspicious duplicates are flagged while deliberate repeat and add-on orders pass unimpeded.",
+      "later_behavior": "Detection must not produce false positives when orders replay through the outlet outbox."
+    },
+    {
+      "id": "FR-ORD-019A",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4",
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-003",
+        "FR-FUL-002"
+      ],
+      "journey_links": [
+        "GJ-01A"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-ORD-019A",
+        "TST-M4-FR-ORD-019A",
+        "TST-M5a-FR-ORD-019A"
+      ],
+      "gate_local_behavior": "A stable correlation chain links all six named artifacts and survives projection rebuild.",
+      "later_behavior": "Correlation extends to check and payment records once they exist, and across the sync boundary."
+    },
+    {
+      "id": "FR-POS-001",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-SEC-014",
+        "FR-TEN-002A"
+      ],
+      "journey_links": [
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-POS-001",
+        "TST-M4-FR-POS-001"
+      ],
+      "gate_local_behavior": "Waiter and KDS devices register to a tenant/outlet/device profile and revocation immediately blocks them.",
+      "later_behavior": "POS terminals are a further device class introduced with the POS surface."
+    },
+    {
+      "id": "FR-POS-002",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-008",
+        "FR-FUL-003"
+      ],
+      "journey_links": [
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-POS-002",
+        "TST-M4-FR-POS-002"
+      ],
+      "gate_local_behavior": "Waiter and kitchen roles land on task queues with next actions, not generic menus.",
+      "later_behavior": "Cashier and manager role homes exist with the POS surface."
+    },
+    {
+      "id": "FR-POS-003A",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-ORD-001A",
+        "FR-MNU-006"
+      ],
+      "journey_links": [
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-POS-003A",
+        "TST-M4-FR-POS-003A"
+      ],
+      "gate_local_behavior": "Waiter-entered dine-in orders apply identical menu, modifier, price, safety and authorization rules as QR ordering.",
+      "later_behavior": "The tax rule comparison is only fully provable once tax reaches a bill; counter orders need POS."
+    },
+    {
+      "id": "FR-POS-004",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-006",
+        "FR-SRV-003"
+      ],
+      "journey_links": [
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-POS-004",
+        "TST-M4-FR-POS-004"
+      ],
+      "gate_local_behavior": "Occupancy, assigned waiter, open requests, order progress and attention flags render correctly.",
+      "later_behavior": "Unpaid balance requires checks to exist."
+    },
+    {
+      "id": "FR-POS-005",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-MNU-012",
+        "FR-POS-003A"
+      ],
+      "journey_links": [
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-POS-005",
+        "TST-M4-FR-POS-005"
+      ],
+      "gate_local_behavior": "Fast item entry works on the waiter surface with search, categories, favorites and shortcuts.",
+      "later_behavior": "The same entry affordances are required on the POS terminal."
+    },
+    {
+      "id": "FR-POS-006",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-006",
+        "FR-ORD-012A"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-POS-006",
+        "TST-M4-FR-POS-006"
+      ],
+      "gate_local_behavior": "Supervisor approval for M3 overrides (void, priority, reroute) is recorded without credential sharing.",
+      "later_behavior": "Financial overrides such as discount, refund and tip correction exist at M4."
+    },
+    {
+      "id": "FR-POS-007",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-006",
+        "FR-SRV-008"
+      ],
+      "journey_links": [
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-POS-007",
+        "TST-M4-FR-POS-007"
+      ],
+      "gate_local_behavior": "Open tables and tasks transfer only through an explicit acknowledged handover.",
+      "later_behavior": "Cash responsibility handover requires cash shifts."
+    },
+    {
+      "id": "FR-POS-009",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-POS-002"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M3-FR-POS-009",
+        "TST-M4-FR-POS-009"
+      ],
+      "gate_local_behavior": "Accessibility preferences apply on the waiter and KDS surfaces.",
+      "later_behavior": "The POS terminal surface must honour the same preferences."
+    },
+    {
+      "id": "FR-POS-010A",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-008",
+        "FR-ORD-019A"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-POS-010A",
+        "TST-M4-FR-POS-010A"
+      ],
+      "gate_local_behavior": "Order and table search works with tenant/outlet and role filtering and no cross-tenant leakage.",
+      "later_behavior": "Check, receipt and payment/reference identifiers do not exist until M4."
+    },
+    {
+      "id": "FR-SAF-004",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-SAF-003",
+        "FR-FUL-001"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-SAF-004"
+      ],
+      "gate_local_behavior": "Allergy flags render prominently on the order confirmation, kitchen ticket, KDS, expo and service handoff surfaces.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-SRV-001",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-I18N-003",
+        "FR-TAB-003"
+      ],
+      "journey_links": [
+        "GJ-04",
+        "GJ-01B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-SRV-001",
+        "TST-M4-FR-SRV-001"
+      ],
+      "gate_local_behavior": "The translated request catalog exists and every named request type can be raised from a table session.",
+      "later_behavior": "The bill request only produces a check once billing exists."
+    },
+    {
+      "id": "FR-SRV-002",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-006",
+        "FR-SRV-007A"
+      ],
+      "journey_links": [
+        "GJ-04"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-SRV-002"
+      ],
+      "gate_local_behavior": "Requests route to the correct staff by table assignment, service area, role and current presence.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-SRV-003",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-SRV-002"
+      ],
+      "journey_links": [
+        "GJ-04"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-SRV-003"
+      ],
+      "gate_local_behavior": "Acceptance transitions the request and the customer sees received/being-handled status in the session language.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-SRV-004",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-SRV-003"
+      ],
+      "journey_links": [
+        "GJ-04"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-SRV-004"
+      ],
+      "gate_local_behavior": "Deadlines, reminders and escalation to supervisor or alternate staff fire correctly.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-SRV-005",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-SRV-003",
+        "FR-CFG-003"
+      ],
+      "journey_links": [
+        "GJ-04"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-SRV-005"
+      ],
+      "gate_local_behavior": "A request cannot close without completion status; exceptions capture result and reason.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-SRV-006",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-SRV-001"
+      ],
+      "journey_links": [
+        "GJ-04"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-SRV-006"
+      ],
+      "gate_local_behavior": "Rapid repeated taps collapse into one alert while a deliberate later repeat still raises a new request.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-SRV-007A",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-008"
+      ],
+      "journey_links": [
+        "GJ-04"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-SRV-007A"
+      ],
+      "gate_local_behavior": "Three presence states drive request routing and are discarded per operational-session retention.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-SRV-008",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-SRV-001",
+        "FR-ORD-019A"
+      ],
+      "journey_links": [
+        "GJ-04"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-SRV-008"
+      ],
+      "gate_local_behavior": "Staff create tasks linked to a table, order or customer issue with correct correlation.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-SRV-009",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-I18N-008",
+        "FR-SRV-003"
+      ],
+      "journey_links": [
+        "GJ-02"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-SRV-009"
+      ],
+      "gate_local_behavior": "Customer status messages render translated and omit staff identity unless configuration permits it.",
+      "later_behavior": "None beyond M3 for this clause."
+    },
+    {
+      "id": "FR-TAB-007A",
+      "introduced_at": "M3",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-003",
+        "FR-TAB-006"
+      ],
+      "journey_links": [
+        "GJ-04"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-TAB-007A"
+      ],
+      "gate_local_behavior": "Two physical tables merge into one service session with orders and requests correctly consolidated and audited.",
+      "later_behavior": "The check-splitting half of this row belongs to billing."
+    },
+    {
+      "id": "FR-TAB-008",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-003",
+        "FR-ORD-001A"
+      ],
+      "journey_links": [
+        "GJ-04"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-TAB-008",
+        "TST-M4-FR-TAB-008"
+      ],
+      "gate_local_behavior": "An open session moves between tables preserving session identity, orders and service requests.",
+      "later_behavior": "Preservation of checks can only be proven once checks exist."
+    },
+    {
+      "id": "FR-TAB-009",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-003",
+        "FR-FUL-001"
+      ],
+      "journey_links": [
+        "GJ-01B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-TAB-009",
+        "TST-M4-FR-TAB-009"
+      ],
+      "gate_local_behavior": "A session cannot close with outstanding service obligations unless an authorized exception is recorded.",
+      "later_behavior": "The financial condition is unprovable before checks and settlement exist."
+    },
+    {
+      "id": "FR-TST-005A",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4",
+        "M5a",
+        "M5b",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-TST-013"
+      ],
+      "journey_links": [
+        "GJ-01A",
+        "GJ-01B",
+        "GJ-08",
+        "GJ-10",
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-TST-005A",
+        "TST-M4-FR-TST-005A",
+        "TST-M5a-FR-TST-005A",
+        "TST-M5b-FR-TST-005A",
+        "TST-M6-FR-TST-005A"
+      ],
+      "gate_local_behavior": "Customer, waiter and KDS journeys run in browser/device automation against real persistence.",
+      "later_behavior": "Cashier journeys at M4, outlet-continuity journeys at M5a and M5b, manager and administration journeys at M6."
+    },
+    {
+      "id": "FR-TST-007A",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4",
+        "M5a",
+        "M5b"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-ORD-004",
+        "FR-ORD-017"
+      ],
+      "journey_links": [
+        "GJ-06",
+        "GJ-09",
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-TST-007A",
+        "TST-M4-FR-TST-007A",
+        "TST-M5a-FR-TST-007A",
+        "TST-M5b-FR-TST-007A"
+      ],
+      "gate_local_behavior": "Duplicate order submit races are exercised and produce no duplicate commercial effect.",
+      "later_behavior": "Payment, proof, tip, split and cash races at M4; synchronization replay at M5a; authority-lease races at M5b."
+    },
+    {
+      "id": "FR-UX-002",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-POS-002"
+      ],
+      "journey_links": [
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-UX-002",
+        "TST-M4-FR-UX-002"
+      ],
+      "gate_local_behavior": "Waiter and KDS controls use large touch targets readable at working distance.",
+      "later_behavior": "The POS terminal surface must meet the same standard."
+    },
+    {
+      "id": "FR-UX-004",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4",
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-POS-002",
+        "FR-FUL-003"
+      ],
+      "journey_links": [
+        "GJ-05"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-UX-004",
+        "TST-M4-FR-UX-004",
+        "TST-M6-FR-UX-004"
+      ],
+      "gate_local_behavior": "Waiter and KDS screens lead with next action, active exception and elapsed time.",
+      "later_behavior": "POS and cashier screens at M4; operator screens at M6."
+    },
+    {
+      "id": "FR-UX-008",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-SAF-003",
+        "FR-ORD-011"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-UX-008",
+        "TST-M4-FR-UX-008"
+      ],
+      "gate_local_behavior": "Allergy declaration and cancellation carry deliberate confirmation friction while ordinary service does not.",
+      "later_behavior": "Refund, override and payment confirmations exist at M4."
+    },
+    {
+      "id": "FR-UX-015",
+      "introduced_at": "M3",
+      "revalidated_at": [
+        "M4"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-ORD-012A",
+        "FR-CFG-003"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M3-FR-UX-015",
+        "TST-M4-FR-UX-015"
+      ],
+      "gate_local_behavior": "Irreversible M3 actions require explicit confirmation and a reason code.",
+      "later_behavior": "Financial irreversible actions exist at M4."
+    },
+    {
+      "id": "FR-BIL-001",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-ORD-005",
+        "FR-FUL-011"
+      ],
+      "journey_links": [
+        "GJ-01B",
+        "GJ-06"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-BIL-001"
+      ],
+      "gate_local_behavior": "Checks are created from accepted/served lines with order ownership and history unchanged.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-BIL-002",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-BIL-001"
+      ],
+      "journey_links": [
+        "GJ-06"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-BIL-002"
+      ],
+      "gate_local_behavior": "Whole and partial line quantities allocate to checks and a line unit can never be billed twice.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-BIL-003",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-BIL-002",
+        "FR-DAT-006"
+      ],
+      "journey_links": [
+        "GJ-06"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-BIL-003"
+      ],
+      "gate_local_behavior": "All five split modes produce deterministic exact results with configured rounding and no lost or duplicated minor units.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-BIL-004",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-BIL-001",
+        "FR-TAB-007B"
+      ],
+      "journey_links": [
+        "GJ-06"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-BIL-004"
+      ],
+      "gate_local_behavior": "Eligible open checks merge with full audit and original source relationships preserved.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-BIL-005",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-005",
+        "FR-MNU-009"
+      ],
+      "journey_links": [
+        "GJ-01B",
+        "GJ-06"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-BIL-005"
+      ],
+      "gate_local_behavior": "Every bill component computes exactly with fixed-point arithmetic, and tip is excluded from the bill balance entirely.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-BIL-006",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-BIL-005",
+        "FR-DAT-006"
+      ],
+      "journey_links": [
+        "GJ-06"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-BIL-006"
+      ],
+      "gate_local_behavior": "Rounding applies at the configured stages and the calculation version is persisted on the document.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-BIL-007",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-BIL-005",
+        "FR-I18N-001C"
+      ],
+      "journey_links": [
+        "GJ-01B",
+        "GJ-02B",
+        "GJ-03B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-BIL-007"
+      ],
+      "gate_local_behavior": "The bill summary renders in the session language with the tip box visually separate in all three locales including RTL.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-BIL-008",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-BIL-005",
+        "FR-PAY-017"
+      ],
+      "journey_links": [
+        "GJ-01B",
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-BIL-008"
+      ],
+      "gate_local_behavior": "Finalization is refused while the bill balance is outstanding, regardless of tip state, unless an authorized disposition is recorded.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-BIL-009",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-008B",
+        "FR-AUTH-006"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-BIL-009"
+      ],
+      "gate_local_behavior": "Issued bills are correctable only by authorized void, credit or reissue; no delete path exists.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-BIL-010",
+      "introduced_at": "M4",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-I18N-005",
+        "FR-BIL-005"
+      ],
+      "journey_links": [
+        "GJ-01B",
+        "GJ-02B",
+        "GJ-03B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-BIL-010",
+        "TST-M5a-FR-BIL-010"
+      ],
+      "gate_local_behavior": "Digital receipts render in the snapshotted locale with bill total, tip and total paid on separate lines.",
+      "later_behavior": "The physical printed receipt is produced through the local print path."
+    },
+    {
+      "id": "FR-BIL-011",
+      "introduced_at": "M4",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-BIL-010",
+        "FR-CFG-003"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-BIL-011",
+        "TST-M5a-FR-BIL-011"
+      ],
+      "gate_local_behavior": "Reprints are marked as reprints and record operator and reason.",
+      "later_behavior": "Physical reprint through the local print path must carry the same marking."
+    },
+    {
+      "id": "FR-BIL-012",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-TEN-009A",
+        "FR-BIL-010"
+      ],
+      "journey_links": [
+        "GJ-01B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-BIL-012"
+      ],
+      "gate_local_behavior": "The fiscal port exposes documents and reconciliation status against a simulator with no provider-specific schema in the domain model.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-BIL-013",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-BIL-007"
+      ],
+      "journey_links": [
+        "GJ-01B",
+        "GJ-02B",
+        "GJ-03B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-BIL-013"
+      ],
+      "gate_local_behavior": "The tip box is visually separate with no preselected amount or percentage in any locale.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-BIL-014",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-BIL-005",
+        "FR-DAT-005"
+      ],
+      "journey_links": [
+        "GJ-06",
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-BIL-014"
+      ],
+      "gate_local_behavior": "All five values are separately stored and a recorded tip provably leaves order lines and bill allocation unchanged.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-BIL-015",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-BIL-003"
+      ],
+      "journey_links": [
+        "GJ-06"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-BIL-015"
+      ],
+      "gate_local_behavior": "Each payer in a split settlement records an independent tip attached to their own payment with no bill line reallocation.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-BIL-016",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-BIL-010",
+        "FR-PAY-009"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-BIL-016"
+      ],
+      "gate_local_behavior": "Receipts separate bill and tip, and tip corrections create linked auditable records without touching the bill.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-BIL-017",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-BIL-010",
+        "FR-BIL-016",
+        "FR-CFG-001D"
+      ],
+      "journey_links": [
+        "GJ-01B",
+        "GJ-02B",
+        "GJ-03B",
+        "GJ-06",
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-BIL-017"
+      ],
+      "gate_local_behavior": "Configure one supported cashier-connected receipt printer and physically print the M4 settlement receipt once with correct language, exact values, unique receipt number and actual payment method.",
+      "later_behavior": "M5a adds durable local queueing, retry, restart recovery, deduplication, printer health, outage continuity and reconciliation."
+    },
+    {
+      "id": "FR-CFG-001C",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-PAY-015",
+        "FR-BIL-001"
+      ],
+      "journey_links": [
+        "GJ-01B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-CFG-001C"
+      ],
+      "gate_local_behavior": "Create a bill using the configured tax, service-charge, tip and payment settings and verify exact values and the actual permitted payment method.",
+      "later_behavior": ""
+    },
+    {
+      "id": "FR-CFG-001D",
+      "introduced_at": "M4",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-BIL-010"
+      ],
+      "journey_links": [
+        "GJ-02B",
+        "GJ-03B",
+        "GJ-06"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-CFG-001D",
+        "TST-M5a-FR-CFG-001D"
+      ],
+      "gate_local_behavior": "Register one supported receipt printer, print a test page and print a settlement receipt without relying on the M5a local print queue.",
+      "later_behavior": "M5a adds durable local queueing, retry, restart recovery, deduplication, health and outage continuity."
+    },
+    {
+      "id": "FR-CSH-001",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-POS-001",
+        "FR-CFG-002A"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-CSH-001"
+      ],
+      "gate_local_behavior": "A cash shift opens with counted float, assigned terminal and configured approval policy.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-CSH-002",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-CSH-001",
+        "FR-DAT-008B"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-CSH-002"
+      ],
+      "gate_local_behavior": "All six movement types record as distinct append-only entries.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-CSH-003",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-CSH-002",
+        "FR-DAT-005"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-CSH-003"
+      ],
+      "gate_local_behavior": "Denomination counting produces expected, actual and variance figures with exact arithmetic.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-CSH-004",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-CSH-003",
+        "FR-AUTH-006"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-CSH-004"
+      ],
+      "gate_local_behavior": "Close requires cashier submission, optional manager verification, and a finalized shift is locked against further movement.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-CSH-007",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-CSH-002"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-CSH-007"
+      ],
+      "gate_local_behavior": "Safe and bank transfers record sealed bag reference and custody chain.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-CSH-008",
+      "introduced_at": "M4",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-CSH-004",
+        "FR-NOT-005"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-CSH-008",
+        "TST-M6-FR-CSH-008"
+      ],
+      "gate_local_behavior": "Exception conditions are detected and reported to accountable staff.",
+      "later_behavior": "Presentation within the operational reporting surface with source and freshness labelling."
+    },
+    {
+      "id": "FR-DAT-008B",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-008A",
+        "FR-DAT-005"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-DAT-008B"
+      ],
+      "gate_local_behavior": "Bills, receipts, payments, tips and cash movements are append-only or reversal-based with no destructive correction.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-I18N-001C",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-I18N-001A",
+        "FR-BIL-010",
+        "FR-BIL-017"
+      ],
+      "journey_links": [
+        "GJ-01B",
+        "GJ-02B",
+        "GJ-03B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-I18N-001C"
+      ],
+      "gate_local_behavior": "Bill and receipt render completely in the session language for all three locales, including Ethiopic and RTL scripts.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-INT-011",
+      "introduced_at": "M4",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-PAY-015"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-INT-011",
+        "TST-M5a-FR-INT-011"
+      ],
+      "gate_local_behavior": "Health truthfully reports active payment adapters, including that a simulated adapter is reported as simulated.",
+      "later_behavior": "Outlet-node connectivity, sync lag and printer status require the node and print agent."
+    },
+    {
+      "id": "FR-INT-013",
+      "introduced_at": "M4",
+      "revalidated_at": [
+        "M5a",
+        "M5b"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-COM-009"
+      ],
+      "journey_links": [
+        "GJ-10",
+        "GJ-09"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-INT-013",
+        "TST-M5a-FR-INT-013",
+        "TST-M5b-FR-INT-013"
+      ],
+      "gate_local_behavior": "Adapter messages carry a version and an unknown shape is refused rather than silently accepted.",
+      "later_behavior": "The local/cloud protocol version exists at M5a; agreement on compatibility is part of the reachability proof at M5b."
+    },
+    {
+      "id": "FR-ORD-001B",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-ORD-001A",
+        "FR-MNU-006"
+      ],
+      "journey_links": [
+        "GJ-06"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-ORD-001B"
+      ],
+      "gate_local_behavior": "The counter POS channel uses the same aggregate and policy model as the dine-in channels with no divergent order path.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-ORD-007B",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-ORD-007A",
+        "FR-PAY-015"
+      ],
+      "journey_links": [
+        "GJ-01B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-ORD-007B"
+      ],
+      "gate_local_behavior": "An order configured for payment-dependent acceptance is accepted only after a verified payment outcome.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-PAY-001",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-BIL-001",
+        "FR-ORD-004"
+      ],
+      "journey_links": [
+        "GJ-01B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-PAY-001"
+      ],
+      "gate_local_behavior": "Payment intents bind to a check and payer with separate tip allocation, expiry, idempotency key and permitted methods.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-PAY-002",
+      "introduced_at": "M4",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-PAY-001",
+        "FR-BIL-005"
+      ],
+      "journey_links": [
+        "GJ-01B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-PAY-002",
+        "TST-M5a-FR-PAY-002"
+      ],
+      "gate_local_behavior": "Cash settlement records exact bill allocation, separate tip, tendered amount and change.",
+      "later_behavior": "Continuation of cash service while the internet is down requires the outlet node to be authoritative."
+    },
+    {
+      "id": "FR-PAY-003",
+      "introduced_at": "M4",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-PAY-001",
+        "FR-SEC-011"
+      ],
+      "journey_links": [
+        "GJ-01B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-PAY-003",
+        "TST-M5a-FR-PAY-003"
+      ],
+      "gate_local_behavior": "External terminal results are recorded with no card data stored anywhere.",
+      "later_behavior": "Availability of the method during outage depends on outlet-node operation and staff guidance."
+    },
+    {
+      "id": "FR-PAY-006",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-PAY-017",
+        "FR-BIL-014"
+      ],
+      "journey_links": [
+        "GJ-06"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-PAY-006"
+      ],
+      "gate_local_behavior": "Mixed tender settles one check across methods with each payment carrying its own bill and tip allocation.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-PAY-007",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-BIL-003",
+        "FR-BIL-015"
+      ],
+      "journey_links": [
+        "GJ-06"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-PAY-007"
+      ],
+      "gate_local_behavior": "Partial settlement and split bills leave order history untouched and each payer tip is independent.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-PAY-009",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-AUTH-006",
+        "FR-PAY-017"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-PAY-009"
+      ],
+      "gate_local_behavior": "Bill and tip refunds create separate linked reversal records under permissions, reason codes and approval thresholds.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-PAY-010A",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-PAY-017"
+      ],
+      "journey_links": [
+        "GJ-01B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-PAY-010A"
+      ],
+      "gate_local_behavior": "Payment and tip events are emitted in a documented shape that a future accounting consumer could subscribe to, with no consumer in Phase 1.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-PAY-012",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-PAY-001",
+        "FR-ORD-004"
+      ],
+      "journey_links": [
+        "GJ-01B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-PAY-012"
+      ],
+      "gate_local_behavior": "A failed payment offers retry or an alternate method with no duplicate order or payment created.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-PAY-013",
+      "introduced_at": "M4",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-PAY-017",
+        "FR-CSH-003"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-PAY-013",
+        "TST-M5a-FR-PAY-013"
+      ],
+      "gate_local_behavior": "Reconciliation balances all named totals and tips never appear inside sales revenue.",
+      "later_behavior": "Post-outage reconciliation of locally captured payments occurs after synchronization."
+    },
+    {
+      "id": "FR-PAY-014",
+      "introduced_at": "M4",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-PAY-001",
+        "FR-SEC-012"
+      ],
+      "journey_links": [
+        "GJ-02B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-PAY-014",
+        "TST-M5a-FR-PAY-014"
+      ],
+      "gate_local_behavior": "Proof-based confirmation records provider and masked reference, and an unverified proof remains pending and can never reach captured.",
+      "later_behavior": "Local verification and recording of proof during outage occurs on the outlet node."
+    },
+    {
+      "id": "FR-PAY-015",
+      "introduced_at": "M4",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-PAY-014",
+        "FR-BIL-010"
+      ],
+      "journey_links": [
+        "GJ-01B",
+        "GJ-02B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-PAY-015",
+        "TST-M5a-FR-PAY-015"
+      ],
+      "gate_local_behavior": "The live/simulated/prohibited matrix is enforced: simulated results are labelled and cannot be presented as live, and receipts state the actual method and provider.",
+      "later_behavior": "Continuation and queuing behavior during a real outage is exercised on the outlet node."
+    },
+    {
+      "id": "FR-PAY-016",
+      "introduced_at": "M4",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-SEC-011",
+        "FR-PAY-003"
+      ],
+      "journey_links": [
+        "GJ-01B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-PAY-016",
+        "TST-M6-FR-PAY-016"
+      ],
+      "gate_local_behavior": "No PAN, CVV or cryptogram appears in storage, logs or analytics on any payment path.",
+      "later_behavior": "The prohibition is re-proven against the full production artifact and its logs."
+    },
+    {
+      "id": "FR-PAY-017",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-005",
+        "FR-BIL-014"
+      ],
+      "journey_links": [
+        "GJ-06",
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-PAY-017"
+      ],
+      "gate_local_behavior": "Every payment carries two explicit allocations that reverse independently with exact arithmetic and no recomputation on read.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-POS-003B",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-POS-003A",
+        "FR-ORD-001B"
+      ],
+      "journey_links": [
+        "GJ-06"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-POS-003B"
+      ],
+      "gate_local_behavior": "Counter orders are created at the POS terminal under the same rules as QR and waiter ordering.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-RPT-001",
+      "introduced_at": "M4",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-RPT-015",
+        "FR-AUTH-008"
+      ],
+      "journey_links": [
+        "GJ-01B",
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-RPT-001",
+        "TST-M5a-FR-RPT-001"
+      ],
+      "gate_local_behavior": "Provide role-specific dashboards for outlet manager, waiter, cashier and kitchen/expo using only active Phase 1 data and without deferred modules.",
+      "later_behavior": "At M5a add the technical-operator local-node, synchronization and printer dashboard."
+    },
+    {
+      "id": "FR-RPT-002",
+      "introduced_at": "M4",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-RPT-015",
+        "FR-DAT-004"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-RPT-002",
+        "TST-M5a-FR-RPT-002"
+      ],
+      "gate_local_behavior": "Label every operational metric with its source and freshness in the cloud reporting view.",
+      "later_behavior": "At M5a show local versus cloud source, synchronization status and staleness explicitly."
+    },
+    {
+      "id": "FR-RPT-003",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-RPT-015",
+        "FR-DAT-005"
+      ],
+      "journey_links": [
+        "GJ-02B",
+        "GJ-03B"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-RPT-003"
+      ],
+      "gate_local_behavior": "Report orders, item sales, discounts, service charges, taxes, bill payments and tips as separately classified exact values.",
+      "later_behavior": ""
+    },
+    {
+      "id": "FR-RPT-004",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-RPT-015",
+        "FR-SRV-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M4-FR-RPT-004"
+      ],
+      "gate_local_behavior": "Report service requests, acknowledgement and completion times, table-session duration and unresolved exceptions.",
+      "later_behavior": ""
+    },
+    {
+      "id": "FR-RPT-005",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-RPT-015",
+        "FR-FUL-001"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M4-FR-RPT-005"
+      ],
+      "gate_local_behavior": "Report kitchen, bar and expo queue state, preparation time, ready-to-serve time, rework and exceptions.",
+      "later_behavior": ""
+    },
+    {
+      "id": "FR-RPT-013",
+      "introduced_at": "M4",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-RPT-015",
+        "FR-AUTH-008"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-RPT-013",
+        "TST-M6-FR-RPT-013"
+      ],
+      "gate_local_behavior": "Export authorized Phase 1 operational data in documented formats with tenant and outlet scoping.",
+      "later_behavior": "At M6 repeat the export through production roles and the final built artifact."
+    },
+    {
+      "id": "FR-RPT-014",
+      "introduced_at": "M4",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-CSH-004",
+        "FR-DAT-008B"
+      ],
+      "journey_links": [
+        "GJ-07"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-RPT-014",
+        "TST-M6-FR-RPT-014"
+      ],
+      "gate_local_behavior": "Shift close writes an immutable metric snapshot that later recomputation cannot alter.",
+      "later_behavior": "The audit consumption of these snapshots occurs in the reporting surface."
+    },
+    {
+      "id": "FR-RPT-015",
+      "introduced_at": "M4",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-004",
+        "FR-DAT-005"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-RPT-015",
+        "TST-M6-FR-RPT-015"
+      ],
+      "gate_local_behavior": "Publish a versioned metric catalog defining each Phase 1 formula, timezone, currency, inclusion rule and data source.",
+      "later_behavior": "At M6 verify the catalog against the complete production reporting surface."
+    },
+    {
+      "id": "FR-TAB-007B",
+      "introduced_at": "M4",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-TAB-007A",
+        "FR-BIL-003"
+      ],
+      "journey_links": [
+        "GJ-06"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-TAB-007B"
+      ],
+      "gate_local_behavior": "A merged session splits into separate checks with correct allocation and a complete audit trail.",
+      "later_behavior": "None beyond M4 for this clause."
+    },
+    {
+      "id": "FR-UX-018",
+      "introduced_at": "M4",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-BIL-010"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M4-FR-UX-018",
+        "TST-M5a-FR-UX-018"
+      ],
+      "gate_local_behavior": "Receipt and document templates preview accurately before publication.",
+      "later_behavior": "Physical print output must match the preview on the actual printer."
+    },
+    {
+      "id": "FR-CFG-001E",
+      "introduced_at": "M5a",
+      "revalidated_at": [
+        "M5b"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-002A"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-CFG-001E",
+        "TST-M5b-FR-CFG-001E"
+      ],
+      "gate_local_behavior": "Register the node, bind it to one tenant and outlet, apply configuration and prove it starts only with the correct outlet identity.",
+      "later_behavior": "M5b activates the same-QR DNS/TLS and authority-lease configuration."
+    },
+    {
+      "id": "FR-DAT-008C",
+      "introduced_at": "M5a",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-DAT-008A",
+        "FR-EDG-001"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-DAT-008C"
+      ],
+      "gate_local_behavior": "Synchronization evidence records are append-only across replay and restart.",
+      "later_behavior": "None beyond M5a for this clause."
+    },
+    {
+      "id": "FR-EDG-001",
+      "introduced_at": "M5a",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-001B",
+        "FR-OPS-001"
+      ],
+      "journey_links": [
+        "GJ-10",
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-EDG-001",
+        "TST-M6-FR-EDG-001"
+      ],
+      "gate_local_behavior": "A production outlet profile requires the continuity node and cloud-only mode is refused outside non-production environments.",
+      "later_behavior": "The profile constraint is re-proven against the production deployment artifact."
+    },
+    {
+      "id": "FR-EDG-002A",
+      "introduced_at": "M5a",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-001"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-EDG-002A"
+      ],
+      "gate_local_behavior": "The node image contains exactly the five named services and starts them under least privilege.",
+      "later_behavior": "None beyond M5a for this clause."
+    },
+    {
+      "id": "FR-EDG-004A",
+      "introduced_at": "M5a",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-002A"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-EDG-004A"
+      ],
+      "gate_local_behavior": "All four screen families are served from the outlet node over the LAN at its configured endpoint.",
+      "later_behavior": "Reaching those screens through the same public table QR requires split-horizon DNS and public-trust TLS."
+    },
+    {
+      "id": "FR-EDG-005",
+      "introduced_at": "M5a",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-INT-003",
+        "FR-INT-004"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-EDG-005"
+      ],
+      "gate_local_behavior": "Synchronization uses durable events with ordered cursors and dependency rules; no database replication path exists for business data.",
+      "later_behavior": "None beyond M5a for this clause."
+    },
+    {
+      "id": "FR-EDG-008",
+      "introduced_at": "M5a",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-005",
+        "FR-DAT-007"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-EDG-008"
+      ],
+      "gate_local_behavior": "Conflicts on all six named domains surface to an operator with evidence; no silent overwrite path exists.",
+      "later_behavior": "None beyond M5a for this clause."
+    },
+    {
+      "id": "FR-EDG-009",
+      "introduced_at": "M5a",
+      "revalidated_at": [
+        "M5b"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-001",
+        "FR-EDG-002A"
+      ],
+      "journey_links": [
+        "GJ-10",
+        "GJ-08"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-EDG-009",
+        "TST-M5b-FR-EDG-009"
+      ],
+      "gate_local_behavior": "All three connectivity states display to staff and to customers on the locally served surface without blocking service.",
+      "later_behavior": "The customer-facing display during a genuine same-QR outage session is proven with the M5b routing."
+    },
+    {
+      "id": "FR-EDG-010",
+      "introduced_at": "M5a",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-001",
+        "FR-CFG-002A"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-EDG-010"
+      ],
+      "gate_local_behavior": "Actions needing external authority are blocked or queued with a translated explanation while cash, terminal recording and ordinary service continue.",
+      "later_behavior": "None beyond M5a for this clause."
+    },
+    {
+      "id": "FR-EDG-012",
+      "introduced_at": "M5a",
+      "revalidated_at": [
+        "M5b"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-INT-013"
+      ],
+      "journey_links": [
+        "GJ-10",
+        "GJ-09"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-EDG-012",
+        "TST-M5b-FR-EDG-012"
+      ],
+      "gate_local_behavior": "An incompatible peer pauses synchronization safely while local service continues.",
+      "later_behavior": "Compatibility agreement becomes a field of the bidirectional reachability proof."
+    },
+    {
+      "id": "FR-EDG-015A",
+      "introduced_at": "M5a",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-001",
+        "FR-EDG-002A",
+        "FR-EDG-029"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-EDG-015A"
+      ],
+      "gate_local_behavior": "With the internet cut, staff complete waiter entry, KDS preparation, bills, separate tips, cash settlement and local printing through the node.",
+      "later_behavior": "Customer-side local Wi-Fi QR ordering depends on same-QR routing."
+    },
+    {
+      "id": "FR-EDG-016",
+      "introduced_at": "M5a",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-005",
+        "FR-EDG-008"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-EDG-016"
+      ],
+      "gate_local_behavior": "Reconnection uploads in dependency order, resumes cloud reads, reconciles conflicts and produces no duplicate order, payment or tip.",
+      "later_behavior": "None beyond M5a for this clause."
+    },
+    {
+      "id": "FR-EDG-017",
+      "introduced_at": "M5a",
+      "revalidated_at": [
+        "M5b"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-INT-011",
+        "FR-EDG-002A"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-EDG-017",
+        "TST-M5b-FR-EDG-017"
+      ],
+      "gate_local_behavior": "Node, database, worker, print, storage and synchronization health are exposed truthfully to outlet and cloud operators.",
+      "later_behavior": "Certificate health depends on the per-outlet certificate lifecycle."
+    },
+    {
+      "id": "FR-EDG-018",
+      "introduced_at": "M5a",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-SEC-014",
+        "FR-INT-010"
+      ],
+      "journey_links": [
+        "GJ-10",
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-EDG-018",
+        "TST-M6-FR-EDG-018"
+      ],
+      "gate_local_behavior": "The node runs with device identity, least-privileged services, encrypted secrets, signed updates, hardened host and audited admin access.",
+      "later_behavior": "Host hardening and update signing are re-proven against the shipped production node image."
+    },
+    {
+      "id": "FR-EDG-025",
+      "introduced_at": "M5a",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-002A",
+        "FR-MNU-003"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-EDG-025"
+      ],
+      "gate_local_behavior": "The node holds a complete readiness dataset covering all eleven named element types before service begins.",
+      "later_behavior": "None beyond M5a for this clause."
+    },
+    {
+      "id": "FR-EDG-027",
+      "introduced_at": "M5a",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-016",
+        "FR-EDG-008"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-EDG-027"
+      ],
+      "gate_local_behavior": "Replayed events preserve original IDs and timestamps, duplicates are rejected and conflicts surface rather than overwrite.",
+      "later_behavior": "None beyond M5a for this clause."
+    },
+    {
+      "id": "FR-EDG-029",
+      "introduced_at": "M5a",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-BIL-017",
+        "FR-EDG-002A",
+        "FR-INT-005"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-EDG-029",
+        "TST-M6-FR-EDG-029"
+      ],
+      "gate_local_behavior": "Lose internet, restart the print service and reconnect while a receipt is queued; exactly one physical receipt prints and the job reconciles with complete status evidence.",
+      "later_behavior": "Repeat in the production-equivalent staging environment."
+    },
+    {
+      "id": "FR-INT-003",
+      "introduced_at": "M5a",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-001",
+        "FR-DAT-008C"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-INT-003"
+      ],
+      "gate_local_behavior": "Operational events, payment-provider events and notification jobs enqueue transactionally with the originating write and survive process restart.",
+      "later_behavior": "None beyond M5a for this clause."
+    },
+    {
+      "id": "FR-INT-004",
+      "introduced_at": "M5a",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-INT-003",
+        "FR-INT-005"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-INT-004"
+      ],
+      "gate_local_behavior": "Cloud-to-outlet configuration and commands apply exactly once under repeated delivery.",
+      "later_behavior": "None beyond M5a for this clause."
+    },
+    {
+      "id": "FR-OPS-010",
+      "introduced_at": "M5a",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-018",
+        "FR-INT-003"
+      ],
+      "journey_links": [
+        "GJ-10",
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-OPS-010",
+        "TST-M6-FR-OPS-010"
+      ],
+      "gate_local_behavior": "Signed node updates apply with database compatibility checks and roll back without corrupting the outbox or inbox.",
+      "later_behavior": "Staged rollout across outlets is a production deployment concern."
+    },
+    {
+      "id": "FR-OPS-018",
+      "introduced_at": "M5a",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-POS-001",
+        "FR-EDG-001"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-OPS-018",
+        "TST-M6-FR-OPS-018"
+      ],
+      "gate_local_behavior": "The outlet asset register lists all six device classes with location and support owner.",
+      "later_behavior": "The register is confirmed against the deployed pilot outlet."
+    },
+    {
+      "id": "FR-POS-008",
+      "introduced_at": "M5a",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-001",
+        "FR-INT-003"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-POS-008"
+      ],
+      "gate_local_behavior": "All five synchronization states render in plain language on the staff surface during and after an outage.",
+      "later_behavior": "None beyond M5a for this clause."
+    },
+    {
+      "id": "FR-SEC-002B",
+      "introduced_at": "M5a",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-001",
+        "FR-SEC-002A"
+      ],
+      "journey_links": [
+        "GJ-10"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-SEC-002B"
+      ],
+      "gate_local_behavior": "The local node denies cross-tenant and sibling-outlet access for all four verbs against populated fixtures.",
+      "later_behavior": "None beyond M5a for this clause."
+    },
+    {
+      "id": "FR-TST-008",
+      "introduced_at": "M5a",
+      "revalidated_at": [
+        "M5b"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-015A",
+        "FR-EDG-016"
+      ],
+      "journey_links": [
+        "GJ-10",
+        "GJ-08"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5a-FR-TST-008",
+        "TST-M5b-FR-TST-008"
+      ],
+      "gate_local_behavior": "Staff-side outage journeys including billing, tip, payment, printing and reconnection run against a real cloud/outlet pair.",
+      "later_behavior": "Customer local Wi-Fi continuity requires same-QR routing."
+    },
+    {
+      "id": "FR-EDG-003",
+      "introduced_at": "M5b",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-021",
+        "FR-EDG-018"
+      ],
+      "journey_links": [
+        "GJ-09"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5b-FR-EDG-003",
+        "TST-M6-FR-EDG-003"
+      ],
+      "gate_local_behavior": "When the bidirectional lease permits local authority, the outlet node is the sole authoritative writer for active dine-in operations and connected cloud access forwards commands to that outlet authority.",
+      "later_behavior": "Repeat the authority and forwarding proof in staging with production-equivalent fencing and monitoring."
+    },
+    {
+      "id": "FR-EDG-004B",
+      "introduced_at": "M5b",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-004A",
+        "FR-EDG-022A"
+      ],
+      "journey_links": [
+        "GJ-08"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5b-FR-EDG-004B"
+      ],
+      "gate_local_behavior": "The same public table QR resolves to the node with a trusted certificate and no browser warning during outage.",
+      "later_behavior": "None beyond M5b for this clause."
+    },
+    {
+      "id": "FR-EDG-015B",
+      "introduced_at": "M5b",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-015A",
+        "FR-EDG-022A",
+        "FR-EDG-025"
+      ],
+      "journey_links": [
+        "GJ-08"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5b-FR-EDG-015B"
+      ],
+      "gate_local_behavior": "A customer on outlet Wi-Fi orders through the same QR while the internet is down.",
+      "later_behavior": "None beyond M5b for this clause."
+    },
+    {
+      "id": "FR-EDG-021",
+      "introduced_at": "M5b",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-022A",
+        "FR-EDG-025"
+      ],
+      "journey_links": [
+        "GJ-08"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5b-FR-EDG-021"
+      ],
+      "gate_local_behavior": "A customer on outlet Wi-Fi completes the full same-QR journey during outage: cached menu, order, staff call, bill request, tip and settlement by an available local method.",
+      "later_behavior": "None beyond M5b for this clause."
+    },
+    {
+      "id": "FR-EDG-022A",
+      "introduced_at": "M5b",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-004A",
+        "FR-TAB-001"
+      ],
+      "journey_links": [
+        "GJ-08"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5b-FR-EDG-022A",
+        "TST-M6-FR-EDG-022A"
+      ],
+      "gate_local_behavior": "The same QR reaches a trusted cloud endpoint normally and a trusted LAN endpoint during supported outlet routing; certificate issuance completes from a node-generated CSR with no private-key export.",
+      "later_behavior": "Production issuance and rotation evidence is rechecked during staging."
+    },
+    {
+      "id": "FR-EDG-022B",
+      "introduced_at": "M5b",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-022A"
+      ],
+      "journey_links": [
+        "GJ-08",
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5b-FR-EDG-022B",
+        "TST-M6-FR-EDG-022B"
+      ],
+      "gate_local_behavior": "Exercise renewal, retry, alert, installation verification, revocation and failed-renewal fallback without a browser warning.",
+      "later_behavior": "Repeat against the production-equivalent outlet environment."
+    },
+    {
+      "id": "FR-EDG-022C",
+      "introduced_at": "M5b",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-022A"
+      ],
+      "journey_links": [
+        "GJ-08",
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5b-FR-EDG-022C",
+        "TST-M6-FR-EDG-022C"
+      ],
+      "gate_local_behavior": "Scanner and client tests prove that no prohibited key, URL, certificate or bypass path exists.",
+      "later_behavior": "Re-scan the final production artifacts."
+    },
+    {
+      "id": "FR-EDG-023",
+      "introduced_at": "M5b",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-003",
+        "FR-EDG-012"
+      ],
+      "journey_links": [
+        "GJ-09"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5b-FR-EDG-023"
+      ],
+      "gate_local_behavior": "Signed bidirectional proofs run at 5s, degrade at 10s and expire the forwarding lease at 20s; a one-way failure in either direction also expires it; recovery requires three consecutive valid proofs.",
+      "later_behavior": "None beyond M5b for this clause."
+    },
+    {
+      "id": "FR-EDG-024",
+      "introduced_at": "M5b",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-023",
+        "FR-AUTH-006"
+      ],
+      "journey_links": [
+        "GJ-09"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5b-FR-EDG-024"
+      ],
+      "gate_local_behavior": "A replacement becomes writable only after recorded fence evidence and independent approval; the old node rejects direct LAN writes and its stale events quarantine; rollback is refused.",
+      "later_behavior": "None beyond M5b for this clause."
+    },
+    {
+      "id": "FR-EDG-026",
+      "introduced_at": "M5b",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-021",
+        "FR-TAB-004"
+      ],
+      "journey_links": [
+        "GJ-08"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5b-FR-EDG-026"
+      ],
+      "gate_local_behavior": "A session started on cellular continues on outlet Wi-Fi with participant tokens intact, no duplicate order and cart ownership preserved.",
+      "later_behavior": "None beyond M5b for this clause."
+    },
+    {
+      "id": "FR-EDG-028",
+      "introduced_at": "M5b",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-022A",
+        "FR-EDG-021"
+      ],
+      "journey_links": [
+        "GJ-08"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5b-FR-EDG-028"
+      ],
+      "gate_local_behavior": "Cached-answer, encrypted-DNS and dual-stack devices each reach a trusted endpoint or fail safe to translated guidance, never to a certificate warning or bypass prompt.",
+      "later_behavior": "None beyond M5b for this clause."
+    },
+    {
+      "id": "FR-OPS-017",
+      "introduced_at": "M5b",
+      "revalidated_at": [
+        "M6"
+      ],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-022A"
+      ],
+      "journey_links": [
+        "GJ-08"
+      ],
+      "acceptance_test_ids": [
+        "TST-M5b-FR-OPS-017",
+        "TST-M6-FR-OPS-017"
+      ],
+      "gate_local_behavior": "The managed per-outlet hostname, split DNS and public-CA certificate operate with secure per-outlet key provisioning and rotation, and none of the four prohibited patterns exists.",
+      "later_behavior": "The operational rotation procedure runs against the production deployment."
+    },
+    {
+      "id": "FR-CFG-007B",
+      "introduced_at": "M6",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-OPS-001"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M6-FR-CFG-007B"
+      ],
+      "gate_local_behavior": "Scan of the built production image and database proves no demo-reset route, job or script is present.",
+      "later_behavior": "None; terminal claim."
+    },
+    {
+      "id": "FR-OPS-006",
+      "introduced_at": "M6",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-OPS-019",
+        "FR-EDG-001"
+      ],
+      "journey_links": [
+        "GJ-11"
+      ],
+      "acceptance_test_ids": [
+        "TST-M6-FR-OPS-006"
+      ],
+      "gate_local_behavior": "Scheduled backups of cloud and outlet databases run using only tools present inside the built production artifact.",
+      "later_behavior": "None beyond M6."
+    },
+    {
+      "id": "FR-OPS-007",
+      "introduced_at": "M6",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-OPS-006",
+        "FR-OPS-020"
+      ],
+      "journey_links": [
+        "GJ-11"
+      ],
+      "acceptance_test_ids": [
+        "TST-M6-FR-OPS-007"
+      ],
+      "gate_local_behavior": "A destructive restore into clean cloud and outlet environments starts under production roles, passes the golden journeys and records recovery time.",
+      "later_behavior": "None beyond M6."
+    },
+    {
+      "id": "FR-OPS-011",
+      "introduced_at": "M6",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-OPS-007",
+        "FR-OPS-015"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M6-FR-OPS-011"
+      ],
+      "gate_local_behavior": "All eleven runbooks exist and each has been executed at least once against the real system.",
+      "later_behavior": "None beyond M6."
+    },
+    {
+      "id": "FR-OPS-012",
+      "introduced_at": "M6",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-NOT-011",
+        "FR-OPS-004"
+      ],
+      "journey_links": [],
+      "acceptance_test_ids": [
+        "TST-M6-FR-OPS-012"
+      ],
+      "gate_local_behavior": "Every alert and dashboard has a named owner, severity, acknowledgement path and escalation.",
+      "later_behavior": "None beyond M6."
+    },
+    {
+      "id": "FR-OPS-015",
+      "introduced_at": "M6",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-GOV-004",
+        "FR-TST-019"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M6-FR-OPS-015"
+      ],
+      "gate_local_behavior": "Go-live runs from an audited branch with checklist, pilot outlet, rollback plan, data owner and named operator recorded.",
+      "later_behavior": "None beyond M6."
+    },
+    {
+      "id": "FR-OPS-016",
+      "introduced_at": "M6",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-EDG-024",
+        "FR-OPS-007"
+      ],
+      "journey_links": [
+        "GJ-11"
+      ],
+      "acceptance_test_ids": [
+        "TST-M6-FR-OPS-016"
+      ],
+      "gate_local_behavior": "Recovery objectives, the replacement-node procedure and prolonged-outage reconciliation are defined and exercised.",
+      "later_behavior": "None beyond M6."
+    },
+    {
+      "id": "FR-OPS-019",
+      "introduced_at": "M6",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-OPS-005",
+        "FR-OPS-008"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M6-FR-OPS-019"
+      ],
+      "gate_local_behavior": "Every advertised job, script, database client and config file executes inside the image with no host mount.",
+      "later_behavior": "None beyond M6."
+    },
+    {
+      "id": "FR-SEC-019",
+      "introduced_at": "M6",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-OPS-001",
+        "FR-DAT-017"
+      ],
+      "journey_links": [
+        "GJ-11"
+      ],
+      "acceptance_test_ids": [
+        "TST-M6-FR-SEC-019"
+      ],
+      "gate_local_behavior": "Encrypted backup is taken, verified, stored off-site and destructively restored using only built artifacts and production roles.",
+      "later_behavior": "None; terminal claim."
+    },
+    {
+      "id": "FR-TST-009",
+      "introduced_at": "M6",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-OPS-007"
+      ],
+      "journey_links": [
+        "GJ-11"
+      ],
+      "acceptance_test_ids": [
+        "TST-M6-FR-TST-009"
+      ],
+      "gate_local_behavior": "A destructive restore is followed by successful production-role journeys across all named domains.",
+      "later_behavior": "None beyond M6."
+    },
+    {
+      "id": "FR-TST-010",
+      "introduced_at": "M6",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-UX-012",
+        "FR-RPT-015"
+      ],
+      "journey_links": [
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M6-FR-TST-010"
+      ],
+      "gate_local_behavior": "Load tests record thresholds across ordering, KDS realtime, menu search, reporting and integration bursts.",
+      "later_behavior": "None beyond M6."
+    },
+    {
+      "id": "FR-TST-018",
+      "introduced_at": "M6",
+      "revalidated_at": [],
+      "prerequisite_requirement_ids": [
+        "FR-OPS-019",
+        "FR-OPS-020"
+      ],
+      "journey_links": [
+        "GJ-11",
+        "GJ-12"
+      ],
+      "acceptance_test_ids": [
+        "TST-M6-FR-TST-018"
+      ],
+      "gate_local_behavior": "All six named test families execute against built production artifacts under real production roles.",
+      "later_behavior": "None beyond M6."
+    }
+  ]
+}

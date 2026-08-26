@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Hospitality OS reconciled requirements projection",
+  "type": "object",
+  "required": [
+    "active_requirements",
+    "counts",
+    "gate_counts"
+  ],
+  "properties": {
+    "active_requirements": {
+      "type": "array",
+      "minItems": 336,
+      "maxItems": 336
+    },
+    "counts": {
+      "type": "object"
+    },
+    "gate_counts": {
+      "type": "object"
+    }
+  }
+}

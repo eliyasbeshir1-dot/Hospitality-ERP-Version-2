@@ -22,6 +22,10 @@ permissions:
 
 env:
   PKG_DIR: docs/Hospitality_OS_Phase_1_Clean_Build_Package_v2.0.9
+  # Running the package validators imports modules under docs/. Without this, Python
+  # writes __pycache__/ into the pinned package, which is forbidden surface and breaks
+  # byte-identity. Do not remove.
+  PYTHONDONTWRITEBYTECODE: "1"
 
 jobs:
   skeleton-conformance:
@@ -121,11 +125,26 @@ jobs:
           python3 "$validator" "$PKG_DIR" 2>&1 | tee occurrence.log
           test -s occurrence.log || { echo "::error::validator produced no output — empty result is a failure"; exit 1; }
 
-          if grep -Eqi '\b(skipped|no files scanned|0 (occurrences|files) (scanned|checked))\b' occurrence.log; then
-            echo "::error::validator reported skipped or empty results"
+          # Exact success token. A bare 'PASS' substring is not sufficient.
+          grep -qx 'PASS FORBIDDEN_OCCURRENCE_REGISTRY_VALID' occurrence.log || {
+            echo "::error::validator did not emit PASS FORBIDDEN_OCCURRENCE_REGISTRY_VALID"
             exit 1
-          fi
-          grep -q 'PASS' occurrence.log || { echo "::error::validator did not report PASS"; exit 1; }
+          }
+
+          # Fail closed on an unknown, empty or skipped result even if the token appeared.
+          python3 - <<'PY'
+          import json, re, sys
+          text = open("occurrence.log", encoding="utf-8").read()
+          m = re.search(r"\{.*\}", text, re.S)
+          if not m:
+              sys.exit("validator emitted no JSON result block — unknown status is a failure")
+          r = json.loads(m.group(0))
+          if r.get("passed") is not True:
+              sys.exit(f"validator reported passed={r.get('passed')!r}")
+          if r.get("failure_count") != 0:
+              sys.exit(f"validator reported {r.get('failure_count')} failure(s)")
+          print("occurrence registry valid: passed=true, failure_count=0")
+          PY
 
   mechanism-suite:
     name: Occurrence mechanism suite
@@ -158,4 +177,10 @@ jobs:
             echo "::error::suite reported skipped or zero-collected cases"
             exit 1
           fi
-          echo "mechanism suite completed; expected case count is 28/28"
+
+          # Exact case count. 27/28 or 0/0 must fail; a partial run is not a pass.
+          grep -q '^28/28 correct' mechanism.log || {
+            echo "::error::mechanism suite did not report 28/28 correct"
+            exit 1
+          }
+          echo "mechanism suite: 28/28 correct"

@@ -1,0 +1,380 @@
+{
+  "version": "0.1.4",
+  "findings": [
+    {
+      "finding_id": "V204-P0-01",
+      "severity": "P0",
+      "title": "M4 mandatory journeys require physical receipts while the first printer capability was owned by M5a.",
+      "finding": "M4 mandatory journeys require physical receipts while the first printer capability was owned by M5a.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "FR-CFG-001D",
+        "FR-BIL-017",
+        "FR-EDG-029",
+        "D-119",
+        "GJ-01B",
+        "GJ-02B",
+        "GJ-03B",
+        "GJ-06",
+        "GJ-07",
+        "GJ-10"
+      ],
+      "affected_files": [],
+      "verification": "M4 has a minimum real physical-receipt path; M5a separately owns durable queue, retry, restart recovery, deduplication, health, outage continuity and reconciliation.",
+      "residual_risk": "None; v2.0.5 Codex verified M4/M5a print separation."
+    },
+    {
+      "finding_id": "V204-P1-02",
+      "severity": "P1",
+      "title": "Decision D-113 provenance differed between narrative and machine-readable sources.",
+      "finding": "Decision D-113 provenance differed between narrative and machine-readable sources.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "D-113"
+      ],
+      "affected_files": [],
+      "verification": "Canonical decision source is v2.0.3 in the reconciled decision catalog.",
+      "residual_risk": "None."
+    },
+    {
+      "finding_id": "V204-P1-03",
+      "severity": "P1",
+      "title": "Original package assessment counts were stale.",
+      "finding": "Original package assessment counts were stale.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "original_requirement_lineage.json",
+        "original_decision_dispositions.json"
+      ],
+      "affected_files": [],
+      "verification": "The v2.0.6 generator publishes current row-level counts and all projections from canonical records.",
+      "residual_risk": "None."
+    },
+    {
+      "finding_id": "V204-P1-04",
+      "severity": "P1",
+      "title": "Row-level 500 original requirement and 100 original decision dispositions were missing.",
+      "finding": "Row-level 500 original requirement and 100 original decision dispositions were missing.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "original_requirement_lineage.json"
+      ],
+      "affected_files": [],
+      "verification": "The frozen canonical baseline contains the 500/100 row-level evidence; this package retains the exact source hashes and maps all 294 active originals.",
+      "residual_risk": "None for reconciliation."
+    },
+    {
+      "finding_id": "V204-P1-05",
+      "severity": "P1",
+      "title": "The dependency graph was generic and milestone-wide rather than requirement-specific.",
+      "finding": "The dependency graph was generic and milestone-wide rather than requirement-specific.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "reconciled_requirements.json"
+      ],
+      "affected_files": [],
+      "verification": "Two independent clause-level reviews were reconciled and the final graph has requirement-specific gates, prerequisites, journeys and tests.",
+      "residual_risk": "Codex remains the independent semantic reviewer."
+    },
+    {
+      "finding_id": "V204-P1-06",
+      "severity": "P1",
+      "title": "The package validator relied on PyYAML and checked structure rather than full semantics.",
+      "finding": "The package validator relied on PyYAML and checked structure rather than full semantics.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "tools/validate_reconciled_stdlib.py"
+      ],
+      "affected_files": [],
+      "verification": "The standard-library validator was frozen and challenged through two blind mutation rounds; final limitations are disclosed.",
+      "residual_risk": "Post-repair diagnostics are not fresh blind evidence."
+    },
+    {
+      "finding_id": "V204-P1-07",
+      "severity": "P1",
+      "title": "GJ-01A said outlet authority persists at M3, implying local authority before M5b.",
+      "finding": "GJ-01A said outlet authority persists at M3, implying local authority before M5b.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "GJ-01A"
+      ],
+      "affected_files": [],
+      "verification": "GJ-01A now states that the current approved cloud authority persists and makes no local-authority claim before M5b.",
+      "residual_risk": "None."
+    },
+    {
+      "finding_id": "V204-P2-08",
+      "severity": "P2",
+      "title": "Private-key custody was inconsistent.",
+      "finding": "Private-key custody was inconsistent.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "FR-EDG-022A",
+        "D-116"
+      ],
+      "affected_files": [],
+      "verification": "The node generates and retains the private key, submits only a CSR, receives only the certificate chain, and never exports the private key.",
+      "residual_risk": "Operational HSM/keystore choice remains an implementation decision under this contract."
+    },
+    {
+      "finding_id": "V204-P2-09",
+      "severity": "P2",
+      "title": "FR-EDG-028 test ID used inconsistent M5b casing.",
+      "finding": "FR-EDG-028 test ID used inconsistent M5b casing.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "FR-EDG-028"
+      ],
+      "affected_files": [],
+      "verification": "Engineering test ID is normalized to TST-M5b-FR-EDG-028.",
+      "residual_risk": "None."
+    },
+    {
+      "finding_id": "V204-P2-10",
+      "severity": "P2",
+      "title": "Amendment and finding logs were not exact enough.",
+      "finding": "Amendment and finding logs were not exact enough.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "finding_register.json",
+        "amendment_register.json"
+      ],
+      "affected_files": [],
+      "verification": "Each prior finding has an ID, severity, disposition, affected IDs, verification and residual risk.",
+      "residual_risk": "Future findings must use the same structure."
+    },
+    {
+      "finding_id": "VAL-P1-001",
+      "severity": "P1",
+      "title": "Journey links were not consistently aligned to introduction/revalidation gates",
+      "finding": "Journey links were not consistently aligned to introduction/revalidation gates",
+      "disposition": "REPAIRED",
+      "affected_canonical_ids": [
+        "FR-SEC-002A",
+        "FR-TST-006",
+        "FR-AUTH-003",
+        "FR-MNU-012",
+        "FR-RPT-001",
+        "FR-RPT-004",
+        "FR-RPT-005"
+      ],
+      "affected_files": [
+        "canonical/reconciled_requirements.json",
+        "Hospitality_OS_Reconciled_Register_v0.1.1.xlsx"
+      ],
+      "verification": "Every journey milestone now equals the requirement introducing gate or a declared revalidation gate.",
+      "residual_risk": "none"
+    },
+    {
+      "finding_id": "VAL-P1-002",
+      "severity": "P1",
+      "title": "Round 2 exposed five validator coverage gaps",
+      "finding": "Round 2 exposed five validator coverage gaps",
+      "disposition": "REPAIRED_AND_REFROZEN",
+      "affected_canonical_ids": [
+        "FR-CFG-002B",
+        "FR-DAT-003",
+        "D-043",
+        "canonical count declarations",
+        "canonical decision projection"
+      ],
+      "affected_files": [
+        "canonical/reconciled_requirements.json",
+        "canonical/reconciled_decisions.json",
+        "Hospitality_OS_Reconciled_Register_v0.1.2.xlsx",
+        "validator/validate_hospitality_os.py"
+      ],
+      "verification": "All five disclosed Round 2 misses are detected after repair. No Round 3 is required under the agreed two-round cap unless Codex later identifies a P0 validator defect.",
+      "residual_risk": "The post-repair rerun is diagnostic rather than fresh independent evidence. This limitation is disclosed to Codex."
+    },
+    {
+      "finding_id": "V205-P1-01",
+      "severity": "P1",
+      "title": "M5a service boundary contradiction",
+      "finding": "m5_ownership.json listed local_backup_agent although FR-EDG-002A requires exactly five services.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "FR-EDG-002A",
+        "FR-OPS-006",
+        "FR-OPS-007",
+        "FR-SEC-019",
+        "FR-TST-009",
+        "D-113",
+        "GJ-10",
+        "GJ-11"
+      ],
+      "affected_files": [
+        "m5_ownership.json"
+      ],
+      "verification": "M5a now lists exactly five services; backup scheduling and restore remain M6.",
+      "residual_risk": "None."
+    },
+    {
+      "finding_id": "V205-P1-02",
+      "severity": "P1",
+      "title": "Stale canonical governance state",
+      "finding": "Residual/finding records described validator and blind rounds as future work.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "residual_issues.json",
+        "finding_register.json"
+      ],
+      "affected_files": [
+        "residual_issues.json",
+        "finding_register.json"
+      ],
+      "verification": "Lifecycle state is current and projections are regenerated.",
+      "residual_risk": "None."
+    },
+    {
+      "finding_id": "V205-P1-03",
+      "severity": "P1",
+      "title": "Non-uniform clause schema",
+      "finding": "Ten clauses omitted exact_clause_text and used substitute fields.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "reconciled_requirements.json",
+        "reconciled_canonical_register.schema.json"
+      ],
+      "affected_files": [
+        "requirements.json",
+        "schema",
+        "validator"
+      ],
+      "verification": "All 337 clauses share one enforced contract.",
+      "residual_risk": "None."
+    },
+    {
+      "finding_id": "V205-P1-04",
+      "severity": "P1",
+      "title": "Projection content loss",
+      "finding": "Amendments, findings, split reasons and non-regression rules were incompletely published.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "amendment_register.json",
+        "finding_register.json",
+        "original_requirement_lineage.json",
+        "non_regression_rules.json"
+      ],
+      "affected_files": [
+        "Markdown",
+        "XLSX",
+        "DOCX",
+        "PDF"
+      ],
+      "verification": "All canonical fields and all 96 rules are projected and field-compared.",
+      "residual_risk": "None."
+    },
+    {
+      "finding_id": "V205-P1-05",
+      "severity": "P1",
+      "title": "Forbidden-surface rules not executable",
+      "finding": "Validator did not load the normative vocabulary and sense exclusions.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "forbidden_surface_rules.json",
+        "validator"
+      ],
+      "affected_files": [
+        "validator",
+        "mutation suite"
+      ],
+      "verification": "Validator executes the normative rule file and planted tests cover every domain and permitted sense.",
+      "residual_risk": "None."
+    },
+    {
+      "finding_id": "V205-P1-06",
+      "severity": "P1",
+      "title": "Decision provenance and stale reuse evidence",
+      "finding": "D-100 lacked amendment evidence and D-102 named v2.0.4 tests.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "D-100",
+        "D-102",
+        "FR-GOV-003"
+      ],
+      "affected_files": [
+        "decisions.json",
+        "amendment register"
+      ],
+      "verification": "D-100 amendment is explicit and D-102 requires exact pinned-package tests.",
+      "residual_risk": "None."
+    },
+    {
+      "finding_id": "V205-P2-01",
+      "severity": "P2",
+      "title": "Divergent test-ID namespaces",
+      "finding": "Top-level and clause-level test IDs diverged on 18 requirements.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "requirements.json",
+        "dependency_graph.json"
+      ],
+      "affected_files": [
+        "requirements",
+        "workbooks",
+        "validator"
+      ],
+      "verification": "One canonical test-ID policy is enforced across all projections.",
+      "residual_risk": "None."
+    },
+    {
+      "finding_id": "V207-P1-01",
+      "severity": "P1",
+      "title": "Required outer artifact pin was not delivered",
+      "finding": "The Package M0 review received the ZIP without the separately supplied .zip.sha256 publisher pin.",
+      "disposition": "resolved_by_v2.0.8_delivery",
+      "affected_canonical_ids": [
+        "FR-GOV-004",
+        "D-100",
+        "D-102"
+      ],
+      "affected_files": [
+        "CODEX_PACKAGE_M0_REVIEW_BRIEF.md",
+        "OUTER_ARTIFACT_PIN_POLICY.md",
+        "v2.0.8 .zip.sha256 sidecar"
+      ],
+      "verification": "The v2.0.8 ZIP and matching sidecar are delivered together and the prompt states the expected digest.",
+      "residual_risk": "External delivery must include both files."
+    },
+    {
+      "finding_id": "V207-P1-02",
+      "severity": "P1",
+      "title": "Forbidden-surface validator admitted coherent deferred-domain obligations",
+      "finding": "Sentence-wide negation and requirement-wide sense allowances could permit unrelated positive payroll, inventory or variance obligations.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "FR-GOV-002",
+        "FR-TST-017",
+        "D-103",
+        "D-115"
+      ],
+      "affected_files": [
+        "forbidden_surface_rules.json",
+        "forbidden_scan.py",
+        "validate_hospitality_os.py",
+        "mutation evidence"
+      ],
+      "verification": "Occurrence-linked parser rejects all four Codex examples and targeted variants while preserving approved senses.",
+      "residual_risk": "Human semantic review remains required for novel wording."
+    },
+    {
+      "finding_id": "V207-P2-01",
+      "severity": "P2",
+      "title": "D-100 referred to nonexistent YAML projections",
+      "finding": "The package uses JSON as its controlled machine-readable projection, not YAML.",
+      "disposition": "resolved",
+      "affected_canonical_ids": [
+        "D-100"
+      ],
+      "affected_files": [
+        "decisions.json",
+        "decision workbook",
+        "decision catalog",
+        "master publications"
+      ],
+      "verification": "All decision projections use the corrected JSON wording.",
+      "residual_risk": "None."
+    }
+  ]
+}

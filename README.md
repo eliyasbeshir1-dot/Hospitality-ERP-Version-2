@@ -57,7 +57,7 @@ tests under **FR-GOV-003**. The default position is to write fresh.
 | Path | Contents |
 |---|---|
 | `docs/` | the approved v2.0.9 package, byte-identical and verified by its own `SHA256SUMS.txt` |
-| `planning/` | architecture conformance plan, migration and domain ownership map, CI test matrix |
+| `planning/` | architecture conformance plan, migration and domain ownership map, CI test matrix, and the known-limitations note that travels with the submission |
 | `tools/` | `verify_m0r_skeleton.py` — forbidden-surface verification |
 | `.github/workflows/` | `m0r-conformance.yml` — validators only, no application tests |
 

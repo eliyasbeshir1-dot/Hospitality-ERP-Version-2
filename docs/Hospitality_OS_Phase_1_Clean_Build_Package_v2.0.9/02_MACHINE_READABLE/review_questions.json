@@ -1,0 +1,62 @@
+{
+  "version": "2.0.9",
+  "canonical_question_count": 14,
+  "questions": [
+    {
+      "number": 1,
+      "question": "Can every active requirement be traced to a milestone, journey or explicit engineering test?"
+    },
+    {
+      "number": 2,
+      "question": "Are any Phase 2/3 or deferred extension capabilities accidentally required by Phase 1?"
+    },
+    {
+      "number": 3,
+      "question": "Can the same table QR safely resolve to cloud or outlet node without browser-security warnings?"
+    },
+    {
+      "number": 4,
+      "question": "Is the outlet authority model sufficient to prevent split-brain, including emergency replacement?"
+    },
+    {
+      "number": 5,
+      "question": "Are local/cloud identifiers, idempotency, authority sequence and dependency ordering specified clearly?"
+    },
+    {
+      "number": 6,
+      "question": "Are bill, tip, payment, service charge and tax structurally separate?"
+    },
+    {
+      "number": 7,
+      "question": "Does Arabic RTL receive executable mixed-direction, ETB, numeral and receipt coverage rather than string substitution?"
+    },
+    {
+      "number": 8,
+      "question": "Are tenant/outlet boundaries enforceable using exact production roles?"
+    },
+    {
+      "number": 9,
+      "question": "Can backup/restore and production images be tested without host-only dependencies?"
+    },
+    {
+      "number": 10,
+      "question": "Can every CI job fail honestly when tests are skipped, undiscovered, stale or unsupported?"
+    },
+    {
+      "number": 11,
+      "question": "Is the build graph executable milestone-by-milestone using only approved predecessors?"
+    },
+    {
+      "number": 12,
+      "question": "Is any v1.1 or deferred-module assumption silently retained?"
+    },
+    {
+      "number": 13,
+      "question": "Are 5-second proofs, 10-second degradation, 20-second lease expiry, three-proof recovery and asymmetric LAN service independently specified and testable?"
+    },
+    {
+      "number": 14,
+      "question": "Are cash, external-terminal recording and verified Telebirr/CBE Birr proof confirmation live pilot paths while direct provider APIs remain simulator-only?"
+    }
+  ]
+}

@@ -1,0 +1,1020 @@
+{
+  "register": "original_decision_dispositions",
+  "status": "historical row-level lineage evidence imported from v2.0.3 workbook",
+  "source_artifact": "Hospitality OS Phase 1 Clean Build Package v2.0.3",
+  "source_zip_sha256": "2d5564069facd4657c0c7b90987ea9ae19eb0cd7bd689a368e8d10f23dd5e888",
+  "source_file": "04_Templates/V1.1_to_V2.0.3_Decision_Matrix.xlsx",
+  "source_sheet": "Decision Mapping",
+  "columns": [
+    "Decision ID",
+    "Topic",
+    "Original Decision",
+    "Original Phase",
+    "Classification",
+    "v2.0.3 Target",
+    "v2.0.3 Decision",
+    "Rationale"
+  ],
+  "rows": [
+    {
+      "Decision ID": "D-001",
+      "Topic": "Product identity",
+      "Original Decision": "The product is a multi-tenant, multilingual Hospitality Operating System for cafés, restaurants, bakeries, bars, food courts, hotel outlets and related hospitality operators.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "The product is a multi-tenant, multilingual Hospitality Operating System for cafés, restaurants, bakeries, bars, food courts, hotel outlets and related hospitality operators.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-002",
+      "Topic": "Commercial posture",
+      "Original Decision": "The product is designed for internal use and commercial sale to independent outlets, groups, franchises and enterprise operators.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "The product is designed for internal use and commercial sale to independent outlets, groups, franchises and enterprise operators.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-003",
+      "Topic": "Working name",
+      "Original Decision": "HospitalityOS is a working codename only; product name, trademarks and customer-facing branding are configurable and not hard-coded.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "HospitalityOS is a working codename only; product name, trademarks and customer-facing branding are configurable and not hard-coded.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-004",
+      "Topic": "Architecture horizon",
+      "Original Decision": "The architecture must support 10–20 years of additive evolution without requiring a customer-platform rebuild.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "The architecture must support 10–20 years of additive evolution without requiring a customer-platform rebuild.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-005",
+      "Topic": "Implementation style",
+      "Original Decision": "Start as a modular monolith with strict domain boundaries, versioned contracts and reliable events; do not begin with premature microservices.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Start as a modular monolith with strict domain boundaries, versioned contracts and reliable events; do not begin with premature microservices.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-006",
+      "Topic": "API doctrine",
+      "Original Decision": "All business capabilities are exposed through versioned APIs; frontends do not perform direct business writes to the database.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "All business capabilities are exposed through versioned APIs; frontends do not perform direct business writes to the database.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-007",
+      "Topic": "Tenant hierarchy",
+      "Original Decision": "The hierarchy is platform → tenant → brand → legal entity → outlet → service area → station/table/device, with scopes configurable per tenant.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "The hierarchy is platform → tenant → brand → legal entity → outlet → service area → station/table/device, with scopes configurable per tenant.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-008",
+      "Topic": "Tenant independence",
+      "Original Decision": "Every tenant can operate without Horeca Addis, without another supplier connector and without platform-owned payment services.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Every tenant can operate without Horeca Addis, without another supplier connector and without platform-owned payment services.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-009",
+      "Topic": "Second-tenant proof",
+      "Original Decision": "A differently branded second tenant must be included in automated tests and demonstration data to prove isolation and neutrality.",
+      "Original Phase": "Phase 1",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "A differently branded second tenant must be included in automated tests and demonstration data to prove isolation and neutrality.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-010",
+      "Topic": "Customer languages",
+      "Original Decision": "English, Amharic, Arabic, French, Simplified Chinese and Hindi are first-class customer launch languages. Each outlet controls its enabled languages, display order and default; Arabic includes true right-to-left behavior. Staff and back-office applications launch in English.",
+      "Original Phase": "Phase 1",
+      "Classification": "MODIFY",
+      "v2.0.3 Target": "Phase 1",
+      "v2.0.3 Decision": "English, Amharic and Arabic are the first-class customer launch languages. Arabic uses true right-to-left layout. Each outlet may order or disable launch languages only after approved translations remain complete.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-011",
+      "Topic": "Localization model",
+      "Original Decision": "Canonical records are language-neutral and use customer translation records with fallback, completeness and approval controls; no duplicated menu per language. Customer interfaces are fully localized, while staff and back-office interfaces are English-first but translation-ready.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Canonical records are language-neutral and use customer translation records with fallback, completeness and approval controls; no duplicated menu per language. Customer interfaces are fully localized, while staff and back-office interfaces are English-first but translation-ready.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-012",
+      "Topic": "Guest-first ordering",
+      "Original Decision": "A customer may browse and order as a guest; loyalty registration must never block ordinary service.",
+      "Original Phase": "Phase 1",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "A customer may browse and order as a guest; loyalty registration must never block ordinary service.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-013",
+      "Topic": "Customer identity",
+      "Original Decision": "Phone number is the primary loyalty identity, with OTP through a provider adapter; verified email may be linked to the same user.",
+      "Original Phase": "Phase 1",
+      "Classification": "MODIFY",
+      "v2.0.3 Target": "Phase 2",
+      "v2.0.3 Decision": "Phase 1 is guest-first. Phone number remains the preferred future customer identity for loyalty/account features, which activate after the Phase 1 service core is approved.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-014",
+      "Topic": "Table QR security",
+      "Original Decision": "Table QR codes use opaque signed references and revocable versions; raw sequential table IDs are not exposed.",
+      "Original Phase": "Phase 1",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Table QR codes use opaque signed references and revocable versions; raw sequential table IDs are not exposed.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-015",
+      "Topic": "Table session boundary",
+      "Original Decision": "A table session is separate from carts, orders, checks and payments and may contain multiple participants, devices and orders.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "A table session is separate from carts, orders, checks and payments and may contain multiple participants, devices and orders.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-016",
+      "Topic": "Multiple guests",
+      "Original Decision": "Multiple customers at one table can maintain personal or shared carts, place separate orders and settle together or separately.",
+      "Original Phase": "Phase 1",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Multiple customers at one table can maintain personal or shared carts, place separate orders and settle together or separately.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-017",
+      "Topic": "Initial customer choices",
+      "Original Decision": "After language and guest/loyalty choice, the customer can view the menu, call a waiter or view an active table session.",
+      "Original Phase": "Phase 1",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "After language and guest/loyalty choice, the customer can view the menu, call a waiter or view an active table session.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-018",
+      "Topic": "Service request ownership",
+      "Original Decision": "Every customer service request has a type, target role, assignment, acknowledgement timer, escalation and closure evidence.",
+      "Original Phase": "Phase 1",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Every customer service request has a type, target role, assignment, acknowledgement timer, escalation and closure evidence.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-019",
+      "Topic": "Order channels",
+      "Original Decision": "Dine-in QR, waiter-entered dine-in, counter/POS, pickup and delivery use one shared order engine with channel-specific policies.",
+      "Original Phase": "Core",
+      "Classification": "MODIFY",
+      "v2.0.3 Target": "Phase 1/Core",
+      "v2.0.3 Decision": "Phase 1 implements dine-in QR, waiter-entered dine-in and counter/POS through one order engine. Pickup and delivery remain additive channel contracts and are not built until the dine-in release is approved.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-020",
+      "Topic": "Future channels",
+      "Original Decision": "Kiosk, marketplace, room service, catering, drive-through and voice/AI ordering are additive channel adapters, not separate order systems.",
+      "Original Phase": "Future",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Kiosk, marketplace, room service, catering, drive-through and voice/AI ordering are additive channel adapters, not separate order systems.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-021",
+      "Topic": "Order immutability",
+      "Original Decision": "Submitted orders and accepted order lines are not silently overwritten; changes use additions, authorized amendments, cancellations, voids or reversals.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Submitted orders and accepted order lines are not silently overwritten; changes use additions, authorized amendments, cancellations, voids or reversals.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-022",
+      "Topic": "Separate commercial records",
+      "Original Decision": "Order, fulfillment ticket, check/bill, payment, stock movement and accounting entry are separate linked records.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Order, fulfillment ticket, check/bill, payment, stock movement and accounting entry are separate linked records.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-023",
+      "Topic": "Kitchen routing",
+      "Original Decision": "Each order line is routed to one or more production stations by a versioned preparation profile; one order may produce multiple tickets.",
+      "Original Phase": "Phase 1",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Each order line is routed to one or more production stations by a versioned preparation profile; one order may produce multiple tickets.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-024",
+      "Topic": "Customer status model",
+      "Original Decision": "Customer-facing statuses are simplified and translated in the order/session language, which is snapshotted for communications and support; internal preparation and service statuses remain operationally detailed and launch in English.",
+      "Original Phase": "Phase 1",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Customer-facing statuses are simplified and translated in the order/session language, which is snapshotted for communications and support; internal preparation and service statuses remain operationally detailed and launch in English.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-025",
+      "Topic": "Course control",
+      "Original Decision": "Dine-in items support fire-now, hold and course sequencing; the customer cannot bypass outlet policies for controlled courses.",
+      "Original Phase": "Phase 1",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Dine-in items support fire-now, hold and course sequencing; the customer cannot bypass outlet policies for controlled courses.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-026",
+      "Topic": "Availability validation",
+      "Original Decision": "Availability is checked when displaying the menu and revalidated when an order is submitted; stale availability never guarantees fulfillment.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Availability is checked when displaying the menu and revalidated when an order is submitted; stale availability never guarantees fulfillment.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-027",
+      "Topic": "Menu identity",
+      "Original Decision": "A menu item is distinct from a recipe, sellable variant, price, modifier set and outlet availability record.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "A menu item is distinct from a recipe, sellable variant, price, modifier set and outlet availability record.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-028",
+      "Topic": "Recipe confidentiality",
+      "Original Decision": "Customer-visible ingredient descriptions are separate from confidential operational recipes and quantities.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Customer-visible ingredient descriptions are separate from confidential operational recipes and quantities.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-029",
+      "Topic": "Allergen governance",
+      "Original Decision": "Allergen information is structured, translated, versioned and shown with approved text plus universal supporting icons; an allergy declaration triggers a prominent confirmation and kitchen alert, not a medical guarantee. Required safety translation gaps block publication in that language.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Allergen information is structured, translated, versioned and shown with approved text plus universal supporting icons; an allergy declaration triggers a prominent confirmation and kitchen alert, not a medical guarantee. Required safety translation gaps block publication in that language.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-030",
+      "Topic": "Dietary labels",
+      "Original Decision": "Vegetarian, vegan, fasting, halal and other labels are configurable claims with definitions and approval responsibility per tenant and jurisdiction.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Vegetarian, vegan, fasting, halal and other labels are configurable claims with definitions and approval responsibility per tenant and jurisdiction.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-031",
+      "Topic": "Recipe versioning",
+      "Original Decision": "Stock consumption and costing reference the recipe/BOM version effective when the order line was accepted or fulfilled.",
+      "Original Phase": "Core",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2/3",
+      "v2.0.3 Decision": "Stock consumption and costing reference the recipe/BOM version effective when the order line was accepted or fulfilled.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-032",
+      "Topic": "Modifier rules",
+      "Original Decision": "Modifiers use explicit min/max, included quantity, price delta, preparation effect, allergen effect and recipe effect.",
+      "Original Phase": "Phase 1",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Modifiers use explicit min/max, included quantity, price delta, preparation effect, allergen effect and recipe effect.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-033",
+      "Topic": "Menu scheduling",
+      "Original Decision": "Menus, prices and availability can vary by outlet, channel, daypart, date, service area and fulfillment method.",
+      "Original Phase": "Phase 1",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Menus, prices and availability can vary by outlet, channel, daypart, date, service area and fulfillment method.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-034",
+      "Topic": "Pickup scope",
+      "Original Decision": "Pickup supports branch selection, now/scheduled slots, promised-ready time, collection code and customer-arrived notification.",
+      "Original Phase": "Phase 1",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 1 Extension",
+      "v2.0.3 Decision": "Pickup supports branch selection, now/scheduled slots, promised-ready time, collection code and customer-arrived notification.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-035",
+      "Topic": "Delivery scope",
+      "Original Decision": "Phase 1 delivery supports zones/polygons, fees, minimums, GPS pin plus landmarks, manual dispatch, own-driver or manual third-party handoff, COD and proof.",
+      "Original Phase": "Phase 1",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 1 Extension/Phase 3",
+      "v2.0.3 Decision": "Phase 1 delivery supports zones/polygons, fees, minimums, GPS pin plus landmarks, manual dispatch, own-driver or manual third-party handoff, COD and proof.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-036",
+      "Topic": "Advanced delivery",
+      "Original Decision": "Automatic batching, route optimization, marketplace aggregation and fully automated courier APIs are later modules using the same delivery domain.",
+      "Original Phase": "Phase 2/3",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 1 Extension/Phase 3",
+      "v2.0.3 Decision": "Automatic batching, route optimization, marketplace aggregation and fully automated courier APIs are later modules using the same delivery domain.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-037",
+      "Topic": "Delivery versus kitchen states",
+      "Original Decision": "Preparation status and delivery status remain separate; a ready order may still be awaiting a driver.",
+      "Original Phase": "Core",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 1 Extension/Phase 3",
+      "v2.0.3 Decision": "Preparation status and delivery status remain separate; a ready order may still be awaiting a driver.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-038",
+      "Topic": "Address doctrine",
+      "Original Decision": "Delivery addresses support map coordinates, landmark, building/floor/unit and free-text instructions; formal street address is not mandatory.",
+      "Original Phase": "Phase 1",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 1 Extension/Phase 3",
+      "v2.0.3 Decision": "Delivery addresses support map coordinates, landmark, building/floor/unit and free-text instructions; formal street address is not mandatory.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-039",
+      "Topic": "Payment architecture",
+      "Original Decision": "Payments use provider adapters and tokenized references; raw card data is never stored by the platform.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Payments use provider adapters and tokenized references; raw card data is never stored by the platform.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-040",
+      "Topic": "Payment methods",
+      "Original Decision": "Cash, external card terminal, mobile/payment-link/QR, loyalty credit, gift value, corporate account and permitted mixed tender are modeled separately.",
+      "Original Phase": "Core",
+      "Classification": "MODIFY",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Cash, external card-terminal result recording and verified Telebirr/CBE Birr proof confirmation are live pilot paths. Direct online-provider APIs remain adapter/simulator-only until contracted and credentialed. Raw card processing is prohibited and receipts state the actual method.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-041",
+      "Topic": "Cash and card request",
+      "Original Decision": "A dine-in customer may request cash/card collection; staff receives a routed, timed payment-service request.",
+      "Original Phase": "Phase 1",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "A dine-in customer may request cash/card collection; staff receives a routed, timed payment-service request.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-042",
+      "Topic": "Split settlement",
+      "Original Decision": "Checks can be split by item, person, amount or equal share; partial payments and multiple tenders are supported without changing the original order history.",
+      "Original Phase": "Phase 1",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Checks can be split by item, person, amount or equal share; partial payments and multiple tenders are supported without changing the original order history.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-043",
+      "Topic": "Tips and service charge",
+      "Original Decision": "Tips, gratuities, service charges, taxes, packaging and delivery fees are separate configurable financial components.",
+      "Original Phase": "Core",
+      "Classification": "MODIFY",
+      "v2.0.3 Target": "Phase 1",
+      "v2.0.3 Decision": "The bill, optional tip, service charge, tax and every other fee are distinct records and presentation lines. The payment screen contains a separate optional Tip box; no tip is selected by default; total paid equals bill settlement plus separately recorded tip.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-044",
+      "Topic": "Refund controls",
+      "Original Decision": "Refunds, voids, discounts and complimentary items require configurable permissions, reason codes and audit; thresholds can require approval.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Refunds, voids, discounts and complimentary items require configurable permissions, reason codes and audit; thresholds can require approval.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-045",
+      "Topic": "Cash-shift control",
+      "Original Decision": "Cash drawers and cashier shifts have opening float, collections, payouts, expected balance, actual count and variance approval.",
+      "Original Phase": "Phase 1",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Cash drawers and cashier shifts have opening float, collections, payouts, expected balance, actual count and variance approval.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-046",
+      "Topic": "Receipt strategy",
+      "Original Decision": "The platform supports digital and printed customer receipts in the order language, reprints with attribution, English internal documents and fiscal adapter hooks.",
+      "Original Phase": "Phase 1",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "The platform supports digital and printed customer receipts in the order language, reprints with attribution, English internal documents and fiscal adapter hooks.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-047",
+      "Topic": "Stock ledger",
+      "Original Decision": "Inventory changes are recorded in an append-only stock ledger with lot/location/UOM context; corrections use reversals or adjustment events.",
+      "Original Phase": "Core",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2/3",
+      "v2.0.3 Decision": "Inventory changes are recorded in an append-only stock ledger with lot/location/UOM context; corrections use reversals or adjustment events.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-048",
+      "Topic": "Negative stock",
+      "Original Decision": "Negative stock is blocked by default; any permitted override is tenant policy, role restricted, reasoned and visibly exceptional.",
+      "Original Phase": "Core",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2/3",
+      "v2.0.3 Decision": "Negative stock is blocked by default; any permitted override is tenant policy, role restricted, reasoned and visibly exceptional.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-049",
+      "Topic": "Stock consumption timing",
+      "Original Decision": "Default recipe consumption occurs at fulfillment completion, with configurable reservation/commit timing and explicit waste/rework adjustments.",
+      "Original Phase": "Core",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2/3",
+      "v2.0.3 Decision": "Default recipe consumption occurs at fulfillment completion, with configurable reservation/commit timing and explicit waste/rework adjustments.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-050",
+      "Topic": "Packaging inventory",
+      "Original Decision": "Pickup and delivery packaging is modeled as stock and may be costed or charged separately.",
+      "Original Phase": "Phase 1",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2/3",
+      "v2.0.3 Decision": "Pickup and delivery packaging is modeled as stock and may be costed or charged separately.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-051",
+      "Topic": "Waste and staff meals",
+      "Original Decision": "Waste, spoilage, tasting, staff meal, promotion and complimentary consumption use distinct reasoned stock events.",
+      "Original Phase": "Phase 1",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2/3",
+      "v2.0.3 Decision": "Waste, spoilage, tasting, staff meal, promotion and complimentary consumption use distinct reasoned stock events.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-052",
+      "Topic": "Procurement neutrality",
+      "Original Decision": "Procurement supports manual suppliers and a generic supplier integration hub; no supplier owns the restaurant’s internal item identity.",
+      "Original Phase": "Core",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2/3",
+      "v2.0.3 Decision": "Procurement supports manual suppliers and a generic supplier integration hub; no supplier owns the restaurant’s internal item identity.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-053",
+      "Topic": "Supplier mapping",
+      "Original Decision": "Internal ingredients/items map to zero or more supplier SKUs with pack/UOM conversions, validity dates, priority and substitution rules.",
+      "Original Phase": "Core",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2/3",
+      "v2.0.3 Decision": "Internal ingredients/items map to zero or more supplier SKUs with pack/UOM conversions, validity dates, priority and substitution rules.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-054",
+      "Topic": "Horeca Addis optionality",
+      "Original Decision": "The Horeca Addis connector is optional, disabled by default and enabled by tenant/outlet entitlement and configuration.",
+      "Original Phase": "Core",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2/3",
+      "v2.0.3 Decision": "The Horeca Addis connector is optional, disabled by default and enabled by tenant/outlet entitlement and configuration.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-055",
+      "Topic": "Horeca Addis timing",
+      "Original Decision": "The connector contract and simulator exist in Phase 1; basic transactional integration activates in Phase 2 and intelligent reordering in Phase 3.",
+      "Original Phase": "Core",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2/3",
+      "v2.0.3 Decision": "The connector contract and simulator exist in Phase 1; basic transactional integration activates in Phase 2 and intelligent reordering in Phase 3.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-056",
+      "Topic": "Horeca Addis independence",
+      "Original Decision": "The restaurant platform continues to operate if Horeca Addis is disconnected or unavailable and can convert drafts to manual supplier orders.",
+      "Original Phase": "Core",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2/3",
+      "v2.0.3 Decision": "The restaurant platform continues to operate if Horeca Addis is disconnected or unavailable and can convert drafts to manual supplier orders.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-057",
+      "Topic": "External order validation",
+      "Original Decision": "A connected supplier order requires online validation of current price, availability, pack, minimums, account status and delivery slot before final submission.",
+      "Original Phase": "Phase 2",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2/3",
+      "v2.0.3 Decision": "A connected supplier order requires online validation of current price, availability, pack, minimums, account status and delivery slot before final submission.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-058",
+      "Topic": "Human procurement approval",
+      "Original Decision": "Automated or forecast-based reorders create recommendations/drafts; a human or configured approval workflow authorizes purchase commitment.",
+      "Original Phase": "Core",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2/3",
+      "v2.0.3 Decision": "Automated or forecast-based reorders create recommendations/drafts; a human or configured approval workflow authorizes purchase commitment.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-059",
+      "Topic": "Receiving chain",
+      "Original Decision": "Purchase order, supplier acknowledgement, delivery, goods receipt, discrepancy, return/claim, supplier invoice and payment are distinct linked records.",
+      "Original Phase": "Phase 2",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2/3",
+      "v2.0.3 Decision": "Purchase order, supplier acknowledgement, delivery, goods receipt, discrepancy, return/claim, supplier invoice and payment are distinct linked records.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-060",
+      "Topic": "Financial engine",
+      "Original Decision": "The native accounting foundation uses double-entry journals, immutable postings, reversals, periods, cost centers and auditable subledgers.",
+      "Original Phase": "Core",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2",
+      "v2.0.3 Decision": "The native accounting foundation uses double-entry journals, immutable postings, reversals, periods, cost centers and auditable subledgers.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-061",
+      "Topic": "Phase 1 finance",
+      "Original Decision": "Phase 1 includes sales posting, cash/bank/payment clearing, tax/service/tip components, inventory/COGS hooks, cash reconciliation and basic P&L evidence.",
+      "Original Phase": "Phase 1",
+      "Classification": "MODIFY",
+      "v2.0.3 Target": "Phase 1",
+      "v2.0.3 Decision": "Phase 1 records immutable operational checks, payments, refunds, tips, cash shifts and settlement summaries. It does not implement a general ledger, AP, AR, inventory accounting, COGS or financial statements.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-062",
+      "Topic": "Phase 2 finance",
+      "Original Decision": "Full AP, AR, purchasing, bank reconciliation, budgets, period close, inventory valuation and outlet/legal-entity reporting activate in Phase 2.",
+      "Original Phase": "Phase 2",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2",
+      "v2.0.3 Decision": "Full AP, AR, purchasing, bank reconciliation, budgets, period close, inventory valuation and outlet/legal-entity reporting activate in Phase 2.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-063",
+      "Topic": "External accounting",
+      "Original Decision": "External accounting/fiscal systems connect through adapters and a system-of-record registry; duplicate authoritative ledgers are prohibited.",
+      "Original Phase": "Core",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2",
+      "v2.0.3 Decision": "External accounting/fiscal systems connect through adapters and a system-of-record registry; duplicate authoritative ledgers are prohibited.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-064",
+      "Topic": "HR foundation",
+      "Original Decision": "Employee, assignment, role, skill, shift, clocking and attendance foundations exist in Phase 1.",
+      "Original Phase": "Phase 1",
+      "Classification": "MODIFY",
+      "v2.0.3 Target": "Phase 2",
+      "v2.0.3 Decision": "Phase 1 includes staff identities, outlet memberships, roles and terminal access only. Employee records, rosters, clocking, attendance and workforce management activate in Phase 2.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-065",
+      "Topic": "Payroll scope",
+      "Original Decision": "Full payroll is a Phase 3 country package; the core stores payroll inputs and approved results without hard-coding one country’s law.",
+      "Original Phase": "Phase 3",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2/3",
+      "v2.0.3 Decision": "Full payroll is a Phase 3 country package; the core stores payroll inputs and approved results without hard-coding one country’s law.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-066",
+      "Topic": "Loyalty model",
+      "Original Decision": "Loyalty is optional per tenant and supports phone-based membership, points/tiers/rewards, consent, balances and immutable earn/redeem events.",
+      "Original Phase": "Phase 1",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2/3",
+      "v2.0.3 Decision": "Loyalty is optional per tenant and supports phone-based membership, points/tiers/rewards, consent, balances and immutable earn/redeem events.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-067",
+      "Topic": "Customer privacy",
+      "Original Decision": "Guest sessions minimize personal data; loyalty and delivery PII are purpose-limited, consented, access-controlled and separately protected.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Guest sessions minimize personal data; loyalty and delivery PII are purpose-limited, consented, access-controlled and separately protected.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-068",
+      "Topic": "Promotions",
+      "Original Decision": "Promotions are rule-driven, versioned and conflict-resolved; staff cannot invent uncontrolled discounts at checkout.",
+      "Original Phase": "Phase 1",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2/3",
+      "v2.0.3 Decision": "Promotions are rule-driven, versioned and conflict-resolved; staff cannot invent uncontrolled discounts at checkout.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-069",
+      "Topic": "Offline customer front",
+      "Original Decision": "Customer-facing QR, pickup, delivery, loyalty and online payments are online-first and are not required to operate during an internet outage.",
+      "Original Phase": "Core",
+      "Classification": "MODIFY",
+      "v2.0.3 Target": "Phase 1",
+      "v2.0.3 Decision": "The customer QR experience is cloud-connected by default but continues over restaurant Wi-Fi during outage using the same per-outlet public hostname, split-horizon DNS and public-trust TLS.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-070",
+      "Topic": "Offline internal operations",
+      "Original Decision": "Waiter/POS, KDS/bar/expo, local printing, table service, cash settlement and selected stock events are offline-capable in resilient outlet mode.",
+      "Original Phase": "Core",
+      "Classification": "MODIFY",
+      "v2.0.3 Target": "Phase 1",
+      "v2.0.3 Decision": "Customer QR ordering, waiter/POS, KDS/bar/expo, printing, table service, bills, separate tips, cash, external-terminal recording and verified Telebirr/CBE Birr proof confirmation continue on the outlet network during outage when the underlying provider result can be verified.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-071",
+      "Topic": "Cloud-only tier",
+      "Original Decision": "Small outlets may use cloud-only mode; resilient edge is an optional deployment profile, not mandatory for every tenant.",
+      "Original Phase": "Core",
+      "Classification": "MODIFY",
+      "v2.0.3 Target": "Phase 1",
+      "v2.0.3 Decision": "A production Phase 1 outlet includes the focused local continuity node. Cloud-only mode is allowed only for development, demonstration or explicitly non-production evaluation.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-072",
+      "Topic": "Edge authority",
+      "Original Decision": "During outage, the outlet edge node is authoritative for approved local operational domains and synchronizes through application events/commands after reconnection.",
+      "Original Phase": "Core",
+      "Classification": "MODIFY",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "The outlet node is the authoritative writer for active dine-in operations. Cloud forwarding depends on a valid bidirectional reachability lease and the same durable monotonic signed authority sequence.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-073",
+      "Topic": "No direct replication",
+      "Original Decision": "Direct database replication is not the business synchronization mechanism; use transactional outbox/inbox, ordered cursors, idempotency and explicit conflicts.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Direct database replication is not the business synchronization mechanism; use transactional outbox/inbox, ordered cursors, idempotency and explicit conflicts.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-074",
+      "Topic": "Offline restrictions",
+      "Original Decision": "Actions requiring live external authority—online payment, connected supplier commitment, central credit approval or unavailable cloud-only data—are blocked or queued transparently.",
+      "Original Phase": "Core",
+      "Classification": "MODIFY",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "During outage, direct online-provider payments and other external-authority actions are unavailable or queued. Cash, external-terminal recording and verified Telebirr/CBE Birr proof confirmation may continue; unverified claims remain pending.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-075",
+      "Topic": "Print resilience",
+      "Original Decision": "Kitchen/bar/receipt printing has a local print agent, printer routing, retry/deduplication and operator-visible failure handling.",
+      "Original Phase": "Phase 1",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Phase 1",
+      "v2.0.3 Decision": "Kitchen/bar/receipt printing has a local print agent, printer routing, retry/deduplication and operator-visible failure handling.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-076",
+      "Topic": "Authentication resilience",
+      "Original Decision": "Staff uses phone/email identity with secure sessions; trusted local terminals may offer quick PIN only for low-risk actions with step-up for sensitive work.",
+      "Original Phase": "Phase 1",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Staff uses phone/email identity with secure sessions; trusted local terminals may offer quick PIN only for low-risk actions with step-up for sensitive work.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-077",
+      "Topic": "Authorization",
+      "Original Decision": "Permissions are deny-by-default and scoped by tenant, legal entity, outlet, role, resource and action; server-side enforcement is mandatory.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Permissions are deny-by-default and scoped by tenant, legal entity, outlet, role, resource and action; server-side enforcement is mandatory.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-078",
+      "Topic": "Segregation of duties",
+      "Original Decision": "High-risk finance, stock, payroll, refund and configuration actions support maker-checker and prevent self-approval where configured.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "High-risk finance, stock, payroll, refund and configuration actions support maker-checker and prevent self-approval where configured.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-079",
+      "Topic": "Audit",
+      "Original Decision": "Security, commercial, stock, finance, menu, permission, sync and administrative events are append-only and attributable to actor, terminal, source and correlation.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Security, commercial, stock, finance, menu, permission, sync and administrative events are append-only and attributable to actor, terminal, source and correlation.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-080",
+      "Topic": "Data retention",
+      "Original Decision": "Transactional records are retained according to tenant/jurisdiction policy; ordinary users cannot hard-delete completed commercial or financial records.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Transactional records are retained according to tenant/jurisdiction policy; ordinary users cannot hard-delete completed commercial or financial records.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-081",
+      "Topic": "File safety",
+      "Original Decision": "Uploads are private by default, type/size validated, safely named, malware-scannable, hash recorded and served through authorized signed access.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Uploads are private by default, type/size validated, safely named, malware-scannable, hash recorded and served through authorized signed access.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-082",
+      "Topic": "Observability",
+      "Original Decision": "Structured logs, traces, metrics, health checks, business alerts and audit are distinct; secrets and sensitive payment/PII data are redacted.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Structured logs, traces, metrics, health checks, business alerts and audit are distinct; secrets and sensitive payment/PII data are redacted.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-083",
+      "Topic": "Deployment",
+      "Original Decision": "Development, CI/test, staging and production are separate; containers and adapters support managed cloud and future private/on-prem deployment.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Development, CI/test, staging and production are separate; containers and adapters support managed cloud and future private/on-prem deployment.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-084",
+      "Topic": "Backup and recovery",
+      "Original Decision": "Database and file backups, encrypted off-site copies, restore drills, recovery objectives and edge/cloud reconciliation are part of completion.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Database and file backups, encrypted off-site copies, restore drills, recovery objectives and edge/cloud reconciliation are part of completion.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-085",
+      "Topic": "Update safety",
+      "Original Decision": "Application, database, event and edge protocol versions are checked; incompatible peers pause safely and updates support rollback.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Application, database, event and edge protocol versions are checked; incompatible peers pause safely and updates support rollback.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-086",
+      "Topic": "Testing doctrine",
+      "Original Decision": "Compilation or page scaffolding is not completion; unit, real-PostgreSQL integration, API, contract, E2E, security, concurrency, outage and restore tests are required.",
+      "Original Phase": "Core",
+      "Classification": "MODIFY",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Compilation or page scaffolding is not completion. Real PostgreSQL, production-role, contract, E2E, concurrency, outage, restore and production-image tests are required, with the planted negative-control registry frozen at Package M0.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-087",
+      "Topic": "Golden journeys",
+      "Original Decision": "Mandatory end-to-end golden journeys are executable acceptance gates and must use real persistence and integrations/simulators.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Mandatory end-to-end golden journeys are executable acceptance gates and must use real persistence and integrations/simulators.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-088",
+      "Topic": "No fake completion",
+      "Original Decision": "No acceptance-critical TODO, mock-only handler, fake persistence, skipped test, sample secret or manual database fix may remain at handoff.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "No acceptance-critical TODO, mock-only handler, fake persistence, skipped test, sample secret or manual database fix may remain at handoff.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-089",
+      "Topic": "Accessibility",
+      "Original Decision": "Customer and staff experiences support keyboard/touch, semantic structure, sufficient contrast, non-color status indicators and screen-reader essentials.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Customer and staff experiences support keyboard/touch, semantic structure, sufficient contrast, non-color status indicators and screen-reader essentials.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-090",
+      "Topic": "Device form factors",
+      "Original Decision": "Customer web is mobile-first; waiter/POS/KDS are touch-first; back office is responsive desktop-first; all reuse versioned APIs.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Customer web is mobile-first; waiter/POS/KDS are touch-first; back office is responsive desktop-first; all reuse versioned APIs.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-091",
+      "Topic": "Configuration over forks",
+      "Original Decision": "Brands, taxes, service rules, roles, numbering, templates, languages, feature flags and connectors are configuration, not tenant-specific code forks.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Brands, taxes, service rules, roles, numbering, templates, languages, feature flags and connectors are configuration, not tenant-specific code forks.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-092",
+      "Topic": "Data portability",
+      "Original Decision": "Authorized tenants can export their master and transactional data in documented formats; platform lock-in must not rely on withholding customer data.",
+      "Original Phase": "Phase 2",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Phase 2",
+      "v2.0.3 Decision": "Authorized tenants can export their master and transactional data in documented formats; platform lock-in must not rely on withholding customer data.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-093",
+      "Topic": "AI boundary",
+      "Original Decision": "AI may draft translations, forecasts, reorder recommendations, menus and analytics, but customer content is never translated live at runtime and AI cannot be sole authority for allergy, payment, accounting, payroll or purchase commitment.",
+      "Original Phase": "Core",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "AI may draft translations, forecasts, reorder recommendations, menus and analytics, but customer content is never translated live at runtime and AI cannot be sole authority for allergy, payment, accounting, payroll or purchase commitment.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-094",
+      "Topic": "Reservations and waitlist",
+      "Original Decision": "Reservations/waitlist are Phase 2 modules connected to the table/session domain; Phase 1 architecture reserves the capability without building a separate booking system.",
+      "Original Phase": "Phase 2",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Future",
+      "v2.0.3 Decision": "Reservations/waitlist are Phase 2 modules connected to the table/session domain; Phase 1 architecture reserves the capability without building a separate booking system.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-095",
+      "Topic": "Central kitchen and franchise",
+      "Original Decision": "Central kitchen, commissary, inter-outlet transfer, franchise control and royalty reporting are later modules using existing tenant/outlet/inventory/finance boundaries.",
+      "Original Phase": "Future",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Future",
+      "v2.0.3 Decision": "Central kitchen, commissary, inter-outlet transfer, franchise control and royalty reporting are later modules using existing tenant/outlet/inventory/finance boundaries.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-096",
+      "Topic": "Hotel integration",
+      "Original Decision": "Room charge and hotel/PMS integration are optional adapters; core billing never assumes the outlet belongs to a hotel.",
+      "Original Phase": "Future",
+      "Classification": "DEFER",
+      "v2.0.3 Target": "Future",
+      "v2.0.3 Decision": "Room charge and hotel/PMS integration are optional adapters; core billing never assumes the outlet belongs to a hotel.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-097",
+      "Topic": "Setup wizard",
+      "Original Decision": "Every deployment includes a setup wizard for tenant, branding, locale, outlet customer languages/default/order, tables, stations, taxes, payment methods, roles, numbering and seed/import data.",
+      "Original Phase": "Phase 1",
+      "Classification": "MODIFY",
+      "v2.0.3 Target": "Phase 1",
+      "v2.0.3 Decision": "The setup workflow configures tenant, brand, outlet, English/Amharic/Arabic customer content, tables and QR codes, stations, taxes, service charges, separate tip settings, payment methods, printers and the local continuity node.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-098",
+      "Topic": "Demo safety",
+      "Original Decision": "Demo data is clearly marked, removable and never mixed into production opening balances.",
+      "Original Phase": "Phase 1",
+      "Classification": "KEEP",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Demo data is clearly marked, removable and never mixed into production opening balances.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-099",
+      "Topic": "External blockers",
+      "Original Decision": "Missing third-party credentials do not stop the build: implement the port, simulator, contract tests, configuration and exact activation runbook.",
+      "Original Phase": "Core",
+      "Classification": "MODIFY",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Missing third-party credentials do not justify fake completion. Only explicitly activated Phase 1 providers require adapters and simulators; deferred Phase 2/3 providers must not create dormant production routes or workers.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    },
+    {
+      "Decision ID": "D-100",
+      "Topic": "Authority and precedence",
+      "Original Decision": "When package documents conflict, Source of Truth and locked decisions override requirements, architecture, UX and coding-agent preferences in that order.",
+      "Original Phase": "Core",
+      "Classification": "MODIFY",
+      "v2.0.3 Target": "Core",
+      "v2.0.3 Decision": "Source of Truth and locked decisions govern conflicts. Independent adverse verdicts pause progression; disputes follow builder response, reviewer rebuttal and founder decision. Overrides remain recorded, name the affected requirement/rule and are re-examined at the next audit.",
+      "Rationale": "Reconciled to Source of Truth v2.0.2."
+    }
+  ]
+}

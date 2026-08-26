@@ -1,0 +1,382 @@
+{
+  "version": "0.1.4",
+  "amendments": [
+    {
+      "amendment_id": "AMD-REC-001",
+      "title": "Founder Approved Requirement Amendment",
+      "source": "reconciliation",
+      "affected_ids": [
+        "FR-GOV-004",
+        "D-120"
+      ],
+      "old_value": "Do not begin a later milestone until the current gate has clean evidence and no unresolved P0/P1 defect. An adverse independent verdict pauses progression; disputes follow builder response, reviewer rebuttal and founder decision. Overrides remain recorded, name the affected requirement/rule and are re-examined at the next audit.",
+      "new_value": "Do not begin a later milestone while any P0 remains unresolved, or while any P1 affects product scope, security, money, authority, milestone executability, acceptance completeness or canonical correctness. A P1 limited to publication, projection, wording, identifier or validator coverage may proceed only through recorded founder adjudication when canonical behavior is correct, runtime behavior cannot change, the defect remains visible and repair is scheduled. An adverse independent verdict pauses progression until the builder response, reviewer rebuttal and founder decision are recorded. Overrides name the affected requirement or rule and are re-examined at the next audit.",
+      "change": "Old: Do not begin a later milestone until the current gate has clean evidence and no unresolved P0/P1 defect. An adverse independent verdict pauses progression; disputes follow builder response, reviewer rebuttal and founder decision. Overrides remain recorded, name the affected requirement/rule and are re-examined at the next audit.\nNew: Do not begin a later milestone while any P0 remains unresolved, or while any P1 affects product scope, security, money, authority, milestone executability, acceptance completeness or canonical correctness. A P1 limited to publication, projection, wording, identifier or validator coverage may proceed only through recorded founder adjudication when canonical behavior is correct, runtime behavior cannot change, the defect remains visible and repair is scheduled. An adverse independent verdict pauses progression until the builder response, reviewer rebuttal and founder decision are recorded. Overrides name the affected requirement or rule and are re-examined at the next audit.",
+      "reason": "Align the requirement with the approved stopping rule: substantive P1 remains blocking, bounded publication/projection debt may proceed only through recorded adjudication.",
+      "semantic_behavior_change": true,
+      "verification": "Exact wording is asserted by the standard-library validator.",
+      "residual_risk": "None."
+    },
+    {
+      "amendment_id": "AMD-REC-002",
+      "title": "Requirement Split",
+      "source": "reconciliation",
+      "affected_ids": [
+        "FR-CFG-001",
+        "FR-CFG-002",
+        "FR-CFG-005",
+        "FR-CFG-007",
+        "FR-DAT-008",
+        "FR-EDG-002",
+        "FR-EDG-004",
+        "FR-EDG-015",
+        "FR-EDG-022",
+        "FR-FUL-016",
+        "FR-GOV-001",
+        "FR-I18N-001",
+        "FR-MNU-002",
+        "FR-ORD-001",
+        "FR-ORD-007",
+        "FR-ORD-012",
+        "FR-ORD-016",
+        "FR-ORD-019",
+        "FR-PAY-010",
+        "FR-POS-003",
+        "FR-POS-010",
+        "FR-RCP-008",
+        "FR-SEC-002",
+        "FR-SEC-010",
+        "FR-SRV-007",
+        "FR-TAB-007",
+        "FR-TEN-002",
+        "FR-TEN-009",
+        "FR-TST-004",
+        "FR-TST-005",
+        "FR-TST-007",
+        "FR-UX-001"
+      ],
+      "old_value": "32 original mixed-behavior requirements.",
+      "new_value": "72 successor requirements with full original lineage.",
+      "change": "Old: 32 original mixed-behavior requirements.\nNew: 72 successor requirements with full original lineage.",
+      "reason": "Different introducing gates, evidence or positive/negative phase-boundary behavior.",
+      "semantic_behavior_change": true,
+      "verification": "Every original is mapped to all successors; active IDs are unique; no successor depends on a later gate.",
+      "residual_risk": "Human semantic coverage remains subject to Codex audit."
+    },
+    {
+      "amendment_id": "AMD-REC-003",
+      "title": "New Requirements",
+      "source": "reconciliation",
+      "affected_ids": [
+        "FR-BIL-017",
+        "FR-EDG-029",
+        "D-119"
+      ],
+      "old_value": "No requirement separated minimum M4 physical receipt printing from M5a print resilience.",
+      "new_value": "M4 minimum physical receipt path and M5a durable local print resilience are separate requirements.",
+      "change": "Old: No requirement separated minimum M4 physical receipt printing from M5a print resilience.\nNew: M4 minimum physical receipt path and M5a durable local print resilience are separate requirements.",
+      "reason": "Resolve the v2.0.4 P0 milestone dependency.",
+      "semantic_behavior_change": true,
+      "verification": "M4 journeys require real print; GJ-10 proves M5a recovery and deduplication.",
+      "residual_risk": "Implementation audit required."
+    },
+    {
+      "amendment_id": "AMD-REC-004",
+      "title": "Gate Reconciliation",
+      "source": "reconciliation",
+      "affected_ids": [
+        "FR-EDG-003"
+      ],
+      "old_value": "M5a local authority with M5b revalidation.",
+      "new_value": "M5b introduction with M6 revalidation.",
+      "change": "Old: M5a local authority with M5b revalidation.\nNew: M5b introduction with M6 revalidation.",
+      "reason": "Authoritative write ownership depends on the M5b lease and fencing model; M5a provides local execution only.",
+      "semantic_behavior_change": true,
+      "verification": "No M5a requirement depends on FR-EDG-003.",
+      "residual_risk": "None."
+    },
+    {
+      "amendment_id": "AMD-REC-005",
+      "title": "Gate Reconciliation",
+      "source": "reconciliation",
+      "affected_ids": [
+        "FR-RPT-001",
+        "FR-RPT-002",
+        "FR-RPT-003",
+        "FR-RPT-004",
+        "FR-RPT-005",
+        "FR-RPT-013",
+        "FR-RPT-015"
+      ],
+      "old_value": "M6 introduction.",
+      "new_value": "M4 introduction, with concrete M5a or M6 revalidation where required.",
+      "change": "Old: M6 introduction.\nNew: M4 introduction, with concrete M5a or M6 revalidation where required.",
+      "reason": "Operational reports are a Phase 1 product capability and become executable when M4 completes settlement data; M6 is hardening, not first implementation.",
+      "semantic_behavior_change": true,
+      "verification": "Report prerequisites exist by M4 and no later-gate prerequisite remains.",
+      "residual_risk": "None."
+    },
+    {
+      "amendment_id": "AMD-REC-006",
+      "title": "Security Contract Amendment",
+      "source": "reconciliation",
+      "affected_ids": [
+        "FR-EDG-022A",
+        "D-116"
+      ],
+      "old_value": "Per-outlet key generation and documented custody.",
+      "new_value": "Node-generated and retained private key, CSR-only submission, certificate-chain return and no private-key export.",
+      "change": "Old: Per-outlet key generation and documented custody.\nNew: Node-generated and retained private key, CSR-only submission, certificate-chain return and no private-key export.",
+      "reason": "Resolve the v2.0.4 key-custody ambiguity.",
+      "semantic_behavior_change": true,
+      "verification": "Exact phrases are asserted by the validator.",
+      "residual_risk": "Implementation keystore selection remains open."
+    },
+    {
+      "amendment_id": "AMD-REC-007",
+      "title": "Journey Amendment",
+      "source": "reconciliation",
+      "affected_ids": [
+        "GJ-01A",
+        "GJ-01B",
+        "GJ-02B",
+        "GJ-03B",
+        "GJ-06",
+        "GJ-07",
+        "GJ-10"
+      ],
+      "old_value": "Ambiguous M3 authority wording and incomplete M4/M5a print ownership.",
+      "new_value": "Cloud/current authority at M3; real physical print at M4; durable print recovery at M5a.",
+      "change": "Old: Ambiguous M3 authority wording and incomplete M4/M5a print ownership.\nNew: Cloud/current authority at M3; real physical print at M4; durable print recovery at M5a.",
+      "reason": "Align journeys to the reconciled milestone contracts.",
+      "semantic_behavior_change": true,
+      "verification": "Journey text is asserted by the validator.",
+      "residual_risk": "None."
+    },
+    {
+      "amendment_id": "AMD-008",
+      "title": "Journey and revalidation evidence alignment",
+      "source": "validator-build pre-freeze audit",
+      "affected_ids": [
+        "FR-SEC-002A",
+        "FR-TST-006",
+        "FR-AUTH-003",
+        "FR-MNU-012",
+        "FR-RPT-001",
+        "FR-RPT-004",
+        "FR-RPT-005"
+      ],
+      "old_value": "",
+      "new_value": "",
+      "change": "Added missing later-gate revalidation/test evidence where a linked journey occurs after introduction, and removed journey links whose milestone precedes the reporting requirement's introducing gate.",
+      "reason": "A journey may prove a clause only at its introducing or an explicitly listed revalidation gate.",
+      "semantic_behavior_change": false,
+      "verification": "Validator rule JOURNEY_GATE_ALIGNMENT and workbook projection parity.",
+      "residual_risk": "None."
+    },
+    {
+      "amendment_id": "AMD-009",
+      "title": "Blind Mutation Round 2 validator and projection hardening",
+      "source": "Blind Mutation Pack Round 2",
+      "affected_ids": [
+        "canonical/reconciled_requirements.json",
+        "canonical/reconciled_decisions.json",
+        "Hospitality_OS_Reconciled_Register_v0.1.2.xlsx",
+        "validator/validate_hospitality_os.py"
+      ],
+      "old_value": "",
+      "new_value": "",
+      "change": "Added declared-count validation, supersession consistency validation, full decision-register workbook projection, component-path/classification workbook projection, and decision-level tip-separation validation.",
+      "reason": "Round 2 exposed five already-approved rules or projection contracts that the validator did not enforce.",
+      "semantic_behavior_change": false,
+      "verification": "Baseline validation plus post-repair diagnostics for R2-BMP-S-12, R2-BMP-S-18, R2-BMP-P-14, R2-BMP-P-16 and R2-BMP-M-24.",
+      "residual_risk": "None."
+    },
+    {
+      "amendment_id": "AMD-V206-001",
+      "title": "M5a service inventory correction",
+      "source": "Codex v2.0.5 Package M0 review",
+      "affected_ids": [
+        "FR-EDG-002A",
+        "m5_ownership.json",
+        "D-113"
+      ],
+      "old_value": "M5a listed six services including local_backup_agent.",
+      "new_value": "M5a lists exactly five required services; backup scheduling and destructive restore remain M6.",
+      "change": "M5a lists exactly five required services; backup scheduling and destructive restore remain M6.",
+      "reason": "Resolve Codex P1-01 and restore the exact five-service edge boundary.",
+      "semantic_behavior_change": true,
+      "verification": "M5 ownership, requirements and publications agree; validator asserts exact service set.",
+      "residual_risk": "None."
+    },
+    {
+      "amendment_id": "AMD-V206-002",
+      "title": "Lifecycle-state reconciliation",
+      "source": "Codex v2.0.5 Package M0 review",
+      "affected_ids": [
+        "residual_issues.json",
+        "finding_register.json"
+      ],
+      "old_value": "Canonical records said blind mutations and validator freeze had not occurred.",
+      "new_value": "Canonical lifecycle records show both blind rounds, frozen validator, v2.0.5 Codex review and v2.0.6 repair state.",
+      "change": "Canonical lifecycle records show both blind rounds, frozen validator, v2.0.5 Codex review and v2.0.6 repair state.",
+      "reason": "Resolve Codex P1-02.",
+      "semantic_behavior_change": false,
+      "verification": "Lifecycle validator rejects stale next-step wording and unresolved historical states.",
+      "residual_risk": "None."
+    },
+    {
+      "amendment_id": "AMD-V206-003",
+      "title": "Uniform clause canonical contract",
+      "source": "Codex v2.0.5 Package M0 review",
+      "affected_ids": [
+        "reconciled_requirements.json",
+        "reconciled_canonical_register.schema.json"
+      ],
+      "old_value": "Ten clauses used substitute fields instead of exact_clause_text.",
+      "new_value": "All 337 clauses use the same required exact_clause_text contract; substitute fields are removed.",
+      "change": "All 337 clauses use the same required exact_clause_text contract; substitute fields are removed.",
+      "reason": "Resolve Codex P1-03.",
+      "semantic_behavior_change": false,
+      "verification": "Schema and validator require the uniform clause fields for every clause.",
+      "residual_risk": "None."
+    },
+    {
+      "amendment_id": "AMD-V206-004",
+      "title": "Lossless generated projections",
+      "source": "Codex v2.0.5 Package M0 review",
+      "affected_ids": [
+        "generator",
+        "workbooks",
+        "human publications"
+      ],
+      "old_value": "Amendments, findings, split reasons and 96 non-regression rules were incompletely projected.",
+      "new_value": "Every canonical field is mapped; all split reasons and all 96 identified rules are published in Markdown and Excel.",
+      "change": "Every canonical field is mapped; all split reasons and all 96 identified rules are published in Markdown and Excel.",
+      "reason": "Resolve Codex P1-04.",
+      "semantic_behavior_change": false,
+      "verification": "Field-level projection validator compares all rows and required fields.",
+      "residual_risk": "None."
+    },
+    {
+      "amendment_id": "AMD-V206-005",
+      "title": "Executable forbidden-surface rules",
+      "source": "Codex v2.0.5 Package M0 review",
+      "affected_ids": [
+        "forbidden_surface_rules.json",
+        "validator"
+      ],
+      "old_value": "Validator used hard-coded incomplete vocabulary and sense handling.",
+      "new_value": "Validator loads the normative vocabulary, negation markers and sense exclusions; every excluded domain and permitted sense has planted tests.",
+      "change": "Validator loads the normative vocabulary, negation markers and sense exclusions; every excluded domain and permitted sense has planted tests.",
+      "reason": "Resolve Codex P1-05.",
+      "semantic_behavior_change": false,
+      "verification": "Internal mutation suite exercises every forbidden domain and every permitted sense.",
+      "residual_risk": "None."
+    },
+    {
+      "amendment_id": "AMD-V206-006A",
+      "title": "D-100 projection-authority provenance",
+      "source": "Codex v2.0.5 Package M0 review",
+      "affected_ids": [
+        "D-100",
+        "original_decision_dispositions.json"
+      ],
+      "old_value": "D-100 contained a generated-projection parity clause absent from the v2.0.3 disposition without amendment evidence.",
+      "new_value": "The clause is retained and explicitly recorded as AMD-V206-006A.",
+      "change": "The clause is retained and explicitly recorded as AMD-V206-006A.",
+      "reason": "Resolve Codex P1-06.",
+      "semantic_behavior_change": true,
+      "verification": "Decision register and amendment register cross-reference D-100.",
+      "residual_risk": "None."
+    },
+    {
+      "amendment_id": "AMD-V206-006B",
+      "title": "D-102 exact pinned-package reuse evidence",
+      "source": "Codex v2.0.5 Package M0 review",
+      "affected_ids": [
+        "D-102",
+        "FR-GOV-003"
+      ],
+      "old_value": "D-102 named v2.0.4 tests as evidence for a later package.",
+      "new_value": "Reused code must pass tests written against the exact pinned package.",
+      "change": "Reused code must pass tests written against the exact pinned package.",
+      "reason": "Resolve Codex P1-06.",
+      "semantic_behavior_change": true,
+      "verification": "Validator rejects stale package-version test wording in D-102.",
+      "residual_risk": "None."
+    },
+    {
+      "amendment_id": "AMD-V206-007",
+      "title": "Canonical test-ID namespace",
+      "source": "Codex v2.0.5 Package M0 review",
+      "affected_ids": [
+        "336 requirements",
+        "337 clauses",
+        "dependency_graph.json",
+        "workbooks"
+      ],
+      "old_value": "Top-level acceptance IDs and clause engineering-test IDs diverged on 18 requirements.",
+      "new_value": "Top-level test IDs equal the ordered clause union; single- and multi-clause formats are explicit.",
+      "change": "Top-level test IDs equal the ordered clause union; single- and multi-clause formats are explicit.",
+      "reason": "Resolve Codex P2-01.",
+      "semantic_behavior_change": false,
+      "verification": "Validator enforces exact equality, gate coverage and active-ID prefixes.",
+      "residual_risk": "None."
+    },
+    {
+      "amendment_id": "AMD-V208-001",
+      "title": "Occurrence-linked forbidden-surface semantics",
+      "source": "Codex v2.0.7 Package M0 review",
+      "affected_ids": [
+        "FR-GOV-002",
+        "FR-TST-017",
+        "D-103",
+        "D-115",
+        "forbidden_surface_rules.json",
+        "validator"
+      ],
+      "old_value": "Negation and sense exclusions could authorize unrelated forbidden occurrences within a sentence or requirement.",
+      "new_value": "Each forbidden occurrence is evaluated in its own adversative clause; negation must govern that occurrence, double-negation fails, and sense exclusions require approved phrase patterns.",
+      "change": "Replaced sentence-wide and requirement-wide authorization with occurrence-linked negation and exact phrase/sense matching.",
+      "reason": "Resolve Codex v2.0.7 P1-02.",
+      "semantic_behavior_change": false,
+      "verification": "Mandatory probes include all four Codex bypasses, cross-sentence/adversative variants, double negation, and permitted senses.",
+      "residual_risk": "Automated scanning does not replace independent human semantic review."
+    },
+    {
+      "amendment_id": "AMD-V208-002",
+      "title": "D-100 JSON projection wording",
+      "source": "Codex v2.0.7 Package M0 review",
+      "affected_ids": [
+        "D-100",
+        "decision projections"
+      ],
+      "old_value": "D-100 referred to narrative, YAML and workbook projections although controlled machine-readable projections are JSON.",
+      "new_value": "D-100 refers to narrative, JSON and workbook projections.",
+      "change": "Corrected the projection-format name and regenerated all decision publications.",
+      "reason": "Resolve Codex v2.0.7 P2-01.",
+      "semantic_behavior_change": false,
+      "verification": "Decision JSON, workbook, Markdown, DOCX and PDF contain identical corrected wording.",
+      "residual_risk": "None."
+    },
+    {
+      "amendment_id": "AMD-V208-003",
+      "title": "Mandatory outer ZIP pin delivery",
+      "source": "Codex v2.0.7 Package M0 review",
+      "affected_ids": [
+        "FR-GOV-004",
+        "D-100",
+        "D-102",
+        "Package M0 delivery"
+      ],
+      "old_value": "The v2.0.7 review delivery omitted the separate .zip.sha256 publisher pin.",
+      "new_value": "The v2.0.8 delivery contains the ZIP and matching .zip.sha256 as two separate artifacts.",
+      "change": "Locked the final handoff to a two-file delivery and explicit expected hash in the review prompt.",
+      "reason": "Resolve Codex v2.0.7 P1-01.",
+      "semantic_behavior_change": false,
+      "verification": "Final response exposes both artifacts and the sidecar contains the exact ZIP digest.",
+      "residual_risk": "The sender must attach both files."
+    }
+  ]
+}

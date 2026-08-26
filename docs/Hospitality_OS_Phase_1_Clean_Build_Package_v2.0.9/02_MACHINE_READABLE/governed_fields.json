@@ -1,0 +1,158 @@
+{
+ "version": "1.0",
+ "normalization_version": "1.0",
+ "derivation": "Derived by inspecting every canonical machine-readable register for normative behavioral text fields. Non-normative fields (identifiers, enums, owners, confidence, provenance labels) are explicitly excluded below with reasons.",
+ "governed_fields": [
+  {
+   "file": "requirements.json",
+   "container": "active_requirements",
+   "id_field": "id",
+   "record_type": "requirement",
+   "fields": [
+    "title",
+    "required_behavior",
+    "gate_local_behavior",
+    "later_behavior",
+    "deferred_domain_notes"
+   ],
+   "subrecords": [
+    {
+     "container": "clauses",
+     "id_field": "clause_id",
+     "record_type": "requirement_clause",
+     "fields": [
+      "exact_clause_text",
+      "gate_local_behavior",
+      "later_behavior",
+      "deferred_domain_notes"
+     ]
+    }
+   ]
+  },
+  {
+   "file": "decisions.json",
+   "container": "decisions",
+   "id_field": "id",
+   "record_type": "decision",
+   "fields": [
+    "topic",
+    "decision"
+   ]
+  },
+  {
+   "file": "journeys.json",
+   "container": "mandatory_journey_slices",
+   "id_field": "id",
+   "record_type": "journey",
+   "fields": [
+    "name",
+    "steps",
+    "pass"
+   ]
+  },
+  {
+   "file": "non_regression_rules.json",
+   "container": "rules",
+   "id_field": "id",
+   "record_type": "non_regression_rule",
+   "fields": [
+    "rule"
+   ]
+  },
+  {
+   "file": "negative_controls.json",
+   "container": "controls",
+   "id_field": "id",
+   "record_type": "negative_control",
+   "fields": [
+    "property",
+    "deliberate_break",
+    "expected_test"
+   ]
+  },
+  {
+   "file": "state_machines.json",
+   "container": "state_machines",
+   "id_field": "id",
+   "record_type": "state_machine",
+   "fields": [
+    "name",
+    "transitions",
+    "invariants"
+   ]
+  },
+  {
+   "file": "events.json",
+   "container": "events",
+   "id_field": "id",
+   "record_type": "event",
+   "fields": [
+    "name",
+    "description"
+   ]
+  }
+ ],
+ "excluded_fields": [
+  {
+   "field": "source_clause_text",
+   "reason": "Historical v1.1 source text retained for lineage evidence; not a Phase 1 obligation."
+  },
+  {
+   "field": "source_original_behavior",
+   "reason": "Historical v1.1 source text retained for lineage evidence; not a Phase 1 obligation."
+  },
+  {
+   "field": "reconciliation_rationale",
+   "reason": "Review commentary about a decision, not a normative obligation."
+  },
+  {
+   "field": "reviewer_rationale",
+   "reason": "Review commentary, not a normative obligation."
+  },
+  {
+   "field": "deferred_domain_risk",
+   "reason": "Closed enum, not free text."
+  },
+  {
+   "field": "component_path",
+   "reason": "Planned path identifier, not behavioral text."
+  },
+  {
+   "field": "engineering_test_links",
+   "reason": "Identifier list."
+  },
+  {
+   "field": "acceptance_test_ids",
+   "reason": "Identifier list."
+  },
+  {
+   "field": "prerequisite_components",
+   "reason": "Short component labels, not obligations."
+  },
+  {
+   "field": "artifacts_available_at_introduction",
+   "reason": "Short artifact labels, not obligations."
+  },
+  {
+   "field": "owner",
+   "reason": "Team label."
+  },
+  {
+   "field": "domain",
+   "reason": "Requirement domain label."
+  },
+  {
+   "field": "classification",
+   "reason": "Closed enum."
+  },
+  {
+   "field": "source",
+   "reason": "Provenance label."
+  }
+ ],
+ "failure_policy": [
+  "A configured file, container or id field that no longer exists fails the validator.",
+  "A registry entry naming an unknown governed field fails the validator.",
+  "An empty or unloadable governed-field specification fails the validator."
+ ]
+}

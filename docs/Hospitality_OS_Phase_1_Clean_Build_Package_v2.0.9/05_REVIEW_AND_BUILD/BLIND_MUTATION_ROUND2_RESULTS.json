@@ -1,0 +1,518 @@
+{
+  "pack_id": "HOSPITALITY-OS-BLIND-MUTATION-PACK-ROUND-2",
+  "author": "Claude (independent reviewer)",
+  "started_at_utc": "2026-08-02T10:08:50Z",
+  "completed_at_utc": "2026-08-02T10:09:09Z",
+  "validator_sha256": "3d7c0a5e02a12f929efae53ec1d0189de38da8aca1c93c866e35d9de4e1fc5a0",
+  "validator_sha256_matches_pinned": true,
+  "target_sha256": "22b99b85df79bebc2ffcb7ceee0c721edfaf404af1fd2f14770c3a0750b2055e",
+  "target_sha256_matches_pinned": true,
+  "baseline_unmutated_target": {
+    "exit_code": 0,
+    "passed": true,
+    "failure_count": 0,
+    "failure_codes": [],
+    "stderr_tail": []
+  },
+  "baseline_passes": true,
+  "mutations_run": 28,
+  "detected": 23,
+  "missed_count": 5,
+  "missed": [
+    "R2-BMP-S-12",
+    "R2-BMP-S-18",
+    "R2-BMP-P-14",
+    "R2-BMP-P-16",
+    "R2-BMP-M-24"
+  ],
+  "apply_errors": [],
+  "by_class": {
+    "structural": {
+      "total": 8,
+      "detected": 6
+    },
+    "projection": {
+      "total": 6,
+      "detected": 4
+    },
+    "semantic": {
+      "total": 14,
+      "detected": 13
+    }
+  },
+  "results": [
+    {
+      "mutation_id": "R2-BMP-S-11",
+      "class": "structural",
+      "expected_property": "Active inventory contains exactly the reconciled requirement set",
+      "expected_result": "validator must FAIL",
+      "applied_change": "one additional well-formed requirement inserted into the active inventory",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 4,
+      "validator_failure_codes": [
+        "ACTIVE_COUNT",
+        "ACTIVE_LINEAGE_COVERAGE",
+        "PREREQ_LATER_GATE",
+        "XLSX_ACTIVE_ID_MISSING"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-S-12",
+      "class": "structural",
+      "expected_property": "Declared counts agree with the actual record inventory",
+      "expected_result": "validator must FAIL",
+      "applied_change": "declared counts block no longer agrees with the record inventory",
+      "apply_error": null,
+      "validator_passed": true,
+      "validator_failure_count": 0,
+      "validator_failure_codes": [],
+      "validator_exit_code": 0,
+      "detected": false,
+      "verdict": "MISSED"
+    },
+    {
+      "mutation_id": "R2-BMP-S-13",
+      "class": "structural",
+      "expected_property": "Every active requirement carries a clause decomposition",
+      "expected_result": "validator must FAIL",
+      "applied_change": "one record retains all scalar fields but carries no clause decomposition",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 5,
+      "validator_failure_codes": [
+        "CLAUSE_EMPTY",
+        "REQUIREMENT_JOURNEY_AGGREGATE",
+        "REQUIREMENT_PREREQ_AGGREGATE",
+        "REQUIREMENT_REVALIDATION_AGGREGATE",
+        "REQUIREMENT_TEST_AGGREGATE"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-S-14",
+      "class": "structural",
+      "expected_property": "Checksum manifest lists each path exactly once",
+      "expected_result": "validator must FAIL",
+      "applied_change": "one path appears twice in the checksum manifest (deliberately not resealed)",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 1,
+      "validator_failure_codes": [
+        "CHECKSUM_DUPLICATE_PATH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-S-15",
+      "class": "structural",
+      "expected_property": "Checksum manifest covers every file present in the package",
+      "expected_result": "validator must FAIL",
+      "applied_change": "an unlisted file now exists in the package tree (deliberately not resealed)",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 1,
+      "validator_failure_codes": [
+        "CHECKSUM_SET_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-S-16",
+      "class": "structural",
+      "expected_property": "Behavior-coverage attestation is backed by real active mappings",
+      "expected_result": "validator must FAIL",
+      "applied_change": "one original maps to no active requirement while full coverage is still attested",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 3,
+      "validator_failure_codes": [
+        "ACTIVE_LINEAGE_COVERAGE",
+        "LINEAGE_EMPTY",
+        "RETAINED_LINEAGE_BAD"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-S-17",
+      "class": "structural",
+      "expected_property": "Lineage register covers every original requirement",
+      "expected_result": "validator must FAIL",
+      "applied_change": "the lineage register lost one original while its declared count stayed fixed",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 4,
+      "validator_failure_codes": [
+        "ACTIVE_LINEAGE_COVERAGE",
+        "LINEAGE_COUNT",
+        "LINEAGE_ID_DUPLICATE",
+        "RETAINED_COUNT"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-S-18",
+      "class": "structural",
+      "expected_property": "Supersession claims are consistent with lineage status",
+      "expected_result": "validator must FAIL",
+      "applied_change": "a retained requirement now claims supersession of another active requirement",
+      "apply_error": null,
+      "validator_passed": true,
+      "validator_failure_count": 0,
+      "validator_failure_codes": [],
+      "validator_exit_code": 0,
+      "detected": false,
+      "verdict": "MISSED"
+    },
+    {
+      "mutation_id": "R2-BMP-P-11",
+      "class": "projection",
+      "expected_property": "Canonical-to-workbook parity on ownership",
+      "expected_result": "validator must FAIL",
+      "applied_change": "canonical owner no longer equals the workbook projection",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 1,
+      "validator_failure_codes": [
+        "XLSX_ACTIVE_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-P-12",
+      "class": "projection",
+      "expected_property": "Canonical-to-workbook parity on priority",
+      "expected_result": "validator must FAIL",
+      "applied_change": "canonical priority no longer equals the workbook projection",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 1,
+      "validator_failure_codes": [
+        "XLSX_ACTIVE_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-P-13",
+      "class": "projection",
+      "expected_property": "Canonical-to-workbook parity on revalidation gates",
+      "expected_result": "validator must FAIL",
+      "applied_change": "canonical revalidation list no longer equals the workbook projection",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 5,
+      "validator_failure_codes": [
+        "CLAUSE_TEST_GATE_UNDECLARED",
+        "JOURNEY_GATE_ALIGNMENT",
+        "TEST_GATE_COVERAGE",
+        "XLSX_ACTIVE_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-P-14",
+      "class": "projection",
+      "expected_property": "Canonical-to-workbook parity on the decision register",
+      "expected_result": "validator must FAIL",
+      "applied_change": "a canonical decision target no longer equals the workbook projection",
+      "apply_error": null,
+      "validator_passed": true,
+      "validator_failure_count": 0,
+      "validator_failure_codes": [],
+      "validator_exit_code": 0,
+      "detected": false,
+      "verdict": "MISSED"
+    },
+    {
+      "mutation_id": "R2-BMP-P-15",
+      "class": "projection",
+      "expected_property": "Canonical-to-workbook parity on the journey register",
+      "expected_result": "validator must FAIL",
+      "applied_change": "a canonical journey milestone no longer equals the workbook projection",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 39,
+      "validator_failure_codes": [
+        "JOURNEY_GATE_ALIGNMENT",
+        "JOURNEY_PREDECESSOR_LATER"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-P-16",
+      "class": "projection",
+      "expected_property": "Canonical-to-workbook parity on component path and classification",
+      "expected_result": "validator must FAIL",
+      "applied_change": "canonical component path and classification no longer equal the workbook projection",
+      "apply_error": null,
+      "validator_passed": true,
+      "validator_failure_count": 0,
+      "validator_failure_codes": [],
+      "validator_exit_code": 0,
+      "detected": false,
+      "verdict": "MISSED"
+    },
+    {
+      "mutation_id": "R2-BMP-M-11",
+      "class": "semantic",
+      "expected_property": "Introducing gate executability for outlet synchronization obligations",
+      "expected_result": "validator must FAIL",
+      "applied_change": "an outlet synchronization obligation now claims a gate with no node or queue",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 10,
+      "validator_failure_codes": [
+        "CLAUSE_INTRO_TEST_MISSING",
+        "CLAUSE_TEST_GATE_UNDECLARED",
+        "JOURNEY_GATE_ALIGNMENT",
+        "PREREQ_LATER_GATE",
+        "REQUIREMENT_TEST_AGGREGATE",
+        "XLSX_ACTIVE_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-M-12",
+      "class": "semantic",
+      "expected_property": "Revalidation honesty between declared gates and stated later behavior",
+      "expected_result": "validator must FAIL",
+      "applied_change": "declared revalidation gates remain while the prose asserts no later behavior exists",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 2,
+      "validator_failure_codes": [
+        "XLSX_ACTIVE_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-M-13",
+      "class": "semantic",
+      "expected_property": "Dual-gated settlement behavior is not collapsed into one gate",
+      "expected_result": "validator must FAIL",
+      "applied_change": "a settlement obligation now absorbs its later-gate duties into a single gate",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 6,
+      "validator_failure_codes": [
+        "CLAUSE_TEST_GATE_UNDECLARED",
+        "REQUIREMENT_TEST_AGGREGATE",
+        "XLSX_ACTIVE_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-M-14",
+      "class": "semantic",
+      "expected_property": "Journey provability at the requirement introducing gate",
+      "expected_result": "validator must FAIL",
+      "applied_change": "an early-gate requirement is now proven only by a settlement-gate journey",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 3,
+      "validator_failure_codes": [
+        "JOURNEY_GATE_ALIGNMENT",
+        "XLSX_ACTIVE_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-M-15",
+      "class": "semantic",
+      "expected_property": "Prerequisite direction never points at a later gate",
+      "expected_result": "validator must FAIL",
+      "applied_change": "a documentation-gate requirement now depends on a settlement-gate requirement",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 2,
+      "validator_failure_codes": [
+        "PREREQ_LATER_GATE",
+        "XLSX_ACTIVE_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-M-16",
+      "class": "semantic",
+      "expected_property": "Settlement gate versus resilient local print path separation",
+      "expected_result": "validator must FAIL",
+      "applied_change": "a local print obligation moved wholesale into the settlement gate",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 10,
+      "validator_failure_codes": [
+        "CLAUSE_INTRO_TEST_MISSING",
+        "CLAUSE_TEST_GATE_UNDECLARED",
+        "JOURNEY_GATE_ALIGNMENT",
+        "PREREQ_LATER_GATE",
+        "REQUIREMENT_TEST_AGGREGATE",
+        "XLSX_ACTIVE_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-M-17",
+      "class": "semantic",
+      "expected_property": "Outlet execution versus same-QR routing and local authority separation",
+      "expected_result": "validator must FAIL",
+      "applied_change": "an outlet-execution obligation moved up into the routing and authority gate",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 8,
+      "validator_failure_codes": [
+        "CLAUSE_INTRO_TEST_MISSING",
+        "CLAUSE_TEST_GATE_UNDECLARED",
+        "JOURNEY_GATE_ALIGNMENT",
+        "REQUIREMENT_TEST_AGGREGATE",
+        "XLSX_ACTIVE_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-M-18",
+      "class": "semantic",
+      "expected_property": "Future domains remain fenced negatives, never positive build tasks",
+      "expected_result": "validator must FAIL",
+      "applied_change": "a fenced negative obligation rewritten as a positive later-domain interface task",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 2,
+      "validator_failure_codes": [
+        "XLSX_ACTIVE_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-M-19",
+      "class": "semantic",
+      "expected_property": "Same-QR customer path fails safe and never to a raw node address",
+      "expected_result": "validator must FAIL",
+      "applied_change": "the customer path may now fall back to a direct node address",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 2,
+      "validator_failure_codes": [
+        "XLSX_ACTIVE_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-M-20",
+      "class": "semantic",
+      "expected_property": "Per-outlet private-key custody with no shared estate-wide key",
+      "expected_result": "validator must FAIL",
+      "applied_change": "per-outlet key custody replaced by one shared estate-wide key",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 2,
+      "validator_failure_codes": [
+        "XLSX_ACTIVE_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-M-21",
+      "class": "semantic",
+      "expected_property": "Stopping-rule strength against an unresolved P0",
+      "expected_result": "validator must FAIL",
+      "applied_change": "the progression rule now permits an open P0 to proceed on a scheduled repair",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 2,
+      "validator_failure_codes": [
+        "XLSX_ACTIVE_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-M-22",
+      "class": "semantic",
+      "expected_property": "Journey links are clause-specific, not gate-wide bulk assignments",
+      "expected_result": "validator must FAIL",
+      "applied_change": "every requirement at one gate now carries that gate's full journey list (55 records)",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 54,
+      "validator_failure_codes": [
+        "XLSX_ACTIVE_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-M-23",
+      "class": "semantic",
+      "expected_property": "Split lineage preserves the original behavior, not merely the record count",
+      "expected_result": "validator must FAIL",
+      "applied_change": "one split successor hollowed to generic wording while all records remain present",
+      "apply_error": null,
+      "validator_passed": false,
+      "validator_failure_count": 2,
+      "validator_failure_codes": [
+        "XLSX_ACTIVE_PROJECTION_MISMATCH"
+      ],
+      "validator_exit_code": 1,
+      "detected": true,
+      "verdict": "DETECTED"
+    },
+    {
+      "mutation_id": "R2-BMP-M-24",
+      "class": "semantic",
+      "expected_property": "Tips remain optional, unselected and separate from bill allocation",
+      "expected_result": "validator must FAIL",
+      "applied_change": "a canonical decision now permits the tip to be presented inside the bill total",
+      "apply_error": null,
+      "validator_passed": true,
+      "validator_failure_count": 0,
+      "validator_failure_codes": [],
+      "validator_exit_code": 0,
+      "detected": false,
+      "verdict": "MISSED"
+    }
+  ],
+  "interpretation": "Every mutation is expected to make the refrozen validator fail. A MISSED result is a validator coverage gap, not a defect in the target package. Round 2 policy: misses caused by faulty implementation or by failure to enforce an already-approved rule are blockers; misses requiring a genuinely new semantic doctrine are recorded as known coverage limits and handed to the independent Package M0 review. Under the agreed two-round cap there is no Round 3 unless the reviewer finds a P0 defect in the validator itself."
+}

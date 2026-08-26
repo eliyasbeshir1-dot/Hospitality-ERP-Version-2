@@ -1,0 +1,35 @@
+{
+  "version": "0.1",
+  "rules": [
+    {
+      "id": "RR-01",
+      "title": "Fenced negative controls",
+      "rule": "A future-domain prohibition is an active Phase 1 negative control introduced at M0R when the scanner first runs. It is not a positive deferred-domain obligation. Revalidate at the first affected implementation surface and at M6."
+    },
+    {
+      "id": "RR-02",
+      "title": "Atomic split threshold",
+      "rule": "Split an original requirement when clauses have different introducing gates, materially different owners/evidence, or combine positive runtime behavior with a separately testable negative phase-boundary control. Do not split merely because one sentence contains multiple assertions at the same gate."
+    },
+    {
+      "id": "RR-03",
+      "title": "Mechanism versus realization",
+      "rule": "Introduce a reusable mechanism at the earliest gate where it is executable. Revalidate the concrete later surfaces it governs. Move the whole clause to M6 only when no meaningful earlier behavior can be executed."
+    },
+    {
+      "id": "RR-04",
+      "title": "Production-artifact claims",
+      "rule": "Claims that explicitly require the built production image, production roles, destructive restore or complete deployable surface are introduced at M6 unless the requirement contains an independently executable earlier clause."
+    },
+    {
+      "id": "RR-05",
+      "title": "M5 boundary",
+      "rule": "M5a owns focused outlet-node services, local persistence, synchronization and print resilience. M5b owns same-QR DNS/TLS resolution and local authority continuity. Split clauses that cross this boundary."
+    },
+    {
+      "id": "RR-06",
+      "title": "Evidence links",
+      "rule": "Use a golden journey only when it directly exercises the clause. Otherwise use an explicit engineering test. Revalidation must name the later artifact or behavior, not merely the milestone."
+    }
+  ]
+}

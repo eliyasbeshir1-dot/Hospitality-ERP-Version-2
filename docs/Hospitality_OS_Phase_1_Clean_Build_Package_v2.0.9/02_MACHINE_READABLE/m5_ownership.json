@@ -1,0 +1,173 @@
+{
+  "version": "2.0.9",
+  "normative": true,
+  "M4_printing_boundary": "Minimum real production receipt printing begins at M4.",
+  "M5a": {
+    "name": "Outlet execution, synchronization and resilient printing",
+    "depends_on": [
+      "M4"
+    ],
+    "requirements": [
+      "FR-CFG-001E",
+      "FR-DAT-008C",
+      "FR-EDG-001",
+      "FR-EDG-002A",
+      "FR-EDG-004A",
+      "FR-EDG-005",
+      "FR-EDG-008",
+      "FR-EDG-009",
+      "FR-EDG-010",
+      "FR-EDG-012",
+      "FR-EDG-015A",
+      "FR-EDG-016",
+      "FR-EDG-017",
+      "FR-EDG-018",
+      "FR-EDG-025",
+      "FR-EDG-027",
+      "FR-EDG-029",
+      "FR-INT-003",
+      "FR-INT-004",
+      "FR-OPS-010",
+      "FR-OPS-018",
+      "FR-POS-008",
+      "FR-SEC-002B",
+      "FR-TST-008"
+    ],
+    "journeys": [
+      "GJ-10"
+    ],
+    "screens": [
+      "SCR-ADM-010",
+      "SCR-OPS-002",
+      "SCR-OPS-003",
+      "SCR-WTR-008"
+    ],
+    "events": [
+      "EVT-OUTLET-RECONNECTED",
+      "EVT-OUTLET-RECONNECTING",
+      "EVT-PRINT-JOB-FAILED",
+      "EVT-PRINT-JOB-PRINTED",
+      "EVT-PRINT-JOB-QUEUED",
+      "EVT-SYNC-CONFLICT-DETECTED",
+      "EVT-SYNC-EVENT-ACKNOWLEDGED",
+      "EVT-SYNC-EVENT-QUARANTINED",
+      "EVT-SYNC-EVENT-QUEUED"
+    ],
+    "risks": [
+      "R-004",
+      "R-009",
+      "R-010",
+      "R-011",
+      "R-012",
+      "R-013"
+    ],
+    "negative_controls": [
+      "NC-M5A-001",
+      "NC-M5A-002",
+      "NC-M5A-003",
+      "NC-M5A-004"
+    ],
+    "services": [
+      "outlet_api",
+      "outlet_postgresql",
+      "sync_worker",
+      "realtime_gateway",
+      "print_agent"
+    ],
+    "forbidden_claims": [
+      "same_qr_public_hostname",
+      "browser_public_tls",
+      "cloud_forwarding_lease",
+      "emergency_authority_replacement"
+    ],
+    "service_count": 5,
+    "excluded_services": [
+      "local_backup_agent"
+    ],
+    "backup_boundary": "Backup scheduling and destructive restore remain M6 obligations.",
+    "allowed_claims": [
+      "focused outlet services",
+      "durable local persistence",
+      "synchronization",
+      "print resilience",
+      "restart recovery"
+    ]
+  },
+  "M5b": {
+    "name": "Same-QR trust, bidirectional lease and authority fencing",
+    "depends_on": [
+      "M5a"
+    ],
+    "requirements": [
+      "FR-EDG-003",
+      "FR-EDG-004B",
+      "FR-EDG-015B",
+      "FR-EDG-021",
+      "FR-EDG-022A",
+      "FR-EDG-022B",
+      "FR-EDG-022C",
+      "FR-EDG-023",
+      "FR-EDG-024",
+      "FR-EDG-026",
+      "FR-EDG-028",
+      "FR-OPS-017"
+    ],
+    "journeys": [
+      "GJ-08",
+      "GJ-09"
+    ],
+    "screens": [
+      "SCR-CUST-015",
+      "SCR-CUST-016",
+      "SCR-OPS-001"
+    ],
+    "events": [
+      "EVT-AUTHORITY-EPOCH-ISSUED",
+      "EVT-AUTHORITY-FENCE-RECORDED",
+      "EVT-AUTHORITY-REPLACEMENT-ACTIVATED",
+      "EVT-CLOUD-SUBMISSION-BLOCKED",
+      "EVT-LOCAL-CONTINUITY-ENTERED",
+      "EVT-OLD-NODE-UNREACHABLE-VERIFIED",
+      "EVT-OUTLET-HEARTBEAT-LOST",
+      "EVT-REACHABILITY-PROOF-FAILED"
+    ],
+    "risks": [
+      "R-001",
+      "R-026",
+      "R-027",
+      "R-028"
+    ],
+    "negative_controls": [
+      "NC-M5B-001",
+      "NC-M5B-002",
+      "NC-M5B-003",
+      "NC-M5B-004",
+      "NC-M5B-005",
+      "NC-M5B-006",
+      "NC-M5B-007",
+      "NC-M5B-008",
+      "NC-M5B-009"
+    ],
+    "services": [
+      "public_dns",
+      "outlet_split_horizon_dns",
+      "dns01_certificate_service",
+      "authority_control_plane",
+      "reachability_challenge_service",
+      "fence_evidence_service"
+    ],
+    "forbidden_claims": [
+      "replacement_writable_without_fence",
+      "one_way_heartbeat_as_healthy",
+      "self_signed_browser_bypass",
+      "shared_cross_outlet_private_key",
+      "writable_cloud_fallback"
+    ],
+    "allowed_claims": [
+      "same-QR DNS/TLS",
+      "bidirectional authority lease",
+      "verified local authority continuity",
+      "emergency fenced replacement"
+    ]
+  }
+}

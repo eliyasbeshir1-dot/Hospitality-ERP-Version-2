@@ -1,0 +1,645 @@
+{
+  "version": "2.0.9",
+  "events": [
+    {
+      "id": "EVT-TENANT-CREATED",
+      "name": "Tenant created",
+      "milestone": "M1",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-OUTLET-CREATED",
+      "name": "Outlet created",
+      "milestone": "M1",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-OUTLET-CONFIG-PUBLISHED",
+      "name": "Outlet configuration published",
+      "milestone": "M1",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-MEMBERSHIP-GRANTED",
+      "name": "Staff membership granted",
+      "milestone": "M1",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-MEMBERSHIP-REVOKED",
+      "name": "Staff membership revoked",
+      "milestone": "M1",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-STEP-UP-VERIFIED",
+      "name": "Step-up verified",
+      "milestone": "M1",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-DEVICE-REGISTERED",
+      "name": "Device registered",
+      "milestone": "M1",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-SECURITY-AUDIT-RECORDED",
+      "name": "Security audit recorded",
+      "milestone": "M1",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-TRANSLATION-APPROVED",
+      "name": "Customer translation approved",
+      "milestone": "M2",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-MENU-PUBLISHED",
+      "name": "Menu version published",
+      "milestone": "M2",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-ITEM-SOLD-OUT",
+      "name": "Menu item sold out",
+      "milestone": "M2",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-TABLE-QR-ROTATED",
+      "name": "Table QR rotated",
+      "milestone": "M2",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-TABLE-SESSION-OPENED",
+      "name": "Table session opened",
+      "milestone": "M2",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-TABLE-PARTICIPANT-JOINED",
+      "name": "Participant joined",
+      "milestone": "M2",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-TABLE-SESSION-TRANSFERRED",
+      "name": "Table session transferred",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-TABLE-SESSION-CLOSED",
+      "name": "Table session closed",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-ALLERGEN-CONTENT-CHANGED",
+      "name": "Allergen content changed",
+      "milestone": "M2",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-CART-SUBMITTED",
+      "name": "Cart submitted",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-ORDER-SUBMITTED",
+      "name": "Order submitted",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-ORDER-ACCEPTED",
+      "name": "Order accepted",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-ORDER-AMENDED",
+      "name": "Order amended",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-ORDER-CANCELLED",
+      "name": "Order cancelled",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-ORDER-VOIDED",
+      "name": "Order voided",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-ORDER-LINE-ROUTED",
+      "name": "Order line routed",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-TICKET-QUEUED",
+      "name": "Fulfillment ticket queued",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-TICKET-ACKNOWLEDGED",
+      "name": "Fulfillment ticket acknowledged",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-TICKET-PREPARING",
+      "name": "Fulfillment ticket preparing",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-TICKET-READY",
+      "name": "Fulfillment ticket ready",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-TICKET-REWORK-REQUESTED",
+      "name": "Fulfillment rework requested",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-TICKET-COMPLETED",
+      "name": "Fulfillment ticket completed",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-SERVICE-REQUESTED",
+      "name": "Customer service requested",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-SERVICE-ACKNOWLEDGED",
+      "name": "Service request acknowledged",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-SERVICE-ESCALATED",
+      "name": "Service request escalated",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-SERVICE-COMPLETED",
+      "name": "Service request completed",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-ORDER-SERVED",
+      "name": "Order served",
+      "milestone": "M3",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-CHECK-OPENED",
+      "name": "Check opened",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-CHECK-SPLIT",
+      "name": "Check split",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-CHECK-PRESENTED",
+      "name": "Check presented",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-TIP-PROPOSED",
+      "name": "Optional tip proposed",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-TIP-ACCEPTED",
+      "name": "Optional tip accepted",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-PAYMENT-CREATED",
+      "name": "Payment created",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-PAYMENT-CAPTURED",
+      "name": "Payment captured",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-PAYMENT-ALLOCATED",
+      "name": "Payment allocated",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-TIP-RECORDED",
+      "name": "Tip recorded",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-CHECK-PAID",
+      "name": "Check paid",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-RECEIPT-ISSUED",
+      "name": "Receipt issued",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-PAYMENT-FAILED",
+      "name": "Payment failed",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-PAYMENT-REVERSED",
+      "name": "Payment reversed",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-PAYMENT-REFUNDED",
+      "name": "Payment refunded",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-TIP-REFUNDED",
+      "name": "Tip refunded",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-CASH-SHIFT-OPENED",
+      "name": "Cash shift opened",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-CASH-MOVEMENT-RECORDED",
+      "name": "Cash movement recorded",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-CASH-SHIFT-SUBMITTED",
+      "name": "Cash shift submitted",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-CASH-VARIANCE-DETECTED",
+      "name": "Cash variance detected",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-CASH-SHIFT-CLOSED",
+      "name": "Cash shift closed",
+      "milestone": "M4",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-OUTLET-HEARTBEAT-LOST",
+      "name": "Outlet heartbeat lost",
+      "milestone": "M5b",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-LOCAL-CONTINUITY-ENTERED",
+      "name": "Local continuity entered",
+      "milestone": "M5b",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-CLOUD-SUBMISSION-BLOCKED",
+      "name": "Cloud dine-in submission blocked",
+      "milestone": "M5b",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-AUTHORITY-EPOCH-ISSUED",
+      "name": "Authority epoch issued",
+      "milestone": "M5b",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-OUTLET-RECONNECTING",
+      "name": "Outlet reconnection started",
+      "milestone": "M5a",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-OUTLET-RECONNECTED",
+      "name": "Outlet reconnected",
+      "milestone": "M5a",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-SYNC-EVENT-QUEUED",
+      "name": "Sync event queued",
+      "milestone": "M5a",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-SYNC-EVENT-ACKNOWLEDGED",
+      "name": "Sync event acknowledged",
+      "milestone": "M5a",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-SYNC-CONFLICT-DETECTED",
+      "name": "Sync conflict detected",
+      "milestone": "M5a",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-SYNC-EVENT-QUARANTINED",
+      "name": "Sync event quarantined",
+      "milestone": "M5a",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-PRINT-JOB-QUEUED",
+      "name": "Print job queued",
+      "milestone": "M5a",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-PRINT-JOB-PRINTED",
+      "name": "Print job printed",
+      "milestone": "M5a",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-PRINT-JOB-FAILED",
+      "name": "Print job failed",
+      "milestone": "M5a",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-BACKUP-COMPLETED",
+      "name": "Backup completed",
+      "milestone": "M6",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-BACKUP-VERIFIED",
+      "name": "Backup verified",
+      "milestone": "M6",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-RESTORE-COMPLETED",
+      "name": "Restore completed",
+      "milestone": "M6",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-DEPLOYMENT-RELEASED",
+      "name": "Deployment released",
+      "milestone": "M6",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-DEPLOYMENT-ROLLED-BACK",
+      "name": "Deployment rolled back",
+      "milestone": "M6",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-INCIDENT-OPENED",
+      "name": "Operational incident opened",
+      "milestone": "M6",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-INCIDENT-RESOLVED",
+      "name": "Operational incident resolved",
+      "milestone": "M6",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-AUDIT-GATE-PASSED",
+      "name": "Independent audit gate passed",
+      "milestone": "M6",
+      "schema_version": 1,
+      "domain": null,
+      "description": null
+    },
+    {
+      "id": "EVT-REACHABILITY-PROOF-FAILED",
+      "name": "Bidirectional reachability proof failed",
+      "milestone": "M5b",
+      "schema_version": 1,
+      "domain": "Outlet Authority",
+      "description": "One direction, authority sequence, protocol or cursor proof failed."
+    },
+    {
+      "id": "EVT-AUTHORITY-FENCE-RECORDED",
+      "name": "Old-node fence evidence recorded",
+      "milestone": "M5b",
+      "schema_version": 1,
+      "domain": "Outlet Authority",
+      "description": "Authorized power-off or network-isolation evidence and operator approval were recorded."
+    },
+    {
+      "id": "EVT-OLD-NODE-UNREACHABLE-VERIFIED",
+      "name": "Old node LAN unreachability verified",
+      "milestone": "M5b",
+      "schema_version": 1,
+      "domain": "Outlet Authority",
+      "description": "Automated LAN probe proved the old node is not reachable before replacement activation."
+    },
+    {
+      "id": "EVT-AUTHORITY-REPLACEMENT-ACTIVATED",
+      "name": "Replacement authority activated",
+      "milestone": "M5b",
+      "schema_version": 1,
+      "domain": "Outlet Authority",
+      "description": "Next monotonic signed authority sequence became writable after verified fencing."
+    }
+  ]
+}

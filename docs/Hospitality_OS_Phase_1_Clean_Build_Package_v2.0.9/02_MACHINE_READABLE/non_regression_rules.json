@@ -1,0 +1,389 @@
+{
+  "version": "2.0.9",
+  "rules": [
+    {
+      "id": "NR-001",
+      "rule": "Do not implement future modules as hidden routes, tables, workers or feature-flagged pages."
+    },
+    {
+      "id": "NR-002",
+      "rule": "A clean phase boundary is physical as well as visual."
+    },
+    {
+      "id": "NR-003",
+      "rule": "Build one vertical milestone at a time."
+    },
+    {
+      "id": "NR-004",
+      "rule": "Do not clone the frozen repository."
+    },
+    {
+      "id": "NR-005",
+      "rule": "Reused code is treated as third-party code and reviewed in isolation."
+    },
+    {
+      "id": "NR-006",
+      "rule": "The local node contains only customer service and outlet execution."
+    },
+    {
+      "id": "NR-007",
+      "rule": "Customer-visible ingredients are not operational recipes."
+    },
+    {
+      "id": "NR-008",
+      "rule": "Bill, payment and tip are separate business records."
+    },
+    {
+      "id": "NR-009",
+      "rule": "Missing tenant/outlet context must return zero rows and permit zero writes."
+    },
+    {
+      "id": "NR-010",
+      "rule": "Use populated owner-side fixtures so zero-row tests cannot pass vacuously."
+    },
+    {
+      "id": "NR-011",
+      "rule": "Test sibling outlets inside the same tenant, not only different tenants."
+    },
+    {
+      "id": "NR-012",
+      "rule": "Test SELECT, INSERT, UPDATE and DELETE."
+    },
+    {
+      "id": "NR-013",
+      "rule": "Policies must contain both `USING` and `WITH CHECK` where applicable."
+    },
+    {
+      "id": "NR-014",
+      "rule": "Adding `outlet_id` later must automatically strengthen existing policies."
+    },
+    {
+      "id": "NR-015",
+      "rule": "API, jobs, files, caches, reports and sync paths are part of the isolation boundary."
+    },
+    {
+      "id": "NR-016",
+      "rule": "Production services reject owner, superuser, BYPASSRLS and maintenance database roles."
+    },
+    {
+      "id": "NR-017",
+      "rule": "Do not use binary floating-point for money, percentages or quantity outcomes."
+    },
+    {
+      "id": "NR-018",
+      "rule": "Accepted orders, issued bills, payments, tips and cash movements are immutable or reversal-based."
+    },
+    {
+      "id": "NR-019",
+      "rule": "No tip is selected by default."
+    },
+    {
+      "id": "NR-020",
+      "rule": "Bill allocation and tip allocation are separate."
+    },
+    {
+      "id": "NR-021",
+      "rule": "A tip cannot hide an unpaid bill balance."
+    },
+    {
+      "id": "NR-022",
+      "rule": "Refunds and reversals require purpose-specific step-up, permission, reason and audit."
+    },
+    {
+      "id": "NR-023",
+      "rule": "Quick PIN cannot authorize sensitive financial actions."
+    },
+    {
+      "id": "NR-024",
+      "rule": "Split bill participants may choose different tips."
+    },
+    {
+      "id": "NR-025",
+      "rule": "A protocol document is not a deployable outlet service."
+    },
+    {
+      "id": "NR-026",
+      "rule": "Test the real outlet node, worker, database, print agent and restart behavior."
+    },
+    {
+      "id": "NR-027",
+      "rule": "Cloud must not accept new dine-in writes when it cannot reach the outlet authority."
+    },
+    {
+      "id": "NR-028",
+      "rule": "Use an authority epoch/lease to prevent split brain."
+    },
+    {
+      "id": "NR-029",
+      "rule": "Persist IDs, cursors, dependencies and queues durably."
+    },
+    {
+      "id": "NR-030",
+      "rule": "A bad event must not block unrelated streams forever."
+    },
+    {
+      "id": "NR-031",
+      "rule": "Retries must be idempotent."
+    },
+    {
+      "id": "NR-032",
+      "rule": "Conflicts are explicit; silent last-write-wins is prohibited."
+    },
+    {
+      "id": "NR-033",
+      "rule": "The same QR must work locally with valid TLS, not a raw IP and ignored warning."
+    },
+    {
+      "id": "NR-034",
+      "rule": "Create the empty repository only after Package M0; create PostgreSQL and executable migration `0001` only in M1 after M0R approval or adjudication."
+    },
+    {
+      "id": "NR-035",
+      "rule": "Never edit an applied migration."
+    },
+    {
+      "id": "NR-036",
+      "rule": "Lock migration checksums."
+    },
+    {
+      "id": "NR-037",
+      "rule": "Test clean build and supported upgrade."
+    },
+    {
+      "id": "NR-038",
+      "rule": "Test historical/edge-case fixtures before declaring upgrade safety."
+    },
+    {
+      "id": "NR-039",
+      "rule": "Use real PostgreSQL and exact production roles."
+    },
+    {
+      "id": "NR-040",
+      "rule": "Cross-platform line endings and tool invocation are acceptance concerns."
+    },
+    {
+      "id": "NR-041",
+      "rule": "A source-tree test does not prove the production container."
+    },
+    {
+      "id": "NR-042",
+      "rule": "Production images contain every advertised script, helper and database client."
+    },
+    {
+      "id": "NR-043",
+      "rule": "Containers run as non-root."
+    },
+    {
+      "id": "NR-044",
+      "rule": "Required paths remain usable by the non-root runtime user."
+    },
+    {
+      "id": "NR-045",
+      "rule": "Health/readiness uses least-privileged application roles."
+    },
+    {
+      "id": "NR-046",
+      "rule": "Readiness is unhealthy when an advertised job cannot do real work."
+    },
+    {
+      "id": "NR-047",
+      "rule": "Backup tests use the same binaries, roles and image as production."
+    },
+    {
+      "id": "NR-048",
+      "rule": "Restore is destructive into a clean environment and runs post-restore business journeys."
+    },
+    {
+      "id": "NR-049",
+      "rule": "Missing grants, scripts, policies or binaries must make the drill fail."
+    },
+    {
+      "id": "NR-050",
+      "rule": "Build output is deterministic and independent of command order."
+    },
+    {
+      "id": "NR-051",
+      "rule": "Zero discovered tests is failure."
+    },
+    {
+      "id": "NR-052",
+      "rule": "Any skipped acceptance test is failure."
+    },
+    {
+      "id": "NR-053",
+      "rule": "Empty, unsupported or unknown security-scan coverage is failure."
+    },
+    {
+      "id": "NR-054",
+      "rule": "Every critical gate has a planted negative control."
+    },
+    {
+      "id": "NR-055",
+      "rule": "Tests cannot rely on another test's artifact or environment mutation."
+    },
+    {
+      "id": "NR-056",
+      "rule": "Clear `dist`, `.next`, generated output and test databases before canonical validation."
+    },
+    {
+      "id": "NR-057",
+      "rule": "Ordinary Windows and Linux commands must work without CI-only PATH or `PG_BIN` injection."
+    },
+    {
+      "id": "NR-058",
+      "rule": "Pin the exact commit audited."
+    },
+    {
+      "id": "NR-059",
+      "rule": "Store commands, logs, evidence and verdict on an isolated audit branch."
+    },
+    {
+      "id": "NR-060",
+      "rule": "Do not weaken assertions merely to make CI green."
+    },
+    {
+      "id": "NR-061",
+      "rule": "When an inherited gate becomes logically invalid after a repair, replace it with a stronger audit-only control and prove both repaired and deliberately broken cases."
+    },
+    {
+      "id": "NR-062",
+      "rule": "Compilation, page scaffolding and green unit tests are not completion."
+    },
+    {
+      "id": "NR-063",
+      "rule": "Production-path evidence takes precedence over claims."
+    },
+    {
+      "id": "NR-064",
+      "rule": "Every active requirement maps to code, tests and evidence."
+    },
+    {
+      "id": "NR-065",
+      "rule": "Every deferred requirement is absent from the production artifact."
+    },
+    {
+      "id": "NR-066",
+      "rule": "A milestone or repository gate cannot proceed while its P0/P1 defects remain unresolved or unadjudicated under Source of Truth Section 9.1."
+    },
+    {
+      "id": "NR-067",
+      "rule": "Final merge requires an independent staging verdict plus either reviewer approval or documented founder adjudication under Source of Truth Section 9.1; founder adjudication is never represented as reviewer approval."
+    },
+    {
+      "id": "NR-068",
+      "rule": "An adverse reviewer verdict pauses progression but does not create an unrecorded permanent veto; disputes follow written founder adjudication."
+    },
+    {
+      "id": "NR-069",
+      "rule": "Every founder risk acceptance names the affected requirement or non-regression rule and is re-examined at the next milestone."
+    },
+    {
+      "id": "NR-070",
+      "rule": "M5a and M5b have separate executable exit journeys, ownership registers and audit gates."
+    },
+    {
+      "id": "NR-071",
+      "rule": "Same-QR local service uses a per-outlet public hostname and public-trust certificate; self-signed bypass is prohibited."
+    },
+    {
+      "id": "NR-072",
+      "rule": "Cloud lease expiry blocks cloud writes but never revokes LAN authority; reachability must be proved bidirectionally."
+    },
+    {
+      "id": "NR-073",
+      "rule": "Only cash, external-terminal recording and verified Telebirr/CBE Birr proof confirmation are live pilot payment paths until a provider API is contracted."
+    },
+    {
+      "id": "NR-074",
+      "rule": "A simulator cannot be represented as a live payment result or printed as a real provider receipt."
+    },
+    {
+      "id": "NR-075",
+      "rule": "Negative controls are enumerated, identical across narrative/YAML/workbook and frozen at Package M0, not improvised after implementation."
+    },
+    {
+      "id": "NR-076",
+      "rule": "Every milestone journey uses only capabilities owned by that milestone and approved predecessors; M3 cannot require M4 settlement or receipt behavior."
+    },
+    {
+      "id": "NR-077",
+      "rule": "Deferred loyalty, pickup, delivery, supplier, inventory, accounting and data-portability behavior cannot remain as active Phase 1 requirements, tests, screens or prompt obligations."
+    },
+    {
+      "id": "NR-078",
+      "rule": "Package M0 occurs before repository creation; Repository Conformance M0R occurs after the empty repository plan and before any M1 application code."
+    },
+    {
+      "id": "NR-079",
+      "rule": "Emergency authority replacement cannot become writable until documented old-node power-off or network isolation and an automated LAN-unreachability probe are recorded."
+    },
+    {
+      "id": "NR-080",
+      "rule": "Authority sequence is durable, monotonic, signed and anti-rollback; every writer persists the highest accepted sequence."
+    },
+    {
+      "id": "NR-081",
+      "rule": "Reachability is a signed bidirectional challenge/acknowledgement; failure of either direction expires the cloud forwarding lease."
+    },
+    {
+      "id": "NR-082",
+      "rule": "The canonical Package M0 review register contains exactly 14 questions and every review response answers all 14."
+    },
+    {
+      "id": "NR-083",
+      "rule": "Normative M5 ownership is generated from one source and must match requirements, journeys, screens, events, risks and negative controls."
+    },
+    {
+      "id": "NR-084",
+      "rule": "No gate is closed using behavior owned by a later gate; every requirement declares its introducing gate, gate-local scope and revalidation gates."
+    },
+    {
+      "id": "NR-085",
+      "rule": "Excluded-domain capability appears in Phase 1 only as a deferral statement or extension-contract documentation, never as an entity, field, enumeration value, route, screen, registry entry or positive test."
+    },
+    {
+      "id": "NR-086",
+      "rule": "The forbidden-surface vocabulary is generated from the phase-boundary exclusion set and every excluded domain carries a planted negative control."
+    },
+    {
+      "id": "NR-087",
+      "rule": "A per-outlet certificate renewal is complete only when installation evidence is verified from the LAN; failed renewal fails safe to the cloud journey, never to a browser warning or bypass prompt."
+    },
+    {
+      "id": "NR-088",
+      "rule": "Same-QR acceptance includes cached-DNS, encrypted-DNS and dual-stack client conditions with a safe documented failure mode."
+    },
+    {
+      "id": "NR-089",
+      "rule": "A replacement node becomes writable only through the explicit activation state after the superseded instance is fenced and blocked; at most one node instance per outlet is writable."
+    },
+    {
+      "id": "NR-090",
+      "rule": "A reopened cash shift is never terminal and returns to closed through recount and approval or an audited maker-checker correction."
+    },
+    {
+      "id": "NR-091",
+      "rule": "Source of Truth, YAML, workbooks and combined publications are generated from canonical structured records and must pass exact parity checks."
+    },
+    {
+      "id": "NR-092",
+      "rule": "Every active requirement receives a human-semantic introducing-gate and revalidation-gate disposition."
+    },
+    {
+      "id": "NR-093",
+      "rule": "A generic journal, campaign, roster, attendance, timekeeping or break-record obligation is a forbidden future-domain leak unless explicitly negated or historical."
+    },
+    {
+      "id": "NR-094",
+      "rule": "GJ-02B is mandatory at M4 and reverse-linked to localization, bill, payment, tip, receipt, print and testing requirements."
+    },
+    {
+      "id": "NR-095",
+      "rule": "The cloud is never a writable emergency dine-in authority in Phase 1; only a physically or network-fenced standby outlet node may replace authority."
+    },
+    {
+      "id": "NR-096",
+      "rule": "Same-QR acceptance uses a 30-second DNS TTL and maximum 60-second cloud-to-LAN transition, with captive-portal and staff guidance for unsupported encrypted DNS."
+    }
+  ]
+}

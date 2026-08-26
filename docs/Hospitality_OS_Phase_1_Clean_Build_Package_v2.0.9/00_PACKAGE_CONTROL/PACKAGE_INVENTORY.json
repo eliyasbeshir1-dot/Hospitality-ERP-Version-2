@@ -1,0 +1,456 @@
+{
+  "package_version": "2.0.9",
+  "file_count": 90,
+  "files": [
+    {
+      "path": ".v209-generator-owned.json",
+      "size_bytes": 101,
+      "sha256": "8b5e8703c0ed95cb877eb44cbe11fcc0c647ae0a266330b2dec843fee107b719"
+    },
+    {
+      "path": "00_PACKAGE_CONTROL/GENERATION_MANIFEST.json",
+      "size_bytes": 6917,
+      "sha256": "e988f36f720d217b2fa8c45fd9740db8afb19376d17f230e8faf842331ebc860"
+    },
+    {
+      "path": "00_PACKAGE_CONTROL/LINEAGE_MANIFEST.json",
+      "size_bytes": 1013,
+      "sha256": "8e391eb8e2ff2d4bff4dd3abe354ea611b7a9c13fece589adcf524ff69bced57"
+    },
+    {
+      "path": "00_PACKAGE_CONTROL/OUTER_ARTIFACT_PIN_POLICY.md",
+      "size_bytes": 302,
+      "sha256": "197dd26100eb3903dabcb638310e56d5be7bddb30895a23a1fd6b2be83fe9f4b"
+    },
+    {
+      "path": "00_PACKAGE_CONTROL/PACKAGE_M0_STATUS.md",
+      "size_bytes": 250,
+      "sha256": "a30b0a3c6113f332674ef6f35378e634de49b70bffe75f66cbc299f1543891fb"
+    },
+    {
+      "path": "00_PACKAGE_CONTROL/PACKAGE_MANIFEST.json",
+      "size_bytes": 2104,
+      "sha256": "474a714f80f0044f4211ac02f8d83bd2ce332318192e478874ef1fed8352d787"
+    },
+    {
+      "path": "00_PACKAGE_CONTROL/README.md",
+      "size_bytes": 531,
+      "sha256": "80192a8f95aa069dcdd076749521feea50364d0dcad27361d54df1a64fa71396"
+    },
+    {
+      "path": "01_CANONICAL_SOURCE/Hospitality_OS_Canonical_Baseline_Freeze_v0.1.zip",
+      "size_bytes": 206497,
+      "sha256": "e65fa9af0603c13a76c08961dbac44ee5da34192b3e0433c42590c7599830ba7"
+    },
+    {
+      "path": "01_CANONICAL_SOURCE/Hospitality_OS_Canonical_Baseline_Freeze_v0.1.zip.sha256",
+      "size_bytes": 117,
+      "sha256": "5218b8d55bd1fd60a7fb79ec71b27d72c59fb60b8b23d8909a087c0cbba6286c"
+    },
+    {
+      "path": "01_CANONICAL_SOURCE/Hospitality_OS_Reconciled_Canonical_Register_v0.1.4.zip",
+      "size_bytes": 474863,
+      "sha256": "804dc9e81aaa29826f77961681287d5bd1eaa2ac6ef5ddc3ae598db4e5e0fd32"
+    },
+    {
+      "path": "01_CANONICAL_SOURCE/Hospitality_OS_Reconciled_Canonical_Register_v0.1.4.zip.sha256",
+      "size_bytes": 123,
+      "sha256": "7b8307e03fab44cdb37b569cd6ce264ae13f073e55b20da7248dae42ee12dba8"
+    },
+    {
+      "path": "01_CANONICAL_SOURCE/Hospitality_OS_Validator_Freeze_v1.0.5.zip",
+      "size_bytes": 36421,
+      "sha256": "628ae551120497280a82fdfcf8fd8bd2a69e4c893b400cd94d1914529788cce9"
+    },
+    {
+      "path": "01_CANONICAL_SOURCE/Hospitality_OS_Validator_Freeze_v1.0.5.zip.sha256",
+      "size_bytes": 110,
+      "sha256": "b32372862d82278da4665bfbf692fcd57c0ca04476448060f31e9376f18ce9da"
+    },
+    {
+      "path": "02_MACHINE_READABLE/amendment_register.json",
+      "size_bytes": 20004,
+      "sha256": "6493a3b3fcbb9b5c66c4089628c63782bb376298a25c509740bc43438d84236b"
+    },
+    {
+      "path": "02_MACHINE_READABLE/canonical_registry.json",
+      "size_bytes": 4366,
+      "sha256": "f80cd82a5ec1b9fbae71eb695e9fce3926b62c4e027f035430a88dc115058a67"
+    },
+    {
+      "path": "02_MACHINE_READABLE/decisions.json",
+      "size_bytes": 43769,
+      "sha256": "ad5119f80c4f32f1a24ffa4cc165ccf0927b860a1972e3ed3815223d5d73fee9"
+    },
+    {
+      "path": "02_MACHINE_READABLE/dependency_graph.json",
+      "size_bytes": 198221,
+      "sha256": "794e35468cc2fa1ec36e3eed7d3dd2cd62e6e653b92cdc5dd8ff1fa23fe36952"
+    },
+    {
+      "path": "02_MACHINE_READABLE/events.json",
+      "size_bytes": 16208,
+      "sha256": "9b24ed984491f04685ed03a31acf375d30c73f70aa9a8cf6c812a03a54423287"
+    },
+    {
+      "path": "02_MACHINE_READABLE/finding_register.json",
+      "size_bytes": 14775,
+      "sha256": "9401a1effa99690cb250a2f31e59f5cad8a4c1799ab75fe57eade097214e015c"
+    },
+    {
+      "path": "02_MACHINE_READABLE/forbidden_occurrence_registry.json",
+      "size_bytes": 1188137,
+      "sha256": "f7939abdde2838128dc8b648a5c3925634024aa6a34f42c7981840c5d559ee79"
+    },
+    {
+      "path": "02_MACHINE_READABLE/forbidden_surface_rules.json",
+      "size_bytes": 10582,
+      "sha256": "10b2bb917e6e62bed5b26188263dbf132fce1477fa3d8254c72fbd32eb8b8d39"
+    },
+    {
+      "path": "02_MACHINE_READABLE/governed_fields.json",
+      "size_bytes": 3598,
+      "sha256": "7e524c6190dad135b197eecfff59954fd19c3bf8bcad2b47fa8bfb227f6528a2"
+    },
+    {
+      "path": "02_MACHINE_READABLE/implementation_manifest.json",
+      "size_bytes": 13262,
+      "sha256": "6a89774501fb01dd80adea05fbeef373b279a9cc8deda04d0379d4b496b2f7aa"
+    },
+    {
+      "path": "02_MACHINE_READABLE/journeys.json",
+      "size_bytes": 12819,
+      "sha256": "c7fe10249a366cb66742bdca2cd3ae6af87db0b8a0542ee02094d90b8fa99830"
+    },
+    {
+      "path": "02_MACHINE_READABLE/m5_ownership.json",
+      "size_bytes": 4074,
+      "sha256": "4f21a4f8acd962375a30029b0d4db2ca99f6daf6ddb9686a0bc201280cccfe4c"
+    },
+    {
+      "path": "02_MACHINE_READABLE/negative_controls.json",
+      "size_bytes": 14934,
+      "sha256": "926d6722fdea2c2fe536e49156d63e68c5849f238f92594fae16876dbb93d379"
+    },
+    {
+      "path": "02_MACHINE_READABLE/non_regression_rules.json",
+      "size_bytes": 13971,
+      "sha256": "83ddd28bdc864cf27bd3dfc763019ade0dd410662ff402ecfe88e20736365daf"
+    },
+    {
+      "path": "02_MACHINE_READABLE/original_decision_dispositions.json",
+      "size_bytes": 60956,
+      "sha256": "277a649d53f7d3d376352ed0d1fbb61c83ccebf22fac015feb3a71d80a23e65d"
+    },
+    {
+      "path": "02_MACHINE_READABLE/original_requirement_dispositions.json",
+      "size_bytes": 304981,
+      "sha256": "5fae8e0de66e3d8e9b933625fd118e8319b12c1f627ba1d9ee8be2898c78c91f"
+    },
+    {
+      "path": "02_MACHINE_READABLE/original_requirement_lineage.json",
+      "size_bytes": 257324,
+      "sha256": "041b27f1222fa3de0914620227c080fbab7692c2d0a6f141c855d449266b7da8"
+    },
+    {
+      "path": "02_MACHINE_READABLE/phase_boundaries.json",
+      "size_bytes": 4127,
+      "sha256": "3784a3d918eb65b14dbd4f27e150b6dd14ca5b1e6881eee261a97b8b4bfd1bc0"
+    },
+    {
+      "path": "02_MACHINE_READABLE/reconciliation_decision_log.json",
+      "size_bytes": 222383,
+      "sha256": "9dd094094ddea1001c9a217261e8523a9d1800bbc50fc53f02d8aa6c58eefdb3"
+    },
+    {
+      "path": "02_MACHINE_READABLE/reconciliation_rules.json",
+      "size_bytes": 1975,
+      "sha256": "2caf61d5824f10c1b0fc9044c04d71f03600f817d3de23b5ce1562cd8aa5f541"
+    },
+    {
+      "path": "02_MACHINE_READABLE/requirements.json",
+      "size_bytes": 1217963,
+      "sha256": "a2ee080f510d835b768b0a95bf89bd19401aa363aad0ccaa20240a558c1ec37a"
+    },
+    {
+      "path": "02_MACHINE_READABLE/residual_issues.json",
+      "size_bytes": 1290,
+      "sha256": "c259e04c87dfb8c7f32778767e9c8905ca61d6767292e89ff595481a87335b30"
+    },
+    {
+      "path": "02_MACHINE_READABLE/review_questions.json",
+      "size_bytes": 2244,
+      "sha256": "beda2f4225a5163142b281db009b23707f57470e596d0ea3f4f083589be1685e"
+    },
+    {
+      "path": "02_MACHINE_READABLE/state_machines.json",
+      "size_bytes": 20516,
+      "sha256": "ad89b70f3c25d1b919d0cc0a27b7eab4d81ab921762ad51484bb6e74d11498f6"
+    },
+    {
+      "path": "02_MACHINE_READABLE/validator_semantic_contract.json",
+      "size_bytes": 2470,
+      "sha256": "fbffea25b26aed28598d72d99d10ba97ec346594696c9cc3487029c699248749"
+    },
+    {
+      "path": "03_HUMAN_READABLE/01_SOURCE_OF_TRUTH.md",
+      "size_bytes": 3148,
+      "sha256": "75ed1af79beaf658731c6017d191841e09f6023dbfb0990ec95ed70fe714dfad"
+    },
+    {
+      "path": "03_HUMAN_READABLE/02_PRODUCT_DEFINITION.md",
+      "size_bytes": 2209,
+      "sha256": "b495a4facc3a507fd873e015d7234d0d146ed81538aa541b12ebf3dca7cc88d0"
+    },
+    {
+      "path": "03_HUMAN_READABLE/03_IMPLEMENTATION_SEQUENCE.md",
+      "size_bytes": 3309,
+      "sha256": "1778bc8caf74ff0e4a6f310c519ac016b2e6323e8a35adc9300f6dfee12aab89"
+    },
+    {
+      "path": "03_HUMAN_READABLE/04_ARCHITECTURE_AND_SECURITY.md",
+      "size_bytes": 2644,
+      "sha256": "01cfd31dd65bb0fff14e9731ffd2c0a76a2fc9300bf0d53759b3fe695d7c8ce9"
+    },
+    {
+      "path": "03_HUMAN_READABLE/05_FUNCTIONAL_REQUIREMENTS.md",
+      "size_bytes": 229083,
+      "sha256": "02d7bd7edbb2ed31b4c13b45a6b88df23842097261abf061c7c9e5cddc7a3623"
+    },
+    {
+      "path": "03_HUMAN_READABLE/06_DECISION_CATALOG.md",
+      "size_bytes": 28218,
+      "sha256": "0478edc86f16ce86a9bd477d4f0b9726cfafe523b8412e50822d5eb1e062d6f7"
+    },
+    {
+      "path": "03_HUMAN_READABLE/07_GOLDEN_JOURNEYS.md",
+      "size_bytes": 11887,
+      "sha256": "9989cf5a59fa253c29a2d0a9e2744d1106a9c6268d5375f4f961a6d3c9c002d5"
+    },
+    {
+      "path": "03_HUMAN_READABLE/08_STATE_MACHINES.md",
+      "size_bytes": 16541,
+      "sha256": "108c1196e68855586d5ecc9aa105c2bd096ef9c7815f4d06cb4b7b3f7ea93daa"
+    },
+    {
+      "path": "03_HUMAN_READABLE/09_PHASE_BOUNDARIES_AND_M5_OWNERSHIP.md",
+      "size_bytes": 2382,
+      "sha256": "c11fc4028c4d11abc31245cd18a1cebdabdf23b578882ab3e9ec7ecfcac28a96"
+    },
+    {
+      "path": "03_HUMAN_READABLE/10_TEST_AND_VALIDATION_STRATEGY.md",
+      "size_bytes": 10524,
+      "sha256": "81f77f9a1d434249a202419423a50d6a94f23b9e66eb329c04482edb00e93318"
+    },
+    {
+      "path": "03_HUMAN_READABLE/11_BUILD_CONTROL_PLAN.md",
+      "size_bytes": 2438,
+      "sha256": "ea1d765e03a33ac019aeab32a945d55207c735bf51f5fb35b249a9581d224e76"
+    },
+    {
+      "path": "03_HUMAN_READABLE/12_HISTORICAL_DISPOSITION_SUMMARY.md",
+      "size_bytes": 8208,
+      "sha256": "0ecbcdd7b3657280113e1ebb9198c2477e8948cb80a33026177c3c2f2ff75b5d"
+    },
+    {
+      "path": "03_HUMAN_READABLE/13_AMENDMENTS_AND_FINDINGS.md",
+      "size_bytes": 26700,
+      "sha256": "c30617dababe2423d9e4855b0fa39d69d8c861b7f99c35af553cc137e2599ccc"
+    },
+    {
+      "path": "03_HUMAN_READABLE/14_KNOWN_VALIDATOR_LIMITS.md",
+      "size_bytes": 658,
+      "sha256": "03979646b0154ed1ae18b49add40364a9bff349cdd757ae26d50f6c85c496d01"
+    },
+    {
+      "path": "03_HUMAN_READABLE/15_NON_REGRESSION_RULES.md",
+      "size_bytes": 10565,
+      "sha256": "1c690815f1d3682f5c9cee9e48072de74852daebdf0d46e39078a16f702f0135"
+    },
+    {
+      "path": "03_HUMAN_READABLE/HOSPITALITY_OS_PHASE_1_MASTER_BLUEPRINT_v2.0.9.docx",
+      "size_bytes": 786278,
+      "sha256": "e6fb003e0498f33e09fd219ae4b2bf6e1b9da4943fe6c461edb2b7389f2f401c"
+    },
+    {
+      "path": "03_HUMAN_READABLE/HOSPITALITY_OS_PHASE_1_MASTER_BLUEPRINT_v2.0.9.md",
+      "size_bytes": 359008,
+      "sha256": "e3c750178e9cead9afe30721a1e58626157ce007fdca6451a5b33e44aa8a1e56"
+    },
+    {
+      "path": "03_HUMAN_READABLE/HOSPITALITY_OS_PHASE_1_MASTER_BLUEPRINT_v2.0.9.pdf",
+      "size_bytes": 475731,
+      "sha256": "b4c9318ba22e1b0c1b73e664e7e0a4e5edb2654609704b026e9d7d26bdd39847"
+    },
+    {
+      "path": "04_WORKBOOKS/Canonical_Occurrence_Registry_v2.0.9.xlsx",
+      "size_bytes": 1446858,
+      "sha256": "0aecbecd6b81dbc9bdf9c4364bd2928f4c36254a5be456630542409187d860b0"
+    },
+    {
+      "path": "04_WORKBOOKS/Decision_Lineage_and_Evidence_Register_v2.0.9.xlsx",
+      "size_bytes": 472083,
+      "sha256": "1f3265626c8e05e628f0473ec8cda483fc207cb29507631f30473691187ac9a9"
+    },
+    {
+      "path": "04_WORKBOOKS/Reconciled_Canonical_Register_v0.1.4.xlsx",
+      "size_bytes": 237065,
+      "sha256": "8ae544ed7ed1b2d35977c235781b936b306ac20f291ffbdc0109a83859c0a0a2"
+    },
+    {
+      "path": "04_WORKBOOKS/Requirements_Traceability_Matrix_v2.0.9.xlsx",
+      "size_bytes": 1406157,
+      "sha256": "79d0d8db1cf5b29e4096a4b9dc770d462fda0b27305330d541f553e151050479"
+    },
+    {
+      "path": "04_WORKBOOKS/Validator_Coverage_and_Mutation_Report_v1.0.5.xlsx",
+      "size_bytes": 7592,
+      "sha256": "f475584faf52c517d32d0e59a81c4387fa66ad881c8a83cd674f161052745c83"
+    },
+    {
+      "path": "05_REVIEW_AND_BUILD/BLIND_MUTATION_ROUND1_RESULTS.json",
+      "size_bytes": 16793,
+      "sha256": "c4b314ab325452530b3ac77912832aae4ca0811a95779a61336d049a6b57a0e6"
+    },
+    {
+      "path": "05_REVIEW_AND_BUILD/BLIND_MUTATION_ROUND2_RESULTS.json",
+      "size_bytes": 18718,
+      "sha256": "33ae4bb151372748df8a50b950df525bfd7430aae1a35f6f9b7cc45f6859367f"
+    },
+    {
+      "path": "05_REVIEW_AND_BUILD/BUILD_CONTROL_REQUIREMENT_OWNERSHIP.md",
+      "size_bytes": 37067,
+      "sha256": "1c71553f2c6491ae001339040ecb49358172646ee9bcf08d500270880270e5dc"
+    },
+    {
+      "path": "05_REVIEW_AND_BUILD/BUILD_IMPLEMENTATION_BRIEF.md",
+      "size_bytes": 1557,
+      "sha256": "06c3d1a36f832d09ef30ccfd622246b93b4a88a3e2a79496cafe34ec6ce04a80"
+    },
+    {
+      "path": "05_REVIEW_AND_BUILD/CODEX_PACKAGE_M0_REVIEW_BRIEF.md",
+      "size_bytes": 3174,
+      "sha256": "2e211eb1c64c76d2cbf2091b1206e8ad7387be3befedebc74f8494d3f0579ad9"
+    },
+    {
+      "path": "05_REVIEW_AND_BUILD/KNOWN_VALIDATOR_LIMITS.md",
+      "size_bytes": 386,
+      "sha256": "aa61859ea571ae0134197e60acc295c4b398df11ba935c0ae3f7a8c65b7f4cab"
+    },
+    {
+      "path": "05_REVIEW_AND_BUILD/M0R_REPOSITORY_CONFORMANCE_PLAN.md",
+      "size_bytes": 717,
+      "sha256": "2850a201c9efcc941889a92f60035b3faccc2b24fc98cd322d769c4bd40c59ec"
+    },
+    {
+      "path": "05_REVIEW_AND_BUILD/MILESTONE_ACCEPTANCE_MATRIX.md",
+      "size_bytes": 984,
+      "sha256": "b707b87bf633fa7829e4eec3dec9be79c613a0c14d61fc8cd714e620da89496e"
+    },
+    {
+      "path": "05_REVIEW_AND_BUILD/ROUND2_POST_REPAIR_DIAGNOSTIC.json",
+      "size_bytes": 4454,
+      "sha256": "91172e75f1587e8abe6ed211f43f78a227d6402e45184f5b9f94c4a6d12e201a"
+    },
+    {
+      "path": "05_REVIEW_AND_BUILD/VALIDATOR_FREEZE_REPORT.md",
+      "size_bytes": 398,
+      "sha256": "e6acde12913af4ab21f41519b17c74265281ffa607f8addf8ae1c6f805bcb736"
+    },
+    {
+      "path": "06_TOOLS/frozen_validator/forbidden_occurrence_validator.py",
+      "size_bytes": 8672,
+      "sha256": "ee65b8ec3292db19798f785e23a2d54969eadd91f00e98888520d16051c9f7b0"
+    },
+    {
+      "path": "06_TOOLS/frozen_validator/forbidden_surface_rules.json",
+      "size_bytes": 10582,
+      "sha256": "10b2bb917e6e62bed5b26188263dbf132fce1477fa3d8254c72fbd32eb8b8d39"
+    },
+    {
+      "path": "06_TOOLS/frozen_validator/occurrence_mechanism.py",
+      "size_bytes": 7684,
+      "sha256": "7bb11538491b844cbe8149efd1c9adf20e99756605d41712335b5f842b11456d"
+    },
+    {
+      "path": "06_TOOLS/frozen_validator/semantic_contract.json",
+      "size_bytes": 2441,
+      "sha256": "6efe88fb5a8ea91d1fc8a5a7d6c2a833973d6e1982cdc0eeb5dd0b606b3e2eb5"
+    },
+    {
+      "path": "06_TOOLS/frozen_validator/validate_hospitality_os.py",
+      "size_bytes": 11587,
+      "sha256": "23a6bdcad2d2d7eab38237653a9b064457430f97d4b5386c21d4f20d10c70363"
+    },
+    {
+      "path": "06_TOOLS/generator/generate_v209_package.py",
+      "size_bytes": 76660,
+      "sha256": "155299f61967d0544176f4db2588c76a050f0427a91d4fdae54e390bd7f9f164"
+    },
+    {
+      "path": "06_TOOLS/generator/projection_artifacts.py",
+      "size_bytes": 13497,
+      "sha256": "c137875198626f05073db5f33999284ac64a264f7e99746ce702b98c2d0d67d4"
+    },
+    {
+      "path": "06_TOOLS/generator/workbook_projection_model.py",
+      "size_bytes": 13359,
+      "sha256": "dd260efcb785f37eb49c7074aba8414b7e2c9b44fa308fdbdf14bc1f354771d7"
+    },
+    {
+      "path": "06_TOOLS/test_occurrence_mechanism.py",
+      "size_bytes": 11663,
+      "sha256": "31c5c47d9c2fea22a1f31835288ff43c37b1acb7904da4611796f7fac819c144"
+    },
+    {
+      "path": "06_TOOLS/validate_package_m0.py",
+      "size_bytes": 21522,
+      "sha256": "72b5b7d39ab651b390f79433e68d7da904e52fe7f55862cf178b2d5c2e0910b0"
+    },
+    {
+      "path": "06_TOOLS/workbook_projection_model.py",
+      "size_bytes": 13359,
+      "sha256": "dd260efcb785f37eb49c7074aba8414b7e2c9b44fa308fdbdf14bc1f354771d7"
+    },
+    {
+      "path": "07_SCHEMAS/forbidden_occurrence_registry.schema.json",
+      "size_bytes": 4200,
+      "sha256": "b501312988ce9db85151f7826c863f1de2edea379966d1bbe923b27161ac7d59"
+    },
+    {
+      "path": "07_SCHEMAS/original_requirement_lineage.schema.json",
+      "size_bytes": 1397,
+      "sha256": "e4ec32683c1fae9148b0306d46924472e1d0c029d88ddb031f0a3a72c926dd89"
+    },
+    {
+      "path": "07_SCHEMAS/package_manifest.schema.json",
+      "size_bytes": 311,
+      "sha256": "2bbff61b97963db97dba20faf0558ce24d4384415a29534181da203798c96433"
+    },
+    {
+      "path": "07_SCHEMAS/reconciled_canonical_register.schema.json",
+      "size_bytes": 9532,
+      "sha256": "16f126250f59f17387b3a25449cf1fb8cc3f3eee61b5110660416c60302b5e02"
+    },
+    {
+      "path": "07_SCHEMAS/requirements_projection.schema.json",
+      "size_bytes": 474,
+      "sha256": "fdaca555789ad11688184c8974d1ba0efe7510a652746950e62311d319c22911"
+    },
+    {
+      "path": "08_HISTORY/INPUTS/canonical_occurrence_registry.json",
+      "size_bytes": 1027992,
+      "sha256": "d4dae27e4a97bfd710b50412f488a994232c6573441f3a3778d346fdbbf9dcb2"
+    },
+    {
+      "path": "08_HISTORY/RECONCILIATION_REPORT_v0.1.4.md",
+      "size_bytes": 1047,
+      "sha256": "f73264bea19acf75c5a1e5fde04029691d14d59a7b67a0caa1a4b8c60292f8b6"
+    },
+    {
+      "path": "CANONICAL_CONTENT_ROOT.json",
+      "size_bytes": 4430,
+      "sha256": "a1aeb9f815c9472e8e642c045699967947e3e0483cd071086103a8999566ed5f"
+    }
+  ]
+}

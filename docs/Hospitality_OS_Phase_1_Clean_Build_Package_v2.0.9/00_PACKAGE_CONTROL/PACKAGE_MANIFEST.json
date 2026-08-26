@@ -1,0 +1,49 @@
+{
+  "package_name": "Hospitality_OS_Phase_1_Clean_Build_Package_v2.0.9",
+  "package_version": "2.0.9",
+  "canonical_source": {
+    "filename": "Hospitality_OS_Reconciled_Canonical_Register_v0.1.4.zip",
+    "sha256": "804dc9e81aaa29826f77961681287d5bd1eaa2ac6ef5ddc3ae598db4e5e0fd32"
+  },
+  "validator": {
+    "filename": "forbidden_occurrence_validator.py",
+    "sha256": "ee65b8ec3292db19798f785e23a2d54969eadd91f00e98888520d16051c9f7b0"
+  },
+  "package_validator": {
+    "path": "06_TOOLS/validate_package_m0.py",
+    "sha256": "72b5b7d39ab651b390f79433e68d7da904e52fe7f55862cf178b2d5c2e0910b0"
+  },
+  "p208_validator_profile": {
+    "package_version": "2.0.9",
+    "validator_path": "06_TOOLS/validate_package_m0.py",
+    "validator_sha256": "72b5b7d39ab651b390f79433e68d7da904e52fe7f55862cf178b2d5c2e0910b0"
+  },
+  "workbook_projection_model": {
+    "path": "06_TOOLS/workbook_projection_model.py",
+    "sha256": "dd260efcb785f37eb49c7074aba8414b7e2c9b44fa308fdbdf14bc1f354771d7"
+  },
+  "counts": {
+    "active_requirements": 336,
+    "decisions": 120,
+    "journey_slices": 16,
+    "state_machines": 12,
+    "events": 80,
+    "negative_controls": 44,
+    "non_regression_rules": 96,
+    "review_questions": 14,
+    "original_requirement_dispositions": 500,
+    "original_decision_dispositions": 100,
+    "amendments": 20,
+    "findings": 22
+  },
+  "primary_files": {
+    "master_markdown": "03_HUMAN_READABLE/HOSPITALITY_OS_PHASE_1_MASTER_BLUEPRINT_v2.0.9.md",
+    "master_docx": "03_HUMAN_READABLE/HOSPITALITY_OS_PHASE_1_MASTER_BLUEPRINT_v2.0.9.docx",
+    "master_pdf": "03_HUMAN_READABLE/HOSPITALITY_OS_PHASE_1_MASTER_BLUEPRINT_v2.0.9.pdf",
+    "requirements_workbook": "04_WORKBOOKS/Requirements_Traceability_Matrix_v2.0.9.xlsx",
+    "decision_workbook": "04_WORKBOOKS/Decision_Lineage_and_Evidence_Register_v2.0.9.xlsx",
+    "occurrence_workbook": "04_WORKBOOKS/Canonical_Occurrence_Registry_v2.0.9.xlsx"
+  },
+  "synthetic_test_mode": false,
+  "canonical_content_root_sha256": "32a5bd80ef18f576ae1e61372236615227d880bcfe30da81bf46c1fa7fd9521b"
+}

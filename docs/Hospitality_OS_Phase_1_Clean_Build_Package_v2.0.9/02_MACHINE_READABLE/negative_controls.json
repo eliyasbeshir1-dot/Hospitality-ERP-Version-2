@@ -1,0 +1,359 @@
+{
+  "version": "2.0.9",
+  "status": "frozen_at_package_m0",
+  "controls": [
+    {
+      "id": "NC-M0-001",
+      "milestone": "M0",
+      "property": "Package pinning",
+      "deliberate_break": "Change one controlled file after checksum generation",
+      "expected_test": "package_checksum_gate",
+      "expected_failure_signature": "CHECKSUM_MISMATCH"
+    },
+    {
+      "id": "NC-M0-002",
+      "milestone": "M0",
+      "property": "Requirement recount",
+      "deliberate_break": "Remove or duplicate one requirement row",
+      "expected_test": "register_count_gate",
+      "expected_failure_signature": "REQUIREMENT_COUNT_OR_DUPLICATE"
+    },
+    {
+      "id": "NC-M0-003",
+      "milestone": "M0",
+      "property": "Phase boundary",
+      "deliberate_break": "Plant one forbidden positive obligation for every excluded domain in the generated vocabulary (pickup, delivery, loyalty, CRM, purchasing/procurement, inventory/storage location, accounting/general ledger, HR/payroll, operational recipes, costing/variance, intelligence/forecasting, supplier runtime and portability product) into a Phase 1 fixture",
+      "expected_test": "phase_surface_gate",
+      "expected_failure_signature": "FORBIDDEN_PHASE1_SURFACE_PER_DOMAIN"
+    },
+    {
+      "id": "NC-M0-005",
+      "milestone": "M0",
+      "property": "Forbidden-surface vocabulary completeness",
+      "deliberate_break": "Remove one excluded domain from the generated forbidden-surface vocabulary while leaving it excluded in phase_boundaries",
+      "expected_test": "forbidden_vocabulary_generation_gate",
+      "expected_failure_signature": "EXCLUSION_SET_NOT_COVERED"
+    },
+    {
+      "id": "NC-M1-001",
+      "milestone": "M1",
+      "property": "Fail-closed tenant context",
+      "deliberate_break": "Run production role with tenant/outlet context unset",
+      "expected_test": "rls_absent_context_gate",
+      "expected_failure_signature": "VISIBLE_OR_WRITABLE_ROWS_WITHOUT_CONTEXT"
+    },
+    {
+      "id": "NC-M1-002",
+      "milestone": "M1",
+      "property": "Sibling-outlet isolation",
+      "deliberate_break": "Soften one outlet policy to tenant-only",
+      "expected_test": "rls_sibling_outlet_gate",
+      "expected_failure_signature": "SIBLING_OUTLET_ACCESS"
+    },
+    {
+      "id": "NC-M1-003",
+      "milestone": "M1",
+      "property": "Future schema protection",
+      "deliberate_break": "Add outlet_id to an existing tenant table without policy upgrade",
+      "expected_test": "rls_alter_added_outlet_gate",
+      "expected_failure_signature": "OUTLET_POLICY_NOT_UPGRADED"
+    },
+    {
+      "id": "NC-M1-004",
+      "milestone": "M1",
+      "property": "Runtime least privilege",
+      "deliberate_break": "Configure API/worker with owner or BYPASSRLS role",
+      "expected_test": "runtime_role_gate",
+      "expected_failure_signature": "PRIVILEGED_RUNTIME_ROLE_REJECTED"
+    },
+    {
+      "id": "NC-M2-001",
+      "milestone": "M2",
+      "property": "Opaque QR",
+      "deliberate_break": "Replace opaque token with enumerable table number",
+      "expected_test": "qr_enumeration_gate",
+      "expected_failure_signature": "ENUMERABLE_QR_REFERENCE"
+    },
+    {
+      "id": "NC-M2-002",
+      "milestone": "M2",
+      "property": "Session scope",
+      "deliberate_break": "Forge participant token for another outlet/table",
+      "expected_test": "session_scope_gate",
+      "expected_failure_signature": "FOREIGN_SESSION_ACCEPTED"
+    },
+    {
+      "id": "NC-M2-003",
+      "milestone": "M2",
+      "property": "Safety translation publication",
+      "deliberate_break": "Remove required Arabic allergen translation",
+      "expected_test": "translation_publish_gate",
+      "expected_failure_signature": "REQUIRED_SAFETY_TRANSLATION_MISSING"
+    },
+    {
+      "id": "NC-M2-004",
+      "milestone": "M2",
+      "property": "Arabic RTL depth",
+      "deliberate_break": "Disable dir=rtl/logical CSS or inject mixed Latin SKU string",
+      "expected_test": "arabic_rtl_gate",
+      "expected_failure_signature": "RTL_LAYOUT_OR_READING_ORDER_FAILURE"
+    },
+    {
+      "id": "NC-M3-001",
+      "milestone": "M3",
+      "property": "Order idempotency",
+      "deliberate_break": "Repeat submit with same idempotency key",
+      "expected_test": "order_idempotency_gate",
+      "expected_failure_signature": "DUPLICATE_ORDER_EFFECT"
+    },
+    {
+      "id": "NC-M3-002",
+      "milestone": "M3",
+      "property": "Price snapshot",
+      "deliberate_break": "Change menu price between display and submit without revalidation",
+      "expected_test": "price_revalidation_gate",
+      "expected_failure_signature": "STALE_PRICE_ACCEPTED"
+    },
+    {
+      "id": "NC-M3-003",
+      "milestone": "M3",
+      "property": "Allergy propagation",
+      "deliberate_break": "Drop allergy flag before KDS ticket",
+      "expected_test": "allergy_handoff_gate",
+      "expected_failure_signature": "ALLERGY_FLAG_LOST"
+    },
+    {
+      "id": "NC-M3-004",
+      "milestone": "M3",
+      "property": "State enforcement",
+      "deliberate_break": "Jump accepted order directly to served",
+      "expected_test": "order_state_gate",
+      "expected_failure_signature": "ILLEGAL_TRANSITION_ACCEPTED"
+    },
+    {
+      "id": "NC-M4-001",
+      "milestone": "M4",
+      "property": "No tip default",
+      "deliberate_break": "Preselect a suggested tip",
+      "expected_test": "tip_default_gate",
+      "expected_failure_signature": "TIP_PRESELECTED"
+    },
+    {
+      "id": "NC-M4-002",
+      "milestone": "M4",
+      "property": "Bill/tip separation",
+      "deliberate_break": "Add tip to taxable bill balance",
+      "expected_test": "bill_tip_separation_gate",
+      "expected_failure_signature": "TIP_COMMINGLED_WITH_BILL"
+    },
+    {
+      "id": "NC-M4-003",
+      "milestone": "M4",
+      "property": "Payment truth and live/simulated boundary",
+      "deliberate_break": "Mark unverified Telebirr/CBE Birr proof paid or label a direct-provider simulator as live",
+      "expected_test": "payment_truth_gate",
+      "expected_failure_signature": "UNVERIFIED_OR_SIMULATED_PAYMENT_CLAIM"
+    },
+    {
+      "id": "NC-M4-004",
+      "milestone": "M4",
+      "property": "Maker-checker",
+      "deliberate_break": "Allow cashier to approve own refund/tip reversal",
+      "expected_test": "refund_sod_gate",
+      "expected_failure_signature": "SELF_APPROVAL_ACCEPTED"
+    },
+    {
+      "id": "NC-M4-005",
+      "milestone": "M4",
+      "property": "Amharic settlement and receipt coverage",
+      "deliberate_break": "Remove the packaged Ethiopic font from the receipt print path or fall back to a substitute glyph set",
+      "expected_test": "amharic_receipt_render_gate",
+      "expected_failure_signature": "ETHIOPIC_FONT_FALLBACK_ON_RECEIPT"
+    },
+    {
+      "id": "NC-M4-006",
+      "milestone": "M4",
+      "property": "Reopened cash shift closure",
+      "deliberate_break": "Leave a reopened cash shift with no recount, approval or maker-checker correction path and attempt to report it as closed",
+      "expected_test": "cash_shift_reopen_closure_gate",
+      "expected_failure_signature": "REOPENED_SHIFT_NOT_RESOLVED"
+    },
+    {
+      "id": "NC-M5A-001",
+      "milestone": "M5a",
+      "property": "Sync dependency order",
+      "deliberate_break": "Upload child before unacknowledged parent",
+      "expected_test": "sync_dependency_gate",
+      "expected_failure_signature": "CHILD_APPLIED_BEFORE_PARENT"
+    },
+    {
+      "id": "NC-M5A-002",
+      "milestone": "M5a",
+      "property": "Sync idempotency",
+      "deliberate_break": "Replay order/payment/tip event",
+      "expected_test": "sync_replay_gate",
+      "expected_failure_signature": "DUPLICATE_COMMERCIAL_EFFECT"
+    },
+    {
+      "id": "NC-M5A-003",
+      "milestone": "M5a",
+      "property": "Print idempotency",
+      "deliberate_break": "Retry acknowledged print job",
+      "expected_test": "print_retry_gate",
+      "expected_failure_signature": "DUPLICATE_UNMARKED_PRINT"
+    },
+    {
+      "id": "NC-M5A-004",
+      "milestone": "M5a",
+      "property": "Durability",
+      "deliberate_break": "Restart browser/node with accepted local order queued",
+      "expected_test": "local_restart_gate",
+      "expected_failure_signature": "LOCAL_RECORD_LOST"
+    },
+    {
+      "id": "NC-M5B-001",
+      "milestone": "M5b",
+      "property": "Public-trust TLS",
+      "deliberate_break": "Use self-signed, wrong-host or expired certificate",
+      "expected_test": "tls_trust_gate",
+      "expected_failure_signature": "TLS_NOT_PUBLICLY_TRUSTED"
+    },
+    {
+      "id": "NC-M5B-002",
+      "milestone": "M5b",
+      "property": "Bidirectional cloud forwarding lease",
+      "deliberate_break": "Permit cloud write after 20-second lease expiry or accept a one-way reachability proof",
+      "expected_test": "cloud_lease_gate",
+      "expected_failure_signature": "CLOUD_WRITE_AFTER_LEASE_EXPIRY_OR_ONE_WAY_PROOF"
+    },
+    {
+      "id": "NC-M5B-003",
+      "milestone": "M5b",
+      "property": "Asymmetric LAN authority",
+      "deliberate_break": "Stop LAN writes merely because the cloud forwarding lease expires",
+      "expected_test": "asymmetric_authority_gate",
+      "expected_failure_signature": "LAN_AUTHORITY_REVOKED_BY_CLOUD_OUTAGE"
+    },
+    {
+      "id": "NC-M5B-004",
+      "milestone": "M5b",
+      "property": "Emergency replacement fencing and monotonic sequence",
+      "deliberate_break": "Activate replacement without recorded power/network fence and LAN-unreachability proof, or allow a direct LAN write to the old node after replacement",
+      "expected_test": "authority_fence_and_old_node_write_gate",
+      "expected_failure_signature": "OLD_NODE_STILL_WRITABLE_OR_REPLACEMENT_UNFENCED"
+    },
+    {
+      "id": "NC-M5B-005",
+      "milestone": "M5b",
+      "property": "Cloud-to-node reachability direction",
+      "deliberate_break": "Allow node-to-cloud heartbeat traffic but block cloud challenge delivery while treating the lease as valid",
+      "expected_test": "reachability_cloud_to_node_gate",
+      "expected_failure_signature": "ONE_WAY_CLOUD_TO_NODE_ACCEPTED"
+    },
+    {
+      "id": "NC-M5B-006",
+      "milestone": "M5b",
+      "property": "Node-to-cloud reachability direction",
+      "deliberate_break": "Allow cloud challenge delivery but block node acknowledgement while treating the lease as valid",
+      "expected_test": "reachability_node_to_cloud_gate",
+      "expected_failure_signature": "ONE_WAY_NODE_TO_CLOUD_ACCEPTED"
+    },
+    {
+      "id": "NC-M5B-007",
+      "milestone": "M5b",
+      "property": "Certificate lifecycle",
+      "deliberate_break": "Allow the per-outlet certificate to pass its renewal threshold without renewal, escalation or installation evidence",
+      "expected_test": "certificate_lifecycle_gate",
+      "expected_failure_signature": "CERTIFICATE_RENEWAL_NOT_ENFORCED"
+    },
+    {
+      "id": "NC-M5B-008",
+      "milestone": "M5b",
+      "property": "Same-QR resolution under real client conditions",
+      "deliberate_break": "Join outlet Wi-Fi holding a cached public DNS answer, and separately enable encrypted DNS (Private DNS/DoH) that bypasses outlet split DNS",
+      "expected_test": "same_qr_client_resolution_gate",
+      "expected_failure_signature": "SAME_QR_RESOLUTION_UNSAFE_OR_UNGUIDED"
+    },
+    {
+      "id": "NC-M5B-009",
+      "milestone": "M5b",
+      "property": "Replacement activation gate",
+      "deliberate_break": "Attempt to make a standby node writable directly from standby without passing authority_activating readiness and sequence confirmation",
+      "expected_test": "replacement_activation_gate",
+      "expected_failure_signature": "REPLACEMENT_WRITABLE_WITHOUT_ACTIVATION"
+    },
+    {
+      "id": "NC-M6-001",
+      "milestone": "M6",
+      "property": "Zero-skip CI",
+      "deliberate_break": "Skip one discovered acceptance test",
+      "expected_test": "zero_skip_gate",
+      "expected_failure_signature": "SKIPPED_TEST_DETECTED"
+    },
+    {
+      "id": "NC-M6-002",
+      "milestone": "M6",
+      "property": "Clean build",
+      "deliberate_break": "Leave stale route artifact before build",
+      "expected_test": "clean_build_gate",
+      "expected_failure_signature": "STALE_ARTIFACT_DETECTED"
+    },
+    {
+      "id": "NC-M6-003",
+      "milestone": "M6",
+      "property": "Ordinary Windows",
+      "deliberate_break": "Require hidden PG_BIN/PATH injection",
+      "expected_test": "windows_ordinary_command_gate",
+      "expected_failure_signature": "HIDDEN_ENV_DEPENDENCY"
+    },
+    {
+      "id": "NC-M6-004",
+      "milestone": "M6",
+      "property": "Production image completeness",
+      "deliberate_break": "Remove an advertised runtime script or required PostgreSQL client from the production image",
+      "expected_test": "production_image_gate",
+      "expected_failure_signature": "REQUIRED_ARTIFACT_MISSING"
+    },
+    {
+      "id": "NC-M6-005",
+      "milestone": "M6",
+      "property": "Restore realism",
+      "deliberate_break": "Run restore smoke with owner instead of production role",
+      "expected_test": "restore_role_gate",
+      "expected_failure_signature": "NON_PRODUCTION_ROLE_USED"
+    },
+    {
+      "id": "NC-M0-011",
+      "milestone": "M0",
+      "property": "Accounting alias leakage",
+      "deliberate_break": "Plant a Phase 1 journal entry or ledger-posting obligation using singular/plural aliases.",
+      "expected_test": "forbidden_accounting_alias_gate",
+      "expected_failure_signature": "FORBIDDEN_ACCOUNTING_OBLIGATION"
+    },
+    {
+      "id": "NC-M0-012",
+      "milestone": "M0",
+      "property": "CRM campaign alias leakage",
+      "deliberate_break": "Plant a generic campaign correlation field without the phrase marketing campaign.",
+      "expected_test": "forbidden_campaign_alias_gate",
+      "expected_failure_signature": "FORBIDDEN_CRM_OBLIGATION"
+    },
+    {
+      "id": "NC-M0-013",
+      "milestone": "M0",
+      "property": "Workforce alias leakage",
+      "deliberate_break": "Plant roster, attendance, timekeeping or break-record persistence in service presence.",
+      "expected_test": "forbidden_workforce_alias_gate",
+      "expected_failure_signature": "FORBIDDEN_WORKFORCE_OBLIGATION"
+    },
+    {
+      "id": "NC-M0-014",
+      "milestone": "M0",
+      "property": "Canonical projection parity",
+      "deliberate_break": "Change a Source of Truth decision cell without changing the canonical decision record.",
+      "expected_test": "canonical_projection_parity_gate",
+      "expected_failure_signature": "CANONICAL_PROJECTION_MISMATCH"
+    }
+  ],
+  "count": 44
+}

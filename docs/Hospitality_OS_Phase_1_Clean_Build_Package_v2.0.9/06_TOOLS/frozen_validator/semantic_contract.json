@@ -1,0 +1,29 @@
+{
+  "validator_version": "1.0.5",
+  "target_package": "Hospitality_OS_Reconciled_Canonical_Register_v0.1.4",
+  "target_zip_sha256": "2a7ed219713c1be0e3b7156a689ec4e4884fa48627bb8523ae9247f38ebad375",
+  "target_content_root_sha256": "ff864e5e2ee101f89d5ba07d0033cd7179382e35a5b00627706f7390909a6a41",
+  "critical_contracts": [
+    "All 294 original requirements remain covered by 336 active requirements and 32 split lineages.",
+    "All 337 clause objects use the uniform exact_clause_text contract.",
+    "Top-level acceptance_test_ids and engineering_test_links equal the ordered clause test union.",
+    "Test IDs cover every introducing and revalidation gate and use active requirement IDs.",
+    "D-100 projection-authority amendment provenance is explicit.",
+    "D-102 reuse evidence names the exact pinned package rather than a stale version.",
+    "Lifecycle records show two blind rounds and the current v2.0.6 repair state.",
+    "M5a service requirement names exactly five services and excludes a backup agent.",
+    "The normative forbidden-surface vocabulary and term-sense exclusions are loaded directly by the validator.",
+    "Every forbidden domain and every permitted term sense is planted in the internal test suite.",
+    "Canonical JSON, clause register, decision register, lineage, split reasons, amendments and findings have workbook parity.",
+    "Forbidden-surface negation is sentence-local and token-bounded; unrelated substrings and cross-sentence negation cannot authorize a prohibited obligation.",
+    "Every term-sense allowlist ID and example ID exists in the active requirement set.",
+    "Forbidden-surface authorization is occurrence-linked: adversative clauses, double negation and exact sense phrases are enforced."
+  ],
+  "known_limits": [
+    "Post-repair replay of disclosed mutations is diagnostic rather than fresh independent evidence.",
+    "Automated semantic rules do not replace Codex human review of product and architecture meaning.",
+    "The two blind mutation rounds challenged earlier validator versions. v1.0.4 is a focused post-Codex repair verified by new internal planted tests and the next independent Codex Package M0 review; no third blind round was scheduled under the agreed cap.",
+    "Novel semantic wording may require human review even when occurrence-linked scanning passes."
+  ],
+  "two_round_cap": "No third blind round unless Codex identifies a P0 validator defect."
+}
