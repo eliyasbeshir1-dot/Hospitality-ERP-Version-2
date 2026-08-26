@@ -101,7 +101,7 @@ jobs:
           echo "docs package verified: 91/91 OK, 0 failures"
 
   database-verification:
-    name: Migrations, RLS, identity and configuration (M1-A + M1-B + M1-C)
+    name: Database, identity, configuration and API (M1-A through M1-D)
     runs-on: ubuntu-latest
 
     services:
@@ -131,6 +131,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
 
       - name: Install the PostgreSQL client
         shell: bash
@@ -180,6 +184,73 @@ jobs:
           test "${failed:-1}" -eq 0 || { echo "::error::${failed} M1-C check(s) failed"; exit 1; }
           echo "M1-C: $checks checks, 0 failures"
 
+      - name: Install Node and build the API outside the repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The build writes node_modules/ and dist/ into $M1D_WORKSPACE, never into the
+          # checkout: tools/verify_m1.py treats those directories as forbidden surface and
+          # inspects the filesystem, so a build inside the repository would fail the gate.
+          echo "M1D_WORKSPACE=$RUNNER_TEMP/m1d-workspace" >> "$GITHUB_ENV"
+
+      - name: M1-D — API surface, security controls, operations, evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/seed.py --dsn "postgresql://hospitality_migrator@$PGTCP_HOST:$PGPORT/$DB" \
+                  --content-dsn "postgresql://hospitality_app@$PGTCP_HOST:$PGPORT/$DB" apply
+          bash tests/m1d/run_verification.sh 2>&1 | tee m1d.log
+          grep -q '^PASS M1D_VERIFICATION' m1d.log || {
+            echo "::error::M1-D suite did not report PASS"; exit 1; }
+          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' m1d.log | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' m1d.log | tail -1)"
+          test "${checks:-0}" -ge 40 || { echo "::error::only ${checks:-0} M1-D checks ran"; exit 1; }
+          test "${failed:-1}" -eq 0 || { echo "::error::${failed} M1-D check(s) failed"; exit 1; }
+          echo "M1-D: $checks checks, 0 failures"
+
+      - name: Results must be identical regardless of command order (FR-TST-020)
+        shell: bash
+        run: |
+          set -euo pipefail
+          export M1A_ADMIN_DSN="postgresql://$SUPERUSER@$PGTCP_HOST:$PGPORT/$DB"
+          export M1A_APP_DSN="postgresql://hospitality_app@$PGTCP_HOST:$PGPORT/$DB"
+          export M1A_MIGRATOR_DSN="postgresql://hospitality_migrator@$PGTCP_HOST:$PGPORT/$DB"
+          export M1A_PRIVILEGED_DSN="postgresql://hospitality_bypassrls@$PGTCP_HOST:$PGPORT/$DB"
+          mkdir -p reorder
+          # Reverse order, same database, no rebuild. A suite that only passes when it runs
+          # first is depending on state another suite left behind.
+          for suite in m1d m1c m1b m1a; do
+            python3 "tests/$suite/verify_${suite}.py" > "reorder/$suite.log" 2>&1 || true
+          done
+          fail=0
+          for suite in m1a m1b m1c m1d; do
+            tag="$(echo "$suite" | tr '[:lower:]' '[:upper:]')"
+            declared="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$suite.log" | tail -1)"
+            reordered="$(grep -oP 'failed\s+:\s+\K[0-9]+' "reorder/$suite.log" | tail -1)"
+            verdict="$(grep -cE "^PASS ${tag}_VERIFICATION" "reorder/$suite.log" || true)"
+            if [ "${declared:-x}" != "${reordered:-y}" ] || [ "${verdict:-0}" -lt 1 ]; then
+              echo "::error::$suite differs under a reordered run (declared=$declared reordered=$reordered)"
+              fail=1
+            else
+              echo "$suite: identical under reordering ($declared failures either way)"
+            fi
+          done
+          test "$fail" -eq 0
+
+      - name: Regenerate and check the M1 evidence report (FR-TST-016)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence-logs
+          cp m1a.log m1b.log m1c.log m1d.log evidence-logs/
+          python3 tools/generate_evidence_report.py \
+            --dsn "postgresql://$SUPERUSER@$PGTCP_HOST:$PGPORT/$DB" \
+            --logs evidence-logs --out evidence/M1_EVIDENCE_REPORT.md
+          # The committed report must record what this run actually produced.
+          grep -q 'red, then green' evidence/M1_EVIDENCE_REPORT.md
+          test "$(grep -c 'not proven' evidence/M1_EVIDENCE_REPORT.md)" -eq 0 || {
+            echo "::error::the evidence report lists a control that was not proven"; exit 1; }
+
       - name: The committed schema catalog must match the live schema
         shell: bash
         run: |
@@ -197,9 +268,10 @@ jobs:
           # A control that never went red is a coverage gap wearing a green badge.
           for control in NC-M1-001 NC-M1-002 NC-M1-003 NC-M1-004 \
                          NC-M1B-001 NC-M1B-002 NC-M1B-003 NC-M1B-004 \
-                         NC-M1C-001 NC-M1C-002 NC-M1C-003 NC-M1C-004 NC-M1C-005; do
-            red="$(grep -c "\[PASS\] $control — RED" m1a.log m1b.log m1c.log | awk -F: '{s+=$2} END {print s}')"
-            green="$(grep -c "\[PASS\] $control — GREEN" m1a.log m1b.log m1c.log | awk -F: '{s+=$2} END {print s}')"
+                         NC-M1C-001 NC-M1C-002 NC-M1C-003 NC-M1C-004 NC-M1C-005 \
+                         NC-M1D-001 NC-M1D-002 NC-M1D-003 NC-M1D-004 NC-M1D-005 NC-M1D-006; do
+            red="$(grep -c "\[PASS\] $control — RED" m1a.log m1b.log m1c.log m1d.log | awk -F: '{s+=$2} END {print s}')"
+            green="$(grep -c "\[PASS\] $control — GREEN" m1a.log m1b.log m1c.log m1d.log | awk -F: '{s+=$2} END {print s}')"
             if [ "${red:-0}" -lt 1 ] || [ "${green:-0}" -lt 1 ]; then
               echo "::error::$control was not shown both red and green (red=$red green=$green)"
               exit 1

@@ -1,10 +1,11 @@
 # Hospitality OS — Phase 1
 
-**Gate:** M1 slice C — Configuration, audit, money and quantity
-**Predecessor:** M1-B — approved at `ecadbb7`; M1-A at `0d8d580`; M0R at `f53c2c7`
+**Gate:** M1 — **complete**, awaiting independent review as a whole
+**Slices:** A `0d8d580` · B `ecadbb7` · C `b02cce7` · D (this commit) · M0R `f53c2c7`
 
-M1 runs in four slices: A (database, RLS), B (identity), **C (configuration, audit,
-money)**, D (API surface, ops, observability).
+M1 ran in four slices: A (database, RLS), B (identity), C (configuration, audit, money),
+D (API surface, operations, evidence). The M1 evidence report is at
+`evidence/M1_EVIDENCE_REPORT.md`.
 **Pinned package:** `b89a2d4211356be5941dc25ff2dc540728c87ed761ffd9894a3f2691ccf5b590` (v2.0.9 candidate)
 **Governing requirement:** FR-GOV-001A
 
@@ -32,15 +33,14 @@ Present now: PostgreSQL, migrations `0001`–`0003`, the organizational model, r
 security and least-privileged production roles (M1-A); identity, memberships, sessions,
 step-up authentication and service principals (M1-B); and versioned configuration,
 append-only audit, exact money and quantity types, numbering, reason codes, entitlements
-and retention (M1-C).
+and retention (M1-C); and the cloud API with its security controls, truthful health and
+readiness, structured logging with redaction, and the seed runner (M1-D).
 
 Still absent, by design:
 
 | Absent | Arrives at |
 |---|---|
-| HTTP API, routes, handlers, input validation, security headers | M1-D |
-| Health endpoints, structured logs, metrics, API rate limiting | M1-D |
-| Menu, QR-bound tables, guest sessions | M2 |
+| Menu, translations, QR-bound tables, guest sessions | M2 |
 | Orders, tickets, service requests | M3 |
 | Checks, payments, tips, receipts | M4 |
 | Application routes, workers and UI | M1-B onward |
@@ -73,10 +73,14 @@ tests under **FR-GOV-003**. The default position is to write fresh.
 | `tests/m1a/` | M1-A verification: fixtures, isolation gates, four negative controls |
 | `tests/m1b/` | M1-B verification: identity fixtures, auth gates, four negative controls |
 | `tests/m1c/` | M1-C verification: money exactness, audit, entitlements, five negative controls |
+| `tests/m1d/` | M1-D verification: the running service, security controls, six negative controls |
+| `api/` | the cloud API — Fastify and TypeScript, M1 surface only |
+| `evidence/` | `M1_EVIDENCE_REPORT.md`, generated from the repository, database and suite logs |
+| `docs-local/` | cross-platform command reference |
 | `seeds/` | two differently branded tenants and the ten reason-code sets |
 | `schema/` | `SCHEMA_CATALOG.md`, generated from the live database, never hand-written |
 | `planning/` | architecture conformance plan, migration and domain ownership map, CI test matrix, and the known-limitations note that travels with the submission |
-| `tools/` | `migrate.py` (SQL-first runner), `generate_schema_catalog.py`, `bootstrap_database.sql`, `verify_m1.py` (the gate), `verify_m0r_skeleton.py` (superseded, retained as historical evidence) |
+| `tools/` | `migrate.py`, `seed.py`, `check_prerequisites.py`, `generate_schema_catalog.py`, `generate_evidence_report.py`, `bootstrap_database.sql`, `verify_m1.py` (the gate), `verify_m0r_skeleton.py` (superseded, retained as historical evidence) |
 | `.github/workflows/` | `m0r-conformance.yml` — validators only, no application tests |
 
 Directories that must **not** exist at this gate: `migrations/`, `src/`, `app/`, `db/`,
@@ -88,15 +92,22 @@ them at M0R is a P0 finding.
 ## Verification
 
 ```bash
+python3 tools/check_prerequisites.py       # discover required tools, or fail clearly
 python3 tools/verify_m1.py --repo .        # fenced-domain surface: must be none
-bash tests/m1c/run_verification.sh         # rebuilds from empty, runs M1-A, M1-B, M1-C
+bash tests/m1d/run_verification.sh         # rebuilds from empty, runs all four slices
 
 # The pinned package must stay byte-identical at every gate
 cd docs/Hospitality_OS_Phase_1_Clean_Build_Package_v2.0.9 && sha256sum -c SHA256SUMS.txt
 ```
 
 Expected: `PASS M1_FORBIDDEN_SURFACE`, `PASS M1A_VERIFICATION`, `PASS M1B_VERIFICATION`,
-`PASS M1C_VERIFICATION` and 91/91 OK.
+`PASS M1C_VERIFICATION`, `PASS M1D_VERIFICATION` and 91/91 OK — 167 checks in total, and
+the same results when the suites are run in any order.
+
+**The build writes outside the repository.** `api/build.sh` puts `node_modules/` and
+`dist/` in `$M1D_WORKSPACE`, because `tools/verify_m1.py` treats those directories as
+forbidden surface and inspects the filesystem rather than the Git index. The repository
+therefore stays clean at every moment, with no cleanup step to forget.
 
 **Money is never a float.** Amounts are integer minor units beside an explicit currency,
 and the suite fails if a `float4` or `float8` column appears anywhere in the database.
@@ -112,7 +123,7 @@ this project were lost to validators tuned until they went green.
 
 ## Gate sequence
 
-M0 → M0R → M1-A → M1-B (all approved) → **M1-C (here)** → M1-D → M2 → M3 → M4 → M5a → M5b → M6.
+M0 → M0R → **M1 (A, B, C, D — complete)** → M2 → M3 → M4 → M5a → M5b → M6.
 
 Each gate has its own independent review. A gate closes only on behavior provable at that
 gate.
