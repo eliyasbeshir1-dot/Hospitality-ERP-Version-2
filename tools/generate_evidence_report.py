@@ -34,8 +34,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from repo_history import (  # noqa: E402
+    HistoryUnavailable, assert_history_available, current_branch, is_dirty_excluding,
+    last_commit_excluding,
+)
+
 REPO = Path(__file__).resolve().parents[1]
 UNIT = "\x1f"
+REPORT_PATH = "evidence/M1_EVIDENCE_REPORT.md"
 
 
 def sh(*command: str) -> str:
@@ -113,11 +120,12 @@ def build(dsn: str, logs: Path) -> str:
     out: list[str] = []
     w = out.append
 
-    exclude = ":(exclude)evidence/M1_EVIDENCE_REPORT.md"
-    commit = sh("git", "log", "-1", "--format=%H", "--", ".", exclude)
-    short = sh("git", "log", "-1", "--format=%h", "--", ".", exclude)
-    branch = sh("git", "rev-parse", "--abbrev-ref", "HEAD")
-    dirty = sh("git", "status", "--porcelain", "--", ".", exclude)
+    # Under a shallow checkout the commit this report names cannot be resolved, and the
+    # field would come out empty rather than wrong-looking. Refuse instead.
+    assert_history_available()
+    commit, short = last_commit_excluding(REPORT_PATH)
+    branch = current_branch()
+    dirty = is_dirty_excluding(REPORT_PATH)
 
     w("# M1 Evidence Report")
     w("")
@@ -397,7 +405,12 @@ def main() -> int:
     parser.add_argument("--out", required=True)
     args = parser.parse_args()
 
-    report = build(args.dsn, Path(args.logs))
+    try:
+        report = build(args.dsn, Path(args.logs))
+    except HistoryUnavailable as error:
+        print("FAIL GIT_HISTORY_UNAVAILABLE", file=sys.stderr)
+        print(f"  {error}", file=sys.stderr)
+        return 1
     path = Path(args.out)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(report, encoding="utf-8")

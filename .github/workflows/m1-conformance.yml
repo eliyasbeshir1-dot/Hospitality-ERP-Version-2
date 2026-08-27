@@ -34,6 +34,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history. The README and evidence generators derive facts from commits —
+          # which commit landed each slice, which commit a report describes — and a
+          # shallow checkout cannot answer either. They refuse rather than guess, so this
+          # is required, not an optimisation.
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -161,6 +167,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history. The README and evidence generators derive facts from commits —
+          # which commit landed each slice, which commit a report describes — and a
+          # shallow checkout cannot answer either. They refuse rather than guess, so this
+          # is required, not an optimisation.
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -230,8 +242,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 tools/seed.py --dsn "postgresql://hospitality_migrator@$PGTCP_HOST:$PGPORT/$DB" \
-                  --content-dsn "postgresql://hospitality_app@$PGTCP_HOST:$PGPORT/$DB" apply
+          # No pre-seed here: tests/m1d/run_verification.sh rebuilds the database and
+          # then seeds through the runner. Seeding first only created a record that the
+          # rebuild discarded.
           bash tests/m1d/run_verification.sh 2>&1 | tee m1d.log
           grep -q '^PASS M1D_VERIFICATION' m1d.log || {
             echo "::error::M1-D suite did not report PASS"; exit 1; }

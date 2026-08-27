@@ -28,6 +28,10 @@ from pg import count, run  # noqa: E402
 
 ADMIN = os.environ["M1A_ADMIN_DSN"]
 APP = os.environ["M1A_APP_DSN"]
+# Seed bookkeeping runs as the migration identity; content goes in as the application
+# role. Falls back to ADMIN only so the suite can still run standalone against a local
+# cluster where the two happen to be the same.
+MIGRATOR = os.environ.get("M1A_MIGRATOR_DSN", ADMIN)
 
 TENANT_HABESHA = "33333333-3333-3333-3333-333333333333"
 TENANT_NILE = "44444444-4444-4444-4444-444444444444"
@@ -80,14 +84,18 @@ def ensure_seeds() -> None:
         raise RuntimeError(
             "seed tenant exists but its configuration is gone — another suite's reset "
             "has cascaded into config.configuration_version; rebuild the database")
-    for seed in ("0001_demonstration_tenants.sql", "0002_reason_codes.sql"):
-        proc = subprocess.run(
-            ["psql", APP, "-v", "ON_ERROR_STOP=1", "-q", "-o", "/dev/null",
-             "-f", str(REPO / "seeds" / seed)],
-            capture_output=True, text=True,
-            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
-        if proc.returncode != 0:
-            raise RuntimeError(f"seed {seed} failed: {proc.stderr.strip()}")
+    # Applied through the seed runner, never with psql directly. Seeding around the
+    # runner leaves the applied-record empty while the data is present, so the next
+    # legitimate `seed.py apply` re-applies and collides on a primary key — and the
+    # environment has no provenance for the data it holds, which is the whole reason the
+    # runner exists.
+    proc = subprocess.run(
+        [sys.executable, str(REPO / "tools" / "seed.py"),
+         "--dsn", MIGRATOR, "--content-dsn", APP, "--seeds", str(REPO / "seeds"), "apply"],
+        capture_output=True, text=True,
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+    if proc.returncode != 0:
+        raise RuntimeError(f"seeding failed: {proc.stderr.strip() or proc.stdout.strip()}")
 
 
 # ===========================================================================

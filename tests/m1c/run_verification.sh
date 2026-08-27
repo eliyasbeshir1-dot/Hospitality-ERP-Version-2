@@ -16,6 +16,7 @@ dsn() {
 }
 export M1A_ADMIN_DSN="$(dsn "$SUPERUSER" "$DB")"
 export M1A_APP_DSN="$(dsn hospitality_app "$DB")"
+export M1A_MIGRATOR_DSN="$(dsn hospitality_migrator "$DB")"
 
 echo
 echo "=== 5. M1-C verification gates ==="

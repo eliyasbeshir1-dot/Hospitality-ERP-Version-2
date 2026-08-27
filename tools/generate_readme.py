@@ -22,6 +22,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from repo_history import (  # noqa: E402
+    HistoryUnavailable, assert_history_available, commit_for_subject_prefix,
+)
+
 REPO = Path(__file__).resolve().parents[1]
 PACKAGE_SHA = "b89a2d4211356be5941dc25ff2dc540728c87ed761ffd9894a3f2691ccf5b590"
 
@@ -61,13 +66,13 @@ def sh(*command: str) -> str:
 
 
 def slice_commit(tag: str) -> str:
-    """The commit that landed a slice, found by its subject line."""
-    out = sh("git", "log", "--format=%h\t%s", "--reverse")
-    for line in out.splitlines():
-        short, _, subject = line.partition("\t")
-        if subject.startswith(f"{tag}:"):
-            return short
-    return "unreleased"
+    """The commit that landed a slice, found by its subject line.
+
+    "unreleased" is only ever a truthful answer about a slice that has not landed. It is
+    never a stand-in for a history this process could not read — assert_history_available()
+    has already refused in that case.
+    """
+    return commit_for_subject_prefix(f"{tag}:") or "unreleased"
 
 
 NARRATIVE = REPO / "planning" / "README_NARRATIVE.md"
@@ -80,6 +85,11 @@ def build() -> str:
     order to prohibit them, which is legitimate there and nowhere else. This file holds no
     prose of its own, so it needs no such licence.
     """
+    # Ask first whether the question is answerable. Under a shallow checkout every slice
+    # would resolve to "unreleased" and the gate would fall back to the earliest one — a
+    # plausible document that is entirely wrong.
+    assert_history_available()
+
     template = NARRATIVE.read_text(encoding="utf-8")
     # Strip the maintainer note at the top of the narrative; it explains the file to an
     # editor, not the repository to a reader.
@@ -91,6 +101,12 @@ def build() -> str:
     suites = sorted(p for p in (REPO / "tests").glob("*/verify_*.py"))
 
     landed = [(tag, note, slice_commit(tag)) for tag, note in SLICES]
+    if all(commit == "unreleased" for _tag, _note, commit in landed):
+        # A full history that resolves no slice at all means the derivation is broken,
+        # not that nothing has ever shipped.
+        raise HistoryUnavailable(
+            "no slice resolved to a commit in a non-shallow history — "
+            "the subject-line convention or the history itself has changed")
     current = next((t for t, _n, c in reversed(landed) if c != "unreleased"), "M0R")
 
     slice_table = ["| Slice | Delivered | Commit |", "|---|---|---|"]
@@ -132,7 +148,12 @@ def main() -> int:
     ap.add_argument("--check")
     args = ap.parse_args()
 
-    generated = build()
+    try:
+        generated = build()
+    except HistoryUnavailable as error:
+        print("FAIL GIT_HISTORY_UNAVAILABLE", file=sys.stderr)
+        print(f"  {error}", file=sys.stderr)
+        return 1
 
     if args.check:
         path = Path(args.check)

@@ -151,7 +151,18 @@ def cmd_apply(dsn: str, seeds_dir: Path, content_dsn: str) -> int:
     for version, path in pending:
         digest = checksum(path)
         print(f"applying {path.name} …", flush=True)
-        psql_file(content_dsn, path)      # content goes in as the application role
+        try:
+            psql_file(content_dsn, path)  # content goes in as the application role
+        except MigrationFailure as failure:
+            # The shared transport speaks in migration terms; a seed failure must not be
+            # reported as a migration failure, or an operator looks in the wrong history.
+            raise MigrationFailure(
+                "SEED_APPLY_FAILED",
+                f"{path.name}: {failure.detail}\n"
+                f"  If this reports a duplicate key, the data is already present while "
+                f"this seed is unrecorded — seeds were applied around the runner, which "
+                f"leaves the environment with no provenance. Rebuild, or apply through "
+                f"this runner from the start.") from failure
         psql(dsn, f"""
             INSERT INTO seed_history.applied_seed (version, filename, checksum)
             VALUES ({version}, {sql_literal(path.name)}, {sql_literal(digest)});
