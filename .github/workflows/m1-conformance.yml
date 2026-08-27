@@ -32,13 +32,6 @@ jobs:
   forbidden-surface:
     name: M1 forbidden surface
     runs-on: ubuntu-latest
-    env:
-      # CI writes its own logs OUTSIDE the checkout. Anything written into the workspace
-      # shows up in `git status` as an untracked file, and the evidence report records
-      # whether the tree was clean when it was generated — so a `tee m1a.log` in the
-      # workspace made the report say NOT CLEAN and differ from the committed copy. Same
-      # reasoning as building the API outside the repository: keep the checkout pristine.
-      LOG_DIR: ${{ runner.temp }}/m1-logs
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,6 +43,20 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Put CI's own logs outside the checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Anything written into the workspace shows up in `git status` as an untracked
+          # file, and the evidence report records whether the tree was clean when it was
+          # generated — so a `tee m1a.log` in the workspace made the report say NOT CLEAN
+          # and differ from the committed copy. Same reasoning as building the API outside
+          # the repository: keep the checkout pristine. RUNNER_TEMP is read here rather than
+          # through the runner context in a job-level `env:`: that context is not
+          # available there, and referencing it makes the whole workflow invalid.
+          mkdir -p "$RUNNER_TEMP/m1-logs"
+          echo "LOG_DIR=$RUNNER_TEMP/m1-logs" >> "$GITHUB_ENV"
 
       - name: Verify no fenced-domain surface exists
         shell: bash
@@ -178,12 +185,6 @@ jobs:
       PGPORT: "5432"
       SUPERUSER: pgadmin
       DB: hospitality_os
-      # CI writes its own logs OUTSIDE the checkout. Anything written into the workspace
-      # shows up in `git status` as an untracked file, and the evidence report records
-      # whether the tree was clean when it was generated — so a `tee m1a.log` in the
-      # workspace made the report say NOT CLEAN and differ from the committed copy. Same
-      # reasoning as building the API outside the repository: keep the checkout pristine.
-      LOG_DIR: ${{ runner.temp }}/m1-logs
 
     steps:
       - uses: actions/checkout@v4
@@ -208,6 +209,20 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends postgresql-client
           psql --version
+
+      - name: Put CI's own logs outside the checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Anything written into the workspace shows up in `git status` as an untracked
+          # file, and the evidence report records whether the tree was clean when it was
+          # generated — so a `tee m1a.log` in the workspace made the report say NOT CLEAN
+          # and differ from the committed copy. Same reasoning as building the API outside
+          # the repository: keep the checkout pristine. RUNNER_TEMP is read here rather than
+          # through the runner context in a job-level `env:`: that context is not
+          # available there, and referencing it makes the whole workflow invalid.
+          mkdir -p "$RUNNER_TEMP/m1-logs"
+          echo "LOG_DIR=$RUNNER_TEMP/m1-logs" >> "$GITHUB_ENV"
 
       - name: M1-A — migrations, organizational model, RLS, negative controls
         shell: bash
