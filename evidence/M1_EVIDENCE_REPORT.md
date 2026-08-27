@@ -13,18 +13,23 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `b02cce76811149245256c296583430c8cb75874b` |
-| Short | `b02cce7` |
+| Commit | `baa17ae32d142d6086c9bd3cb8f7c21ef7c133ed` |
+| Short | `baa17ae` |
 | Branch | `claude/code-execution-brief-nle2y7` |
-| Working tree | has uncommitted changes at generation time |
+| Subject | the last commit touching anything other than this report |
+| Working tree | clean at generation |
 
 ## Versions
 
+Runtime versions are given to the major, because this report must regenerate
+identically on any machine that runs the suites. Exact patch versions appear in the
+CI logs, which are retained as build artifacts.
+
 | Component | Version |
 |---|---|
-| Python | 3.11.15 |
-| Node | v22.22.2 |
-| PostgreSQL | PostgreSQL 16.13 (Ubuntu 16.13-0ubuntu0.24.04.1) |
+| Python | 3.11 |
+| Node | 22 |
+| PostgreSQL | 16 |
 | fastify | 5.12.1 |
 | pg | 8.13.1 |
 
@@ -34,10 +39,10 @@ Ordered, forward-only and checksum-locked. An edited applied migration fails pre
 
 | Version | File | SHA-256 | Applied |
 |---|---|---|---|
-| `0001` | `0001_organizational_model_and_rls.sql` | `5aef8924b98a5a15…` | 2026-08-26 17:45:06.625067+00 |
-| `0002` | `0002_identity_memberships_and_authentication.sql` | `51446d59fa5c2872…` | 2026-08-26 17:45:06.844258+00 |
-| `0003` | `0003_configuration_audit_money_and_quantity.sql` | `fe4ef998f4e91458…` | 2026-08-26 17:45:07.069322+00 |
-| `0004` | `0004_readiness_provenance_grants.sql` | `1f01ff0de17b3ded…` | 2026-08-26 17:45:07.229841+00 |
+| `0001` | `0001_organizational_model_and_rls.sql` | `5aef8924b98a5a15…` | applied |
+| `0002` | `0002_identity_memberships_and_authentication.sql` | `51446d59fa5c2872…` | applied |
+| `0003` | `0003_configuration_audit_money_and_quantity.sql` | `fe4ef998f4e91458…` | applied |
+| `0004` | `0004_readiness_provenance_grants.sql` | `1f01ff0de17b3ded…` | applied |
 
 ## Seeds applied
 
@@ -48,8 +53,8 @@ least-privileged application role.
 
 | Version | File | SHA-256 | Applied |
 |---|---|---|---|
-| `0001` | `0001_demonstration_tenants.sql` | `39528da13643bbb9…` | 2026-08-26 17:45:14.354764+00 |
-| `0002` | `0002_reason_codes.sql` | `27b8595f98f7e129…` | 2026-08-26 17:45:14.480744+00 |
+| `0001` | `0001_demonstration_tenants.sql` | `39528da13643bbb9…` | applied |
+| `0002` | `0002_reason_codes.sql` | `27b8595f98f7e129…` | applied |
 
 ## Schema shape
 
@@ -72,7 +77,8 @@ Money is stored as integer minor units beside an explicit currency.
 | M1-B identity and authentication | **PASS** | 33 | 0 |
 | M1-C configuration, audit, money | **PASS** | 53 | 0 |
 | M1-D API, security, operations | **PASS** | 45 | 0 |
-| **Total** | | **167** | |
+| Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
+| **Total** | | **200** | |
 
 ## Negative controls
 
@@ -102,10 +108,34 @@ a coverage gap wearing a green badge, and CI fails the build when one is missing
 | `NC-M1D-005` | Seed checksum lock bypassed | `SEED_CHECKSUM_LOCK_BYPASSED` | red, then green |
 | `NC-M1D-006` | Route served without context | `ROUTE_SERVED_WITHOUT_CONTEXT` | red, then green |
 
+## Repaired: the fenced gate was not authoritative (P1-01)
+
+An independent review found `tools/verify_m1.py` scanning against a vocabulary written
+into the tool by hand, rather than the one shipped in the pinned package. Measured against
+the concrete case — a term used as an identifier, which is how it would actually appear —
+**17 of 63 authoritative terms were detected and 46 were missed**, and two domains had no
+coverage at all.
+
+The defect class is hardcoding, so the repair is not a corrected list:
+
+- the verifier loads its vocabulary from the pinned package through `tests/fenced.py`, the
+  same loader every slice harness uses
+- **no fenced term appears anywhere in the verifier**, and a test asserts that
+- it **fails closed**: an absent, unreadable or empty vocabulary stops the scan. There is
+  no built-in list to fall back to, because a vocabulary of zero terms passes everything
+  while reporting success
+- `tests/fenced_gate/verify_fenced_gate.py` plants a real mutation for **every one of the
+  63 terms** and requires each to be flagged, then proves one representative per domain
+  red before green
+
+The suite names no forbidden term either. Every probe is derived from the package at run
+time, including the domain representatives, which are chosen by position — the domain keys
+are themselves built from fenced words.
+
 ## Accepted exceptions
 
-Both were raised during the slice that introduced them and accepted by the founder. They
-are recorded here so a reviewer reads them as decisions rather than oversights.
+Each was raised during the slice that introduced it and accepted by the founder. They are
+recorded here so a reviewer reads them as decisions rather than oversights.
 
 ### `money.currency` is not tenant-scoped
 
@@ -120,6 +150,23 @@ Splitting a bill is M4's business. The function exists at M1 because exactness i
 unfalsifiable without an operation that can lose a minor unit: the suite asserts
 `sum(money.allocate(10000, 3)) = 10000` as an equality, which naive per-part rounding
 fails. It is a type-level primitive that M4 will consume, not bill-splitting policy.
+
+### `identity.governed_action` stays in the identity schema
+
+The step-up action registry is per-tenant policy data, which sits close to M1-C's
+configuration store. It remains owned by M1-B: `config.policy` references it by foreign key
+on `(tenant_id, action_code)` and never copies a row. A verification check asserts there is
+no second registry outside `identity` and that the reference exists.
+
+### The build writes outside the repository
+
+`api/build.sh` puts `node_modules/` and `dist/` in `$M1D_WORKSPACE`, not in the checkout.
+`tools/verify_m1.py` treats those directories as forbidden surface and inspects the
+filesystem rather than the Git index, so a `.gitignore` entry would keep them out of
+commits but would not stop the gate failing after an ordinary build. Building elsewhere
+keeps the repository clean at every moment, with no cleanup step to forget, and gives the
+M1-D negative controls somewhere to plant a defect that the repository never contains.
+**A deliberate design choice, ruled as such — not a workaround.**
 
 ## Deferred, and honestly so
 
