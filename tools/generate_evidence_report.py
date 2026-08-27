@@ -64,11 +64,23 @@ def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+class SuiteLogMissing(Exception):
+    """An expected suite log is absent. The report must not be written without it."""
+
+
 def suite_result(logs: Path, name: str) -> tuple[str, str, str]:
-    """Read a suite's verdict and counts from its log."""
+    """Read a suite's verdict and counts from its log.
+
+    A missing log is a failure, not a "not run" row. Reporting a suite as not run when it
+    actually passed on another runner produces a plausible, wrong, and permanently
+    committed document — the same quiet degradation as a generator inventing commits for a
+    shallow checkout, or a verifier falling back to a built-in vocabulary.
+    """
     path = logs / f"{name}.log"
     if not path.exists():
-        return ("not run", "-", "-")
+        raise SuiteLogMissing(
+            f"{path.name} is absent from {logs}. Every suite must be represented; if it "
+            f"ran in a different job, hand its log to this one rather than omitting it")
     text = path.read_text(encoding="utf-8", errors="ignore")
     tag = "FENCED_GATE" if name == "fenced_gate" else name.upper()
     verdict = "PASS" if re.search(rf"^PASS {tag}_VERIFICATION", text, re.M) else "FAIL"
@@ -409,6 +421,10 @@ def main() -> int:
         report = build(args.dsn, Path(args.logs))
     except HistoryUnavailable as error:
         print("FAIL GIT_HISTORY_UNAVAILABLE", file=sys.stderr)
+        print(f"  {error}", file=sys.stderr)
+        return 1
+    except SuiteLogMissing as error:
+        print("FAIL SUITE_LOG_MISSING", file=sys.stderr)
         print(f"  {error}", file=sys.stderr)
         return 1
     path = Path(args.out)

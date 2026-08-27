@@ -100,7 +100,7 @@ jobs:
         with:
           name: fenced-gate-log
           path: fenced_gate.log
-          if-no-files-found: warn
+          if-no-files-found: error
 
       - uses: actions/upload-artifact@v4
         with:
@@ -142,6 +142,10 @@ jobs:
   database-verification:
     name: Database, identity, configuration and API (M1-A through M1-D)
     runs-on: ubuntu-latest
+    # The evidence report is the aggregate record and must account for every suite. The
+    # fenced-gate suite runs in the job above, on a different runner, so this job waits
+    # for it and collects its log rather than reporting it as "not run".
+    needs: forbidden-surface
 
     services:
       postgres:
@@ -283,13 +287,21 @@ jobs:
           done
           test "$fail" -eq 0
 
+      - name: Collect the fenced-gate log from the job that ran it
+        uses: actions/download-artifact@v4
+        with:
+          name: fenced-gate-log
+          path: fenced-gate-log
+
       - name: Regenerate and check the M1 evidence report (FR-TST-016)
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p evidence-logs
           cp m1a.log m1b.log m1c.log m1d.log evidence-logs/
-          cp fenced_gate.log evidence-logs/ 2>/dev/null || true
+          # No "|| true" here. A missing suite log must stop the report, not silently
+          # become a "not run" row with a wrong total.
+          cp fence*-log/fenced_gate.log evidence-logs/fenced_gate.log
           python3 tools/generate_evidence_report.py \
             --dsn "postgresql://$SUPERUSER@$PGTCP_HOST:$PGPORT/$DB" \
             --logs evidence-logs --out /tmp/regenerated_report.md
