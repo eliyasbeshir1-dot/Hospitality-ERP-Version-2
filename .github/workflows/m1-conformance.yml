@@ -32,6 +32,13 @@ jobs:
   forbidden-surface:
     name: M1 forbidden surface
     runs-on: ubuntu-latest
+    env:
+      # CI writes its own logs OUTSIDE the checkout. Anything written into the workspace
+      # shows up in `git status` as an untracked file, and the evidence report records
+      # whether the tree was clean when it was generated — so a `tee m1a.log` in the
+      # workspace made the report say NOT CLEAN and differ from the committed copy. Same
+      # reasoning as building the API outside the repository: keep the checkout pristine.
+      LOG_DIR: ${{ runner.temp }}/m1-logs
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,16 +55,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 tools/verify_m1.py --repo . --json-report m1_verification.json
+          mkdir -p "$LOG_DIR"
+          python3 tools/verify_m1.py --repo . --json-report "$LOG_DIR/m1_verification.json"
 
       - name: Fail closed on an absent or unparseable report
         shell: bash
         run: |
           set -euo pipefail
-          test -s m1_verification.json || { echo "::error::verification report absent or empty"; exit 1; }
+          test -s "$LOG_DIR/m1_verification.json" || { echo "::error::verification report absent or empty"; exit 1; }
           python3 - <<'PY'
-          import json, sys
-          r = json.load(open("m1_verification.json"))
+          import json, os, sys
+          r = json.load(open(os.environ["LOG_DIR"] + "/m1_verification.json"))
           if r.get("passed") is not True:
               sys.exit("verification did not report passed=true")
           if r.get("finding_count") != 0:
@@ -83,10 +91,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 tests/fenced_gate/verify_fenced_gate.py 2>&1 | tee fenced_gate.log
-          grep -q '^PASS FENCED_GATE_VERIFICATION' fenced_gate.log || {
+          mkdir -p "$LOG_DIR"
+          python3 tests/fenced_gate/verify_fenced_gate.py 2>&1 | tee "$LOG_DIR/fenced_gate.log"
+          grep -q '^PASS FENCED_GATE_VERIFICATION' "$LOG_DIR/fenced_gate.log" || {
             echo "::error::the fenced-domain gate suite did not report PASS"; exit 1; }
-          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' fenced_gate.log | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/fenced_gate.log" | tail -1)"
           test "${failed:-1}" -eq 0 || { echo "::error::${failed} fenced-gate check(s) failed"; exit 1; }
 
       - name: The committed README must match a fresh generation
@@ -99,13 +108,13 @@ jobs:
         if: always()
         with:
           name: fenced-gate-log
-          path: fenced_gate.log
+          path: ${{ runner.temp }}/m1-logs/fenced_gate.log
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v4
         with:
           name: m1-verification-report
-          path: m1_verification.json
+          path: ${{ runner.temp }}/m1-logs/m1_verification.json
           if-no-files-found: error
 
   docs-package-integrity:
@@ -124,13 +133,14 @@ jobs:
           cd "$PKG_DIR"
           test -s SHA256SUMS.txt || { echo "::error::SHA256SUMS.txt absent or empty"; exit 1; }
 
+          mkdir -p "$RUNNER_TEMP/m1-logs"
           expected="$(grep -c '^[0-9a-f]\{64\}[ *]' SHA256SUMS.txt)"
           if [ "$expected" -ne 91 ]; then
             echo "::error::expected 91 checksum lines, found $expected"
             exit 1
           fi
 
-          log="$GITHUB_WORKSPACE/sha256-check.log"
+          log="$RUNNER_TEMP/m1-logs/sha256-check.log"
           sha256sum -c SHA256SUMS.txt | tee "$log"
           ok="$(grep -c ': OK$' "$log")"
           if [ "$ok" -ne 91 ]; then
@@ -168,6 +178,12 @@ jobs:
       PGPORT: "5432"
       SUPERUSER: pgadmin
       DB: hospitality_os
+      # CI writes its own logs OUTSIDE the checkout. Anything written into the workspace
+      # shows up in `git status` as an untracked file, and the evidence report records
+      # whether the tree was clean when it was generated — so a `tee m1a.log` in the
+      # workspace made the report say NOT CLEAN and differ from the committed copy. Same
+      # reasoning as building the API outside the repository: keep the checkout pristine.
+      LOG_DIR: ${{ runner.temp }}/m1-logs
 
     steps:
       - uses: actions/checkout@v4
@@ -197,12 +213,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash tests/m1a/run_verification.sh 2>&1 | tee m1a.log
-          grep -q '^PASS M1A_VERIFICATION' m1a.log || {
+          mkdir -p "$LOG_DIR"
+          bash tests/m1a/run_verification.sh 2>&1 | tee "$LOG_DIR/m1a.log"
+          grep -q '^PASS M1A_VERIFICATION' "$LOG_DIR/m1a.log" || {
             echo "::error::M1-A suite did not report PASS"; exit 1; }
           # A suite that ran nothing is a failure, not a pass.
-          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' m1a.log | tail -1)"
-          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' m1a.log | tail -1)"
+          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' "$LOG_DIR/m1a.log" | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/m1a.log" | tail -1)"
           test "${checks:-0}" -ge 30 || { echo "::error::only ${checks:-0} M1-A checks ran"; exit 1; }
           test "${failed:-1}" -eq 0 || { echo "::error::${failed} M1-A check(s) failed"; exit 1; }
           echo "M1-A: $checks checks, 0 failures"
@@ -211,11 +228,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash tests/m1b/run_verification.sh 2>&1 | tee m1b.log
-          grep -q '^PASS M1B_VERIFICATION' m1b.log || {
+          bash tests/m1b/run_verification.sh 2>&1 | tee "$LOG_DIR/m1b.log"
+          grep -q '^PASS M1B_VERIFICATION' "$LOG_DIR/m1b.log" || {
             echo "::error::M1-B suite did not report PASS"; exit 1; }
-          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' m1b.log | tail -1)"
-          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' m1b.log | tail -1)"
+          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' "$LOG_DIR/m1b.log" | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/m1b.log" | tail -1)"
           test "${checks:-0}" -ge 25 || { echo "::error::only ${checks:-0} M1-B checks ran"; exit 1; }
           test "${failed:-1}" -eq 0 || { echo "::error::${failed} M1-B check(s) failed"; exit 1; }
           echo "M1-B: $checks checks, 0 failures"
@@ -224,11 +241,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash tests/m1c/run_verification.sh 2>&1 | tee m1c.log
-          grep -q '^PASS M1C_VERIFICATION' m1c.log || {
+          bash tests/m1c/run_verification.sh 2>&1 | tee "$LOG_DIR/m1c.log"
+          grep -q '^PASS M1C_VERIFICATION' "$LOG_DIR/m1c.log" || {
             echo "::error::M1-C suite did not report PASS"; exit 1; }
-          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' m1c.log | tail -1)"
-          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' m1c.log | tail -1)"
+          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' "$LOG_DIR/m1c.log" | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/m1c.log" | tail -1)"
           test "${checks:-0}" -ge 45 || { echo "::error::only ${checks:-0} M1-C checks ran"; exit 1; }
           test "${failed:-1}" -eq 0 || { echo "::error::${failed} M1-C check(s) failed"; exit 1; }
           echo "M1-C: $checks checks, 0 failures"
@@ -249,11 +266,11 @@ jobs:
           # No pre-seed here: tests/m1d/run_verification.sh rebuilds the database and
           # then seeds through the runner. Seeding first only created a record that the
           # rebuild discarded.
-          bash tests/m1d/run_verification.sh 2>&1 | tee m1d.log
-          grep -q '^PASS M1D_VERIFICATION' m1d.log || {
+          bash tests/m1d/run_verification.sh 2>&1 | tee "$LOG_DIR/m1d.log"
+          grep -q '^PASS M1D_VERIFICATION' "$LOG_DIR/m1d.log" || {
             echo "::error::M1-D suite did not report PASS"; exit 1; }
-          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' m1d.log | tail -1)"
-          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' m1d.log | tail -1)"
+          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' "$LOG_DIR/m1d.log" | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/m1d.log" | tail -1)"
           test "${checks:-0}" -ge 40 || { echo "::error::only ${checks:-0} M1-D checks ran"; exit 1; }
           test "${failed:-1}" -eq 0 || { echo "::error::${failed} M1-D check(s) failed"; exit 1; }
           echo "M1-D: $checks checks, 0 failures"
@@ -266,18 +283,18 @@ jobs:
           export M1A_APP_DSN="postgresql://hospitality_app@$PGTCP_HOST:$PGPORT/$DB"
           export M1A_MIGRATOR_DSN="postgresql://hospitality_migrator@$PGTCP_HOST:$PGPORT/$DB"
           export M1A_PRIVILEGED_DSN="postgresql://hospitality_bypassrls@$PGTCP_HOST:$PGPORT/$DB"
-          mkdir -p reorder
+          mkdir -p "$LOG_DIR/reorder"
           # Reverse order, same database, no rebuild. A suite that only passes when it runs
           # first is depending on state another suite left behind.
           for suite in m1d m1c m1b m1a; do
-            python3 "tests/$suite/verify_${suite}.py" > "reorder/$suite.log" 2>&1 || true
+            python3 "tests/$suite/verify_${suite}.py" > "$LOG_DIR/reorder/$suite.log" 2>&1 || true
           done
           fail=0
           for suite in m1a m1b m1c m1d; do
             tag="$(echo "$suite" | tr '[:lower:]' '[:upper:]')"
-            declared="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$suite.log" | tail -1)"
-            reordered="$(grep -oP 'failed\s+:\s+\K[0-9]+' "reorder/$suite.log" | tail -1)"
-            verdict="$(grep -cE "^PASS ${tag}_VERIFICATION" "reorder/$suite.log" || true)"
+            declared="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/$suite.log" | tail -1)"
+            reordered="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/reorder/$suite.log" | tail -1)"
+            verdict="$(grep -cE "^PASS ${tag}_VERIFICATION" "$LOG_DIR/reorder/$suite.log" || true)"
             if [ "${declared:-x}" != "${reordered:-y}" ] || [ "${verdict:-0}" -lt 1 ]; then
               echo "::error::$suite differs under a reordered run (declared=$declared reordered=$reordered)"
               fail=1
@@ -291,25 +308,26 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: fenced-gate-log
-          path: fenced-gate-log
+          path: ${{ runner.temp }}/m1-logs/collected
 
       - name: Regenerate and check the M1 evidence report (FR-TST-016)
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p evidence-logs
-          cp m1a.log m1b.log m1c.log m1d.log evidence-logs/
+          mkdir -p "$LOG_DIR/evidence-logs"
+          cp "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log \
+             "$LOG_DIR/evidence-logs/"
           # No "|| true" here. A missing suite log must stop the report, not silently
           # become a "not run" row with a wrong total.
-          cp fence*-log/fenced_gate.log evidence-logs/fenced_gate.log
+          cp "$LOG_DIR/collected/fenced_gate.log" "$LOG_DIR/evidence-logs/fenced_gate.log"
           python3 tools/generate_evidence_report.py \
             --dsn "postgresql://$SUPERUSER@$PGTCP_HOST:$PGPORT/$DB" \
-            --logs evidence-logs --out /tmp/regenerated_report.md
+            --logs "$LOG_DIR/evidence-logs" --out "$LOG_DIR/regenerated_report.md"
 
           # Same discipline as the migration and seed checksum locks: a report that no
           # longer describes what it ships with is worse than no report, so a difference
           # fails the build rather than being silently carried to the next gate.
-          if ! diff -u evidence/M1_EVIDENCE_REPORT.md /tmp/regenerated_report.md; then
+          if ! diff -u evidence/M1_EVIDENCE_REPORT.md "$LOG_DIR/regenerated_report.md"; then
             echo "::error::the committed evidence report differs from a fresh regeneration"
             exit 1
           fi
@@ -337,8 +355,8 @@ jobs:
                          NC-M1B-001 NC-M1B-002 NC-M1B-003 NC-M1B-004 \
                          NC-M1C-001 NC-M1C-002 NC-M1C-003 NC-M1C-004 NC-M1C-005 \
                          NC-M1D-001 NC-M1D-002 NC-M1D-003 NC-M1D-004 NC-M1D-005 NC-M1D-006; do
-            red="$(grep -c "\[PASS\] $control — RED" m1a.log m1b.log m1c.log m1d.log | awk -F: '{s+=$2} END {print s}')"
-            green="$(grep -c "\[PASS\] $control — GREEN" m1a.log m1b.log m1c.log m1d.log | awk -F: '{s+=$2} END {print s}')"
+            red="$(grep -c "\[PASS\] $control — RED" "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log | awk -F: '{s+=$2} END {print s}')"
+            green="$(grep -c "\[PASS\] $control — GREEN" "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log | awk -F: '{s+=$2} END {print s}')"
             if [ "${red:-0}" -lt 1 ] || [ "${green:-0}" -lt 1 ]; then
               echo "::error::$control was not shown both red and green (red=$red green=$green)"
               exit 1
@@ -351,11 +369,11 @@ jobs:
         with:
           name: m1-suite-logs
           path: |
-            m1a.log
-            m1b.log
-            m1c.log
-            m1d.log
-            reorder/
+            ${{ runner.temp }}/m1-logs/m1a.log
+            ${{ runner.temp }}/m1-logs/m1b.log
+            ${{ runner.temp }}/m1-logs/m1c.log
+            ${{ runner.temp }}/m1-logs/m1d.log
+            ${{ runner.temp }}/m1-logs/reorder/
             evidence/M1_EVIDENCE_REPORT.md
           if-no-files-found: error
 
@@ -379,20 +397,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/m1-logs"
           validator="$PKG_DIR/06_TOOLS/frozen_validator/forbidden_occurrence_validator.py"
           test -f "$validator" || { echo "::error::occurrence validator absent at $validator"; exit 1; }
 
-          python3 "$validator" "$PKG_DIR" 2>&1 | tee occurrence.log
-          test -s occurrence.log || { echo "::error::validator produced no output"; exit 1; }
+          python3 "$validator" "$PKG_DIR" 2>&1 | tee "$RUNNER_TEMP/m1-logs/occurrence.log"
+          test -s "$RUNNER_TEMP/m1-logs/occurrence.log" || { echo "::error::validator produced no output"; exit 1; }
 
-          grep -qx 'PASS FORBIDDEN_OCCURRENCE_REGISTRY_VALID' occurrence.log || {
+          grep -qx 'PASS FORBIDDEN_OCCURRENCE_REGISTRY_VALID' "$RUNNER_TEMP/m1-logs/occurrence.log" || {
             echo "::error::validator did not emit PASS FORBIDDEN_OCCURRENCE_REGISTRY_VALID"
             exit 1
           }
 
           python3 - <<'PY'
-          import json, re, sys
-          text = open("occurrence.log", encoding="utf-8").read()
+          import json, os, re, sys
+          text = open(os.environ["RUNNER_TEMP"] + "/m1-logs/occurrence.log", encoding="utf-8").read()
           m = re.search(r"\{.*\}", text, re.S)
           if not m:
               sys.exit("validator emitted no JSON result block — unknown status is a failure")
@@ -424,18 +443,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/m1-logs"
           suite="$PKG_DIR/06_TOOLS/test_occurrence_mechanism.py"
           test -f "$suite" || { echo "::error::mechanism suite absent at $suite"; exit 1; }
 
-          python3 "$suite" --package "$PKG_DIR" 2>&1 | tee mechanism.log
-          test -s mechanism.log || { echo "::error::suite produced no output"; exit 1; }
+          python3 "$suite" --package "$PKG_DIR" 2>&1 | tee "$RUNNER_TEMP/m1-logs/mechanism.log"
+          test -s "$RUNNER_TEMP/m1-logs/mechanism.log" || { echo "::error::suite produced no output"; exit 1; }
 
-          if grep -Eqi '\b(skipped|deselected|no tests (ran|collected))\b' mechanism.log; then
+          if grep -Eqi '\b(skipped|deselected|no tests (ran|collected))\b' "$RUNNER_TEMP/m1-logs/mechanism.log"; then
             echo "::error::suite reported skipped or zero-collected cases"
             exit 1
           fi
 
-          grep -q '^28/28 correct' mechanism.log || {
+          grep -q '^28/28 correct' "$RUNNER_TEMP/m1-logs/mechanism.log" || {
             echo "::error::mechanism suite did not report 28/28 correct"
             exit 1
           }
