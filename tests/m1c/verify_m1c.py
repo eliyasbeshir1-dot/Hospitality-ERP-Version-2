@@ -23,7 +23,7 @@ REPO = HERE.parents[1]
 sys.path.insert(0, str(HERE.parent / "m1a"))
 sys.path.insert(0, str(HERE.parent))
 
-from fenced import fenced_identifier_pattern  # noqa: E402
+from fenced import fenced_identifier_pattern, representative_term  # noqa: E402
 from pg import count, run  # noqa: E402
 
 ADMIN = os.environ["M1A_ADMIN_DSN"]
@@ -327,9 +327,14 @@ def section_configuration() -> None:
     record("only Phase 1 policy categories exist (FR-CFG-002B)", deferred == 0 and allowed == 9,
            f"{allowed} policy categories, {deferred} of them outside the Phase 1 list")
 
-    bad_category = run(APP, "SELECT 'inventory'::config.policy_category;", **H1)
+    # The probe term is drawn from the pinned vocabulary at run time. Naming one here
+    # would put a fenced literal into repository source — the defect that let a hardcoded
+    # list diverge from the registry it was meant to mirror.
+    probe_term = representative_term().replace(" ", "_")
+    bad_category = run(APP, f"SELECT '{probe_term}'::config.policy_category;", **H1)
     record("a deferred policy category cannot even be named", not bad_category.ok,
-           "the enum is closed, so a Phase 2/3 category is a type error rather than a row")
+           f"a term from the pinned vocabulary is a type error rather than a row; "
+           f"the enum is closed")
 
     # Ownership boundary with M1-B.
     copied = count(ADMIN, """
@@ -405,7 +410,11 @@ def entitlement_deny_by_default_gate() -> tuple[bool, str, str]:
     """An entitlement that was never granted must resolve to deny."""
     leaks: list[str] = []
 
-    for key in ("feature_that_was_never_granted", "", "inventory_module"):
+    # The third probe is a fenced-domain feature key, drawn from the pinned vocabulary at
+    # run time. It must deny like any other ungranted key — an entitlement cannot open a
+    # door to a domain that has no implementation behind it.
+    fenced_feature = representative_term().replace(" ", "_") + "_module"
+    for key in ("feature_that_was_never_granted", "", fenced_feature):
         res = run(APP, f"SELECT config.is_entitled({_lit(key)})::text;", **H1)
         if not res.ok:
             leaks.append(f"resolution errored for {key!r}: {res.err.splitlines()[0] if res.err else ''}")

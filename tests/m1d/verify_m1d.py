@@ -28,6 +28,7 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / "m1a"))
 sys.path.insert(0, str(HERE.parent))
 
+from fenced import representative_term  # noqa: E402
 from pg import count, run  # noqa: E402
 from service import Service, patch_workspace, sync_and_build  # noqa: E402
 
@@ -348,10 +349,14 @@ def section_api_surface() -> None:
 def section_validation_and_injection() -> None:
     print("\n--- 2. Validation and injection defence (FR-SEC-003, FR-SEC-004) ---")
     with Service(APP) as service:
-        bad_enum = service.get("/v1/configuration/inventory", token=TOKENS["habesha"])
+        # Drawn from the pinned vocabulary at run time rather than written here, so no
+        # fenced literal enters repository source.
+        probe_term = representative_term().replace(" ", "_")
+        bad_enum = service.get(f"/v1/configuration/{probe_term}", token=TOKENS["habesha"])
         record("an unknown enumeration value is refused before domain execution",
                bad_enum.status == 400,
-               f"a category outside the Phase 1 list answers {bad_enum.status}")
+               f"a fenced-domain category answers {bad_enum.status}, refused by the schema "
+               f"before any domain code runs")
 
         bad_uuid = service.delete("/v1/sessions/not-a-uuid", token=TOKENS["habesha"])
         record("a malformed identifier is refused by the request schema",

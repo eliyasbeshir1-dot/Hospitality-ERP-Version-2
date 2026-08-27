@@ -9,6 +9,18 @@ The narrative parts — accepted exceptions, known limitations, deferrals — ar
 file, because a judgement is not something a script can discover and pretending otherwise
 would be worse than writing it down.
 
+EVERY FIELD IS REPRODUCIBLE. CI regenerates this report and fails if it differs from the
+committed copy, so nothing environment-specific or time-varying may appear in it: no
+generation timestamp, no applied-at time, no patch-level version that differs between a
+developer machine and the runner. Exact patch versions are in the CI logs, retained as
+artifacts, where they belong.
+
+THE COMMIT IT NAMES. A report cannot contain the hash of the commit that carries it. It
+therefore names the last commit that touched anything OTHER than the report, and the
+report is committed on its own afterwards. Regeneration then yields the same hash, so the
+equality check holds, and any later change to code makes it fail until the report is
+regenerated — which is the freshness guarantee the review asked for.
+
 Usage:
     python3 tools/generate_evidence_report.py --dsn <dsn> --logs <dir> --out evidence/M1_EVIDENCE_REPORT.md
 """
@@ -51,7 +63,7 @@ def suite_result(logs: Path, name: str) -> tuple[str, str, str]:
     if not path.exists():
         return ("not run", "-", "-")
     text = path.read_text(encoding="utf-8", errors="ignore")
-    tag = name.upper().replace("M1", "M1")
+    tag = "FENCED_GATE" if name == "fenced_gate" else name.upper()
     verdict = "PASS" if re.search(rf"^PASS {tag}_VERIFICATION", text, re.M) else "FAIL"
     blocks = re.findall(r"checks run\s+:\s+(\d+)\s*\n\s*passed\s+:\s+(\d+)\s*\n\s*failed\s+:\s+(\d+)", text)
     if not blocks:
@@ -101,10 +113,11 @@ def build(dsn: str, logs: Path) -> str:
     out: list[str] = []
     w = out.append
 
-    commit = sh("git", "rev-parse", "HEAD")
-    short = sh("git", "rev-parse", "--short", "HEAD")
+    exclude = ":(exclude)evidence/M1_EVIDENCE_REPORT.md"
+    commit = sh("git", "log", "-1", "--format=%H", "--", ".", exclude)
+    short = sh("git", "log", "-1", "--format=%h", "--", ".", exclude)
     branch = sh("git", "rev-parse", "--abbrev-ref", "HEAD")
-    dirty = sh("git", "status", "--porcelain")
+    dirty = sh("git", "status", "--porcelain", "--", ".", exclude)
 
     w("# M1 Evidence Report")
     w("")
@@ -124,18 +137,23 @@ def build(dsn: str, logs: Path) -> str:
     w(f"| Commit | `{commit}` |")
     w(f"| Short | `{short}` |")
     w(f"| Branch | `{branch}` |")
-    w(f"| Working tree | {'has uncommitted changes at generation time' if dirty else 'clean'} |")
+    w(f"| Subject | the last commit touching anything other than this report |")
+    w(f"| Working tree | {'NOT CLEAN — regenerate from a clean tree' if dirty else 'clean at generation'} |")
     w("")
 
     w("## Versions")
     w("")
+    w("Runtime versions are given to the major, because this report must regenerate")
+    w("identically on any machine that runs the suites. Exact patch versions appear in the")
+    w("CI logs, which are retained as build artifacts.")
+    w("")
     w("| Component | Version |")
     w("|---|---|")
-    w(f"| Python | {sys.version.split()[0]} |")
+    w(f"| Python | {'.'.join(sys.version.split()[0].split('.')[:2])} |")
     node = sh("node", "--version") or "not found"
-    w(f"| Node | {node} |")
-    pg = query(dsn, "SELECT version();")
-    w(f"| PostgreSQL | {pg[0][0].split(' on ')[0] if pg else 'unavailable'} |")
+    w(f"| Node | {node.lstrip('v').split('.')[0] if node.startswith('v') else node} |")
+    pg = query(dsn, "SHOW server_version;")
+    w(f"| PostgreSQL | {pg[0][0].split('.')[0] if pg else 'unavailable'} |")
     pkg = REPO / "api" / "package.json"
     if pkg.exists():
         import json
@@ -150,11 +168,11 @@ def build(dsn: str, logs: Path) -> str:
     w("")
     w("| Version | File | SHA-256 | Applied |")
     w("|---|---|---|---|")
-    applied = {row[1]: row[2] for row in query(dsn, """
-        SELECT version, filename, applied_at::text FROM migration.schema_migrations ORDER BY version;
+    applied = {row[1] for row in query(dsn, """
+        SELECT version, filename FROM migration.schema_migrations ORDER BY version;
     """)}
     for path in sorted((REPO / "migrations").glob("[0-9][0-9][0-9][0-9]_*.sql")):
-        state = applied.get(path.name, "not applied to this database")
+        state = "applied" if path.name in applied else "not applied to this database"
         w(f"| `{path.name[:4]}` | `{path.name}` | `{digest(path)[:16]}…` | {state} |")
     w("")
 
@@ -167,11 +185,11 @@ def build(dsn: str, logs: Path) -> str:
     w("")
     w("| Version | File | SHA-256 | Applied |")
     w("|---|---|---|---|")
-    seeded = {row[1]: row[2] for row in query(dsn, """
-        SELECT version, filename, applied_at::text FROM seed_history.applied_seed ORDER BY version;
+    seeded = {row[1] for row in query(dsn, """
+        SELECT version, filename FROM seed_history.applied_seed ORDER BY version;
     """)}
     for path in sorted((REPO / "seeds").glob("[0-9][0-9][0-9][0-9]_*.sql")):
-        state = seeded.get(path.name, "not applied to this database")
+        state = "applied" if path.name in seeded else "not applied to this database"
         w(f"| `{path.name[:4]}` | `{path.name}` | `{digest(path)[:16]}…` | {state} |")
     w("")
 
@@ -211,7 +229,8 @@ def build(dsn: str, logs: Path) -> str:
     for name, label in (("m1a", "M1-A database, RLS, roles"),
                         ("m1b", "M1-B identity and authentication"),
                         ("m1c", "M1-C configuration, audit, money"),
-                        ("m1d", "M1-D API, security, operations")):
+                        ("m1d", "M1-D API, security, operations"),
+                        ("fenced_gate", "Fenced-domain gate, vocabulary and mutations")):
         verdict, ran, failed = suite_result(logs, name)
         if ran.isdigit():
             total += int(ran)
@@ -235,10 +254,34 @@ def build(dsn: str, logs: Path) -> str:
     return "\n".join(out) + "\n"
 
 
-NARRATIVE = """## Accepted exceptions
+NARRATIVE = """## Repaired: the fenced gate was not authoritative (P1-01)
 
-Both were raised during the slice that introduced them and accepted by the founder. They
-are recorded here so a reviewer reads them as decisions rather than oversights.
+An independent review found `tools/verify_m1.py` scanning against a vocabulary written
+into the tool by hand, rather than the one shipped in the pinned package. Measured against
+the concrete case — a term used as an identifier, which is how it would actually appear —
+**17 of 63 authoritative terms were detected and 46 were missed**, and two domains had no
+coverage at all.
+
+The defect class is hardcoding, so the repair is not a corrected list:
+
+- the verifier loads its vocabulary from the pinned package through `tests/fenced.py`, the
+  same loader every slice harness uses
+- **no fenced term appears anywhere in the verifier**, and a test asserts that
+- it **fails closed**: an absent, unreadable or empty vocabulary stops the scan. There is
+  no built-in list to fall back to, because a vocabulary of zero terms passes everything
+  while reporting success
+- `tests/fenced_gate/verify_fenced_gate.py` plants a real mutation for **every one of the
+  63 terms** and requires each to be flagged, then proves one representative per domain
+  red before green
+
+The suite names no forbidden term either. Every probe is derived from the package at run
+time, including the domain representatives, which are chosen by position — the domain keys
+are themselves built from fenced words.
+
+## Accepted exceptions
+
+Each was raised during the slice that introduced it and accepted by the founder. They are
+recorded here so a reviewer reads them as decisions rather than oversights.
 
 ### `money.currency` is not tenant-scoped
 
@@ -253,6 +296,23 @@ Splitting a bill is M4's business. The function exists at M1 because exactness i
 unfalsifiable without an operation that can lose a minor unit: the suite asserts
 `sum(money.allocate(10000, 3)) = 10000` as an equality, which naive per-part rounding
 fails. It is a type-level primitive that M4 will consume, not bill-splitting policy.
+
+### `identity.governed_action` stays in the identity schema
+
+The step-up action registry is per-tenant policy data, which sits close to M1-C's
+configuration store. It remains owned by M1-B: `config.policy` references it by foreign key
+on `(tenant_id, action_code)` and never copies a row. A verification check asserts there is
+no second registry outside `identity` and that the reference exists.
+
+### The build writes outside the repository
+
+`api/build.sh` puts `node_modules/` and `dist/` in `$M1D_WORKSPACE`, not in the checkout.
+`tools/verify_m1.py` treats those directories as forbidden surface and inspects the
+filesystem rather than the Git index, so a `.gitignore` entry would keep them out of
+commits but would not stop the gate failing after an ordinary build. Building elsewhere
+keeps the repository clean at every moment, with no cleanup step to forget, and gives the
+M1-D negative controls somewhere to plant a defect that the repository never contains.
+**A deliberate design choice, ruled as such — not a workaround.**
 
 ## Deferred, and honestly so
 

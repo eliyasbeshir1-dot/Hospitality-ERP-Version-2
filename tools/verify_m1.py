@@ -5,12 +5,28 @@ Replaces verify_m0r_skeleton.py from gate M1 onward.
 
 WHAT CHANGED FROM M0R
     Migrations, schema and application source are now PERMITTED — that is the work of M1.
-    What remains forbidden is the fenced-domain surface: inventory, accounting, payroll,
-    purchasing, supplier, courier, recipes, costing, loyalty, CRM, pickup and delivery.
-    Those are fenced for every gate of Phase 1 and never become permitted.
+    What remains forbidden is the fenced-domain surface: the Phase 2/3 domains fenced for
+    every gate of Phase 1, which never become permitted.
 
     Also enforced: no v1.1 migration history, no bypass roles in deployment paths,
     no committed build artifacts, and /docs byte-integrity.
+
+WHERE THE VOCABULARY COMES FROM
+    The pinned package, at
+    docs/…/02_MACHINE_READABLE/forbidden_surface_rules.json, loaded through
+    tests/fenced.py — the same loader every slice harness uses.
+
+    This file contains NO fenced term, deliberately. An earlier revision carried a
+    hardcoded list, and an independent review proved the consequence: of 63 authoritative
+    terms only 17 were detected when used as an identifier, so a table named after one of
+    the fenced domains passed a gate whose entire purpose was to stop it. A hardcoded copy
+    of a vocabulary is not a shortcut, it is a second source of truth that diverges from
+    the first in silence.
+
+    If the vocabulary cannot be loaded, this verifier FAILS CLOSED. It has no built-in
+    list to fall back to, and it refuses to scan with an empty one: a vocabulary of zero
+    terms passes everything while reporting success, which is the false green this whole
+    mechanism exists to prevent.
 
 DO NOT EDIT THIS SCRIPT TO MAKE IT PASS.
 If it reports a finding, remove what it found.
@@ -26,42 +42,23 @@ import argparse, json, re, sys
 from pathlib import Path
 from datetime import datetime, timezone
 
+# The shared loader lives beside the harnesses that also consume it. The verifier imports
+# it rather than keeping a copy, because a copy is precisely what failed here before.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tests"))
+try:
+    from fenced import (  # noqa: E402
+        RULES_PATH, VocabularyUnavailable, domain_count, source_patterns, term_count,
+    )
+except Exception as _import_error:                                    # pragma: no cover
+    print("FAIL VOCABULARY_UNAVAILABLE", file=sys.stderr)
+    print(f"  the fenced vocabulary loader could not be imported: {_import_error}",
+          file=sys.stderr)
+    print("  the verifier has no built-in list and will not scan without one.",
+          file=sys.stderr)
+    raise SystemExit(1)
+
 DOCS_PREFIX = "docs/"
 NEVER_COMMIT = ["node_modules", "__pycache__", ".venv", "venv", "dist", "build", ".next"]
-
-# Fenced Phase 2/3 domains. Forbidden at EVERY gate, in schema, code and identifiers.
-FENCED = {
-    "inventory_stock_storage": [
-        r"\bstock_level\b", r"\bstock_count\b", r"\bstorage_location\b", r"\bwarehouse\b",
-        r"\binventory_item\b", r"\binventory_movement\b", r"\bconsumption_posting\b",
-    ],
-    "accounting_ledger": [
-        r"\bgeneral_ledger\b", r"\bjournal_entry\b", r"\bjournal_entries\b",
-        r"\baccounts_payable\b", r"\baccounts_receivable\b", r"\btrial_balance\b",
-        r"\bchart_of_accounts\b", r"\bledger_posting\b",
-    ],
-    "workforce_payroll": [
-        r"\bpayroll\b", r"\bemployee_record\b", r"\btimesheet\b", r"\battendance\b",
-        r"\broster\b", r"\bshift_schedule\b", r"\bwage_run\b",
-    ],
-    "purchasing_supplier": [
-        r"\bpurchase_order\b", r"\bprocurement\b", r"\bsupplier_catalog\b",
-        r"\bgoods_receipt\b", r"\bsupplier_connector\b",
-    ],
-    "courier_delivery": [
-        r"\bcourier\b", r"\bdispatch_rider\b", r"\bdelivery_address\b",
-        r"\bdelivery_fee\b", r"\bdelivery_zone\b",
-    ],
-    "pickup": [r"\bpickup_code\b", r"\bpickup_slot\b", r"\bpickup_order\b"],
-    "loyalty_crm": [
-        r"\bloyalty_program\b", r"\bloyalty_point\b", r"\brewards_balance\b",
-        r"\bcustomer_segment\b", r"\bmarketing_campaign\b", r"\bcampaign_id\b",
-    ],
-    "recipes_costing": [
-        r"\brecipe_line\b", r"\bbill_of_materials\b", r"\btheoretical_usage\b",
-        r"\bfood_cost\b", r"\bcosting_variance\b",
-    ],
-}
 
 # Contexts where naming a fenced term is legitimate: prohibitions and documentation.
 NEGATION = re.compile(
@@ -84,12 +81,38 @@ def rel(p: Path, root: Path) -> str:
     return str(p.relative_to(root)).replace("\\", "/")
 
 
+def line_containing(text: str, start: int, end: int) -> str:
+    line_start = text.rfind("\n", 0, start) + 1
+    line_end = text.find("\n", end)
+    return text[line_start:line_end if line_end != -1 else len(text)]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="M1 forbidden-surface verifier.")
     ap.add_argument("--repo", required=True)
     ap.add_argument("--json-report")
     args = ap.parse_args()
     root = Path(args.repo).resolve()
+
+    # ---- Load the authoritative vocabulary, or stop ----------------------------
+    try:
+        patterns = source_patterns()
+        terms = term_count()
+        domains = domain_count()
+    except VocabularyUnavailable as error:
+        print("FAIL VOCABULARY_UNAVAILABLE", file=sys.stderr)
+        print(f"  {error}", file=sys.stderr)
+        print(f"  expected at: {RULES_PATH}", file=sys.stderr)
+        print("  the verifier has no built-in list and will not scan without one.",
+              file=sys.stderr)
+        return 1
+
+    # A vocabulary that loads empty would pass everything and say so cheerfully.
+    if terms <= 0 or domains <= 0 or not patterns:
+        print("FAIL VOCABULARY_EMPTY", file=sys.stderr)
+        print(f"  loaded {terms} term(s) across {domains} domain(s) — refusing to scan.",
+              file=sys.stderr)
+        return 1
 
     findings = []
     scanned = docs_files = 0
@@ -121,20 +144,19 @@ def main() -> int:
         # Governance prose may name fenced domains in order to prohibit them.
         governance = r.startswith("planning/") or r.endswith("README.md") or "/tools/verify_" in "/" + r
 
-        for domain, patterns in FENCED.items():
-            for pat in patterns:
-                # Match as an identifier component: payroll_id, employee_records, stock_levels
-                loose = pat.replace(r"\b", "")
-                loose = r"(?<![A-Za-z0-9])" + loose + r"(?:s|es|_[a-z0-9_]+)?(?![A-Za-z0-9])"
-                for m in re.finditer(loose, text, re.I):
-                    line_start = text.rfind("\n", 0, m.start()) + 1
-                    line_end = text.find("\n", m.end())
-                    line = text[line_start:line_end if line_end != -1 else len(text)]
-                    if governance or NEGATION.search(line):
+        if not governance:
+            reported_domains: set[str] = set()
+            for domain, term, pattern in patterns:
+                if domain in reported_domains:
+                    continue
+                for match in pattern.finditer(text):
+                    if NEGATION.search(line_containing(text, match.start(), match.end())):
                         continue
                     findings.append({
                         "code": "FENCED_DOMAIN_SURFACE", "path": r, "domain": domain,
-                        "detail": f"'{m.group(0)}' appears as a positive obligation, not a prohibition"})
+                        "term": term,
+                        "detail": f"'{match.group(0)}' appears as a positive obligation, not a prohibition"})
+                    reported_domains.add(domain)
                     break
 
         for pat, label in V11_HISTORY:
@@ -144,10 +166,7 @@ def main() -> int:
 
         if DEPLOYMENT_HINT.search(r):
             for bm in BYPASS_ROLES.finditer(text):
-                ls = text.rfind("\n", 0, bm.start()) + 1
-                le = text.find("\n", bm.end())
-                line = text[ls:le if le != -1 else len(text)]
-                if NEGATION.search(line):
+                if NEGATION.search(line_containing(text, bm.start(), bm.end())):
                     continue
                 findings.append({"code": "BYPASS_ROLE_IN_DEPLOYMENT_PATH", "path": r,
                                  "detail": f"'{bm.group(0)}' appears in a deployment or bootstrap path"})
@@ -177,10 +196,16 @@ def main() -> int:
         "verification": "m1_forbidden_surface", "gate": "M1",
         "checked_at_utc": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "repository": str(root), "repository_files_scanned": scanned,
-        "docs_files_counted": docs_files, "finding_count": len(findings), "findings": findings,
+        "docs_files_counted": docs_files,
+        "vocabulary_source": str(RULES_PATH),
+        "vocabulary_terms": terms,
+        "vocabulary_domains": domains,
+        "finding_count": len(findings), "findings": findings,
         "passed": not findings,
         "note": ("Migrations, schema and application source are permitted from M1. Fenced Phase 2/3 "
-                 "domains are forbidden at every gate. Never edit this script to make it pass."),
+                 "domains are forbidden at every gate. The vocabulary is loaded from the pinned "
+                 "package and the verifier fails closed without it. Never edit this script to make "
+                 "it pass."),
     }
     if args.json_report:
         Path(args.json_report).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
@@ -194,6 +219,8 @@ def main() -> int:
     print("PASS M1_FORBIDDEN_SURFACE")
     print(f"  repository files scanned : {scanned}")
     print(f"  docs package files       : {docs_files}")
+    print(f"  vocabulary loaded        : {terms} terms across {domains} domains")
+    print(f"  vocabulary source        : {RULES_PATH.relative_to(Path(__file__).resolve().parents[1])}")
     print("  fenced-domain surface    : none")
     return 0
 
