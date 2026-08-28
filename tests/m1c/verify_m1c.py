@@ -108,9 +108,35 @@ def section_money() -> None:
     ok, sig, detail = money_exactness_gate()
     record("no binary floating point column exists anywhere", ok, detail if ok else f"{sig}: {detail}")
 
+    # F6. This check is VACUOUS at M1 and now says so rather than reading as a proof.
+    # No M1 table holds money, so assert_currency_paired() examines an empty population
+    # and returns nothing. An empty result from an empty population is not evidence.
     paired = count(ADMIN, "SELECT count(*) FROM money.assert_currency_paired();")
-    record("every money column sits beside an explicit currency", paired == 0,
-           f"{paired} money column(s) without a currency_code beside them")
+    population = count(ADMIN, "SELECT money.currency_pairing_population();")
+    record("the currency-pairing check is vacuous at M1, and says so explicitly",
+           paired == 0 and population == 0,
+           f"{population} column(s) of type money.amount_minor exist, so the check examined "
+           f"nothing and reported {paired} offender(s). It becomes live at M4, when checks, "
+           f"bills and payments introduce the first stored amounts.")
+
+    # And the mechanism is proved against a real column rather than trusted. The column
+    # is created and dropped inside a rolled-back transaction, so the schema the rest of
+    # the suite sees is unchanged.
+    mechanism = run(ADMIN, """
+        CREATE TABLE money.pairing_probe (id bigint, amount money.amount_minor);
+        SELECT count(*)::text FROM money.assert_currency_paired();
+        SELECT money.currency_pairing_population()::text;
+        ALTER TABLE money.pairing_probe ADD COLUMN currency_code char(3);
+        SELECT count(*)::text FROM money.assert_currency_paired();
+    """, rollback=True)
+    unpaired, probed, repaired = (mechanism.rows[0][0], mechanism.rows[1][0],
+                                  mechanism.rows[2][0]) if mechanism.ok and len(mechanism.rows) >= 3 \
+        else ("0", "0", "1")
+    record("the pairing check fires when a money column actually exists",
+           mechanism.ok and unpaired == "1" and probed == "1" and repaired == "0",
+           f"a bare money.amount_minor column is reported ({unpaired} offender in a population "
+           f"of {probed}); adding currency_code beside it clears the report ({repaired}). "
+           f"Created and dropped inside a rolled-back transaction.")
 
     # Exactness, asserted as an identity rather than a tolerance.
     #   sum(money.allocate(10000, 3)) = 10000     — exactly, no lost minor unit
@@ -125,6 +151,39 @@ def section_money() -> None:
            truthy(exact) and total == "10000",
            f"money.allocate(10000, 3) = [{parts}], sum = {total}; "
            f"asserted sum(parts) = 10000 as an equality, not a tolerance")
+
+    # F4. money.amount_minor is a bare bigint and refunds are negative, so exactness has
+    # to hold below zero as well. It did not: integer division truncates toward zero and
+    # the remainder carried the dividend's sign, so the largest-remainder loop never
+    # fired and -10000 over 3 parts summed to -9999, while -1 over 3 vanished entirely.
+    CASES = [(10000, 3), (1000, 3), (-10000, 3), (-1, 3), (-7, 3), (-2, 4), (7, 2),
+             (-100, 7), (0, 3), (5, 5), (-5, 5), (1, 1), (-1, 1)]
+    allocation_faults: list[str] = []
+    for amount, parts_n in CASES:
+        probe = run(APP, f"""
+            SELECT sum(part_amount)::text,
+                   count(*)::text,
+                   string_agg(part_amount::text, ',' ORDER BY part_index)
+            FROM money.allocate(({amount})::money.amount_minor, {parts_n});
+        """, **H1)
+        if not probe.ok or not probe.rows:
+            allocation_faults.append(f"allocate({amount}, {parts_n}) did not run: {probe.why()}")
+            continue
+        got, n_parts, shape = probe.rows[0]
+        if got != str(amount) or n_parts != str(parts_n):
+            allocation_faults.append(
+                f"allocate({amount}, {parts_n}) = [{shape}] summing to {got}, expected {amount}")
+    record("allocation is exact for negative totals as well as positive (FR-DAT-006)",
+           not allocation_faults,
+           "; ".join(allocation_faults) if allocation_faults else
+           f"{len(CASES)} cases, each asserted as an equality: sum(parts) = total exactly, "
+           f"including -10000, -7, -1 and -5 over 5 parts")
+
+    invalid_parts = run(APP,
+                        "SELECT * FROM money.allocate(100::money.amount_minor, 0);", **H1)
+    record("allocation refuses a part count below one",
+           invalid_parts.failed_with("ALLOCATION_PARTS_INVALID"),
+           f"refused by ALLOCATION_PARTS_INVALID: {invalid_parts.why()}")
 
     # The same split done in binary floating point does NOT reconstitute the total.
     float_demo = run(APP, """
@@ -151,12 +210,33 @@ def section_money() -> None:
            (hu, he, fl, ce) == ("3", "2", "2", "3"),
            f"5% of 50 minor units is exactly 2.5; half_up={hu}, half_even={he}, floor={fl}, ceiling={ce}")
 
+    # F11. money.percentage cannot be negative, but money.amount_minor can, so the
+    # negative half is reachable and its tie direction has to be stated and proved.
+    # half_up breaks a tie AWAY FROM ZERO: -2.5 to -3, matching HALF_UP in Java
+    # BigDecimal and Python decimal. It is NOT "toward positive infinity" — that is
+    # half_ceiling, and this type does not offer it.
+    negative = run(APP, """
+        SELECT money.apply_rate((-50)::money.amount_minor, 5.0::money.percentage, 'half_up')::text,
+               money.apply_rate((-50)::money.amount_minor, 5.0::money.percentage, 'half_even')::text,
+               money.apply_rate((-50)::money.amount_minor, 5.0::money.percentage, 'floor')::text,
+               money.apply_rate((-50)::money.amount_minor, 5.0::money.percentage, 'ceiling')::text,
+               money.apply_rate((-70)::money.amount_minor, 5.0::money.percentage, 'half_up')::text,
+               money.apply_rate((-70)::money.amount_minor, 5.0::money.percentage, 'half_even')::text;
+    """, **H1)
+    nrow = negative.rows[0] if negative.ok and negative.rows else ["", "", "", "", "", ""]
+    record("half_up breaks a negative tie away from zero, and the type says so",
+           tuple(nrow) == ("-3", "-2", "-3", "-2", "-4", "-4"),
+           f"-2.5 rounds to half_up={nrow[0]} (away from zero, not -2), half_even={nrow[1]} "
+           f"(to the even neighbour), floor={nrow[2]}, ceiling={nrow[3]}; "
+           f"-3.5 rounds to half_up={nrow[4]}, half_even={nrow[5]}")
+
     # Quantity and percentage carry declared precision and reject out-of-range values.
     bad_pct = run(APP, "SELECT 150.0::money.percentage;", **H1)
     bad_qty = run(APP, "SELECT (-1)::money.quantity;", **H1)
     precision = run(APP, "SELECT (1/3.0)::money.quantity::text;", **H1)
     record("quantities and percentages have declared precision and validation",
-           (not bad_pct.ok) and (not bad_qty.ok) and precision.ok
+           bad_pct.failed_with("23514", "percentage_within_bounds")
+           and bad_qty.failed_with("23514", "quantity_is_not_negative") and precision.ok
            and precision.scalar == "0.3333",
            f"a 150% value and a negative quantity are both refused; "
            f"1/3 stores as {precision.scalar} at the declared scale of 4")
@@ -165,9 +245,10 @@ def section_money() -> None:
     for verb, stmt in (("INSERT", "INSERT INTO money.currency VALUES ('XXX','Test',2)"),
                        ("UPDATE", "UPDATE money.currency SET display_name = 'x' WHERE code = 'ETB'"),
                        ("DELETE", "DELETE FROM money.currency WHERE code = 'ETB'")):
-        res = run(APP, stmt + ";", **H1)
-        record(f"the application role cannot {verb} currency reference data", not res.ok,
-               "money.currency is SELECT-only for the runtime role")
+        res = run(APP, stmt + ";", rollback=True, **H1)
+        record(f"the application role cannot {verb} currency reference data",
+               res.failed_with("42501"),
+               f"money.currency is SELECT-only for the runtime role: {res.why()}")
 
 
 def money_exactness_gate() -> tuple[bool, str, str]:
@@ -208,17 +289,24 @@ def audit_append_only_gate() -> tuple[bool, str, str]:
     before = count(APP, "SELECT count(*) FROM audit.security_event;", **H1)
     leaks: list[str] = []
 
+    # Append-only is enforced twice over — the grant and the trigger — so the refusal is
+    # asserted by name. 42501 is the grant refusing; AUDIT_IS_APPEND_ONLY is the trigger.
+    # Either is correct; anything else is not this control working.
+    APPEND_ONLY = ("42501", "AUDIT_IS_APPEND_ONLY", "append-only", "append only")
     upd = run(APP, "UPDATE audit.security_event SET event_code = 'tampered';", **H1)
-    if upd.ok:
-        leaks.append("the application role UPDATEd an audit row")
+    if not upd.failed_with(*APPEND_ONLY):
+        leaks.append(f"UPDATE on audit storage was not refused as append-only: "
+                     f"{upd.why() or 'it succeeded'}")
 
     dele = run(APP, "DELETE FROM audit.security_event;", **H1)
-    if dele.ok:
-        leaks.append("the application role DELETEd an audit row")
+    if not dele.failed_with(*APPEND_ONLY):
+        leaks.append(f"DELETE on audit storage was not refused as append-only: "
+                     f"{dele.why() or 'it succeeded'}")
 
     trunc = run(APP, "TRUNCATE audit.security_event;", **H1)
-    if trunc.ok:
-        leaks.append("the application role TRUNCATEd audit storage")
+    if not trunc.failed_with(*APPEND_ONLY):
+        leaks.append(f"TRUNCATE on audit storage was not refused as append-only: "
+                     f"{trunc.why() or 'it succeeded'}")
 
     after = count(APP, "SELECT count(*) FROM audit.security_event;", **H1)
     if after < before:
@@ -257,16 +345,70 @@ def section_audit() -> None:
            granted.scalar in ("INSERT,SELECT", "SELECT,INSERT"),
            f"granted privileges: {granted.scalar}")
 
-    # M1-B emits recovery and lockout events; M1-C is where they land.
-    landed = run(APP, f"""
-        SELECT identity.emit_security_event('recovery.completed', '{USER_HABESHA}');
-        INSERT INTO audit.security_event (tenant_id, outlet_id, event_code, subject_id)
-        VALUES ('{TENANT_HABESHA}', '{OUTLET_H1}', 'recovery.completed', '{USER_HABESHA}');
-        SELECT count(*) FROM audit.security_event WHERE event_code = 'recovery.completed';
+    # F5. This check used to call the emitter, then INSERT the row itself, then assert
+    # the row was there — so it passed with the emitter deleted, and the requirement it
+    # claimed to prove was not met at all. The emitter stored nothing; it only called
+    # pg_notify. Migration 0005 makes it write, and the check now calls ONLY the emitter
+    # and asserts what the emitter left behind. It supplies no evidence of its own.
+    before = count(APP, f"""
+        SELECT count(*) FROM audit.security_event
+        WHERE event_code = 'recovery.completed' AND subject_id = '{USER_HABESHA}';
     """, **H1)
-    record("M1-B's security events have a home here (FR-AUTH-010)",
-           landed.ok and int(landed.rows[-1][0]) >= 1,
-           "recovery events emitted by identity are stored in audit.security_event")
+    emitted = run(APP, f"""
+        SELECT identity.emit_security_event('recovery.completed', '{USER_HABESHA}');
+    """, **H1)
+    after = count(APP, f"""
+        SELECT count(*) FROM audit.security_event
+        WHERE event_code = 'recovery.completed' AND subject_id = '{USER_HABESHA}';
+    """, **H1)
+    record("the identity emitter itself stores the event (FR-AUTH-010)",
+           emitted.ok and after == before + 1,
+           f"one call to identity.emit_security_event left {after - before} row(s) in "
+           f"audit.security_event ({before} before, {after} after). The test inserts nothing.")
+
+    # The row it wrote carries the scope and subject it was given, not defaults.
+    written = run(APP, f"""
+        SELECT tenant_id::text, outlet_id::text, subject_id::text
+        FROM audit.security_event
+        WHERE event_code = 'recovery.completed' AND subject_id = '{USER_HABESHA}'
+        ORDER BY id DESC LIMIT 1;
+    """, **H1)
+    wrow = written.rows[0] if written.ok and written.rows else ["", "", ""]
+    record("the stored event carries the tenant, outlet and subject it was emitted for",
+           wrow == [TENANT_HABESHA, OUTLET_H1, USER_HABESHA],
+           f"tenant={wrow[0]}, outlet={wrow[1]}, subject={wrow[2]}")
+
+    # An event that cannot be attributed to a tenant is refused, not dropped quietly.
+    unattributed = run(APP, """
+        SELECT identity.emit_security_event('recovery.completed', NULL);
+    """, tenant="", outlet="")
+    record("an unattributable security event is refused rather than silently dropped",
+           unattributed.failed_with("SECURITY_EVENT_UNATTRIBUTED"),
+           f"refused by SECURITY_EVENT_UNATTRIBUTED: {unattributed.why()}")
+
+    # And a real membership withdrawal — the trigger path, not a direct call — lands a
+    # row. M1-A's ACME fixtures are the only ones carrying an active membership, so the
+    # probe runs under ACME's context. Rolled back, so the membership survives intact.
+    ACME, A1 = "11111111-1111-1111-1111-111111111111", "aaaa0001-0000-4000-8000-000000000001"
+    MEMBERSHIP_BOB = "eeee0002-0000-4000-8000-000000000002"
+    acme_ctx = dict(tenant=ACME, outlet=A1)
+    withdrawal_before = count(APP, """
+        SELECT count(*) FROM audit.security_event WHERE event_code = 'membership.withdrawn';
+    """, **acme_ctx)
+    withdrawn = run(APP, f"""
+        UPDATE identity.membership
+        SET status = 'inactive', withdrawn_at = now(),
+            row_version = (SELECT row_version FROM identity.membership WHERE id = '{MEMBERSHIP_BOB}')
+        WHERE id = '{MEMBERSHIP_BOB}';
+        SELECT count(*)::text FROM audit.security_event WHERE event_code = 'membership.withdrawn';
+    """, rollback=True, **acme_ctx)
+    withdrawal_after = int(withdrawn.rows[-1][0]) if withdrawn.ok and withdrawn.rows else -1
+    record("a real membership withdrawal lands a security event through the trigger",
+           withdrawn.ok and withdrawal_after == withdrawal_before + 1,
+           f"withdrawing a membership raised the stored count from {withdrawal_before} to "
+           f"{withdrawal_after} with no INSERT by this test; the emitter was reached through "
+           f"identity.revoke_sessions_on_membership_change. Rolled back afterwards."
+           if withdrawn.ok else f"the withdrawal did not run: {withdrawn.why()}")
 
 
 # ===========================================================================
@@ -304,8 +446,10 @@ def section_configuration() -> None:
         VALUES ('{TENANT_HABESHA}', 'tenant', 'tax', 3, '{{}}'::jsonb, now(),
                 '{USER_HABESHA}', '{USER_HABESHA}', now());
     """, **H1)
-    record("two open versions of one category cannot coexist", not two_open.ok,
-           "the partial unique index refuses a second version with no effective_to")
+    record("two open versions of one category cannot coexist",
+           two_open.failed_with("23505"),
+           f"the partial unique index refuses a second version with no effective_to: "
+           f"{two_open.why()}")
 
     # FR-TEN-010: every change writes an audit row with actor, approval and effective date.
     audited = run(APP, f"""
@@ -340,9 +484,10 @@ def section_configuration() -> None:
     # list diverge from the registry it was meant to mirror.
     probe_term = representative_term().replace(" ", "_")
     bad_category = run(APP, f"SELECT '{probe_term}'::config.policy_category;", **H1)
-    record("a deferred policy category cannot even be named", not bad_category.ok,
+    record("a deferred policy category cannot even be named",
+           bad_category.failed_with("22P02", "invalid input value for enum"),
            f"a term from the pinned vocabulary is a type error rather than a row; "
-           f"the enum is closed")
+           f"the enum is closed: {bad_category.why()}")
 
     # Ownership boundary with M1-B.
     copied = count(ADMIN, """
@@ -372,7 +517,8 @@ def section_configuration() -> None:
                 now(), '{USER_HABESHA}', '{USER_HABESHA}', now());
     """, **H1)
     record("a policy cannot name a governed action that identity does not define",
-           not orphan.ok, "the foreign key into identity.governed_action refuses it")
+           orphan.failed_with("23503"),
+           f"the foreign key into identity.governed_action refuses it: {orphan.why()}")
 
 
 # ===========================================================================
@@ -398,8 +544,9 @@ def section_reason_codes() -> None:
         INSERT INTO config.reason_code_label (tenant_id, reason_code_id, locale, label)
         SELECT tenant_id, id, 'not-a-locale', 'x' FROM config.reason_code LIMIT 1;
     """, **H1)
-    record("a malformed locale tag is rejected", not bad_locale.ok,
-           "the locale CHECK enforces the ll or ll-CC shape")
+    record("a malformed locale tag is rejected",
+           bad_locale.failed_with("23514", "locale"),
+           f"the locale CHECK enforces the ll or ll-CC shape: {bad_locale.why()}")
 
     consuming = count(ADMIN, """
         SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -561,8 +708,9 @@ def section_numbering() -> None:
         SELECT config.issue_document_number(
             '{TENANT_HABESHA}'::uuid, 'check', '1999', NULL, '{OUTLET_H1}'::uuid);
     """, **H1)
-    record("issuing against an undefined series is refused", not absent.ok,
-           "a missing series raises rather than inventing a number")
+    record("issuing against an undefined series is refused",
+           absent.failed_with("NUMBER_SERIES_ABSENT"),
+           f"a missing series raises rather than inventing a number: {absent.why()}")
 
     isolated = count(APP, "SELECT count(*) FROM config.number_series;", **H2)
     record("a series belongs to its outlet alone", isolated == 1,
@@ -630,8 +778,9 @@ def retention_gate() -> tuple[bool, str, str]:
             (tenant_id, target_schema, target_table, age_column, retain_for, action)
         VALUES ('{TENANT_HABESHA}', 'audit', 'security_event', 'occurred_at', interval '1 day', 'purge');
     """, **H1)
-    if stored.ok:
-        problems.append("a retention policy targeting audit storage was accepted")
+    if not stored.failed_with("23514", "RETENTION_TARGET_ABSENT", "audit"):
+        problems.append("a retention policy targeting audit storage was not refused on its "
+                        f"target: {stored.why() or 'it was accepted'}")
 
     applied = run(APP, f"SELECT * FROM config.apply_retention('{TENANT_HABESHA}');", **H1)
     if not applied.ok:
@@ -666,8 +815,10 @@ def section_retention() -> None:
             (tenant_id, target_schema, target_table, age_column, retain_for, action)
         VALUES ('{TENANT_HABESHA}', 'identity', 'auth_lockout', 'locked_at', interval '0', 'purge');
     """, **H1)
-    record("a zero retention window is refused", not bad_interval.ok,
-           "retain_for must be positive, so a policy cannot mean 'delete immediately'")
+    record("a zero retention window is refused",
+           bad_interval.failed_with("23514", "retain_for"),
+           f"retain_for must be positive, so a policy cannot mean 'delete immediately': "
+           f"{bad_interval.why()}")
 
 
 # ===========================================================================

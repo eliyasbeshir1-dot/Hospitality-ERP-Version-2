@@ -100,6 +100,7 @@ CONTROLS = [
     ("NC-M1B-002", "Quick PIN for a governed action", "LOW_RISK_CREDENTIAL_USED_FOR_SENSITIVE_ACTION", "m1b"),
     ("NC-M1B-003", "Step-up recency ignored", "STALE_STEP_UP_ACCEPTED", "m1b"),
     ("NC-M1B-004", "Principal outside its scope", "OUT_OF_SCOPE_PRINCIPAL_ACCEPTED", "m1b"),
+    ("NC-M1B-005", "Context outlives its transaction", "CONTEXT_SURVIVED_COMMIT", "m1b"),
     ("NC-M1C-001", "Audit mutated by ordinary role", "AUDIT_MUTATED_BY_ORDINARY_ROLE", "m1c"),
     ("NC-M1C-002", "Inexact money type", "INEXACT_MONEY_TYPE_ACCEPTED", "m1c"),
     ("NC-M1C-003", "Entitlement defaulting open", "UNKNOWN_ENTITLEMENT_DEFAULTED_OPEN", "m1c"),
@@ -111,6 +112,8 @@ CONTROLS = [
     ("NC-M1D-004", "Required header absent", "REQUIRED_HEADER_ABSENT", "m1d"),
     ("NC-M1D-005", "Seed checksum lock bypassed", "SEED_CHECKSUM_LOCK_BYPASSED", "m1d"),
     ("NC-M1D-006", "Route served without context", "ROUTE_SERVED_WITHOUT_CONTEXT", "m1d"),
+    ("NC-M1D-007", "Readiness reads a stale role snapshot", "READINESS_GREEN_WITH_PRIVILEGED_ROLE", "m1d"),
+    ("NC-M1D-008", "Readiness discloses deployment detail", "READINESS_DISCLOSES_DEPLOYMENT_DETAIL", "m1d"),
 ]
 
 
@@ -298,6 +301,70 @@ The suite names no forbidden term either. Every probe is derived from the packag
 time, including the domain representatives, which are chosen by position — the domain keys
 are themselves built from fenced words.
 
+## Repairs made after independent review
+
+An executing independent review — its own PostgreSQL, every defect planted by hand —
+raised twelve findings. It confirmed the counts were true and found that several checks
+asserted things that were not, and that some code did not do what its own comment
+promised. All twelve are closed below. Two were closed differently from the brief's
+prescription, with reasons; both are marked.
+
+| # | Finding | Repair | Proof |
+|---|---------|--------|-------|
+| F5 | The FR-AUTH-010 audit assertion was satisfied by its own `INSERT` | `identity.emit_security_event` now writes to `audit.security_event` (0005); the check calls only the emitter | NC-M1C direct, scope and trigger checks; the test inserts nothing |
+| F3/F9 | ~20 assertions satisfied by any failure | `Result.failed_with()` requires a named SQLSTATE or signature; bare failure raises | every converted site names its reason and prints it |
+| F3 | `pg.py` was POSIX-only | `os.devnull`; M1-A scans the harness for regressions | cross-platform section, mechanism only |
+| F1 | Readiness read a boot-time role snapshot | role privilege re-queried on every probe | **NC-M1D-007**, red then green |
+| F7 | `db.ts` documented `SET LOCAL`; the code used session-level `set_config` | transaction-local in 0005 | **NC-M1B-005**, red then green |
+| F2 | No `.gitattributes` | added — see the note below on how it differs | four assertions, mechanism only |
+| F4 | `money.allocate` lost minor units for negative totals | remainder distributed in the direction of its sign (0005) | 13 cases asserted as equalities |
+| F6 | The currency-pairing check was vacuous | vacuity asserted explicitly; mechanism proved against a real column | recorded as a deferral above |
+| F8 | The UPDATE and DELETE legs failed open on `-1` | `count()` raises; only "ran and affected zero rows" counts as a denial | NC-M1-001/002 red proofs now show the writes succeeding |
+| F10 | NC-M1D-006 covered GET only | all seven methods swept | 49 unauthenticated requests per run |
+| F11 | `half_up` rounds -2.5 to -3 | **closed differently** — see below | negative tie cases asserted |
+| F12 | `/ready` disclosed deployment detail | restricted to what a probe needs | **NC-M1D-008**, red then green |
+
+Three findings were live in the tree rather than hypothetical, and the repairs surfaced
+them rather than reasoning about them:
+
+- The DELETE leg of the isolation gates had **never** exercised row level security. It
+  targeted a node with children, so a foreign key error arrived first and `count()`
+  returned `-1`, which `if affected > 0` read as "no leak". The fixtures now carry a
+  dedicated delete target with no dependents, and the red proofs show the DELETE actually
+  removing a row when the policy is removed.
+- The sibling-outlet INSERT was refused by the parent-visibility trigger, not by the
+  policy the gate claimed to be proving. A correct denial, asserted for the wrong reason.
+- An assertion named a *sibling* node as its "cross-tenant parent". Same tenant, in scope,
+  so the INSERT succeeded — and the detail line silently omitted it instead of failing.
+  It also left a row behind in the fixtures on every run.
+
+### F11 was closed by documenting, not by renaming or changing behaviour
+
+The review read `half_up` sending -2.5 to -3 as a defect. It is not. Breaking a tie away
+from zero is what `HALF_UP` means in Java `BigDecimal` and Python `decimal`; the reading
+that makes "up" mean toward positive infinity describes `half_ceiling`, a different mode
+that this type does not offer. The pinned package does not define the semantics, so
+nothing was contradicted.
+
+What was genuinely wrong is that the direction was never stated and never tested, and an
+unstated tie direction is exactly how two subsystems come to disagree about a half-cent —
+which the type's own comment already warned about. Migration 0005 states the direction on
+the type; the suite proves it on negative amounts. Renaming was considered and rejected:
+`half_up` appears inside a stored seed payload, so a rename needs a data migration, and it
+would diverge from the name every developer expects. **Founder ruled: document and test.**
+
+### F2's `.gitattributes` is not the one the brief prescribed
+
+The brief asked for `* text=auto eol=lf` plus a re-normalisation. Applied literally, that
+**rewrites the pinned package**: 70 of its 92 files are stored with CR bytes, because that
+is how they were delivered and hashed. Normalising them changes the very bytes the 91
+recorded sums exist to detect — measured directly, the first file checked went from 531
+bytes to 517.
+
+The package is therefore exempt from conversion in **both** directions (`docs/** -text`),
+while repository source keeps `eol=lf`. That serves the finding's actual requirement — the
+same bytes on Windows and Linux — rather than its literal wording.
+
 ## Accepted exceptions
 
 Each was raised during the slice that introduced it and accepted by the founder. They are
@@ -348,6 +415,38 @@ Two separate mechanisms exist and neither is distributed:
 Neither survives a restart, and running two instances doubles the effective allowance. The
 readiness payload reports `rateLimiting.scope: singleInstance` so no operator can mistake
 it for more. **Distributed enforcement is M6 infrastructure and is not claimed at M1.**
+
+### The currency-pairing check is vacuous at M1
+
+`money.assert_currency_paired()` reports any `money.amount_minor` column with no
+`currency_code` beside it. **No M1 table holds money**, so it examines an empty population
+and returns nothing. An empty result from an empty population is not evidence, and a
+reviewer could read the passing check as proof of a property nothing had.
+
+Migration 0005 adds `money.currency_pairing_population()` so "zero offenders" and "nothing
+to check" are distinguishable, and the M1-C suite asserts the vacuity explicitly rather
+than passing quietly. The mechanism is proved separately against a real column, created
+and dropped inside a rolled-back transaction: a bare amount column is reported, and adding
+`currency_code` beside it clears the report. **It becomes live at M4**, when checks, bills
+and payments introduce the first stored amounts. This is not covered by the
+`money.currency` exception above.
+
+### Windows execution is NOT verified, and three findings depend on it
+
+The repair brief asked for Windows verification of two findings. **No Windows machine was
+available; every run recorded here executed on Linux.** What was proved, and what was not:
+
+- **Proved here.** `.gitattributes` resolves checksum-locked and executable files to
+  `text=set eol=lf`, and the pinned package to `-text` — no conversion in either
+  direction. Re-normalising `docs/`, `migrations/`, `seeds/` and `tools/` against a
+  throwaway index produces blobs byte-identical to the committed ones, so no recorded
+  SHA-256 sum and no migration checksum moves. The harness contains no hardcoded POSIX
+  device path; `os.devnull` is used and M1-A scans for regressions.
+- **Not proved here.** That the suites run to completion on Windows. That a
+  Git-for-Windows checkout with `core.autocrlf=true` produces the 91 matching sums in
+  practice. That `set -euo pipefail` parses with no trailing CR on that platform.
+
+The mechanism is verified; the platform is not. **This remains open and is not claimed.**
 
 ### Windows commands are documented but unverified
 

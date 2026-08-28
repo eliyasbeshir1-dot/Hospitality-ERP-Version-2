@@ -137,6 +137,112 @@ def privileged_credential_gate() -> tuple[bool, str, str]:
                       f"application role")
 
 
+def readiness_role_privilege_gate() -> tuple[bool, str, str]:
+    """Readiness must re-read role privilege, not answer from the boot-time snapshot.
+
+    F1. The comment beside this check in api/src/routes/health.ts said a boot-time
+    snapshot would be "a stale claim rather than a check" — and then read exactly that
+    snapshot, with `privileged` hardcoded false. `ALTER ROLE hospitality_app BYPASSRLS`
+    needs no restart, so /ready answered 200 with an empty problem list while the process
+    ran with row level security disabled underneath it.
+
+    The role is genuinely altered here. Nothing is stubbed and no flag is set.
+    """
+    problems: list[str] = []
+    with Service(APP) as service:
+        baseline = service.get("/ready")
+        if baseline.status != 200:
+            return False, "READINESS_GREEN_WITH_PRIVILEGED_ROLE", \
+                f"readiness was already unhealthy: {baseline.json.get('problems')}"
+        if baseline.json.get("role", {}).get("privileged") is not False:
+            return False, "READINESS_GREEN_WITH_PRIVILEGED_ROLE", \
+                "readiness did not report the role as unprivileged before the change"
+
+        granted = run(ADMIN, "ALTER ROLE hospitality_app BYPASSRLS;")
+        if not granted.ok:
+            return False, "READINESS_GREEN_WITH_PRIVILEGED_ROLE", \
+                f"could not grant BYPASSRLS to make the check meaningful: {granted.why()}"
+        try:
+            privileged = service.get("/ready")
+            if privileged.status == 200:
+                problems.append("readiness stayed 200 while the running role held BYPASSRLS")
+            payload = privileged.json
+            if payload.get("role", {}).get("privileged") is not True:
+                problems.append("readiness reported the role as unprivileged while it held BYPASSRLS")
+            if not any("privileged" in p for p in payload.get("problems", [])):
+                problems.append("readiness did not name the privilege among its problems")
+        finally:
+            run(ADMIN, "ALTER ROLE hospitality_app NOBYPASSRLS;")
+
+        restored = service.get("/ready")
+        if restored.status != 200:
+            problems.append(f"readiness did not recover once the privilege was revoked: "
+                            f"{restored.json.get('problems')}")
+        if restored.json.get("role", {}).get("privileged") is not False:
+            problems.append("readiness still reported the role as privileged after revocation")
+
+    if problems:
+        return False, "READINESS_GREEN_WITH_PRIVILEGED_ROLE", "; ".join(problems)
+    return True, "", ("readiness re-reads role privilege on every probe: 503 naming the "
+                      "privilege while the role held BYPASSRLS, 200 again once revoked")
+
+
+def readiness_disclosure_gate() -> tuple[bool, str, str]:
+    """/ready tells an anonymous probe what it needs, and no more (F12).
+
+    The founder's ruling: an unauthenticated caller gets the verdict, the problems, the
+    counts, the highest migration version and each job's health — everything needed to
+    act on the signal. Migration and seed FILENAMES and the database role name describe
+    the deployment rather than its health, and require a session.
+    """
+    problems: list[str] = []
+    with Service(APP) as service:
+        anonymous = service.get("/ready")
+        payload = anonymous.json
+        body = anonymous.body
+
+        if payload.get("detail") != "restricted":
+            problems.append(f"an anonymous probe was not marked restricted: {payload.get('detail')}")
+        if "hospitality_app" in body:
+            problems.append("the database role name is disclosed to an anonymous probe")
+        for marker in (".sql", "_organizational_model", "demonstration_tenants"):
+            if marker in body:
+                problems.append(f"a filename is disclosed to an anonymous probe ({marker})")
+
+        # Still useful: the verdict and enough to act on it.
+        if payload.get("status") != "ready":
+            problems.append(f"readiness was not ready: {payload.get('problems')}")
+        if int(payload.get("migrations", {}).get("applied", 0)) < 1:
+            problems.append("an anonymous probe cannot see how many migrations are applied")
+        if not payload.get("migrations", {}).get("latest"):
+            problems.append("an anonymous probe cannot see the highest applied migration version")
+        if not payload.get("jobs"):
+            problems.append("an anonymous probe cannot see job health")
+
+        # With a valid session the full file listing is available.
+        detailed = service.get("/ready", token=TOKENS["habesha"])
+        full = detailed.json
+        if full.get("detail") != "full":
+            problems.append(f"an authenticated probe was not given full detail: {full.get('detail')}")
+        if not full.get("migrations", {}).get("files"):
+            problems.append("an authenticated probe did not receive the migration filenames")
+        if not full.get("seeds", {}).get("files"):
+            problems.append("an authenticated probe did not receive the seed filenames")
+        if full.get("role", {}).get("name") != "hospitality_app":
+            problems.append("an authenticated probe did not receive the role name")
+
+        # And a bad token gets the restricted view, not the full one.
+        forged = service.get("/ready", token="clearly-not-a-token")
+        if forged.json.get("detail") != "restricted":
+            problems.append("a malformed token was granted the full readiness detail")
+
+    if problems:
+        return False, "READINESS_DISCLOSES_DEPLOYMENT_DETAIL", "; ".join(problems)
+    return True, "", ("an anonymous probe gets the verdict, problems, counts, latest migration "
+                      "version and job health, but no filenames and no role name; a valid "
+                      "session gets the full file listing; a forged token does not")
+
+
 def readiness_truth_gate() -> tuple[bool, str, str]:
     """Readiness must go unhealthy when an advertised job cannot do real work."""
     problems: list[str] = []
@@ -274,19 +380,34 @@ def route_context_gate() -> tuple[bool, str, str]:
                  "/v1/configuration/branding", "/v1/entitlements/qr_ordering",
                  "/v1/reason-codes/refund"]
 
+    # F10. This swept GET only, so a route registered for another verb without the
+    # authentication wrapper would not have been found. Every method a client can send is
+    # now swept. GET and HEAD must answer 401, because those routes exist. The rest must
+    # simply never return data: an unregistered verb answering 404 or 405 is correct, and
+    # a 2xx from any of them is a finding whatever the body says.
+    METHODS = ("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+    SEEDED = ("habesha", "kazanchis", "sarbet", "nile", "marina", "out-h1", "adm-0001")
+
     with Service(APP) as service:
         for path in protected:
-            anonymous = service.get(path)
-            if anonymous.status != 401:
-                problems.append(f"{path} answered {anonymous.status} with no credential")
-            # Look for seeded VALUES, not for JSON key names: `{"outlets":[]}` contains the
-            # word "outlet" while carrying no data at all, and reporting that as a leak
-            # would tell a reviewer row level security had failed when it had held.
-            body = anonymous.body.lower()
-            leaked = [v for v in ("habesha", "kazanchis", "sarbet", "nile", "marina",
-                                  "out-h1", "adm-0001") if v in body]
-            if leaked:
-                problems.append(f"{path} returned seeded values with no credential: {leaked}")
+            for method in METHODS:
+                anonymous = service.request(method, path)
+                if method in ("GET", "HEAD"):
+                    if anonymous.status != 401:
+                        problems.append(
+                            f"{method} {path} answered {anonymous.status} with no credential")
+                elif 200 <= anonymous.status < 300:
+                    problems.append(
+                        f"{method} {path} answered {anonymous.status} with no credential; "
+                        f"an unauthenticated request must never succeed")
+                # Look for seeded VALUES, not for JSON key names: `{"outlets":[]}` contains
+                # the word "outlet" while carrying no data at all, and reporting that as a
+                # leak would tell a reviewer row level security had failed when it had held.
+                body = anonymous.body.lower()
+                leaked = [v for v in SEEDED if v in body]
+                if leaked:
+                    problems.append(
+                        f"{method} {path} returned seeded values with no credential: {leaked}")
 
         # A token presented under a scope it does not own must also fail.
         forged = TOKENS["habesha"].split(".")
@@ -306,8 +427,10 @@ def route_context_gate() -> tuple[bool, str, str]:
 
     if problems:
         return False, "ROUTE_SERVED_WITHOUT_CONTEXT", "; ".join(problems)
-    return True, "", (f"{len(protected)} protected routes answer 401 with no credential, "
-                      f"reject a re-labelled and a malformed token, and serve a valid one")
+    return True, "", (f"{len(protected)} protected routes swept across {len(METHODS)} methods "
+                      f"({', '.join(METHODS)}) = {len(protected) * len(METHODS)} unauthenticated "
+                      f"requests: GET and HEAD answer 401, no method returns data, a "
+                      f"re-labelled and a malformed token are rejected, and a valid one is served")
 
 
 # ===========================================================================
@@ -570,6 +693,18 @@ def section_controls() -> None:
     # The lock lives in the runner, not in the service, so this defect is planted in a
     # copy of the runner rather than in the workspace build.
     prove_seed_lock()
+
+    print("\n  NC-M1D-007  readiness answers from the boot-time role snapshot")
+    prove("NC-M1D-007", readiness_role_privilege_gate, "READINESS_GREEN_WITH_PRIVILEGED_ROLE",
+          [("routes/health.ts",
+            "    const roleNow = await currentRoleFacts();",
+            "    const roleNow = deps.roleFacts;   // the boot-time snapshot, not a check")])
+
+    print("\n  NC-M1D-008  readiness discloses deployment detail to an anonymous probe")
+    prove("NC-M1D-008", readiness_disclosure_gate, "READINESS_DISCLOSES_DEPLOYMENT_DETAIL",
+          [("routes/health.ts",
+            "    if (await hasValidSession(request)) {",
+            "    if (true) {   // detail handed to every caller, authenticated or not")])
 
     print("\n  NC-M1D-006  a route is served without tenant context")
     prove("NC-M1D-006", route_context_gate, "ROUTE_SERVED_WITHOUT_CONTEXT",

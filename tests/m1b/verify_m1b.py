@@ -60,13 +60,21 @@ def record(name: str, ok: bool, detail: str = "") -> None:
 
 
 def establish(token: fx.SessionToken, extra_sql: str = "") -> "object":
-    """Authenticate a session token and optionally run SQL in the resulting context."""
+    """Authenticate a session token and optionally run SQL in the resulting context.
+
+    Inside a transaction, because since migration 0005 the context the function
+    establishes is transaction-local: it reverts at COMMIT so a pooled connection
+    cannot hand the next caller someone else's tenant. In psql's autocommit mode each
+    statement is its own transaction, so extra_sql would otherwise run with no context
+    at all — and an assertion expecting "no rows" would pass for entirely the wrong
+    reason. This is also exactly how api/src/db.ts calls it.
+    """
     return run(APP, f"""
         SELECT identity.establish_session_context(
             '{token.tenant_id}'::uuid, '{token.outlet_id}'::uuid,
             decode('{token.digest_hex}', 'hex'));
         {extra_sql}
-    """)
+    """, tx=True)
 
 
 def capture_function(signature: str) -> str:
@@ -97,8 +105,9 @@ def session_revocation_gate() -> tuple[bool, str, str]:
     try:
         # The session must no longer authenticate.
         after = establish(F.revoked)
-        if after.ok:
-            leaks.append("a session held by the withdrawn member still established context")
+        if not after.failed_with("NO_ACTIVE_MEMBERSHIP", "SESSION_NOT_LIVE"):
+            leaks.append("a session held by the withdrawn member was not refused on its "
+                         f"membership: {after.why() or 'it established context'}")
 
         # And the row itself must be marked revoked by the eager cascade.
         live = count(APP, f"""
@@ -216,15 +225,17 @@ def service_principal_scope_gate() -> tuple[bool, str, str]:
         SELECT identity.authorize_service_principal(
             '{fx.PRINCIPAL_SYNC}'::uuid, 'payment.refund', '{fx.OUTLET_A1}'::uuid);
     """, **ctx)
-    if wrong_action.ok:
-        leaks.append("the principal performed an action outside its granted scope")
+    if not wrong_action.failed_with("OUT_OF_SCOPE_PRINCIPAL_ACCEPTED_CHECK"):
+        leaks.append("an action outside the principal's grant was not refused on scope: "
+                     f"{wrong_action.why() or 'it succeeded'}")
 
     wrong_outlet = run(APP, f"""
         SELECT identity.authorize_service_principal(
             '{fx.PRINCIPAL_SYNC}'::uuid, 'order.view', '{fx.OUTLET_A2}'::uuid);
     """, **ctx)
-    if wrong_outlet.ok:
-        leaks.append("the principal acted at an outlet outside its granted scope")
+    if not wrong_outlet.failed_with("OUT_OF_SCOPE_PRINCIPAL_ACCEPTED_CHECK"):
+        leaks.append("an outlet outside the principal's grant was not refused on scope: "
+                     f"{wrong_outlet.why() or 'it succeeded'}")
 
     revoked = run(APP, f"""
         UPDATE identity.service_principal SET revoked_at = now(), status = 'inactive',
@@ -233,8 +244,9 @@ def service_principal_scope_gate() -> tuple[bool, str, str]:
         SELECT identity.authorize_service_principal(
             '{fx.PRINCIPAL_SYNC}'::uuid, 'order.view', '{fx.OUTLET_A1}'::uuid);
     """, **ctx)
-    if revoked.ok:
-        leaks.append("a revoked principal was still accepted")
+    if not revoked.failed_with("PRINCIPAL_NOT_ACTIVE"):
+        leaks.append("a revoked principal was not refused by PRINCIPAL_NOT_ACTIVE: "
+                     f"{revoked.why() or 'it was accepted'}")
     run(APP, f"""
         UPDATE identity.service_principal SET revoked_at = NULL, status = 'active',
             row_version = (SELECT row_version FROM identity.service_principal WHERE id = '{fx.PRINCIPAL_SYNC}')
@@ -285,8 +297,10 @@ def section_identity() -> None:
         FROM identity.identity_channel WHERE user_account_id = '{fx.USER_BOB}' LIMIT 1;
     """, **ctx)
     record("a simulated result cannot be recorded as a live provider outcome",
-           seeded.ok and (not promote.ok) and (not forged.ok),
-           "mode is immutable after insert, and a simulated row may carry no provider result reference")
+           seeded.ok and promote.failed_with("SIMULATED_RESULT_RECORDED_AS_LIVE")
+           and forged.failed_with("otp_transmission_simulated_has_no_provider_result"),
+           f"mode is immutable after insert ({promote.why()}); a simulated row may carry no "
+           f"provider result reference ({forged.why()})")
 
 
 def section_secrets() -> None:
@@ -300,7 +314,7 @@ def section_secrets() -> None:
         VALUES ('{fx.TENANT_ACME}', '{fx.OUTLET_A1}', '{fx.USER_BOB}', 'password',
                 'a-plaintext-password'::bytea, 'none', 'standard');
     """, **ctx)
-    record("a plaintext secret cannot be stored", not plaintext.ok,
+    record("a plaintext secret cannot be stored", plaintext.failed_with("23514", "22001"),
            "the 32-byte digest CHECK rejects anything that is not a digest")
 
     non_digest = count(ADMIN, """
@@ -338,8 +352,8 @@ def section_secrets() -> None:
             decode('{fx.digest("a-token-that-does-not-exist")}', 'hex'));
     """)
     record("a failed authentication does not echo the presented credential",
-           (not err.ok) and "does not exist" not in err.err.lower(),
-           "the error names the outcome, never the value presented")
+           err.failed_with("SESSION_NOT_LIVE") and "does not exist" not in err.err.lower(),
+           f"the error names the outcome, never the value presented: {err.why()}")
 
 
 def section_sessions_and_memberships() -> None:
@@ -349,16 +363,21 @@ def section_sessions_and_memberships() -> None:
     record("an active membership establishes tenant and outlet context", ok_ctx.ok,
            "identity.establish_session_context is the bridge to app.row_in_scope()")
 
-    # Context established from a session must match what RLS then enforces.
+    # Context established from a session must match what RLS then enforces. In a
+    # transaction, so the count runs under the context rather than after it has reverted
+    # — otherwise "0 sibling rows" would be true because there was no context at all.
     scoped = run(APP, f"""
         SELECT identity.establish_session_context(
             '{F.alice_strong.tenant_id}'::uuid, '{F.alice_strong.outlet_id}'::uuid,
             decode('{F.alice_strong.digest_hex}', 'hex'));
+        SELECT count(*) FROM org.org_node WHERE outlet_id = '{fx.OUTLET_A1}';
         SELECT count(*) FROM org.org_node WHERE outlet_id = '{fx.OUTLET_A2}';
-    """)
+    """, tx=True)
+    own, sibling = (scoped.rows[-2][0], scoped.rows[-1][0]) if scoped.ok and len(scoped.rows) >= 2 else ("0", "-")
     record("context established from a session cannot see the sibling outlet",
-           scoped.ok and scoped.rows[-1][0] == "0",
-           "M1-A isolation holds under a context that M1-B produced")
+           scoped.ok and int(own) > 0 and sibling == "0",
+           f"M1-A isolation holds under a context that M1-B produced: "
+           f"{own} node(s) visible in the session's own outlet, {sibling} in the sibling")
 
     # Claiming a scope the token does not belong to must find nothing.
     forged_outlet = run(APP, f"""
@@ -372,8 +391,10 @@ def section_sessions_and_memberships() -> None:
             decode('{F.alice_strong.digest_hex}', 'hex'));
     """)
     record("a token presented under a scope it does not belong to authenticates nobody",
-           (not forged_outlet.ok) and (not forged_tenant.ok),
-           "the claimed scope is checked by RLS, so a forged prefix matches no row")
+           forged_outlet.failed_with("SESSION_NOT_LIVE")
+           and forged_tenant.failed_with("SESSION_NOT_LIVE"),
+           f"the claimed scope is checked by RLS, so a forged prefix matches no row "
+           f"(outlet: {forged_outlet.why()}; tenant: {forged_tenant.why()})")
 
     # Sessions are listable and revocable per user and per device.
     listed = count(APP, f"""
@@ -388,7 +409,7 @@ def section_sessions_and_memberships() -> None:
     after = establish(F.alice_standard)
     still = establish(F.alice_strong)
     record("a session can be listed and revoked per user and per device",
-           listed >= 2 and revoke.ok and (not after.ok) and still.ok,
+           listed >= 2 and revoke.ok and after.failed_with("SESSION_NOT_LIVE") and still.ok,
            f"{listed} session(s) listed for the user; the revoked one no longer authenticates "
            f"while the other still does")
 
@@ -403,7 +424,7 @@ def section_sessions_and_memberships() -> None:
     old_token = establish(F.alice_strong)
     new_token = establish(rotated)
     record("rotating a token retires the previous one",
-           rot.ok and (not old_token.ok) and new_token.ok,
+           rot.ok and old_token.failed_with("SESSION_NOT_LIVE") and new_token.ok,
            "the superseded digest authenticates nobody")
     run(APP, f"""
         UPDATE identity.session SET token_digest = decode('{F.alice_strong.digest_hex}', 'hex'),
@@ -436,7 +457,7 @@ def section_rate_limiting() -> None:
             decode('{subject}', 'hex'), false);
     """, tenant=fx.TENANT_ACME, outlet=fx.OUTLET_A1)
     record("repeated failures lock the subject out",
-           (not locked.ok) and "SUBJECT_LOCKED_OUT" in locked.err,
+           locked.failed_with("SUBJECT_LOCKED_OUT"),
            "five failures inside the window trip the lock; further attempts are refused")
 
     stored = count(ADMIN, """
@@ -461,8 +482,8 @@ def section_recovery() -> None:
         VALUES ('{fx.TENANT_ACME}', '{fx.OUTLET_A1}', '{fx.USER_BOB}', '{fx.USER_ALICE}', now());
     """, **ctx)
     record("recovery cannot complete without identity verification and factor revocation",
-           not premature.ok,
-           "the CHECK refuses a completed recovery that skipped either step")
+           premature.failed_with("23514", "recovery_request_completion_requires_both"),
+           f"the CHECK refuses a completed recovery that skipped either step: {premature.why()}")
 
     proper = run(APP, f"""
         INSERT INTO identity.recovery_request
@@ -545,6 +566,50 @@ def section_scope_boundary() -> None:
     record("edge and print-agent principal classes registered, no edge behaviour built",
            principal_classes == 4 and edge_behaviour == 0,
            f"{principal_classes} principal classes registered; {edge_behaviour} edge-specific table(s) — M5a owns those")
+
+
+def session_context_leak_gate() -> tuple[bool, str, str]:
+    """Request context must not outlive the transaction that established it.
+
+    F7. api/src/db.ts documented SET LOCAL semantics — "context set with a plain SET
+    would outlive the request and hand the next caller someone else's tenant" — while
+    identity.establish_session_context used set_config(..., false), which is a plain SET.
+    The connection returned to the pool with the tenant still set, so the next borrower
+    inherited it. No M1 route exposed the gap; M2 adds customer-facing routes.
+
+    This is the proof at the layer the guarantee lives on: one connection, one script.
+    Context is established inside a transaction, shown live while that transaction is
+    open, and shown gone after COMMIT on the same connection — which is exactly the
+    connection Database.withoutContext() borrows next.
+    """
+    leaks: list[str] = []
+
+    probe = run(APP, f"""
+        BEGIN;
+        SELECT identity.establish_session_context(
+            '{F.alice_strong.tenant_id}'::uuid, '{F.alice_strong.outlet_id}'::uuid,
+            decode('{F.alice_strong.digest_hex}', 'hex'));
+        SELECT count(*)::text FROM org.org_node;
+        COMMIT;
+        SELECT count(*)::text FROM org.org_node;
+        SELECT coalesce(nullif(current_setting('app.tenant_id', true), ''), '(unset)');
+    """)
+    if not probe.ok or len(probe.rows) < 3:
+        return False, "CONTEXT_SURVIVED_COMMIT", f"the probe did not run: {probe.why()}"
+
+    inside, after, tenant_after = probe.rows[-3][0], probe.rows[-2][0], probe.rows[-1][0]
+    if int(inside) <= 0:
+        leaks.append(f"context was not live inside the transaction ({inside} row(s) visible), "
+                     f"so the rest of this gate would pass vacuously")
+    if after != "0":
+        leaks.append(f"{after} row(s) still visible on the same connection after COMMIT")
+    if tenant_after != "(unset)":
+        leaks.append(f"app.tenant_id survived COMMIT as {tenant_after}")
+
+    if leaks:
+        return False, "CONTEXT_SURVIVED_COMMIT", "; ".join(leaks)
+    return True, "", ("context is live inside the transaction and gone after COMMIT on the "
+                      "same connection; app.tenant_id is unset again")
 
 
 # ===========================================================================
@@ -680,6 +745,34 @@ def section_controls() -> None:
           """,
           revert_sql="",
           captured=["identity.authorize_service_principal(uuid,text,uuid)"])
+
+    print("\n  NC-M1B-005  request context outlives the transaction that set it")
+    prove("NC-M1B-005", session_context_leak_gate, "CONTEXT_SURVIVED_COMMIT",
+          break_sql="""
+              CREATE OR REPLACE FUNCTION identity.establish_session_context(
+                  p_tenant_id uuid, p_outlet_id uuid, p_token_digest bytea
+              ) RETURNS uuid LANGUAGE plpgsql AS $break$
+              DECLARE
+                  v_session identity.session%ROWTYPE;
+              BEGIN
+                  -- The pre-repair body: session-level, so it outlives COMMIT.
+                  PERFORM set_config('app.tenant_id', coalesce(p_tenant_id::text, ''), false);
+                  PERFORM set_config('app.outlet_id', coalesce(p_outlet_id::text, ''), false);
+                  SELECT * INTO v_session FROM identity.session s
+                  WHERE s.token_digest = p_token_digest AND s.revoked_at IS NULL
+                    AND s.expires_at > now();
+                  IF NOT FOUND THEN
+                      PERFORM set_config('app.tenant_id', '', false);
+                      PERFORM set_config('app.outlet_id', '', false);
+                      RAISE EXCEPTION 'SESSION_NOT_LIVE' USING ERRCODE = 'HS401';
+                  END IF;
+                  PERFORM set_config('app.session_id', v_session.id::text, false);
+                  PERFORM set_config('app.auth_strength', v_session.established_with::text, false);
+                  RETURN v_session.id;
+              END; $break$;
+          """,
+          revert_sql="",
+          captured=["identity.establish_session_context(uuid,uuid,bytea)"])
 
 
 def main() -> int:

@@ -367,9 +367,10 @@ jobs:
           set -euo pipefail
           # A control that never went red is a coverage gap wearing a green badge.
           for control in NC-M1-001 NC-M1-002 NC-M1-003 NC-M1-004 \
-                         NC-M1B-001 NC-M1B-002 NC-M1B-003 NC-M1B-004 \
+                         NC-M1B-001 NC-M1B-002 NC-M1B-003 NC-M1B-004 NC-M1B-005 \
                          NC-M1C-001 NC-M1C-002 NC-M1C-003 NC-M1C-004 NC-M1C-005 \
-                         NC-M1D-001 NC-M1D-002 NC-M1D-003 NC-M1D-004 NC-M1D-005 NC-M1D-006; do
+                         NC-M1D-001 NC-M1D-002 NC-M1D-003 NC-M1D-004 NC-M1D-005 \
+                         NC-M1D-006 NC-M1D-007 NC-M1D-008; do
             red="$(grep -c "\[PASS\] $control — RED" "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log | awk -F: '{s+=$2} END {print s}')"
             green="$(grep -c "\[PASS\] $control — GREEN" "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log | awk -F: '{s+=$2} END {print s}')"
             if [ "${red:-0}" -lt 1 ] || [ "${green:-0}" -lt 1 ]; then

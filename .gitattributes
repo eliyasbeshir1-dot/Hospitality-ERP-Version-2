@@ -1,0 +1,58 @@
+# Line endings are decided here, not by whoever cloned the repository.
+#
+# core.autocrlf=true is the Git-for-Windows default and nothing overrode it. Without this
+# file, three things M1 relies on break on a Windows checkout with nothing edited:
+#
+#   1. Migration and seed checksums. tools/migrate.py and tools/seed.py hash each file's
+#      bytes and lock the result. A CRLF checkout hashes differently, so a database
+#      migrated on Linux and then touched from Windows hard-blocks on
+#      MIGRATION_CHECKSUM_MISMATCH — a correctness alarm firing on a platform difference.
+#   2. The pinned documentation package. /docs must stay byte-identical to its 91
+#      recorded SHA-256 sums. Any rewritten byte breaks the verification chain the whole
+#      gate rests on.
+#   3. Shell scripts. `set -euo pipefail` with a trailing CR is not a valid option string:
+#      bash reports an error and CARRIES ON without -e. Every verification driver would
+#      then run with errors ignored, which is a fail-OPEN.
+#
+# Repository source is LF in the object store and LF on checkout, on every platform.
+
+* text=auto eol=lf
+
+# Stated explicitly for the files where a stray CR is a correctness or fail-open problem,
+# rather than left to auto-detection.
+*.sh   text eol=lf
+*.sql  text eol=lf
+*.py   text eol=lf
+*.ts   text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.txt  text eol=lf
+
+# Binary artefacts: never converted, never diffed as text. A single rewritten byte here
+# is a checksum failure.
+*.pdf  binary
+*.xlsx binary
+*.docx binary
+*.zip  binary
+
+# ---------------------------------------------------------------------------
+# The pinned package is exempt from ALL conversion, in BOTH directions.
+# ---------------------------------------------------------------------------
+# This is the part the repair brief's prescription would have got wrong, and it matters.
+# The brief asked for `* text=auto eol=lf` and a re-normalisation. Applying that here
+# rewrites the package: 70 of its 92 files are stored WITH CR bytes, because that is how
+# they were delivered and hashed. Normalising them to LF changes their bytes — the very
+# thing the 91 recorded sums exist to detect. Verified directly: the first file checked
+# went from 531 bytes to 517 under renormalisation.
+#
+# The package's bytes are evidence, not source. `-text` means Git neither normalises them
+# on the way in nor converts them on the way out, so the checkout matches the recorded
+# sums on Linux and on Windows alike — which is the actual requirement behind the finding.
+docs/**  -text
+docs/**  -diff
+
+# The recorded checksums are read alongside the files they describe, so they are pinned
+# the same way rather than normalised out from under them.
+*.sha256        -text
+SHA256SUMS.txt  -text

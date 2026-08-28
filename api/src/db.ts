@@ -5,10 +5,14 @@
  *
  *  1. Every statement is parameterized. No caller concatenates a value into SQL, so there
  *     is no injection surface to defend (FR-SEC-004).
- *  2. Request context is established inside a transaction with SET LOCAL, so it cannot
- *     leak to the next request that borrows the same pooled connection. Context set with
- *     a plain SET would outlive the request and hand the next caller someone else's
- *     tenant.
+ *  2. Request context is established inside a transaction and is transaction-local, so
+ *     it cannot leak to the next request that borrows the same pooled connection.
+ *
+ * Rule 2 was documented here before it was true. withSession opened a transaction, but
+ * identity.establish_session_context set its context with set_config(..., false) — a
+ * plain SET, which outlives COMMIT and travels back to the pool with the connection.
+ * Migration 0005 makes that context transaction-local, so the guarantee this comment
+ * describes is now enforced by the database rather than asserted by the comment.
  */
 import { Pool, PoolClient } from 'pg';
 
@@ -29,7 +33,14 @@ export class Database {
     await this.pool.end();
   }
 
-  /** Run without any tenant context. Row level security denies tenant-owned rows. */
+  /**
+   * Run without any tenant context. Row level security denies tenant-owned rows.
+   *
+   * This is the method that would have exposed the leak: borrow a pooled connection a
+   * scoped request had just released, and any context that survived would still be set.
+   * The M1-D suite proves it sees nothing on a connection that has just served a scoped
+   * request.
+   */
   async withoutContext<T>(work: (client: PoolClient) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
     try {

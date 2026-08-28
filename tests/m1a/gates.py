@@ -13,7 +13,7 @@ Requirements: FR-TEN-001, FR-SEC-001, FR-SEC-002A, FR-DAT-017, FR-OPS-020.
 """
 from __future__ import annotations
 
-from pg import count, run
+from pg import ProbeFailed, count, run
 
 TENANT_ACME = "11111111-1111-1111-1111-111111111111"
 TENANT_GLOBEX = "22222222-2222-2222-2222-222222222222"
@@ -25,6 +25,18 @@ OUTLET_B1 = "bbbb0001-0000-4000-8000-000000000001"
 SIBLING_NODE = "aaaa2102-0000-4000-8000-000000000002"
 # Node belonging to the foreign tenant GLOBEX.
 FOREIGN_NODE = "bbbb1102-0000-4000-8000-000000000001"
+
+# DELETE probes must target rows with NO dependents at all — no children, and nothing
+# referencing them from another table. org_node is self-referencing and twenty-odd tables
+# point at it, so deleting a row with a dependent raises a foreign key error before row
+# level security has said anything. That is how the no-context DELETE leg came to "pass"
+# without the policy ever being consulted, and the first attempt at this repair hit the
+# same trap a second time by picking a device node that a device_registration row
+# referenced. These three are clean, and the red proofs show the DELETE genuinely
+# succeeding when the policy is removed.
+LEAF_NODE          = "aaaa1103-0000-4000-8000-000000000001"   # T-01,        outlet A1
+SIBLING_LEAF_NODE  = "aaaa2104-0000-4000-8000-000000000002"   # T-DEL,       outlet A2
+FOREIGN_LEAF_NODE  = FOREIGN_NODE                             # T-99,        tenant GLOBEX
 
 TENANT_TABLES = [
     "org.tenant",
@@ -38,6 +50,75 @@ Gate = tuple[bool, str, str]
 
 
 # ---------------------------------------------------------------------------
+# Probe helpers — a denial has to be observed, never inferred from an absence
+# ---------------------------------------------------------------------------
+# Review found the UPDATE and DELETE legs of these gates failing open: count()
+# returned -1 when the statement did not execute, and `if affected > 0` read that as
+# "nothing was affected". Revoking UPDATE on the table under test therefore turned the
+# gate green without the row level security predicate ever being evaluated. Running the
+# suite after the repair immediately produced a second, live instance: the DELETE probe
+# was erroring on a foreign key constraint, so that leg had never tested RLS at all.
+#
+# The rule below is the fix, and it is deliberately strict: the ONLY outcome that counts
+# as a denial is "the statement ran, and it affected zero rows". Everything else — a
+# permission error, a constraint error, a dead connection — fails the gate, because none
+# of them is evidence that the policy did its job.
+
+def read_probe(dsn: str, sql: str, description: str, **ctx) -> tuple[int, str | None]:
+    """Rows visible to a SELECT. Returns (count, leak-description-or-None)."""
+    try:
+        seen = count(dsn, sql, **ctx)
+    except ProbeFailed as exc:
+        return -1, f"{description} could not be evaluated: {exc.err.strip().splitlines()[0]}"
+    if seen != 0:
+        return seen, f"{description} exposed {seen} row(s)"
+    return 0, None
+
+
+def write_probe(dsn: str, sql: str, description: str, **ctx) -> str | None:
+    """A write that must match no rows. Returns a leak description, or None.
+
+    Anything other than "ran and affected zero rows" is a leak. A write that could not
+    be attempted is not a denial by row level security, and a write that the policy
+    permitted and a constraint then stopped is a policy failure wearing a constraint's
+    error message.
+    """
+    try:
+        affected = count(dsn, sql, rollback=True, **ctx)
+    except ProbeFailed as exc:
+        return (f"{description} could not be evaluated as a denial "
+                f"({exc.err.strip().splitlines()[0]})")
+    if affected != 0:
+        return f"{description} affected {affected} row(s)"
+    return None
+
+
+# The isolation barriers an INSERT can legitimately hit, each named so a probe asserts
+# the one it means. Review's point stands even when the outcome is correct: `if res.ok`
+# accepted ANY refusal, and the sibling-outlet probe turned out to be refused by the
+# parent-visibility trigger rather than by the policy — a true denial, but not the one
+# the gate claimed to be proving.
+RLS_WITH_CHECK = ("42501", "row-level security", "row level security")
+PARENT_NOT_VISIBLE = ("HS404", "PARENT_NOT_VISIBLE")
+
+
+def insert_probe(dsn: str, sql: str, description: str,
+                 refused_by: tuple[str, ...] = RLS_WITH_CHECK, **ctx) -> str | None:
+    """An INSERT that must be refused, for the stated reason and no other.
+
+    A NOT NULL violation, a foreign key error or a missing grant would all satisfy a
+    bare `not res.ok` while proving nothing about the barrier under test.
+    """
+    res = run(dsn, sql, rollback=True, **ctx)
+    if res.ok:
+        return f"{description} succeeded"
+    if not res.failed_with(*refused_by):
+        return (f"{description} was refused, but not by {refused_by[0]} "
+                f"({res.why()})")
+    return None
+
+
+# ---------------------------------------------------------------------------
 # NC-M1-001 — fail-closed tenant context
 # ---------------------------------------------------------------------------
 
@@ -48,43 +129,40 @@ def rls_absent_context_gate(app_dsn: str) -> Gate:
     empty table passing vacuously.
     """
     leaks: list[str] = []
+    none = dict(tenant="", outlet="")
 
     for table in TENANT_TABLES:
-        visible = count(app_dsn, f"SELECT count(*) FROM {table};", tenant="", outlet="")
-        if visible != 0:
-            leaks.append(f"SELECT on {table} returned {visible} row(s) with no context")
+        _, leak = read_probe(app_dsn, f"SELECT count(*) FROM {table};",
+                             f"SELECT on {table} with no context", **none)
+        if leak:
+            leaks.append(leak)
 
-    # INSERT must be refused by the policy's WITH CHECK.
-    res = run(app_dsn, """
-        INSERT INTO org.tenant (tenant_code, display_name)
-        VALUES ('NOCTX', 'Inserted without context');
-    """, tenant="", outlet="")
-    if res.ok:
-        leaks.append("INSERT into org.tenant succeeded with no context")
+    leaks += [leak for leak in (
+        insert_probe(app_dsn, """
+            INSERT INTO org.tenant (tenant_code, display_name)
+            VALUES ('NOCTX', 'Inserted without context');
+        """, "INSERT into org.tenant with no context", **none),
 
-    # UPDATE and DELETE must match zero rows.
-    updated = count(app_dsn, """
-        WITH changed AS (
-            UPDATE org.org_node SET display_name = 'no-context-write'
-            WHERE id = '%s' RETURNING 1
-        ) SELECT count(*) FROM changed;
-    """ % SIBLING_NODE, tenant="", outlet="")
-    if updated > 0:
-        leaks.append(f"UPDATE affected {updated} row(s) with no context")
+        write_probe(app_dsn, f"""
+            WITH changed AS (
+                UPDATE org.org_node SET display_name = 'no-context-write'
+                WHERE id = '{SIBLING_NODE}' RETURNING 1
+            ) SELECT count(*) FROM changed;
+        """, "UPDATE with no context", **none),
 
-    deleted = count(app_dsn, """
-        WITH removed AS (
-            DELETE FROM org.org_node WHERE id = '%s' RETURNING 1
-        ) SELECT count(*) FROM removed;
-    """ % SIBLING_NODE, tenant="", outlet="")
-    if deleted > 0:
-        leaks.append(f"DELETE affected {deleted} row(s) with no context")
+        write_probe(app_dsn, f"""
+            WITH removed AS (
+                DELETE FROM org.org_node WHERE id = '{LEAF_NODE}' RETURNING 1
+            ) SELECT count(*) FROM removed;
+        """, "DELETE with no context", **none),
+    ) if leak]
 
     # A malformed context must fail closed exactly like an absent one.
-    malformed = count(app_dsn, "SELECT count(*) FROM org.org_node;",
-                      tenant="not-a-uuid", outlet="also-not-a-uuid")
-    if malformed != 0:
-        leaks.append(f"SELECT returned {malformed} row(s) under a malformed context")
+    _, leak = read_probe(app_dsn, "SELECT count(*) FROM org.org_node;",
+                         "SELECT under a malformed context",
+                         tenant="not-a-uuid", outlet="also-not-a-uuid")
+    if leak:
+        leaks.append(leak)
 
     if leaks:
         return False, "VISIBLE_OR_WRITABLE_ROWS_WITHOUT_CONTEXT", "; ".join(leaks)
@@ -100,42 +178,44 @@ def rls_sibling_outlet_gate(app_dsn: str) -> Gate:
     ctx = dict(tenant=TENANT_ACME, outlet=OUTLET_A1)
     leaks: list[str] = []
 
-    visible = count(app_dsn,
-                    f"SELECT count(*) FROM org.org_node WHERE outlet_id = '{OUTLET_A2}';", **ctx)
-    if visible != 0:
-        leaks.append(f"SELECT exposed {visible} sibling-outlet node(s)")
+    _, leak = read_probe(app_dsn,
+                         f"SELECT count(*) FROM org.org_node WHERE outlet_id = '{OUTLET_A2}';",
+                         "SELECT of sibling-outlet nodes", **ctx)
+    if leak:
+        leaks.append(leak)
 
     for table, column in (("org.outlet_profile", "outlet_id"),
                           ("org.device_registration", "outlet_id"),
                           ("org.org_closure", "outlet_id")):
-        seen = count(app_dsn, f"SELECT count(*) FROM {table} WHERE {column} = '{OUTLET_A2}';", **ctx)
-        if seen != 0:
-            leaks.append(f"SELECT exposed {seen} sibling-outlet row(s) in {table}")
+        _, leak = read_probe(app_dsn,
+                             f"SELECT count(*) FROM {table} WHERE {column} = '{OUTLET_A2}';",
+                             f"SELECT of sibling-outlet rows in {table}", **ctx)
+        if leak:
+            leaks.append(leak)
 
-    updated = count(app_dsn, f"""
-        WITH changed AS (
-            UPDATE org.org_node SET display_name = 'sibling-write'
-            WHERE id = '{SIBLING_NODE}' RETURNING 1
-        ) SELECT count(*) FROM changed;
-    """, **ctx)
-    if updated > 0:
-        leaks.append(f"UPDATE modified {updated} sibling-outlet row(s)")
+    leaks += [leak for leak in (
+        write_probe(app_dsn, f"""
+            WITH changed AS (
+                UPDATE org.org_node SET display_name = 'sibling-write'
+                WHERE id = '{SIBLING_NODE}' RETURNING 1
+            ) SELECT count(*) FROM changed;
+        """, "UPDATE of a sibling-outlet row", **ctx),
 
-    deleted = count(app_dsn, f"""
-        WITH removed AS (
-            DELETE FROM org.org_node WHERE id = '{SIBLING_NODE}' RETURNING 1
-        ) SELECT count(*) FROM removed;
-    """, **ctx)
-    if deleted > 0:
-        leaks.append(f"DELETE removed {deleted} sibling-outlet row(s)")
+        write_probe(app_dsn, f"""
+            WITH removed AS (
+                DELETE FROM org.org_node WHERE id = '{SIBLING_LEAF_NODE}' RETURNING 1
+            ) SELECT count(*) FROM removed;
+        """, "DELETE of a sibling-outlet row", **ctx),
 
-    # Writing a row INTO the sibling outlet must also be refused.
-    res = run(app_dsn, f"""
-        INSERT INTO org.org_node (tenant_id, parent_id, kind, reference_code, display_name)
-        VALUES ('{TENANT_ACME}', '{OUTLET_A2}', 'dining_table', 'T-INTRUDER', 'Intruder');
-    """, **ctx)
-    if res.ok:
-        leaks.append("INSERT created a row under the sibling outlet")
+        # Writing a row INTO the sibling outlet must also be refused.
+        # org_node derives its outlet from its parent, and the parent lookup is itself
+        # scoped, so this is stopped one level before the policy's WITH CHECK. That is a
+        # real denial and it is now asserted by name rather than accepted as "an error".
+        insert_probe(app_dsn, f"""
+            INSERT INTO org.org_node (tenant_id, parent_id, kind, reference_code, display_name)
+            VALUES ('{TENANT_ACME}', '{OUTLET_A2}', 'dining_table', 'T-INTRUDER', 'Intruder');
+        """, "INSERT under the sibling outlet", refused_by=PARENT_NOT_VISIBLE, **ctx),
+    ) if leak]
 
     if leaks:
         return False, "SIBLING_OUTLET_ACCESS", "; ".join(leaks)
@@ -251,43 +331,43 @@ def cross_tenant_gate(app_dsn: str) -> Gate:
     ctx = dict(tenant=TENANT_ACME, outlet=OUTLET_A1)
     leaks: list[str] = []
 
-    seen = count(app_dsn, f"SELECT count(*) FROM org.org_node WHERE tenant_id = '{TENANT_GLOBEX}';", **ctx)
-    if seen != 0:
-        leaks.append(f"SELECT exposed {seen} foreign-tenant node(s)")
+    for sql, description in (
+        (f"SELECT count(*) FROM org.org_node WHERE tenant_id = '{TENANT_GLOBEX}';",
+         "SELECT of foreign-tenant nodes"),
+        (f"SELECT count(*) FROM org.tenant WHERE id = '{TENANT_GLOBEX}';",
+         "SELECT of the foreign tenant row"),
+    ):
+        _, leak = read_probe(app_dsn, sql, description, **ctx)
+        if leak:
+            leaks.append(leak)
 
-    seen = count(app_dsn, f"SELECT count(*) FROM org.tenant WHERE id = '{TENANT_GLOBEX}';", **ctx)
-    if seen != 0:
-        leaks.append(f"SELECT exposed the foreign tenant row")
+    leaks += [leak for leak in (
+        write_probe(app_dsn, f"""
+            WITH changed AS (
+                UPDATE org.org_node SET display_name = 'cross-tenant-write'
+                WHERE id = '{FOREIGN_NODE}' RETURNING 1
+            ) SELECT count(*) FROM changed;
+        """, "UPDATE of a foreign-tenant row", **ctx),
 
-    updated = count(app_dsn, f"""
-        WITH changed AS (
-            UPDATE org.org_node SET display_name = 'cross-tenant-write'
-            WHERE id = '{FOREIGN_NODE}' RETURNING 1
-        ) SELECT count(*) FROM changed;
-    """, **ctx)
-    if updated > 0:
-        leaks.append(f"UPDATE modified {updated} foreign-tenant row(s)")
+        write_probe(app_dsn, f"""
+            WITH removed AS (
+                DELETE FROM org.org_node WHERE id = '{FOREIGN_LEAF_NODE}' RETURNING 1
+            ) SELECT count(*) FROM removed;
+        """, "DELETE of a foreign-tenant row", **ctx),
 
-    deleted = count(app_dsn, f"""
-        WITH removed AS (
-            DELETE FROM org.org_node WHERE id = '{FOREIGN_NODE}' RETURNING 1
-        ) SELECT count(*) FROM removed;
-    """, **ctx)
-    if deleted > 0:
-        leaks.append(f"DELETE removed {deleted} foreign-tenant row(s)")
-
-    res = run(app_dsn, f"""
-        INSERT INTO org.org_node (tenant_id, parent_id, kind, reference_code, display_name)
-        VALUES ('{TENANT_GLOBEX}', NULL, 'brand', 'BR-INTRUDER', 'Intruder');
-    """, **ctx)
-    if res.ok:
-        leaks.append("INSERT created a row in the foreign tenant")
+        insert_probe(app_dsn, f"""
+            INSERT INTO org.org_node (tenant_id, parent_id, kind, reference_code, display_name)
+            VALUES ('{TENANT_GLOBEX}', NULL, 'brand', 'BR-INTRUDER', 'Intruder');
+        """, "INSERT into the foreign tenant", **ctx),
+    ) if leak]
 
     # And the reverse direction, so the test is not one-sided.
-    seen = count(app_dsn, f"SELECT count(*) FROM org.org_node WHERE tenant_id = '{TENANT_ACME}';",
-                 tenant=TENANT_GLOBEX, outlet=OUTLET_B1)
-    if seen != 0:
-        leaks.append(f"GLOBEX context exposed {seen} ACME node(s)")
+    _, leak = read_probe(app_dsn,
+                         f"SELECT count(*) FROM org.org_node WHERE tenant_id = '{TENANT_ACME}';",
+                         "GLOBEX context reading ACME nodes",
+                         tenant=TENANT_GLOBEX, outlet=OUTLET_B1)
+    if leak:
+        leaks.append(leak)
 
     if leaks:
         return False, "CROSS_TENANT_ACCESS", "; ".join(leaks)

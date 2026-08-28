@@ -7,13 +7,15 @@
  * work. Any of those failing makes readiness unhealthy — quietly passing would make the
  * whole signal worthless.
  */
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Database } from '../db';
 import { probeJobs, PHASE_1_JOBS } from '../jobs';
-import type { RoleFacts } from '../env';
+import { ROLE_FACTS_SQL, privilegeViolations, toRoleFacts, type RoleFacts } from '../env';
+import { ContextRefused } from '../db';
 
 export interface HealthDependencies {
   db: Database;
+  /** What the role was at boot. Readiness re-reads it; this is only the startup record. */
   roleFacts: RoleFacts;
   serviceName: string;
   environmentName: string;
@@ -28,7 +30,24 @@ export function registerHealthRoutes(app: FastifyInstance, deps: HealthDependenc
     startedAt: deps.startedAt.toISOString(),
   }));
 
-  app.get('/ready', async (_request, reply) => {
+  /**
+   * Readiness.
+   *
+   * Two decisions are recorded here.
+   *
+   * Role privilege is re-read from the database on every probe, not taken from the
+   * boot-time snapshot. `ALTER ROLE hospitality_app BYPASSRLS` needs no restart, and a
+   * check that answers from a snapshot would keep reporting 200 with an empty problem
+   * list while the process ran with row level security disabled under it.
+   *
+   * The detail is scoped to the caller. An unauthenticated probe — a load balancer, an
+   * operator, anyone who can reach the port — gets everything needed to act on the
+   * signal: the verdict, the problems, how many migrations and seeds are applied, the
+   * highest migration version, and each advertised job's name and health. It does NOT
+   * get the migration and seed FILENAMES or the database role name, which describe the
+   * deployment rather than its health. Those require a valid session token.
+   */
+  app.get('/ready', async (request, reply) => {
     const problems: string[] = [];
 
     let migrations: { version: number; filename: string }[] = [];
@@ -49,12 +68,15 @@ export function registerHealthRoutes(app: FastifyInstance, deps: HealthDependenc
     }
     if (migrations.length === 0) problems.push('no migration has been applied');
 
-    // The role check runs again here, not only at startup: a role can be altered while a
-    // process is running, and readiness that only remembers what was true at boot is a
-    // stale claim rather than a check.
-    if (deps.roleFacts.isSuperuser || deps.roleFacts.bypassesRls
-        || deps.roleFacts.ownsApplicationTables) {
-      problems.push('the connecting role is privileged');
+    // Re-read, every time. Fails closed: a role we could not interrogate is treated as
+    // unverified, not as unprivileged.
+    const roleNow = await currentRoleFacts();
+    const violations = roleNow === null
+      ? ['role privilege could not be verified']
+      : privilegeViolations(roleNow);
+    const privileged = violations.length > 0;
+    if (privileged) {
+      problems.push(`the connecting role is privileged: ${violations.join(', ')}`);
     }
 
     const jobs = await probeJobs(deps.db, PHASE_1_JOBS);
@@ -64,17 +86,66 @@ export function registerHealthRoutes(app: FastifyInstance, deps: HealthDependenc
 
     const ready = problems.length === 0;
     reply.code(ready ? 200 : 503);
-    return {
+
+    const body: Record<string, unknown> = {
       status: ready ? 'ready' : 'unready',
       problems,
-      migrations: migrations.map((m) => `${String(m.version).padStart(4, '0')} ${m.filename}`),
-      seeds: seeds.map((s) => `${String(s.version).padStart(4, '0')} ${s.filename}`),
-      role: { name: deps.roleFacts.currentUser, privileged: false },
+      migrations: {
+        applied: migrations.length,
+        latest: migrations.length > 0
+          ? String(migrations[migrations.length - 1]!.version).padStart(4, '0')
+          : null,
+      },
+      seeds: { applied: seeds.length },
+      role: { privileged },
       jobs,
       rateLimiting: {
         scope: 'singleInstance',
         note: 'in-process limits only; distributed enforcement is deferred to M6',
       },
+      detail: 'restricted',
     };
+
+    if (await hasValidSession(request)) {
+      body.migrations = {
+        ...(body.migrations as object),
+        files: migrations.map((m) => `${String(m.version).padStart(4, '0')} ${m.filename}`),
+      };
+      body.seeds = {
+        ...(body.seeds as object),
+        files: seeds.map((s) => `${String(s.version).padStart(4, '0')} ${s.filename}`),
+      };
+      body.role = { privileged, name: roleNow?.currentUser ?? deps.roleFacts.currentUser };
+      body.detail = 'full';
+    }
+
+    return body;
   });
+
+  /** What the connecting role is right now, or null if it could not be determined. */
+  async function currentRoleFacts(): Promise<RoleFacts | null> {
+    try {
+      return await deps.db.withoutContext(async (client) => {
+        const { rows } = await client.query(ROLE_FACTS_SQL);
+        return rows[0] ? toRoleFacts(rows[0]) : null;
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  /** True when the request carries a bearer token that authenticates. */
+  async function hasValidSession(request: FastifyRequest): Promise<boolean> {
+    const header = request.headers.authorization;
+    if (!header || !header.toLowerCase().startsWith('bearer ')) return false;
+    const token = header.slice(7).trim();
+    if (token.length === 0) return false;
+    try {
+      await deps.db.withSession(token, async () => undefined);
+      return true;
+    } catch (error) {
+      if (error instanceof ContextRefused) return false;
+      throw error;
+    }
+  }
 }

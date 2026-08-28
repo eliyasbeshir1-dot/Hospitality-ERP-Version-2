@@ -24,13 +24,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from gates import (  # noqa: E402
+from gates import (
+    FOREIGN_NODE,
     OUTLET_A1, OUTLET_A2, SIBLING_NODE, TENANT_ACME,
     cross_tenant_gate, rls_absent_context_gate, rls_alter_added_outlet_gate,
     rls_sibling_outlet_gate, runtime_role_gate,
 )
 from fenced import fenced_identifier_pattern  # noqa: E402
-from pg import count, run  # noqa: E402
+from pg import ProbeFailed, count, run  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 MIGRATION = REPO / "migrations" / "0001_organizational_model_and_rls.sql"
@@ -187,7 +188,8 @@ def section_data_architecture() -> None:
         UPDATE org.outlet_profile SET timezone = 'Mars/Olympus_Mons'
         WHERE outlet_id = '{OUTLET_A1}';
     """, **ctx)
-    record("an invalid timezone is rejected", not bad_tz.ok, "INVALID_TIMEZONE raised")
+    record("an invalid timezone is rejected", bad_tz.failed_with("INVALID_TIMEZONE"),
+           f"refused by INVALID_TIMEZONE: {bad_tz.why()}")
 
     # FR-DAT-007 — optimistic concurrency.
     version = run(APP, f"SELECT row_version FROM org.org_node WHERE id = '{OUTLET_A1}';", **ctx).scalar
@@ -229,26 +231,32 @@ def section_data_architecture() -> None:
                row_version = (SELECT row_version FROM org.org_node WHERE id = 'aaaa1104-0000-4000-8000-000000000001')
         WHERE id = 'aaaa1104-0000-4000-8000-000000000001';
     """, **ctx)
-    record("an inconsistent lifecycle state is rejected", not inconsistent.ok,
-           "status/deactivated_at CHECK holds")
+    record("an inconsistent lifecycle state is rejected",
+           inconsistent.failed_with("23514", "org_node_lifecycle_consistent"),
+           f"refused by the status/deactivated_at CHECK: {inconsistent.why()}")
 
     # FR-DAT-002 — constraints.
+    # Rolled back, so a probe that is ABLE to succeed cannot leave a row behind. The
+    # cross-tenant probe previously named a SIBLING node as its "cross tenant parent" —
+    # same tenant, in scope, so it succeeded, and the assertion quietly dropped it from
+    # the detail line instead of failing. It now names a genuinely foreign parent.
     cross = run(APP, f"""
         INSERT INTO org.org_node (tenant_id, parent_id, kind, reference_code, display_name)
-        VALUES ('{TENANT_ACME}', '{SIBLING_NODE}', 'dining_table', 'T-XT', 'Cross tenant parent');
-    """, tenant=TENANT_ACME, outlet=OUTLET_A2)
+        VALUES ('{TENANT_ACME}', '{FOREIGN_NODE}', 'dining_table', 'T-XT', 'Foreign parent');
+    """, tenant=TENANT_ACME, outlet=OUTLET_A2, rollback=True)
     dup = run(APP, """
         INSERT INTO org.org_node (tenant_id, parent_id, kind, reference_code, display_name)
         VALUES ('%s', '%s', 'dining_table', 'T-11', 'Duplicate code');
-    """ % (TENANT_ACME, OUTLET_A2), tenant=TENANT_ACME, outlet=OUTLET_A2)
+    """ % (TENANT_ACME, OUTLET_A2), tenant=TENANT_ACME, outlet=OUTLET_A2, rollback=True)
     blank = run(APP, f"""
         INSERT INTO org.org_node (tenant_id, parent_id, kind, reference_code, display_name)
         VALUES ('{TENANT_ACME}', '{OUTLET_A1}', 'dining_table', '  ', 'Blank code');
-    """, **ctx)
+    """, rollback=True, **ctx)
     record("constraints reject invalid rows (FR-DAT-002)",
-           (not dup.ok) and (not blank.ok),
-           "duplicate reference_code rejected; blank reference_code rejected"
-           + ("; cross-tenant parent rejected" if not cross.ok else ""))
+           dup.failed_with("23505") and blank.failed_with("23514")
+           and cross.failed_with("PARENT_NOT_VISIBLE"),
+           f"duplicate reference_code: {dup.why()}; blank reference_code: {blank.why()}; "
+           f"foreign-tenant parent: {cross.why()}")
 
     # Cycles and outlet nesting.
     cycle = run(APP, """
@@ -256,7 +264,8 @@ def section_data_architecture() -> None:
                row_version = (SELECT row_version FROM org.org_node WHERE id = 'aaaa1101-0000-4000-8000-000000000001')
         WHERE id = 'aaaa1101-0000-4000-8000-000000000001';
     """, **ctx)
-    record("a hierarchy cycle is refused", not cycle.ok, "ORG_CYCLE raised")
+    record("a hierarchy cycle is refused", cycle.failed_with("ORG_CYCLE"),
+           f"refused by ORG_CYCLE: {cycle.why()}")
 
     # FR-TEN-002A — depth is not fixed.
     depth = run(APP, f"""
@@ -316,6 +325,120 @@ def prove_control(control: str, gate, dsn_for_gate, break_sql: str, revert_sql: 
     green_ok, green_signature, green_detail = gate(dsn_for_gate)
     record(f"{control} — GREEN after revert", green_ok,
            green_detail if green_ok else f"{green_signature}: {green_detail}")
+
+
+def git(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", "-C", str(REPO), *args],
+                          capture_output=True, text=True,
+                          env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+
+
+def section_cross_platform() -> None:
+    """F2 and F3 — the repository must behave the same on Windows as it does here.
+
+    Neither of these can be fully proved without a Windows machine, and this harness is
+    running on Linux. What CAN be proved here is the mechanism: that Git is configured to
+    hand a Windows checkout the same bytes it hands this one, and that the harness itself
+    contains no path that only resolves on POSIX. Both are asserted, not assumed.
+    """
+    print("\n--- 5. Cross-platform integrity (F2, F3) ---")
+
+    attributes = REPO / ".gitattributes"
+    record("a .gitattributes decides line endings, rather than the cloning machine",
+           attributes.is_file(),
+           "core.autocrlf=true is the Git-for-Windows default; without this file nothing "
+           "overrides it")
+
+    # Checksum-locked and executable files must arrive as LF on every platform.
+    lf_required = ["migrations/0001_organizational_model_and_rls.sql",
+                   "migrations/0005_security_event_storage_allocation_and_context.sql",
+                   "seeds/0001_demonstration_tenants.sql",
+                   "tests/m1a/run_verification.sh",
+                   "tools/migrate.py"]
+    wrong = []
+    for relative in lf_required:
+        attrs = git("check-attr", "text", "eol", "--", relative).stdout
+        if "text: set" not in attrs or "eol: lf" not in attrs:
+            wrong.append(f"{relative} -> {' '.join(attrs.split())}")
+    record("checksum-locked and executable files are LF on every platform",
+           not wrong,
+           "; ".join(wrong) if wrong else
+           f"{len(lf_required)} representative file(s) resolve to text=set eol=lf, so a "
+           f"Windows checkout hashes what Linux hashed and `set -euo pipefail` has no "
+           f"trailing CR to make bash continue without -e")
+
+    # The pinned package is exempt from conversion in BOTH directions. 70 of its 92 files
+    # are stored WITH CR bytes, so normalising them would change the very bytes the 91
+    # recorded sums exist to detect.
+    package_relative = ("docs/Hospitality_OS_Phase_1_Clean_Build_Package_v2.0.9/"
+                        "00_PACKAGE_CONTROL/README.md")
+    package_attrs = git("check-attr", "text", "--", package_relative).stdout
+    record("the pinned package is exempt from line-ending conversion in both directions",
+           "text: unset" in package_attrs,
+           f"{package_relative} resolves to {' '.join(package_attrs.split()[-2:])}; its bytes "
+           f"are evidence, not source, and Git neither normalises them on the way in nor "
+           f"converts them on the way out")
+
+    # The decisive test, stated as the property that actually matters: the bytes on disk
+    # must be the bytes that were committed. If any line-ending conversion were active on
+    # the package, the checkout would differ from the blob and the 91 recorded sums would
+    # stop matching. Comparing worktree bytes to blob bytes measures exactly that, and —
+    # unlike a re-normalisation dry run — it cannot be confused by an uncommitted edit.
+    package_files = [line for line in
+                     git("ls-files", "--", "docs").stdout.splitlines() if line.strip()]
+    converted = []
+    for relative in package_files:
+        blob = subprocess.run(["git", "-C", str(REPO), "cat-file", "blob", f"HEAD:{relative}"],
+                              capture_output=True)
+        on_disk = (REPO / relative).read_bytes()
+        if blob.returncode == 0 and blob.stdout != on_disk:
+            converted.append(f"{relative} differs from its committed blob "
+                             f"({len(blob.stdout)} bytes committed, {len(on_disk)} on disk)")
+    with_cr = sum(1 for relative in package_files
+                  if b"\r" in (REPO / relative).read_bytes()[:8192])
+    record("the pinned package is checked out byte-identical to what was committed",
+           bool(package_files) and not converted,
+           "; ".join(converted[:3]) if converted else
+           f"{len(package_files)} package file(s) match their committed blobs exactly; "
+           f"{with_cr} of them carry CR bytes, which is how they were delivered and hashed "
+           f"— normalising those would change the very bytes the 91 sums exist to detect")
+
+    # Checksum-locked and executable files must carry no CR, or their hashes move and
+    # `set -euo pipefail` stops meaning what it says.
+    locked = [line for line in
+              (git("ls-files", "--", "migrations", "seeds").stdout
+               + git("ls-files", "--", "*.sh").stdout).splitlines() if line.strip()]
+    carrying_cr = [relative for relative in locked
+                   if b"\r" in (REPO / relative).read_bytes()]
+    record("no checksum-locked or executable file carries a CR byte",
+           bool(locked) and not carrying_cr,
+           "; ".join(carrying_cr) if carrying_cr else
+           f"{len(locked)} migration, seed and shell file(s) are pure LF on disk, so their "
+           f"checksums are platform-independent and no shell option string ends in a CR")
+
+    # F3 — no POSIX-only device path anywhere in the harness. The markers are assembled
+    # rather than written out, so this scanner does not report itself as an offender —
+    # the same trap the fenced-vocabulary work had to avoid.
+    root = "/" + "dev" + "/"
+    posix_only = []
+    for path in sorted((REPO / "tests").rglob("*.py")) + sorted((REPO / "tools").rglob("*.py")):
+        if path.resolve() == Path(__file__).resolve():
+            continue
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        for device in ("null", "stdout", "stderr", "urandom", "zero", "tty"):
+            if root + device in text:
+                posix_only.append(f"{path.relative_to(REPO)} hardcodes {root}{device}")
+    record("no harness file hardcodes a POSIX-only device path (F3)",
+           not posix_only,
+           "; ".join(posix_only) if posix_only else
+           f"{len(list((REPO / 'tests').rglob('*.py')) + list((REPO / 'tools').rglob('*.py')))} "
+           f"harness file(s) scanned; os.devnull is used instead, so psql does not exit on an "
+           f"invalid path under Windows and take every context-scoped assertion down with it")
+
+    record("Windows execution itself is NOT claimed by this run", True,
+           "This harness ran on Linux. The mechanisms above are proved here; that the "
+           "suites complete on Windows is not, and is recorded as an open item rather "
+           "than asserted.")
 
 
 def section_negative_controls() -> None:
@@ -388,10 +511,16 @@ def section_negative_controls() -> None:
 
 def main() -> int:
     print("M1-A verification — real PostgreSQL, application role, populated fixtures")
-    section_migration()
-    section_rls()
-    section_data_architecture()
-    section_negative_controls()
+    # A probe that could not execute raises rather than returning a sentinel that reads
+    # as "nothing found". Catching it here records a failure instead of a traceback, so
+    # the suite still reports a verdict — a failing one, which is the correct verdict
+    # for a section whose evidence could not be gathered.
+    for section in (section_migration, section_rls, section_data_architecture,
+                    section_cross_platform, section_negative_controls):
+        try:
+            section()
+        except ProbeFailed as exc:
+            record(f"{section.__name__} completed", False, f"probe did not execute: {exc}")
 
     failed = [name for name, ok, _ in results if not ok]
     print("\n" + "=" * 74)

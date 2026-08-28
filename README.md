@@ -86,6 +86,7 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0002_identity_memberships_and_authentication.sql`
 - `0003_configuration_audit_money_and_quantity.sql`
 - `0004_readiness_provenance_grants.sql`
+- `0005_security_event_storage_allocation_and_context.sql`
 
 ## Seeds
 

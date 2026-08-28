@@ -104,6 +104,16 @@ VALUES ('aaaa2103-0000-4000-8000-000000000002'::uuid, :t_acme::uuid, :o_a2::uuid
 INSERT INTO org.device_registration (device_id, tenant_id, outlet_id, registration_code)
 VALUES ('aaaa2103-0000-4000-8000-000000000002'::uuid, :t_acme::uuid, :o_a2::uuid, 'REG-A2-0001');
 
+-- A sibling-outlet row that exists to be a DELETE target, with no children and nothing
+-- referencing it. The isolation gates prove a DELETE is refused; that proof is only worth
+-- anything if the DELETE could otherwise have succeeded. Aiming those probes at a node
+-- with dependents meant a foreign key error arrived before row level security had said
+-- anything, and the gate read the error as a denial.
+INSERT INTO org.org_node (id, tenant_id, parent_id, kind, reference_code, display_name)
+VALUES ('aaaa2104-0000-4000-8000-000000000002'::uuid, :t_acme::uuid,
+        'aaaa2101-0000-4000-8000-000000000002'::uuid,
+        'dining_table', 'T-DEL', 'Main Hall Table 12 (delete target)');
+
 -- =========================================================================
 -- Tenant GLOBEX — the foreign tenant
 -- =========================================================================

@@ -172,7 +172,7 @@ Policies:
 
 #### `audit.security_event`
 
-Append-only security audit. This is where M1-B's recovery and lockout events land (FR-AUTH-010): M1-B emits them, M1-C stores them.
+Append-only security audit (FR-AUTH-010). identity.emit_security_event writes here; as of 0005 that is the only way rows arrive, so the store reflects what identity actually emitted rather than what a caller chose to insert. The 0003 comment saying "M1-B emits them, M1-C stores them" described an intention that no code implemented; this supersedes it.
 
 Row level security: **enabled**, **forced**.
 
