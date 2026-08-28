@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `f5e739f9c0f315bd7c179ac8ddd319314087e55e` |
-| Short | `f5e739f` |
+| Commit | `cf278fb0e3fb2a2a5828be6ced7ae6fa340b9f77` |
+| Short | `cf278fb` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation |
@@ -148,10 +148,10 @@ prescription, with reasons; both are marked.
 |---|---------|--------|-------|
 | F5 | The FR-AUTH-010 audit assertion was satisfied by its own `INSERT` | `identity.emit_security_event` now writes to `audit.security_event` (0005); the check calls only the emitter | NC-M1C direct, scope and trigger checks; the test inserts nothing |
 | F3/F9 | ~20 assertions satisfied by any failure | `Result.failed_with()` requires a named SQLSTATE or signature; bare failure raises | every converted site names its reason and prints it |
-| F3 | `pg.py` was POSIX-only | `os.devnull`; M1-A scans the harness for regressions | cross-platform section, mechanism only |
+| F3 | `pg.py` was POSIX-only | `os.devnull`; M1-A scans the Python harness for regressions and names the bash drivers it does not scan | **executed on Windows**, all five suites; see the cross-platform section |
 | F1 | Readiness read a boot-time role snapshot | role privilege re-queried on every probe | **NC-M1D-007**, red then green |
 | F7 | `db.ts` documented `SET LOCAL`; the code used session-level `set_config` | transaction-local in 0005 | **NC-M1B-005**, red then green |
-| F2 | No `.gitattributes` | added — see the note below on how it differs | four assertions, mechanism only |
+| F2 | No `.gitattributes` | added — see the note below on how it differs | four assertions, plus a Windows checkout at `core.autocrlf=true` producing the 91 matching sums |
 | F4 | `money.allocate` lost minor units for negative totals | remainder distributed in the direction of its sign (0005) | 13 cases asserted as equalities |
 | F6 | The currency-pairing check was vacuous | vacuity asserted explicitly; mechanism proved against a real column | recorded as a deferral above |
 | F8 | The UPDATE and DELETE legs failed open on `-1` | `count()` raises; only "ran and affected zero rows" counts as a denial | NC-M1-001/002 red proofs now show the writes succeeding |
@@ -266,29 +266,44 @@ and dropped inside a rolled-back transaction: a bare amount column is reported, 
 and payments introduce the first stored amounts. This is not covered by the
 `money.currency` exception above.
 
-### Windows execution is NOT verified, and three findings depend on it
+### Windows execution: verified by running it
 
-The repair brief asked for Windows verification of two findings. **No Windows machine was
-available; every run recorded here executed on Linux.** What was proved, and what was not:
+F2 and F3 were mechanism-only for as long as no Windows machine was available. One is now:
+`Windows 11 (AMD64)`, Python 3.12.10, a PostgreSQL 16.15 server in Docker reached over TCP
+by a psql 18.4 client, Node 24.16.0 and Git 2.54.0. All five suites were run against a
+database built from empty — 220 checks.
 
-- **Proved here.** `.gitattributes` resolves checksum-locked and executable files to
-  `text=set eol=lf`, and the pinned package to `-text` — no conversion in either
-  direction. Re-normalising `docs/`, `migrations/`, `seeds/` and `tools/` against a
-  throwaway index produces blobs byte-identical to the committed ones, so no recorded
-  SHA-256 sum and no migration checksum moves. The harness contains no hardcoded POSIX
-  device path; `os.devnull` is used and M1-A scans for regressions.
-- **Not proved here.** That the suites run to completion on Windows. That a
-  Git-for-Windows checkout with `core.autocrlf=true` produces the 91 matching sums in
-  practice. That `set -euo pipefail` parses with no trailing CR on that platform.
+- **F2 — confirmed in practice.** A Git-for-Windows checkout at `core.autocrlf=true`
+  produced the 91 matching package sums, migration 0002 hashed `51446d59…` exactly as it
+  does on Linux, and no checksum-locked or executable file carried a CR byte.
+- **F3 — confirmed by execution.** A hardcoded POSIX null-device path makes Windows psql
+  exit 1 with `No such file or directory`; `os.devnull` resolves to `nul` and is accepted.
+  M1-A's context-scoped assertions ran against a live client rather than one that had
+  already exited, and the suite passed 43 of 43. (This paragraph may not spell the POSIX
+  path out: `generate_evidence_report.py` is itself scanned by that gate, and writing the
+  literal here turned M1-A red — which is the gate doing its job.)
 
-The mechanism is verified; the platform is not. **This remains open and is not claimed.**
+Executing the documented path found what documenting it could not. **Seven defects were
+present that Linux cannot expose**, each repaired and each proved red before green: locale
+decoding (`text=True` inherits cp1252 on Windows and corrupted psql output at 20 call
+sites), a Windows path handed to bash, `bash` resolving to the WSL launcher rather than Git
+Bash, npm's extensionless `tsc`, a `python3` requirement no standard Windows install can
+satisfy, a POSIX-only temporary path, and a service start window too tight for a cold
+start. That is the argument for executing a documented path rather than reasoning about it.
 
-### Windows commands are documented but unverified
+**What is still not claimed.** These are the versions above, on one machine. The suites do
+not run on Windows in CI, so Windows is verified by execution but **not guarded against
+regression** by it: a Windows defect introduced tomorrow would not be caught until someone
+runs the suites there again.
+
+### Windows commands are documented and executed
 
 `docs-local/CROSS_PLATFORM_COMMANDS.md` gives Windows equivalents for every documented
-command. No Windows machine was available, so that column is written from the documented
-behaviour of the same tools. The Linux column was executed. This is stated in the document
-itself as well as here.
+command. Both columns have now been executed: the Linux column on the runner, the Windows
+column on the machine described above, including `tools/check_prerequisites.py` in its
+passing form, its absent-tool form and its present-but-unrunnable form. The document
+records the same versions and the same limits, and names the prerequisites Windows needs
+that Linux does not — `psql` on `PATH`, and Git Bash for the API build.
 
 ### CSRF is defined, not exercised
 
