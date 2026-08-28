@@ -13,9 +13,11 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import signal
 import socket
 import subprocess
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -25,22 +27,67 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 WORKSPACE = Path(os.environ.get("M1D_WORKSPACE", "/var/lib/m1d-workspace"))
 
-ENV = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+WINDOWS = os.name == "nt"
+
+# Paths handed to bash are written POSIX-style, and so is the workspace bash is told to
+# build into. str() on a Windows Path yields backslashes, which bash consumes as escape
+# characters: the repository path arrived at bash with every separator eaten and the build
+# died on a filename that was never on disk. as_posix() is identical to str() on Linux, so
+# this changes nothing on the CI runner.
+ENV = {**os.environ,
+       "PYTHONDONTWRITEBYTECODE": "1",
+       "M1D_WORKSPACE": WORKSPACE.as_posix()}
+
+# npm publishes two entry points in .bin: an extensionless shell script for POSIX and a
+# .cmd shim for Windows. Only the shim is a valid Win32 executable — handing CreateProcess
+# the extensionless one fails with WinError 193, which is not a compile error and would be
+# reported as one.
+TSC = "tsc.cmd" if WINDOWS else "tsc"
+
+# Upper bound on a cold start, not a sleep — see Service.start(). Overridable for machines
+# slower than the default allows.
+READY_TIMEOUT = float(os.environ.get("M1D_READY_TIMEOUT", "60"))
+
+
+def bash_executable() -> str:
+    """The bash that shares this process's filesystem, discovered rather than assumed.
+
+    On Windows, plain "bash" resolves to C:\\WINDOWS\\system32\\bash.exe — the WSL launcher.
+    That is a different operating system with a different filesystem view (/mnt/c/...), its
+    own node and its own npm. It cannot open a C:/ path at all, and if it could, the build
+    under test would no longer be the Windows build. Git for Windows is already a required
+    prerequisite, so its bash is located from the git on PATH and used deliberately.
+
+    Absence is reported by name rather than silently falling back to WSL (FR-OPS-021).
+    """
+    if not WINDOWS:
+        return "bash"
+    git = shutil.which("git")
+    if git:
+        # .../Git/cmd/git.exe and .../Git/bin/git.exe both sit one level under the root.
+        for candidate in (Path(git).parents[1] / "bin" / "bash.exe",
+                          Path(git).parents[1] / "usr" / "bin" / "bash.exe"):
+            if candidate.is_file():
+                return str(candidate)
+    raise RuntimeError(
+        "PREREQUISITE_ABSENT: no Git Bash found. The API build is a bash script and the "
+        "only bash on PATH is the WSL launcher, which cannot see this filesystem. "
+        "Install Git for Windows (winget install Git.Git).")
 
 
 def sync_and_build() -> None:
     """Copy source from the repository into the workspace and compile it."""
-    proc = subprocess.run(["bash", str(REPO / "api" / "build.sh")],
-                          capture_output=True, text=True, env=ENV)
+    proc = subprocess.run([bash_executable(), (REPO / "api" / "build.sh").as_posix()],
+                          capture_output=True, text=True, encoding="utf-8", env=ENV)
     if proc.returncode != 0:
         raise RuntimeError(f"build failed: {proc.stderr.strip() or proc.stdout.strip()}")
 
 
 def compile_only() -> None:
     """Recompile whatever is in the workspace, without re-copying from the repository."""
-    proc = subprocess.run([str(WORKSPACE / "node_modules" / ".bin" / "tsc"),
+    proc = subprocess.run([str(WORKSPACE / "node_modules" / ".bin" / TSC),
                            "-p", str(WORKSPACE / "tsconfig.json")],
-                          capture_output=True, text=True, cwd=WORKSPACE, env=ENV)
+                          capture_output=True, text=True, encoding="utf-8", cwd=WORKSPACE, env=ENV)
     if proc.returncode != 0:
         raise RuntimeError(f"compile failed: {proc.stdout.strip() or proc.stderr.strip()}")
 
@@ -81,14 +128,36 @@ class Service:
     def __init__(self, database_url: str, environment: str = "verification",
                  extra_env: dict[str, str] | None = None) -> None:
         self.port = free_port()
-        self.log_path = Path(f"/tmp/m1d-service-{self.port}.log")
+        # tempfile.gettempdir(), not a hardcoded POSIX temp path: the literal resolved to a
+        # drive-relative \tmp\ on Windows, which is a different directory on every drive and
+        # need not exist at all. Same defect class as F3, in a directory the F3 scanner does
+        # not look for.
+        self.log_path = Path(tempfile.gettempdir()) / f"m1d-service-{self.port}.log"
         self._database_url = database_url
         self._environment = environment
         self._extra = extra_env or {}
         self._process: subprocess.Popen | None = None
+        self._not_ready = ""
 
-    def start(self, wait_seconds: float = 15.0) -> bool:
-        """Start the service. Returns True once it answers, False if it refused to start."""
+    def start(self, wait_seconds: float = READY_TIMEOUT) -> bool:
+        """Start the service and wait for it to signal readiness.
+
+        Readiness is a signal, not a sleep. The loop returns the instant /health answers, and
+        returns False the instant the process exits — a healthy start still returns in well
+        under a second, so the window costs nothing when nothing is wrong. It is only an
+        upper bound on how long a cold start is allowed to take.
+
+        That bound used to be 15 seconds and it was too tight on Windows, where the first
+        launch after a build competes with the filesystem filter driver scanning freshly
+        written dist/ and node_modules/ files: one run in four failed here with the service
+        alive and simply not listening yet. A gate that goes red without a defect devalues
+        every red it reports, so the bound is now generous and stated rather than guessed,
+        and M1D_READY_TIMEOUT overrides it on a slow machine.
+
+        There is no retry: a start is attempted once. Distinguishing "exited" from "still
+        starting" is what makes that safe — a service that refuses to start is reported
+        immediately and is never confused with one that is merely slow.
+        """
         self.log_path.write_text("", encoding="utf-8")
         env = {
             **ENV,
@@ -102,15 +171,23 @@ class Service:
             ["node", str(WORKSPACE / "dist" / "server.js")],
             stdout=handle, stderr=subprocess.STDOUT, env=env,
         )
-        deadline = time.time() + wait_seconds
+        started = time.time()
+        deadline = started + wait_seconds
         while time.time() < deadline:
             if self._process.poll() is not None:
-                return False                      # exited before listening
+                # Exited before listening. Definitive, so stop now rather than waiting out
+                # the window: this is a refusal to start, not a slow start.
+                self._not_ready = (f"process exited with code {self._process.returncode} "
+                                   f"after {time.time() - started:.1f}s without listening")
+                return False
             try:
                 self.get("/health", timeout=1)
                 return True
             except Exception:
                 time.sleep(0.25)
+        self._not_ready = (f"still running but did not answer /health on port {self.port} "
+                           f"within {wait_seconds:.0f}s (raise M1D_READY_TIMEOUT if this "
+                           f"machine is slower than the window allows)")
         return False
 
     def stop(self) -> None:
@@ -154,7 +231,8 @@ class Service:
 
     def __enter__(self) -> "Service":
         if not self.start():
-            raise RuntimeError(f"service did not start; log:\n{self.logs()[:2000]}")
+            raise RuntimeError(f"service did not start — {self._not_ready}; "
+                               f"log:\n{self.logs()[:2000]}")
         return self
 
     def __exit__(self, *_exc) -> None:

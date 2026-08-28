@@ -90,7 +90,7 @@ def psql(dsn: str, sql: str, *, tuples_only: bool = True) -> str:
     if tuples_only:
         cmd += ["-t", "-A", "-F", "\x1f"]
     result = subprocess.run(
-        cmd, input=sql, capture_output=True, text=True,
+        cmd, input=sql, capture_output=True, text=True, encoding="utf-8",
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
     if result.returncode != 0:
@@ -102,7 +102,7 @@ def psql_file(dsn: str, path: Path) -> None:
     """Apply one migration file in a single transaction."""
     cmd = ["psql", dsn, "-v", "ON_ERROR_STOP=1", "--no-psqlrc", "-X",
            "--single-transaction", "-f", str(path)]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
     if result.returncode != 0:
         raise MigrationFailure(
             "MIGRATION_FAILED", f"{path.name}: {result.stderr.strip() or result.stdout.strip()}"

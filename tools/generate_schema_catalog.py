@@ -29,10 +29,15 @@ def md(text: str) -> str:
 
 
 def query(dsn: str, sql: str) -> list[list[str]]:
+    # encoding="utf-8", never the machine's locale. Comments in the live schema contain
+    # non-ASCII punctuation; psql emits it as UTF-8 on every platform, but text=True alone
+    # decodes with locale.getpreferredencoding(). On Windows that is cp1252, which read the
+    # em-dash's three UTF-8 bytes as three separate characters and made this generator
+    # report SCHEMA_CATALOG_DRIFT against a schema that had not drifted at all.
     proc = subprocess.run(
         ["psql", dsn, "-v", "ON_ERROR_STOP=1", "--no-psqlrc", "-X",
          "-t", "-A", "-F", UNIT],
-        input=sql, capture_output=True, text=True,
+        input=sql, capture_output=True, text=True, encoding="utf-8",
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
     if proc.returncode != 0:

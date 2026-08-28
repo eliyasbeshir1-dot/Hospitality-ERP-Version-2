@@ -92,7 +92,7 @@ def ensure_seeds() -> None:
     proc = subprocess.run(
         [sys.executable, str(REPO / "tools" / "seed.py"),
          "--dsn", MIGRATOR, "--content-dsn", APP, "--seeds", str(REPO / "seeds"), "apply"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8",
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
     if proc.returncode != 0:
         raise RuntimeError(f"seeding failed: {proc.stderr.strip() or proc.stdout.strip()}")
@@ -832,7 +832,7 @@ def section_catalog() -> None:
     proc = subprocess.run(
         [sys.executable, str(REPO / "tools" / "generate_schema_catalog.py"),
          "--dsn", ADMIN, "--check", str(catalog)],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8",
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
     record("the committed schema catalog matches the live schema", proc.returncode == 0,
            (proc.stdout.strip() or proc.stderr.strip()).splitlines()[0] if (proc.stdout or proc.stderr) else "")

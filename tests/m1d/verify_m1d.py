@@ -73,7 +73,7 @@ def ensure_seeds() -> None:
     proc = subprocess.run(
         [sys.executable, str(REPO / "tools" / "seed.py"), "--dsn", MIGRATOR,
          "--content-dsn", APP, "--seeds", str(REPO / "seeds"), "apply"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8",
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
     if proc.returncode != 0:
         raise RuntimeError(f"seeding failed: {proc.stderr.strip() or proc.stdout.strip()}")
@@ -342,7 +342,7 @@ def seed_lock_gate() -> tuple[bool, str, str]:
         proc = subprocess.run(
             [sys.executable, str(REPO / "tools" / "seed.py"), "--dsn", MIGRATOR,
              "--content-dsn", APP, "--seeds", str(REPO / "seeds"), "preflight"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8",
             env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
         if proc.returncode == 0:
             problems.append("preflight accepted a seed edited after it was applied")
@@ -352,7 +352,7 @@ def seed_lock_gate() -> tuple[bool, str, str]:
         apply_proc = subprocess.run(
             [sys.executable, str(REPO / "tools" / "seed.py"), "--dsn", MIGRATOR,
              "--content-dsn", APP, "--seeds", str(REPO / "seeds"), "apply"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8",
             env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
         if apply_proc.returncode == 0:
             problems.append("apply proceeded while the seed history was broken")
@@ -362,7 +362,7 @@ def seed_lock_gate() -> tuple[bool, str, str]:
     ok_proc = subprocess.run(
         [sys.executable, str(REPO / "tools" / "seed.py"), "--dsn", MIGRATOR,
          "--content-dsn", APP, "--seeds", str(REPO / "seeds"), "preflight"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8",
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
     if ok_proc.returncode != 0:
         problems.append("preflight still failed after the seed was restored")
@@ -586,24 +586,34 @@ def section_cross_platform() -> None:
            f"{doc.relative_to(REPO)} lists the Windows and Linux equivalents")
 
     probe = REPO / "tools" / "check_prerequisites.py"
-    proc = subprocess.run([sys.executable, str(probe)], capture_output=True, text=True,
+    proc = subprocess.run([sys.executable, str(probe)], capture_output=True, text=True, encoding="utf-8",
                           env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
     record("tool discovery runs and reports every prerequisite",
            proc.returncode == 0 and "PASS PREREQUISITES" in proc.stdout,
            (proc.stdout.strip().splitlines() or [""])[0])
 
     missing = subprocess.run([sys.executable, str(probe), "--require", "a_binary_that_is_not_installed"],
-                             capture_output=True, text=True,
+                             capture_output=True, text=True, encoding="utf-8",
                              env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
     record("a missing tool fails clearly rather than mysteriously",
            missing.returncode != 0 and "PREREQUISITE_ABSENT" in missing.stderr,
            "the failure names the tool, where it was looked for, and how to install it")
 
+    # This check used to require the document to say Windows was UNVERIFIED, and its detail
+    # line asserted "this harness ran on Linux only". Both were true when written and both
+    # became false the day the suites were executed on Windows — while the check went on
+    # passing, because it was reading for the word rather than for the state of the world.
+    # It now requires the document to name the platforms that have actually run the
+    # commands, and to still say what that run does not establish.
     text = doc.read_text(encoding="utf-8") if doc.exists() else ""
-    record("the Windows path is documented but NOT claimed as verified",
-           "not verified" in text.lower() or "unverified" in text.lower(),
-           "this harness ran on Linux only. The Windows commands are written from the "
-           "documented behaviour of the tools, not from an executed Windows run")
+    lowered = text.lower()
+    record("the documented commands record which platforms actually ran them",
+           ("verified on linux" in lowered and "verified on windows" in lowered
+            and "not verified on windows" not in lowered
+            and "still not claimed" in lowered),
+           "both platform columns are backed by an executed run, and the document states "
+           "what that run does not establish: the suites are not run on Windows in CI, so "
+           "Windows is verified by execution but not guarded against regression by it")
 
 
 def section_evidence() -> None:

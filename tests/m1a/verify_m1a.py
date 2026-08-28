@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import re
 import subprocess
 import sys
@@ -57,7 +58,7 @@ def migrate(dsn: str, command: str) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(REPO / "tools" / "migrate.py"), "--dsn", dsn,
          "--migrations", str(REPO / "migrations"), command],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8",
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
 
@@ -103,7 +104,7 @@ def section_migration() -> None:
     # Forward-only: the runner offers no downgrade path at all.
     proc = subprocess.run(
         [sys.executable, str(REPO / "tools" / "migrate.py"), "--dsn", MIGRATOR, "down"],
-        capture_output=True, text=True)
+        capture_output=True, text=True, encoding="utf-8")
     record("runner exposes no rollback command", proc.returncode != 0,
            "forward-only: recovery is by restore, not reverse migration")
 
@@ -329,7 +330,7 @@ def prove_control(control: str, gate, dsn_for_gate, break_sql: str, revert_sql: 
 
 def git(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", str(REPO), *args],
-                          capture_output=True, text=True,
+                          capture_output=True, text=True, encoding="utf-8",
                           env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
 
 
@@ -416,29 +417,61 @@ def section_cross_platform() -> None:
            f"{len(locked)} migration, seed and shell file(s) are pure LF on disk, so their "
            f"checksums are platform-independent and no shell option string ends in a CR")
 
-    # F3 — no POSIX-only device path anywhere in the harness. The markers are assembled
-    # rather than written out, so this scanner does not report itself as an offender —
-    # the same trap the fenced-vocabulary work had to avoid.
+    # F3 — no POSIX-only device path in the harness code that has to run on both platforms.
+    # The markers are assembled rather than written out, so this scanner does not report
+    # itself as an offender — the same trap the fenced-vocabulary work had to avoid.
+    #
+    # The scan covers Python only, and the check now says so. It used to be titled "no
+    # harness file ..." while globbing *.py alone, which claimed coverage it did not have:
+    # tests/m1a/run_verification.sh:70 carried a POSIX null-device path throughout, and the
+    # check reported clean over it. The bash drivers are excluded deliberately, not
+    # accidentally — they are POSIX-only entry points with no Windows equivalent
+    # (docs-local/CROSS_PLATFORM_COMMANDS.md), so a POSIX device path is correct in them.
+    # They are counted and named below rather than passed over in silence.
     root = "/" + "dev" + "/"
-    posix_only = []
-    for path in sorted((REPO / "tests").rglob("*.py")) + sorted((REPO / "tools").rglob("*.py")):
+    devices = ("null", "stdout", "stderr", "urandom", "zero", "tty")
+
+    def device_paths(path: Path) -> list[str]:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        return [f"{root}{device}" for device in devices if root + device in text]
+
+    python_files = (sorted((REPO / "tests").rglob("*.py"))
+                    + sorted((REPO / "tools").rglob("*.py")))
+    scanned, posix_only = 0, []
+    for path in python_files:
         if path.resolve() == Path(__file__).resolve():
             continue
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        for device in ("null", "stdout", "stderr", "urandom", "zero", "tty"):
-            if root + device in text:
-                posix_only.append(f"{path.relative_to(REPO)} hardcodes {root}{device}")
-    record("no harness file hardcodes a POSIX-only device path (F3)",
+        scanned += 1
+        for found in device_paths(path):
+            posix_only.append(f"{path.relative_to(REPO)} hardcodes {found}")
+
+    bash_only = [f"{path.relative_to(REPO)} ({', '.join(device_paths(path))})"
+                 for path in sorted((REPO / "tests").rglob("*.sh")) if device_paths(path)]
+
+    record("no cross-platform harness file hardcodes a POSIX-only device path (F3)",
            not posix_only,
            "; ".join(posix_only) if posix_only else
-           f"{len(list((REPO / 'tests').rglob('*.py')) + list((REPO / 'tools').rglob('*.py')))} "
-           f"harness file(s) scanned; os.devnull is used instead, so psql does not exit on an "
-           f"invalid path under Windows and take every context-scoped assertion down with it")
+           f"{scanned} Python harness file(s) scanned — the code that runs on both "
+           f"platforms; os.devnull is used instead, so psql does not exit on an invalid "
+           f"path under Windows and take every context-scoped assertion down with it. "
+           f"The bash drivers are NOT scanned and are not claimed: "
+           + (f"a POSIX device path appears in {len(bash_only)} of them "
+              f"({'; '.join(bash_only)}), which is correct — they are POSIX-only entry "
+              f"points with no Windows path." if bash_only else
+              "no POSIX device path appears in any of them."))
 
-    record("Windows execution itself is NOT claimed by this run", True,
-           "This harness ran on Linux. The mechanisms above are proved here; that the "
-           "suites complete on Windows is not, and is recorded as an open item rather "
-           "than asserted.")
+    # The mechanisms above hold wherever this runs. The one thing only a real run can
+    # establish is which platform it actually executed on, so that is what this reports —
+    # read from the interpreter, not written down. The line it replaces said "This harness
+    # ran on Linux" unconditionally, and duly passed on Windows while saying so; a check
+    # whose text cannot be wrong cannot be evidence either.
+    system = platform.system()
+    record("the platform this run executed on is identified and recorded",
+           bool(system),
+           f"executed on {system or 'an unidentified platform'} {platform.release()} "
+           f"({platform.machine()}) under Python {platform.python_version()}. F2 and F3 are "
+           f"proved as mechanisms wherever this runs; that the suites COMPLETE on any other "
+           f"platform is not claimed by this run and stays open until run there.")
 
 
 def section_negative_controls() -> None:

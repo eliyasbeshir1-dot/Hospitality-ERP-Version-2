@@ -69,7 +69,7 @@ def run_verifier(repo: Path, report: Path | None = None) -> tuple[int, str, str]
     command = [sys.executable, str(repo / "tools" / "verify_m1.py"), "--repo", str(repo)]
     if report is not None:
         command += ["--json-report", str(report)]
-    proc = subprocess.run(command, capture_output=True, text=True, env=ENV)
+    proc = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", env=ENV)
     return proc.returncode, proc.stdout, proc.stderr
 
 

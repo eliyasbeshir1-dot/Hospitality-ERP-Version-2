@@ -62,7 +62,7 @@ SUITE_PURPOSE = {
 
 
 def sh(*command: str) -> str:
-    return subprocess.run(command, capture_output=True, text=True, cwd=REPO).stdout.strip()
+    return subprocess.run(command, capture_output=True, text=True, encoding="utf-8", cwd=REPO).stdout.strip()
 
 
 def slice_commit(tag: str) -> str:

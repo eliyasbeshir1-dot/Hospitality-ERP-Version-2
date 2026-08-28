@@ -10,16 +10,41 @@ shell on a developer's own machine, or fails with a message naming what is missi
 `Linux 6.18.44 x86_64` with Python 3.11, PostgreSQL 16.13, Node 22.22 and Git 2.43, and
 `tools/check_prerequisites.py` was run in both its passing and its failing form.
 
-**Not verified on Windows.** No Windows machine was available to this session. The Windows
-column is written from the documented behaviour of the same tools and from
-`shutil.which()`, which is what the checker uses on every platform. It is a **documented,
-unverified** path: treat it as a specification to confirm on first use, not as a claim
-that it has been run. Saying otherwise would be exactly the unfalsifiable green this
-project exists to avoid.
+**Verified on Windows.** Every command in the Windows column was executed on
+`Windows 11 (AMD64)` with Python 3.12.10, a PostgreSQL 16.15 server in Docker reached over
+TCP by a psql 18.4 client, Node 24.16.0, npm 11.13.0 and Git 2.54.0. All five suites were
+run against a database built from empty — fenced-gate 33, M1-A 43, M1-B 35, M1-C 60 and
+M1-D 49 checks, 220 in total — and `tools/check_prerequisites.py` was run in its passing
+form, its absent-tool form and its present-but-unrunnable form.
 
-`tools/check_prerequisites.py` itself is platform-aware — it reports `platform.system()`
-and prints Windows install hints when run on Windows — but that branch has not been
-executed.
+That run is what closed F3, and it found what a documented-but-unexecuted path always
+hides: seven defects that Linux could not expose. Locale decoding (`text=True` inherits
+cp1252 on Windows and corrupted psql output), a Windows path handed to bash, `bash`
+resolving to the WSL launcher rather than Git Bash, npm's extensionless `tsc`, a
+`python3` requirement no standard Windows install can satisfy, a POSIX-only temporary
+path, and a start window too tight for a cold start. Each is repaired and each is proved
+red before green.
+
+**What is still not claimed.** These are the versions above, on one machine. The suites are
+not run on Windows in CI, so Windows is verified by execution but not guarded against
+regression by it; a Windows defect introduced tomorrow would not be caught until someone
+runs the suites there again.
+
+### Prerequisites on Windows
+
+`psql` must be on `PATH`. Every tool here reaches the database by running the `psql`
+binary — there is no driver and no ORM — so a missing client blocks all five suites rather
+than one check. Installing PostgreSQL does not always add its `bin` directory to `PATH`.
+
+The interpreter is `python` on Windows and `python3` on Linux, and the checker requires the
+one that belongs to the platform it is running on. A standard Windows Python installs
+`python.exe` and no `python3.exe`; the `python3.exe` on a typical Windows `PATH` is the
+zero-byte Microsoft Store alias, which runs nothing.
+
+The API build is a bash script, and on Windows it needs **Git Bash**. The `bash` on `PATH`
+is normally `C:\WINDOWS\system32\bash.exe`, the WSL launcher — a different operating system
+with a different filesystem view. The harness locates Git Bash from the `git` on `PATH` and
+refuses rather than falling back to WSL.
 
 ## Discovering prerequisites
 

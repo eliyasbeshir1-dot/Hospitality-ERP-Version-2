@@ -23,7 +23,7 @@ class HistoryUnavailable(Exception):
 
 
 def _git(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], capture_output=True, text=True, cwd=REPO)
+    return subprocess.run(["git", *args], capture_output=True, text=True, encoding="utf-8", cwd=REPO)
 
 
 def assert_history_available() -> int:

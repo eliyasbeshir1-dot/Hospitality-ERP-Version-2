@@ -15,6 +15,11 @@ review rather than by the suites themselves:
   3. Nothing here may be POSIX-only. The harness has to run on Windows, where a
      hardcoded POSIX null-device path is not valid and makes psql exit before the first
      assertion. os.devnull is used instead, and M1-A scans for regressions.
+  4. Nothing here may inherit the machine's locale. text=True alone decodes with
+     locale.getpreferredencoding(), which is UTF-8 on the Linux runner but cp1252 on a
+     Windows console. psql speaks UTF-8 on both, so an undecodable byte raised
+     UnicodeDecodeError inside a subprocess reader thread and a decodable-but-wrong one
+     silently produced mojibake. encoding="utf-8" is stated at every call site.
 """
 from __future__ import annotations
 
@@ -126,7 +131,7 @@ def run(dsn: str, sql: str, *, tenant: str | None = None, outlet: str | None = N
 
     proc = subprocess.run(
         ["psql", dsn, "-v", "ON_ERROR_STOP=1", "--no-psqlrc", "-X"],
-        input=script, capture_output=True, text=True,
+        input=script, capture_output=True, text=True, encoding="utf-8",
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
     )
     return Result(proc.returncode == 0, proc.stdout.strip(), proc.stderr.strip())
