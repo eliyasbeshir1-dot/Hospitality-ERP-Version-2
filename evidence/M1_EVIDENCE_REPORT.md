@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `cf278fb0e3fb2a2a5828be6ced7ae6fa340b9f77` |
-| Short | `cf278fb` |
+| Commit | `f0b92f38d387982c8a9a3b9dfef11da88325477b` |
+| Short | `f0b92f3` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation |
@@ -44,6 +44,7 @@ Ordered, forward-only and checksum-locked. An edited applied migration fails pre
 | `0003` | `0003_configuration_audit_money_and_quantity.sql` | `fe4ef998f4e91458…` | applied |
 | `0004` | `0004_readiness_provenance_grants.sql` | `1f01ff0de17b3ded…` | applied |
 | `0005` | `0005_security_event_storage_allocation_and_context.sql` | `da7ad17299fd496a…` | applied |
+| `0006` | `0006_menu_pricing_availability_and_translation.sql` | `54887df68eb1c25b…` | applied |
 
 ## Seeds applied
 
