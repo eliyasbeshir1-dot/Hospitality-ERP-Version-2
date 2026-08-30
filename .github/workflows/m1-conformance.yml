@@ -165,23 +165,39 @@ jobs:
           echo "LOG_DIR=$RUNNER_TEMP/m1-logs" >> "$GITHUB_ENV"
           echo "M1D_WORKSPACE=$RUNNER_TEMP/m1d-workspace" >> "$GITHUB_ENV"
 
-      - name: Install PostgreSQL 16 and open it on trust
+      - name: Start the runner's PostgreSQL and open it on trust
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           # The Linux job uses a postgres:16 service container. Windows runners cannot run
-          # Linux containers, so the same major version is installed natively rather than
-          # silently testing against whatever the image happens to ship.
-          choco install postgresql16 --params "/Password:notused" --no-progress -y
-          $pgBin = (Get-ChildItem 'C:\Program Files\PostgreSQL\16\bin' -ErrorAction Stop).Directory[0].FullName
+          # Linux containers, so the server has to come from the image. The image ships one
+          # already; installing a second copy competes for port 5432 and takes longer than
+          # the rest of the job put together. Whatever version is used is PRINTED, so a
+          # reviewer reads the version the suites actually ran against rather than assuming
+          # it matches Linux.
+          $service = Get-Service -Name 'postgresql*' -ErrorAction SilentlyContinue |
+                     Select-Object -First 1
+          if (-not $service) {
+              throw "no PostgreSQL service on this runner image; the job cannot silently skip the database"
+          }
+          Write-Host "using service $($service.Name)"
+
+          $root = Get-ChildItem 'C:\Program Files\PostgreSQL' -Directory |
+                  Sort-Object Name -Descending | Select-Object -First 1
+          if (-not $root) { throw "PostgreSQL service present but no installation directory found" }
+          $pgBin = Join-Path $root.FullName 'bin'
+          $pgData = Join-Path $root.FullName 'data'
           "$pgBin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          $data = 'C:\Program Files\PostgreSQL\16\data'
+
           # Trust auth on an ephemeral, job-local server. This is what keeps every
           # credential out of the repository: there is no password to check in.
-          $hba = Join-Path $data 'pg_hba.conf'
+          $hba = Join-Path $pgData 'pg_hba.conf'
           (Get-Content $hba) -replace '(scram-sha-256|md5)', 'trust' | Set-Content $hba
-          Restart-Service postgresql-x64-16
+
+          Start-Service $service.Name
+          Restart-Service $service.Name
           & "$pgBin\pg_isready.exe" -h localhost -p 5432 -t 60
+          & "$pgBin\psql.exe" "postgresql://postgres@localhost:5432/postgres" -tAc "SELECT version();"
 
       - name: Create the verification superuser
         shell: bash
