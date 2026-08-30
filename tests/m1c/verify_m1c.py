@@ -108,20 +108,33 @@ def section_money() -> None:
     ok, sig, detail = money_exactness_gate()
     record("no binary floating point column exists anywhere", ok, detail if ok else f"{sig}: {detail}")
 
-    # F6. This check is VACUOUS at M1 and now says so rather than reading as a proof.
-    # No M1 table holds money, so assert_currency_paired() examines an empty population
-    # and returns nothing. An empty result from an empty population is not evidence.
+    # F6. This check reports the size of the population it examined, so "zero offenders"
+    # and "nothing to check" are distinguishable.
+    #
+    # It was VACUOUS at M1: no M1 table held money, so it returned nothing over nothing.
+    # M2-A is the gate that made it live — menu.price and menu.publication_snapshot_line
+    # are the first columns of that domain type to exist. The assertion is therefore
+    # written relative to the population rather than against a fixed count of zero, the
+    # same correction M1-C already had to make to two M1-B boundary checks: an assertion
+    # that was true at its own gate and becomes legitimately false at a later one is
+    # rewritten to state what actually matters, so it stays true permanently.
     paired = count(ADMIN, "SELECT count(*) FROM money.assert_currency_paired();")
     population = count(ADMIN, "SELECT money.currency_pairing_population();")
-    record("the currency-pairing check is vacuous at M1, and says so explicitly",
-           paired == 0 and population == 0,
-           f"{population} column(s) of type money.amount_minor exist, so the check examined "
-           f"nothing and reported {paired} offender(s). It becomes live at M4, when checks, "
-           f"bills and payments introduce the first stored amounts.")
+    record("every money column that exists sits beside an explicit currency",
+           paired == 0,
+           f"{population} column(s) of type money.amount_minor exist and {paired} of them "
+           f"lack a currency_code beside them. "
+           + ("The population is empty, so this check is VACUOUS at this gate and proves "
+              "nothing on its own; it becomes live when the first money column is created."
+              if population == 0 else
+              f"The population is non-empty, so the check is LIVE: it examined "
+              f"{population} real column(s) and found none unpaired."))
 
-    # And the mechanism is proved against a real column rather than trusted. The column
-    # is created and dropped inside a rolled-back transaction, so the schema the rest of
-    # the suite sees is unchanged.
+    # And the mechanism is proved against a real column rather than trusted. Measured as a
+    # DIFFERENCE from whatever the schema already holds, so a later gate adding legitimate
+    # money columns cannot make this assertion wrong. The probe is created and dropped
+    # inside a rolled-back transaction, so the schema the rest of the suite sees is
+    # unchanged.
     mechanism = run(ADMIN, """
         CREATE TABLE money.pairing_probe (id bigint, amount money.amount_minor);
         SELECT count(*)::text FROM money.assert_currency_paired();
@@ -133,9 +146,11 @@ def section_money() -> None:
                                   mechanism.rows[2][0]) if mechanism.ok and len(mechanism.rows) >= 3 \
         else ("0", "0", "1")
     record("the pairing check fires when a money column actually exists",
-           mechanism.ok and unpaired == "1" and probed == "1" and repaired == "0",
-           f"a bare money.amount_minor column is reported ({unpaired} offender in a population "
-           f"of {probed}); adding currency_code beside it clears the report ({repaired}). "
+           mechanism.ok and int(unpaired) == paired + 1 and int(probed) == population + 1
+           and int(repaired) == paired,
+           f"adding one bare money.amount_minor column takes the population from "
+           f"{population} to {probed} and the offender count from {paired} to {unpaired}; "
+           f"adding currency_code beside it returns the count to {repaired}. "
            f"Created and dropped inside a rolled-back transaction.")
 
     # Exactness, asserted as an identity rather than a tolerance.

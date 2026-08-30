@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# M1-C verification driver: rebuild from empty, then run all three slices in order.
+# M2-A verification driver: rebuild from empty through every earlier slice, then M2-A.
+#
+# Chaining rather than standing alone is deliberate. M2-A builds on M1's isolation
+# predicate, exact money types and reason-code registry; a suite that assumed those were
+# present would be testing a database nobody had proved.
 set -euo pipefail
 export PYTHONDONTWRITEBYTECODE=1
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -25,8 +29,26 @@ if [ -z "$PY_BIN" ]; then
 fi
 export PYTHON="$PY_BIN"
 
+# The interpreter is named differently per platform, and the harness must not assume the
+# POSIX one. A standard Windows Python installs python.exe and no python3.exe, and the
+# python3.exe usually on a Windows PATH is the zero-byte Microsoft Store alias, which runs
+# nothing — tools/check_prerequisites.py already refuses that one by name. Resolving here
+# means the documented Windows path runs these drivers rather than a hand-copied subset.
+PY_BIN="${PYTHON:-}"
+if [ -z "$PY_BIN" ]; then
+    if command -v "$PY_BIN" >/dev/null 2>&1 && "$PY_BIN" -c "" >/dev/null 2>&1; then
+        PY_BIN=python3
+    elif command -v python >/dev/null 2>&1 && python -c "" >/dev/null 2>&1; then
+        PY_BIN=python
+    else
+        echo "FAIL PREREQUISITE_ABSENT: no runnable "$PY_BIN" or python on PATH" >&2
+        exit 1
+    fi
+fi
+export PYTHON="$PY_BIN"
 
-bash "$REPO/tests/m1b/run_verification.sh"
+
+bash "$REPO/tests/m1d/run_verification.sh"
 
 PGHOST_DIR="${PGHOST_DIR:-/var/lib/m1apg/run}"
 PGPORT="${PGPORT:-5433}"
@@ -41,5 +63,5 @@ export M1A_APP_DSN="$(dsn hospitality_app "$DB")"
 export M1A_MIGRATOR_DSN="$(dsn hospitality_migrator "$DB")"
 
 echo
-echo "=== 5. M1-C verification gates ==="
-"$PY_BIN" "$REPO/tests/m1c/verify_m1c.py"
+echo "=== 7. M2-A verification gates ==="
+"$PY_BIN" "$REPO/tests/m2a/verify_m2a.py"

@@ -37,6 +37,7 @@ SLICES = [
     ("M1-B", "identity, memberships, sessions, step-up authentication, service principals"),
     ("M1-C", "configuration, audit, exact money and quantity, numbering, retention"),
     ("M1-D", "cloud API, security controls, operations, evidence"),
+    ("M2-A", "menu, pricing, availability, dayparts and translation storage"),
 ]
 
 DIRECTORY_PURPOSE = {

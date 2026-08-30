@@ -1,4 +1,4 @@
-# M1 conformance workflow.
+# M1 and M2-A conformance workflow.
 #
 # Replaces the M0R skeleton gate. Migrations, schema and application source are the
 # work of M1 and are no longer forbidden; what this pipeline still refuses is fenced
@@ -10,7 +10,7 @@
 # The database is a real PostgreSQL service container, and every gate runs through the
 # least-privileged application role — never the owner, never a superuser (FR-DAT-017).
 
-name: M1 Conformance
+name: M1 and M2-A Conformance
 
 on:
   push:
@@ -123,6 +123,137 @@ jobs:
           name: m1-verification-report
           path: ${{ runner.temp }}/m1-logs/m1_verification.json
           if-no-files-found: error
+
+  windows-verification:
+    name: Windows execution (M1 + M2-A)
+    runs-on: windows-latest
+    # Windows was verified once, by hand, and that run found seven defects Linux could not
+    # expose — a locale-dependent decode that corrupted psql output, bash resolving to the
+    # WSL launcher, an npm entry point that is not a Win32 executable, a python3 no
+    # standard Windows install provides. All were repaired, but nothing stopped them
+    # coming back: the suites were not run on Windows in CI, so Windows was verified by
+    # execution and not guarded by it. This job is the guard (FR-OPS-021).
+    #
+    # It runs the SAME drivers as the Linux job, under Git Bash. Nothing here is a
+    # Windows-shaped copy of the commands: a pipeline that ran a different path would
+    # prove that path works, not the documented one.
+    env:
+      PGTCP_HOST: localhost
+      PGPORT: "5432"
+      SUPERUSER: pgadmin
+      DB: hospitality_os
+      PGPASSWORD: ""
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: the README and evidence generators read commits and refuse to
+          # guess from a shallow checkout.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Put CI's own logs outside the checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/m1-logs"
+          echo "LOG_DIR=$RUNNER_TEMP/m1-logs" >> "$GITHUB_ENV"
+          echo "M1D_WORKSPACE=$RUNNER_TEMP/m1d-workspace" >> "$GITHUB_ENV"
+
+      - name: Install PostgreSQL 16 and open it on trust
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # The Linux job uses a postgres:16 service container. Windows runners cannot run
+          # Linux containers, so the same major version is installed natively rather than
+          # silently testing against whatever the image happens to ship.
+          choco install postgresql16 --params "/Password:notused" --no-progress -y
+          $pgBin = (Get-ChildItem 'C:\Program Files\PostgreSQL\16\bin' -ErrorAction Stop).Directory[0].FullName
+          "$pgBin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          $data = 'C:\Program Files\PostgreSQL\16\data'
+          # Trust auth on an ephemeral, job-local server. This is what keeps every
+          # credential out of the repository: there is no password to check in.
+          $hba = Join-Path $data 'pg_hba.conf'
+          (Get-Content $hba) -replace '(scram-sha-256|md5)', 'trust' | Set-Content $hba
+          Restart-Service postgresql-x64-16
+          & "$pgBin\pg_isready.exe" -h localhost -p 5432 -t 60
+
+      - name: Create the verification superuser
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql --version
+          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -q -c \
+            "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='pgadmin') \
+             THEN CREATE ROLE pgadmin LOGIN SUPERUSER; END IF; END \$\$;"
+          psql "postgresql://pgadmin@localhost:5432/postgres" -tAc "SELECT current_user, version();"
+
+      - name: Prerequisites, discovered the way the documentation says to
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The documented Windows interpreter is `python`, not `python3`. Running the
+          # documented command is the point: a pipeline that reached for a different one
+          # would hide exactly the defect this job exists to catch.
+          python tools/check_prerequisites.py
+
+      - name: The fenced gate must detect every authoritative term
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tests/fenced_gate/verify_fenced_gate.py 2>&1 | tee "$LOG_DIR/fenced_gate.log"
+          grep -q '^PASS FENCED_GATE_VERIFICATION' "$LOG_DIR/fenced_gate.log" || {
+            echo "::error::the fenced-domain gate suite did not report PASS on Windows"; exit 1; }
+
+      - name: Verify no fenced-domain surface exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/verify_m1.py --repo . --json-report "$LOG_DIR/m1_verification.json"
+
+      - name: Every suite, through the same drivers Linux runs
+        shell: bash
+        run: |
+          set -euo pipefail
+          # PYTHON is exported so the drivers do not have to guess; they would resolve it
+          # themselves, and the fallback is tested on this runner by the fact that
+          # check_prerequisites.py ran under the documented name above.
+          export PYTHON=python
+          bash tests/m2a/run_verification.sh 2>&1 | tee "$LOG_DIR/windows-suites.log"
+          for verdict in M1A M1B M1C M1D M2A; do
+            grep -q "^PASS ${verdict}_VERIFICATION" "$LOG_DIR/windows-suites.log" || {
+              echo "::error::${verdict} did not report PASS on Windows"; exit 1; }
+          done
+          total="$(grep -oP 'checks run\s+:\s+\K[0-9]+' "$LOG_DIR/windows-suites.log" \
+                   | awk '{s+=$1} END {print s}')"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/windows-suites.log" \
+                    | awk '{s+=$1} END {print s}')"
+          test "${failed:-1}" -eq 0 || { echo "::error::${failed} check(s) failed on Windows"; exit 1; }
+          echo "Windows: $total checks across five suites, 0 failures"
+
+      - name: The generators must produce identical output on Windows
+        shell: bash
+        run: |
+          set -euo pipefail
+          # A generator that emits different bytes here would make the committed artefact
+          # depend on which platform last regenerated it. cp1252 decoding already caused
+          # exactly that once, reporting drift against a schema that had not drifted.
+          python tools/generate_readme.py --check README.md
+          python tools/generate_schema_catalog.py \
+            --dsn "postgresql://$SUPERUSER@$PGTCP_HOST:$PGPORT/$DB" \
+            --check schema/SCHEMA_CATALOG.md
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-suite-logs
+          path: ${{ runner.temp }}/m1-logs/
+          if-no-files-found: warn
 
   docs-package-integrity:
     name: Docs package integrity (91/91)
@@ -290,6 +421,21 @@ jobs:
           test "${failed:-1}" -eq 0 || { echo "::error::${failed} M1-D check(s) failed"; exit 1; }
           echo "M1-D: $checks checks, 0 failures"
 
+      - name: M2-A — menu, pricing, availability and translation storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Chains from the M1-D driver, which rebuilds the database from empty and seeds
+          # through the runner, so M2-A never asserts against state it did not see created.
+          bash tests/m2a/run_verification.sh 2>&1 | tee "$LOG_DIR/m2a.log"
+          grep -q '^PASS M2A_VERIFICATION' "$LOG_DIR/m2a.log" || {
+            echo "::error::M2-A suite did not report PASS"; exit 1; }
+          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' "$LOG_DIR/m2a.log" | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/m2a.log" | tail -1)"
+          test "${checks:-0}" -ge 65 || { echo "::error::only ${checks:-0} M2-A checks ran"; exit 1; }
+          test "${failed:-1}" -eq 0 || { echo "::error::${failed} M2-A check(s) failed"; exit 1; }
+          echo "M2-A: $checks checks, 0 failures"
+
       - name: Results must be identical regardless of command order (FR-TST-020)
         shell: bash
         run: |
@@ -301,11 +447,11 @@ jobs:
           mkdir -p "$LOG_DIR/reorder"
           # Reverse order, same database, no rebuild. A suite that only passes when it runs
           # first is depending on state another suite left behind.
-          for suite in m1d m1c m1b m1a; do
+          for suite in m2a m1d m1c m1b m1a; do
             python3 "tests/$suite/verify_${suite}.py" > "$LOG_DIR/reorder/$suite.log" 2>&1 || true
           done
           fail=0
-          for suite in m1a m1b m1c m1d; do
+          for suite in m1a m1b m1c m1d m2a; do
             tag="$(echo "$suite" | tr '[:lower:]' '[:upper:]')"
             declared="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/$suite.log" | tail -1)"
             reordered="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/reorder/$suite.log" | tail -1)"
@@ -370,9 +516,10 @@ jobs:
                          NC-M1B-001 NC-M1B-002 NC-M1B-003 NC-M1B-004 NC-M1B-005 \
                          NC-M1C-001 NC-M1C-002 NC-M1C-003 NC-M1C-004 NC-M1C-005 \
                          NC-M1D-001 NC-M1D-002 NC-M1D-003 NC-M1D-004 NC-M1D-005 \
-                         NC-M1D-006 NC-M1D-007 NC-M1D-008; do
-            red="$(grep -c "\[PASS\] $control — RED" "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log | awk -F: '{s+=$2} END {print s}')"
-            green="$(grep -c "\[PASS\] $control — GREEN" "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log | awk -F: '{s+=$2} END {print s}')"
+                         NC-M1D-006 NC-M1D-007 NC-M1D-008 \
+                         NC-M2A-001 NC-M2A-002 NC-M2A-003 NC-M2A-004 NC-M2A-005; do
+            red="$(grep -c "\[PASS\] $control — RED" "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log "$LOG_DIR"/m2a.log | awk -F: '{s+=$2} END {print s}')"
+            green="$(grep -c "\[PASS\] $control — GREEN" "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log "$LOG_DIR"/m2a.log | awk -F: '{s+=$2} END {print s}')"
             if [ "${red:-0}" -lt 1 ] || [ "${green:-0}" -lt 1 ]; then
               echo "::error::$control was not shown both red and green (red=$red green=$green)"
               exit 1
@@ -389,6 +536,7 @@ jobs:
             ${{ runner.temp }}/m1-logs/m1b.log
             ${{ runner.temp }}/m1-logs/m1c.log
             ${{ runner.temp }}/m1-logs/m1d.log
+            ${{ runner.temp }}/m1-logs/m2a.log
             ${{ runner.temp }}/m1-logs/reorder/
             evidence/M1_EVIDENCE_REPORT.md
           if-no-files-found: error

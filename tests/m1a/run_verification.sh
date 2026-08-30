@@ -12,6 +12,28 @@ set -euo pipefail
 export PYTHONDONTWRITEBYTECODE=1   # never write __pycache__ into the tree
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# The interpreter is named differently per platform, and the harness must not assume the
+# POSIX one. A standard Windows Python installs python.exe and no python3.exe, and the
+# python3.exe usually on a Windows PATH is the zero-byte Microsoft Store alias, which runs
+# nothing — tools/check_prerequisites.py already refuses that one by name. Resolving it
+# here means the documented Windows path runs these drivers rather than a hand-copied
+# subset of what they do.
+PY_BIN="${PYTHON:-}"
+if [ -z "$PY_BIN" ]; then
+    for candidate in python3 python; do
+        if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c "" >/dev/null 2>&1; then
+            PY_BIN="$candidate"
+            break
+        fi
+    done
+fi
+if [ -z "$PY_BIN" ]; then
+    echo "FAIL PREREQUISITE_ABSENT: no runnable interpreter on PATH" >&2
+    echo "  tried python3 then python; a name on PATH that cannot run is not a tool" >&2
+    exit 1
+fi
+export PYTHON="$PY_BIN"
+
 PGHOST_DIR="${PGHOST_DIR:-/var/lib/m1apg/run}"
 PGPORT="${PGPORT:-5433}"
 SUPERUSER="${SUPERUSER:-pgadmin}"
@@ -59,7 +81,7 @@ echo "database recreated; roles provisioned"
 
 echo
 echo "=== 1. Apply the migration history to the empty database ==="
-python3 "$REPO/tools/migrate.py" --dsn "$M1A_MIGRATOR_DSN" --migrations "$REPO/migrations" apply
+"$PY_BIN" "$REPO/tools/migrate.py" --dsn "$M1A_MIGRATOR_DSN" --migrations "$REPO/migrations" apply
 
 psql "$M1A_ADMIN_DSN" -v ON_ERROR_STOP=1 -q \
   -c "GRANT USAGE ON SCHEMA org, app TO hospitality_bypassrls;" \
@@ -72,4 +94,4 @@ echo "fixtures seeded (two tenants, two sibling outlets, depth 3)"
 
 echo
 echo "=== 3. Verification gates ==="
-python3 "$REPO/tests/m1a/verify_m1a.py"
+"$PY_BIN" "$REPO/tests/m1a/verify_m1a.py"

@@ -13,6 +13,7 @@
 | **M1-B** | identity, memberships, sessions, step-up authentication, service principals | `ecadbb7` |
 | **M1-C** | configuration, audit, exact money and quantity, numbering, retention | `b02cce7` |
 | **M1-D** | cloud API, security controls, operations, evidence | `f6ee4c0` |
+| **M2-A** | menu, pricing, availability, dayparts and translation storage | `unreleased` |
 
 The M1 evidence report is at `evidence/M1_EVIDENCE_REPORT.md`.
 
@@ -87,6 +88,7 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0003_configuration_audit_money_and_quantity.sql`
 - `0004_readiness_provenance_grants.sql`
 - `0005_security_event_storage_allocation_and_context.sql`
+- `0006_menu_pricing_availability_and_translation.sql`
 
 ## Seeds
 
@@ -111,6 +113,7 @@ bash tests/m1d/run_verification.sh         # rebuilds from empty, runs every sli
 | `tests/m1b/verify_m1b.py` | identity, memberships, sessions, step-up authentication |
 | `tests/m1c/verify_m1c.py` | configuration, audit, money exactness, numbering, retention |
 | `tests/m1d/verify_m1d.py` | the running API, security controls, operations, evidence |
+| `tests/m2a/verify_m2a.py` | verification |
 
 Every suite runs against a real PostgreSQL through the least-privileged application role,
 and every negative control is proved red with a defect planted before it is trusted green.

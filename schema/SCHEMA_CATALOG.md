@@ -4,7 +4,7 @@
 Do not edit by hand: the verification suite regenerates this file and fails on any
 difference, so a hand edit is reported as drift (FR-DAT-015).
 
-Schemas covered: `app`, `org`, `identity`, `money`, `config`, `audit`.
+Schemas covered: `app`, `audit`, `config`, `identity`, `menu`, `money`, `org`, discovered from the database rather than listed here.
 
 ---
 
@@ -31,6 +31,15 @@ Schemas covered: `app`, `org`, `identity`, `money`, `config`, `audit`.
 | `identity.principal_class` | worker, integration, edge_node, print_agent |
 | `identity.revocation_reason` | signed_out, expired, membership_withdrawn, security_event, rotated, administrator_revoked, recovery |
 | `identity.transmission_mode` | simulated, live |
+| `menu.availability_state` | available, limited, temporarily_unavailable, scheduled_later, hidden |
+| `menu.customer_locale` | en, am, ar |
+| `menu.image_format` | webp, avif, jpeg, png |
+| `menu.menu_entity` | menu, category, item_group, item, variant, modifier_group, modifier, image |
+| `menu.publication_state` | draft, review, scheduled, published, paused, archived |
+| `menu.sales_channel` | dine_in, counter, room_service, kiosk |
+| `menu.translation_provenance` | human, machine_assisted |
+| `menu.translation_state` | draft, in_review, approved, rejected |
+| `menu.variant_axis` | size, portion, temperature, preparation_style |
 | `money.rounding_mode` | half_up, half_even, floor, ceiling |
 | `org.lifecycle_status` | active, inactive, archived |
 | `org.node_kind` | brand, legal_entity, outlet, service_area, preparation_station, dining_table, device |
@@ -70,6 +79,28 @@ graph LR
   identity_session["identity.session"]
   identity_step_up_grant["identity.step_up_grant"]
   identity_terminal_trust["identity.terminal_trust"]
+  menu_assignment["menu.assignment"]
+  menu_daypart["menu.daypart"]
+  menu_menu["menu.menu"]
+  menu_availability["menu.availability"]
+  menu_item_variant["menu.item_variant"]
+  menu_modifier["menu.modifier"]
+  menu_sellable_item["menu.sellable_item"]
+  menu_availability_pause["menu.availability_pause"]
+  menu_category["menu.category"]
+  menu_image["menu.image"]
+  menu_image_derivative["menu.image_derivative"]
+  menu_item_group["menu.item_group"]
+  menu_item_group_member["menu.item_group_member"]
+  menu_item_modifier_group["menu.item_modifier_group"]
+  menu_modifier_group["menu.modifier_group"]
+  menu_modifier_incompatibility["menu.modifier_incompatibility"]
+  menu_price["menu.price"]
+  money_currency["money.currency"]
+  menu_publication_snapshot["menu.publication_snapshot"]
+  menu_publication_snapshot_line["menu.publication_snapshot_line"]
+  menu_translation["menu.translation"]
+  menu_translatable_field["menu.translatable_field"]
   org_device_registration["org.device_registration"]
   org_org_closure["org.org_closure"]
   org_outlet_profile["org.outlet_profile"]
@@ -119,6 +150,76 @@ graph LR
   identity_step_up_grant --> org_org_node
   identity_terminal_trust --> org_org_node
   identity_user_account --> org_tenant
+  menu_assignment --> menu_daypart
+  menu_assignment --> menu_menu
+  menu_assignment --> org_org_node
+  menu_assignment --> org_tenant
+  menu_availability --> menu_item_variant
+  menu_availability --> menu_modifier
+  menu_availability --> menu_sellable_item
+  menu_availability --> org_org_node
+  menu_availability --> org_tenant
+  menu_availability_pause --> config_reason_code
+  menu_availability_pause --> identity_user_account
+  menu_availability_pause --> menu_availability
+  menu_availability_pause --> org_org_node
+  menu_availability_pause --> org_tenant
+  menu_category --> menu_category
+  menu_category --> menu_menu
+  menu_category --> org_org_node
+  menu_category --> org_tenant
+  menu_daypart --> org_org_node
+  menu_daypart --> org_tenant
+  menu_image --> org_org_node
+  menu_image --> org_tenant
+  menu_image_derivative --> menu_image
+  menu_image_derivative --> org_org_node
+  menu_image_derivative --> org_tenant
+  menu_item_group --> menu_menu
+  menu_item_group --> org_org_node
+  menu_item_group --> org_tenant
+  menu_item_group_member --> menu_item_group
+  menu_item_group_member --> menu_sellable_item
+  menu_item_group_member --> org_tenant
+  menu_item_modifier_group --> menu_modifier_group
+  menu_item_modifier_group --> menu_sellable_item
+  menu_item_modifier_group --> org_org_node
+  menu_item_modifier_group --> org_tenant
+  menu_item_variant --> menu_sellable_item
+  menu_item_variant --> org_org_node
+  menu_item_variant --> org_tenant
+  menu_menu --> org_org_node
+  menu_menu --> org_tenant
+  menu_modifier --> menu_modifier_group
+  menu_modifier --> org_org_node
+  menu_modifier --> org_tenant
+  menu_modifier_group --> org_org_node
+  menu_modifier_group --> org_tenant
+  menu_modifier_incompatibility --> menu_modifier
+  menu_modifier_incompatibility --> org_org_node
+  menu_modifier_incompatibility --> org_tenant
+  menu_price --> menu_item_variant
+  menu_price --> menu_modifier
+  menu_price --> menu_sellable_item
+  menu_price --> money_currency
+  menu_price --> org_org_node
+  menu_price --> org_tenant
+  menu_publication_snapshot --> identity_user_account
+  menu_publication_snapshot --> menu_menu
+  menu_publication_snapshot --> org_org_node
+  menu_publication_snapshot --> org_tenant
+  menu_publication_snapshot_line --> menu_publication_snapshot
+  menu_publication_snapshot_line --> money_currency
+  menu_publication_snapshot_line --> org_org_node
+  menu_publication_snapshot_line --> org_tenant
+  menu_sellable_item --> menu_category
+  menu_sellable_item --> menu_menu
+  menu_sellable_item --> org_org_node
+  menu_sellable_item --> org_tenant
+  menu_translation --> identity_user_account
+  menu_translation --> menu_translatable_field
+  menu_translation --> org_org_node
+  menu_translation --> org_tenant
   org_device_registration --> org_org_node
   org_org_closure --> org_org_node
   org_org_closure --> org_tenant
@@ -938,6 +1039,678 @@ Constraints:
 Policies:
 
 - `user_account_isolation` — `app.row_in_scope(tenant_id, NULL::uuid)`
+
+### `menu`
+
+Menu structure, pricing, availability and translation storage (M2-A). Independent of recipe and inventory identities: no column here references either, and the verification suite proves it against the pinned fenced vocabulary rather than a list written by hand.
+
+#### `menu.assignment`
+
+Where and when a menu applies (FR-MNU-002A): outlet, service area, channel, daypart and date range. Customer-segment targeting is Phase 2 CRM, was removed at v2.0.9 and is fenced — no column here can express it.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `menu_id` | `uuid` | NOT NULL |  |  |
+| `service_area_id` | `uuid` |  |  |  |
+| `channel` | `menu.sales_channel` | NOT NULL |  |  |
+| `daypart_id` | `uuid` |  |  |  |
+| `effective_from` | `date` | NOT NULL |  |  |
+| `effective_to` | `date` |  |  |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `assignment_daypart_fk` — `FOREIGN KEY (daypart_id) REFERENCES menu.daypart(id) ON DELETE RESTRICT`
+- `assignment_menu_fk` — `FOREIGN KEY (menu_id) REFERENCES menu.menu(id) ON DELETE RESTRICT`
+- `assignment_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `assignment_pkey` — `PRIMARY KEY (id)`
+- `assignment_range_ordered` — `CHECK (((effective_to IS NULL) OR (effective_to >= effective_from)))`
+- `assignment_service_area_fk` — `FOREIGN KEY (tenant_id, service_area_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `assignment_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `assignment_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.availability`
+
+Availability as a state (FR-MNU-007). There is no numeric column here and none anywhere else in this schema that could hold a remaining count, so the exact figure cannot be disclosed by this model — it does not exist in it. "limited" signals scarcity without quantifying it.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `item_id` | `uuid` |  |  |  |
+| `variant_id` | `uuid` |  |  |  |
+| `modifier_id` | `uuid` |  |  |  |
+| `state` | `menu.availability_state` | NOT NULL | `'available'::menu.availability_state` |  |
+| `available_from` | `timestamp with time zone` |  |  |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `availability_item_fk` — `FOREIGN KEY (item_id) REFERENCES menu.sellable_item(id) ON DELETE CASCADE`
+- `availability_modifier_fk` — `FOREIGN KEY (modifier_id) REFERENCES menu.modifier(id) ON DELETE CASCADE`
+- `availability_one_subject` — `CHECK ((((((item_id IS NOT NULL))::integer + ((variant_id IS NOT NULL))::integer) + ((modifier_id IS NOT NULL))::integer) = 1))`
+- `availability_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `availability_pkey` — `PRIMARY KEY (id)`
+- `availability_scheduled_has_time` — `CHECK (((state = 'scheduled_later'::menu.availability_state) = (available_from IS NOT NULL)))`
+- `availability_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `availability_variant_fk` — `FOREIGN KEY (variant_id) REFERENCES menu.item_variant(id) ON DELETE CASCADE`
+
+Policies:
+
+- `availability_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.availability_pause`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `availability_id` | `uuid` | NOT NULL |  |  |
+| `reason_code_id` | `uuid` | NOT NULL |  |  |
+| `paused_by_user_id` | `uuid` | NOT NULL |  |  |
+| `paused_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `expected_return_at` | `timestamp with time zone` |  |  |  |
+| `released_at` | `timestamp with time zone` |  |  |  |
+
+Constraints:
+
+- `availability_pause_actor_fk` — `FOREIGN KEY (tenant_id, paused_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `availability_pause_availability_fk` — `FOREIGN KEY (availability_id) REFERENCES menu.availability(id) ON DELETE CASCADE`
+- `availability_pause_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `availability_pause_pkey` — `PRIMARY KEY (id)`
+- `availability_pause_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `availability_pause_release_after_pause` — `CHECK (((released_at IS NULL) OR (released_at >= paused_at)))`
+- `availability_pause_return_after_pause` — `CHECK (((expected_return_at IS NULL) OR (expected_return_at > paused_at)))`
+- `availability_pause_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `availability_pause_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.category`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `menu_id` | `uuid` | NOT NULL |  |  |
+| `parent_category_id` | `uuid` |  |  |  |
+| `category_code` | `text` | NOT NULL |  |  |
+| `canonical_name` | `text` | NOT NULL |  |  |
+| `display_order` | `integer` | NOT NULL | `0` |  |
+| `status` | `org.lifecycle_status` | NOT NULL | `'active'::org.lifecycle_status` |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `category_code_not_blank` — `CHECK ((btrim(category_code) <> ''::text))`
+- `category_code_unique` — `UNIQUE (tenant_id, menu_id, category_code)`
+- `category_menu_fk` — `FOREIGN KEY (menu_id) REFERENCES menu.menu(id) ON DELETE RESTRICT`
+- `category_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `category_parent_fk` — `FOREIGN KEY (parent_category_id) REFERENCES menu.category(id) ON DELETE RESTRICT`
+- `category_pkey` — `PRIMARY KEY (id)`
+- `category_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `category_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.daypart`
+
+Tenant-defined service windows (FR-MNU-010): breakfast, lunch, dinner, late-night and any window a tenant names. Times are OUTLET-LOCAL wall clock. A window whose end is before its start crosses midnight and is read that way.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `daypart_code` | `text` | NOT NULL |  |  |
+| `canonical_name` | `text` | NOT NULL |  |  |
+| `starts_at_local` | `time without time zone` | NOT NULL |  |  |
+| `ends_at_local` | `time without time zone` | NOT NULL |  |  |
+| `status` | `org.lifecycle_status` | NOT NULL | `'active'::org.lifecycle_status` |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `daypart_code_not_blank` — `CHECK ((btrim(daypart_code) <> ''::text))`
+- `daypart_code_unique` — `UNIQUE (tenant_id, outlet_id, daypart_code)`
+- `daypart_not_empty` — `CHECK ((starts_at_local <> ends_at_local))`
+- `daypart_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `daypart_pkey` — `PRIMARY KEY (id)`
+- `daypart_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `daypart_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.image`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `entity` | `menu.menu_entity` | NOT NULL |  |  |
+| `entity_id` | `uuid` | NOT NULL |  |  |
+| `storage_key` | `text` | NOT NULL |  |  |
+| `canonical_alt_text` | `text` | NOT NULL |  |  |
+| `focal_x` | `money.percentage` | NOT NULL | `50` | Focal point as a percentage of width, exact (money.percentage, numeric with declared scale). A crop that moved because a float drifted would be a visible defect. |
+| `focal_y` | `money.percentage` | NOT NULL | `50` |  |
+| `source_width_px` | `integer` | NOT NULL |  |  |
+| `source_height_px` | `integer` | NOT NULL |  |  |
+| `is_private` | `boolean` | NOT NULL | `true` |  |
+| `display_order` | `integer` | NOT NULL | `0` |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `image_alt_text_not_blank` — `CHECK ((btrim(canonical_alt_text) <> ''::text))`
+- `image_dimensions_positive` — `CHECK (((source_width_px > 0) AND (source_height_px > 0)))`
+- `image_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `image_pkey` — `PRIMARY KEY (id)`
+- `image_source_is_private` — `CHECK (is_private)`
+- `image_storage_key_not_blank` — `CHECK ((btrim(storage_key) <> ''::text))`
+- `image_storage_key_unique` — `UNIQUE (tenant_id, storage_key)`
+- `image_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `image_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.image_derivative`
+
+Responsive derivatives of a source asset (FR-MNU-011). Each is a stored object with its own key; none is public. Access to any of them goes through the same signed, expiring, authorized URL path as the source.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `image_id` | `uuid` | NOT NULL |  |  |
+| `width_px` | `integer` | NOT NULL |  |  |
+| `height_px` | `integer` | NOT NULL |  |  |
+| `format` | `menu.image_format` | NOT NULL |  |  |
+| `storage_key` | `text` | NOT NULL |  |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `image_derivative_dimensions_positive` — `CHECK (((width_px > 0) AND (height_px > 0)))`
+- `image_derivative_image_fk` — `FOREIGN KEY (image_id) REFERENCES menu.image(id) ON DELETE CASCADE`
+- `image_derivative_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `image_derivative_pkey` — `PRIMARY KEY (id)`
+- `image_derivative_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `image_derivative_unique` — `UNIQUE (image_id, width_px, format)`
+
+Policies:
+
+- `image_derivative_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.item_group`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `menu_id` | `uuid` | NOT NULL |  |  |
+| `group_code` | `text` | NOT NULL |  |  |
+| `canonical_name` | `text` | NOT NULL |  |  |
+| `display_order` | `integer` | NOT NULL | `0` |  |
+| `status` | `org.lifecycle_status` | NOT NULL | `'active'::org.lifecycle_status` |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `item_group_code_unique` — `UNIQUE (tenant_id, menu_id, group_code)`
+- `item_group_menu_fk` — `FOREIGN KEY (menu_id) REFERENCES menu.menu(id) ON DELETE RESTRICT`
+- `item_group_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `item_group_pkey` — `PRIMARY KEY (id)`
+- `item_group_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `item_group_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.item_group_member`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `item_group_id` | `uuid` | NOT NULL |  |  |
+| `item_id` | `uuid` | NOT NULL |  |  |
+| `display_order` | `integer` | NOT NULL | `0` |  |
+| `outlet_id` | `uuid` |  |  |  |
+
+Constraints:
+
+- `item_group_member_group_fk` — `FOREIGN KEY (item_group_id) REFERENCES menu.item_group(id) ON DELETE CASCADE`
+- `item_group_member_item_fk` — `FOREIGN KEY (item_id) REFERENCES menu.sellable_item(id) ON DELETE CASCADE`
+- `item_group_member_pkey` — `PRIMARY KEY (item_group_id, item_id)`
+- `item_group_member_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `item_group_member_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.item_modifier_group`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `item_id` | `uuid` | NOT NULL |  |  |
+| `modifier_group_id` | `uuid` | NOT NULL |  |  |
+| `display_order` | `integer` | NOT NULL | `0` |  |
+
+Constraints:
+
+- `item_modifier_group_group_fk` — `FOREIGN KEY (modifier_group_id) REFERENCES menu.modifier_group(id) ON DELETE RESTRICT`
+- `item_modifier_group_item_fk` — `FOREIGN KEY (item_id) REFERENCES menu.sellable_item(id) ON DELETE CASCADE`
+- `item_modifier_group_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `item_modifier_group_pkey` — `PRIMARY KEY (item_id, modifier_group_id)`
+- `item_modifier_group_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `item_modifier_group_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.item_variant`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `item_id` | `uuid` | NOT NULL |  |  |
+| `axis` | `menu.variant_axis` | NOT NULL |  |  |
+| `variant_code` | `text` | NOT NULL |  |  |
+| `canonical_name` | `text` | NOT NULL |  |  |
+| `is_default` | `boolean` | NOT NULL | `false` |  |
+| `display_order` | `integer` | NOT NULL | `0` |  |
+| `status` | `org.lifecycle_status` | NOT NULL | `'active'::org.lifecycle_status` |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `item_variant_code_unique` — `UNIQUE (tenant_id, item_id, variant_code)`
+- `item_variant_item_fk` — `FOREIGN KEY (item_id) REFERENCES menu.sellable_item(id) ON DELETE RESTRICT`
+- `item_variant_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `item_variant_pkey` — `PRIMARY KEY (id)`
+- `item_variant_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `item_variant_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.menu`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `menu_code` | `text` | NOT NULL |  |  |
+| `canonical_name` | `text` | NOT NULL |  |  |
+| `state` | `menu.publication_state` | NOT NULL | `'draft'::menu.publication_state` |  |
+| `display_order` | `integer` | NOT NULL | `0` |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `menu_code_not_blank` — `CHECK ((btrim(menu_code) <> ''::text))`
+- `menu_code_unique` — `UNIQUE (tenant_id, outlet_id, menu_code)`
+- `menu_name_not_blank` — `CHECK ((btrim(canonical_name) <> ''::text))`
+- `menu_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `menu_pkey` — `PRIMARY KEY (id)`
+- `menu_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `menu_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.modifier`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `modifier_group_id` | `uuid` | NOT NULL |  |  |
+| `modifier_code` | `text` | NOT NULL |  |  |
+| `canonical_name` | `text` | NOT NULL |  |  |
+| `is_default` | `boolean` | NOT NULL | `false` |  |
+| `display_order` | `integer` | NOT NULL | `0` |  |
+| `status` | `org.lifecycle_status` | NOT NULL | `'active'::org.lifecycle_status` |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `modifier_code_unique` — `UNIQUE (tenant_id, modifier_group_id, modifier_code)`
+- `modifier_group_ref_fk` — `FOREIGN KEY (modifier_group_id) REFERENCES menu.modifier_group(id) ON DELETE RESTRICT`
+- `modifier_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `modifier_pkey` — `PRIMARY KEY (id)`
+- `modifier_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `modifier_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.modifier_group`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `group_code` | `text` | NOT NULL |  |  |
+| `canonical_name` | `text` | NOT NULL |  |  |
+| `is_required` | `boolean` | NOT NULL | `false` |  |
+| `min_selections` | `integer` | NOT NULL | `0` |  |
+| `max_selections` | `integer` |  |  |  |
+| `included_selections` | `integer` | NOT NULL | `0` |  |
+| `display_order` | `integer` | NOT NULL | `0` |  |
+| `status` | `org.lifecycle_status` | NOT NULL | `'active'::org.lifecycle_status` |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `modifier_group_code_unique` — `UNIQUE (tenant_id, group_code)`
+- `modifier_group_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `modifier_group_pkey` — `PRIMARY KEY (id)`
+- `modifier_group_required_means_one` — `CHECK (((NOT is_required) OR (min_selections >= 1)))`
+- `modifier_group_selection_bounds` — `CHECK (((min_selections >= 0) AND ((max_selections IS NULL) OR (max_selections >= min_selections)) AND (included_selections >= 0) AND ((max_selections IS NULL) OR (included_selections <= max_selections))))`
+- `modifier_group_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `modifier_group_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.modifier_incompatibility`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `modifier_id` | `uuid` | NOT NULL |  |  |
+| `incompatible_with_id` | `uuid` | NOT NULL |  |  |
+| `note` | `text` |  |  |  |
+
+Constraints:
+
+- `modifier_incompatibility_left_fk` — `FOREIGN KEY (modifier_id) REFERENCES menu.modifier(id) ON DELETE CASCADE`
+- `modifier_incompatibility_not_self` — `CHECK ((modifier_id <> incompatible_with_id))`
+- `modifier_incompatibility_ordered` — `CHECK ((modifier_id < incompatible_with_id))`
+- `modifier_incompatibility_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `modifier_incompatibility_pkey` — `PRIMARY KEY (modifier_id, incompatible_with_id)`
+- `modifier_incompatibility_right_fk` — `FOREIGN KEY (incompatible_with_id) REFERENCES menu.modifier(id) ON DELETE CASCADE`
+- `modifier_incompatibility_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `modifier_incompatibility_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.price`
+
+Effective-dated prices by outlet, channel, variant, currency and tax context (FR-MNU-009). amount_minor is money.amount_minor — integer minor units of the currency named beside it. No floating point type appears in this schema and the verification suite fails if one ever does.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `item_id` | `uuid` |  |  |  |
+| `variant_id` | `uuid` |  |  |  |
+| `modifier_id` | `uuid` |  |  |  |
+| `channel` | `menu.sales_channel` |  |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `amount_minor` | `money.amount_minor` | NOT NULL |  | Integer minor units. Never a float, never a bare decimal. The currency_code column beside it is what money.assert_currency_paired() requires, and this is the first money.amount_minor column in the database — the check was vacuous until now. |
+| `tax_context` | `text` | NOT NULL | `'standard'::text` |  |
+| `effective_from` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `effective_to` | `timestamp with time zone` |  |  |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `price_currency_fk` — `FOREIGN KEY (currency_code) REFERENCES money.currency(code) ON DELETE RESTRICT`
+- `price_item_fk` — `FOREIGN KEY (item_id) REFERENCES menu.sellable_item(id) ON DELETE RESTRICT`
+- `price_modifier_fk` — `FOREIGN KEY (modifier_id) REFERENCES menu.modifier(id) ON DELETE RESTRICT`
+- `price_one_subject` — `CHECK ((((((item_id IS NOT NULL))::integer + ((variant_id IS NOT NULL))::integer) + ((modifier_id IS NOT NULL))::integer) = 1))`
+- `price_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `price_pkey` — `PRIMARY KEY (id)`
+- `price_range_ordered` — `CHECK (((effective_to IS NULL) OR (effective_to > effective_from)))`
+- `price_tax_context_not_blank` — `CHECK ((btrim(tax_context) <> ''::text))`
+- `price_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `price_variant_fk` — `FOREIGN KEY (variant_id) REFERENCES menu.item_variant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `price_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.publication_snapshot`
+
+An immutable record of exactly what was published, and when (FR-MNU-003). M3 orders reference it for price evidence, so it is append-only twice over: the application role holds INSERT and SELECT only, and a trigger refuses UPDATE, DELETE and TRUNCATE whoever asks. content_digest covers the lines, so a line changed by a privileged identity no longer matches the header.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `menu_id` | `uuid` | NOT NULL |  |  |
+| `published_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `published_by_user_id` | `uuid` | NOT NULL |  |  |
+| `content_digest` | `bytea` | NOT NULL |  |  |
+
+Constraints:
+
+- `publication_snapshot_digest_length` — `CHECK ((octet_length(content_digest) = 32))`
+- `publication_snapshot_menu_fk` — `FOREIGN KEY (menu_id) REFERENCES menu.menu(id) ON DELETE RESTRICT`
+- `publication_snapshot_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `publication_snapshot_pkey` — `PRIMARY KEY (id)`
+- `publication_snapshot_publisher_fk` — `FOREIGN KEY (tenant_id, published_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `publication_snapshot_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `publication_snapshot_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.publication_snapshot_line`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `bigint` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `snapshot_id` | `uuid` | NOT NULL |  |  |
+| `item_id` | `uuid` | NOT NULL |  |  |
+| `variant_id` | `uuid` |  |  |  |
+| `item_code` | `text` | NOT NULL |  |  |
+| `canonical_name` | `text` | NOT NULL |  |  |
+| `channel` | `menu.sales_channel` |  |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `tax_context` | `text` | NOT NULL |  |  |
+| `availability` | `menu.availability_state` | NOT NULL |  |  |
+
+Constraints:
+
+- `publication_snapshot_line_pkey` — `PRIMARY KEY (id)`
+- `snapshot_line_currency_fk` — `FOREIGN KEY (currency_code) REFERENCES money.currency(code) ON DELETE RESTRICT`
+- `snapshot_line_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `snapshot_line_snapshot_fk` — `FOREIGN KEY (snapshot_id) REFERENCES menu.publication_snapshot(id) ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED`
+- `snapshot_line_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `publication_snapshot_line_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.sellable_item`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `menu_id` | `uuid` | NOT NULL |  |  |
+| `category_id` | `uuid` |  |  |  |
+| `item_code` | `text` | NOT NULL |  |  |
+| `canonical_name` | `text` | NOT NULL |  |  |
+| `canonical_short_description` | `text` |  |  |  |
+| `canonical_long_description` | `text` |  |  |  |
+| `customer_visible_ingredients` | `text` |  |  | The ingredient sentence a guest reads (FR-MNU-004). Not a recipe: no quantity, no unit, no yield, no cost and no reference to any production record. Marked safety-critical in menu.translatable_field, so a machine-assisted translation of it can never be approved without a human. |
+| `preparation_minutes` | `integer` |  |  |  |
+| `display_order` | `integer` | NOT NULL | `0` |  |
+| `status` | `org.lifecycle_status` | NOT NULL | `'active'::org.lifecycle_status` |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `sellable_item_category_fk` — `FOREIGN KEY (category_id) REFERENCES menu.category(id) ON DELETE RESTRICT`
+- `sellable_item_code_not_blank` — `CHECK ((btrim(item_code) <> ''::text))`
+- `sellable_item_code_unique` — `UNIQUE (tenant_id, menu_id, item_code)`
+- `sellable_item_menu_fk` — `FOREIGN KEY (menu_id) REFERENCES menu.menu(id) ON DELETE RESTRICT`
+- `sellable_item_name_not_blank` — `CHECK ((btrim(canonical_name) <> ''::text))`
+- `sellable_item_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `sellable_item_pkey` — `PRIMARY KEY (id)`
+- `sellable_item_preparation_sane` — `CHECK (((preparation_minutes IS NULL) OR ((preparation_minutes >= 0) AND (preparation_minutes <= 600))))`
+- `sellable_item_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `sellable_item_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `menu.translatable_field`
+
+The registry of what must be translated before a menu may publish, and which of those fields is safety-critical. Reference data, not tenant data: the same fields are required of every tenant, so this table is deliberately not tenant-scoped and the application role holds SELECT only.
+
+Row level security: **DISABLED**, **not forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `entity` | `menu.menu_entity` | NOT NULL |  |  |
+| `field_name` | `text` | NOT NULL |  |  |
+| `required_for_publication` | `boolean` | NOT NULL | `true` |  |
+| `safety_critical` | `boolean` | NOT NULL | `false` |  |
+
+Constraints:
+
+- `translatable_field_name_not_blank` — `CHECK ((btrim(field_name) <> ''::text))`
+- `translatable_field_pkey` — `PRIMARY KEY (entity, field_name)`
+
+#### `menu.translation`
+
+Approved customer translations, stored separately from the canonical record (FR-I18N-003, FR-I18N-011). Machine assistance is permitted for a draft with its engine recorded; approval always names a human reviewer. There is no live runtime translation anywhere in this system — a locale is either stored and approved, or it is missing and publication is blocked.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `entity` | `menu.menu_entity` | NOT NULL |  |  |
+| `entity_id` | `uuid` | NOT NULL |  |  |
+| `field_name` | `text` | NOT NULL |  |  |
+| `locale` | `menu.customer_locale` | NOT NULL |  |  |
+| `translated_text` | `text` | NOT NULL |  |  |
+| `state` | `menu.translation_state` | NOT NULL | `'draft'::menu.translation_state` |  |
+| `provenance` | `menu.translation_provenance` | NOT NULL | `'human'::menu.translation_provenance` |  |
+| `machine_engine` | `text` |  |  |  |
+| `translated_by_user_id` | `uuid` |  |  |  |
+| `reviewed_by_user_id` | `uuid` |  |  |  |
+| `approved_at` | `timestamp with time zone` |  |  |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `translation_approval_is_reviewed` — `CHECK (((state = 'approved'::menu.translation_state) = ((reviewed_by_user_id IS NOT NULL) AND (approved_at IS NOT NULL))))`
+- `translation_engine_matches_provenance` — `CHECK (((provenance = 'machine_assisted'::menu.translation_provenance) = (machine_engine IS NOT NULL)))`
+- `translation_field_fk` — `FOREIGN KEY (entity, field_name) REFERENCES menu.translatable_field(entity, field_name) ON DELETE RESTRICT`
+- `translation_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `translation_pkey` — `PRIMARY KEY (id)`
+- `translation_reviewer_fk` — `FOREIGN KEY (tenant_id, reviewed_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `translation_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `translation_text_not_blank` — `CHECK ((btrim(translated_text) <> ''::text))`
+- `translation_translator_fk` — `FOREIGN KEY (tenant_id, translated_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `translation_unique` — `UNIQUE (tenant_id, entity, entity_id, field_name, locale)`
+
+Policies:
+
+- `translation_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
 ### `money`
 

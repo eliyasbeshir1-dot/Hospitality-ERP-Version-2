@@ -20,7 +20,22 @@ import sys
 from pathlib import Path
 
 UNIT = "\x1f"
-SCHEMAS = ("app", "org", "identity", "money", "config", "audit")
+
+# Schemas the catalog must always contain. This is a FLOOR, not the list: the schemas
+# actually documented are discovered from the database, because a hardcoded list is an
+# unscanned blind spot waiting for the next slice. M1-B had exactly this defect — a gate
+# that scanned only `org`, so identity's tables were invisible to it — and M2-A found the
+# same shape here: adding the `menu` schema left the catalog silently unchanged, so a
+# reviewer comparing it against the live database would have been reading a document that
+# described neither.
+REQUIRED_SCHEMAS = ("app", "org", "identity", "money", "config", "audit")
+
+# Bookkeeping owned by the runners rather than by a slice. Documented separately in the
+# migration and seed histories, and excluded here so the catalog stays a description of
+# the domain model.
+# `public` is excluded because M1-A revoked everything from it and no slice owns an
+# object there; it is empty by design rather than by accident.
+BOOKKEEPING_SCHEMAS = ("migration", "seed_history", "public")
 
 
 def md(text: str) -> str:
@@ -45,8 +60,35 @@ def query(dsn: str, sql: str) -> list[list[str]]:
     return [line.split(UNIT) for line in proc.stdout.splitlines() if line.strip()]
 
 
+def discover_schemas(dsn: str) -> tuple[str, ...]:
+    """Every application schema in the database, read from the database.
+
+    Fails closed: if discovery does not return the schemas M1 established, something is
+    wrong with the connection or the database and the catalog must not be written from a
+    partial read.
+    """
+    excluded = ", ".join(f"'{s}'" for s in BOOKKEEPING_SCHEMAS)
+    rows = query(dsn, f"""
+        SELECT n.nspname
+        FROM pg_namespace n
+        WHERE n.nspname NOT LIKE 'pg\\_%'
+          AND n.nspname <> 'information_schema'
+          AND n.nspname NOT IN ({excluded})
+        ORDER BY n.nspname;
+    """)
+    found = tuple(r[0] for r in rows if r and r[0])
+    missing = [s for s in REQUIRED_SCHEMAS if s not in found]
+    if missing:
+        raise SystemExit(
+            f"catalog refused: schema discovery returned {list(found)}, which is missing "
+            f"{missing}. A catalog written from a partial read would describe a database "
+            f"nobody has.")
+    return found
+
+
 def build(dsn: str) -> str:
-    schema_list = ", ".join(f"'{s}'" for s in SCHEMAS)
+    schemas_scanned = discover_schemas(dsn)
+    schema_list = ", ".join(f"'{s}'" for s in schemas_scanned)
 
     schemas = query(dsn, f"""
         SELECT n.nspname, coalesce(obj_description(n.oid, 'pg_namespace'), '')
@@ -133,7 +175,8 @@ def build(dsn: str) -> str:
     w("Do not edit by hand: the verification suite regenerates this file and fails on any")
     w("difference, so a hand edit is reported as drift (FR-DAT-015).")
     w("")
-    w(f"Schemas covered: {', '.join('`' + s + '`' for s in SCHEMAS)}.")
+    w(f"Schemas covered: {', '.join('`' + s + '`' for s in schemas_scanned)}, "
+      f"discovered from the database rather than listed here.")
     w("")
     w("---")
     w("")
