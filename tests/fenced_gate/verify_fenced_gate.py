@@ -49,18 +49,48 @@ def record(name: str, ok: bool, detail: str = "") -> None:
         print(f"         {line}")
 
 
+def _link_or_copy(destination: Path):
+    """Hard-link into `destination` when the filesystem allows it, otherwise copy.
+
+    Hard links are an optimisation: the repository is duplicated for every mutation
+    this suite plants, and linking makes that nearly free. They are not always
+    available. A hard link cannot cross a volume, and on Windows the checkout and the
+    temporary directory routinely sit on different drives — D: and C: on a GitHub
+    runner — so os.link raises and the whole suite dies before its first assertion.
+    That is invisible on Linux, where both paths are usually the same filesystem.
+
+    Probing once and choosing is better than catching per file: the answer cannot
+    change between two files in the same pair of directories, and a per-file fallback
+    would quietly produce a half-linked, half-copied tree.
+    """
+    probe_source = destination.parent / ".link-probe-source"
+    probe_target = destination.parent / ".link-probe-target"
+    try:
+        probe_source.write_text("probe", encoding="utf-8")
+        try:
+            os.link(probe_source, probe_target)
+            return os.link
+        except OSError:
+            return shutil.copy2
+    finally:
+        for probe in (probe_target, probe_source):
+            if probe.exists():
+                probe.unlink()
+
+
 def make_copy(destination: Path) -> Path:
-    """Hard-linked copy of the repository, excluding .git and any build output."""
+    """A copy of the repository, excluding .git and any build output."""
     destination.mkdir(parents=True, exist_ok=True)
+    duplicate = _link_or_copy(destination)
     for entry in REPO.iterdir():
         if entry.name in {".git", "node_modules", "dist", "build", "__pycache__"}:
             continue
         target = destination / entry.name
         if entry.is_dir():
-            shutil.copytree(entry, target, copy_function=os.link,
+            shutil.copytree(entry, target, copy_function=duplicate,
                             ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
         else:
-            os.link(entry, target)
+            duplicate(entry, target)
     return destination
 
 
