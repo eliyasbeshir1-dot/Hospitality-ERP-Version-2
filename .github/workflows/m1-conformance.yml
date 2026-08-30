@@ -170,34 +170,48 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           # The Linux job uses a postgres:16 service container. Windows runners cannot run
-          # Linux containers, so the server has to come from the image. The image ships one
-          # already; installing a second copy competes for port 5432 and takes longer than
-          # the rest of the job put together. Whatever version is used is PRINTED, so a
-          # reviewer reads the version the suites actually ran against rather than assuming
-          # it matches Linux.
+          # Linux containers, so the server has to come from the image — and the image
+          # currently ships PostgreSQL 17, not 16. That difference is real and is PRINTED
+          # rather than assumed away: a reviewer reads the version the suites actually ran
+          # against. Running on two majors is a feature of this job, not a flaw in it;
+          # anything that depends on a version-specific behaviour will surface here.
           $service = Get-Service -Name 'postgresql*' -ErrorAction SilentlyContinue |
                      Select-Object -First 1
           if (-not $service) {
               throw "no PostgreSQL service on this runner image; the job cannot silently skip the database"
           }
-          Write-Host "using service $($service.Name)"
 
-          $root = Get-ChildItem 'C:\Program Files\PostgreSQL' -Directory |
-                  Sort-Object Name -Descending | Select-Object -First 1
-          if (-not $root) { throw "PostgreSQL service present but no installation directory found" }
-          $pgBin = Join-Path $root.FullName 'bin'
-          $pgData = Join-Path $root.FullName 'data'
+          # Ask the service where its binaries and data actually are. Guessing the path
+          # under Program Files got this wrong on the first run: the directory existed for
+          # the binaries and not for the data.
+          $definition = (Get-CimInstance Win32_Service -Filter "Name='$($service.Name)'").PathName
+          if ($definition -match '"?([A-Za-z]:\\[^"]*?\\bin\\pg_ctl\.exe)"?') {
+              $pgBin = Split-Path $Matches[1] -Parent
+          } else {
+              throw "could not read the PostgreSQL bin directory from the service definition: $definition"
+          }
+          if ($definition -match '-D\s+"([^"]+)"') {
+              $pgData = $Matches[1]
+          } elseif ($env:PGDATA) {
+              $pgData = $env:PGDATA
+          } else {
+              throw "could not read the PostgreSQL data directory from the service definition: $definition"
+          }
+          Write-Host "service  : $($service.Name)"
+          Write-Host "bin      : $pgBin"
+          Write-Host "data     : $pgData"
           "$pgBin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
           # Trust auth on an ephemeral, job-local server. This is what keeps every
           # credential out of the repository: there is no password to check in.
           $hba = Join-Path $pgData 'pg_hba.conf'
+          if (-not (Test-Path $hba)) { throw "no pg_hba.conf at $hba" }
           (Get-Content $hba) -replace '(scram-sha-256|md5)', 'trust' | Set-Content $hba
 
           Start-Service $service.Name
           Restart-Service $service.Name
           & "$pgBin\pg_isready.exe" -h localhost -p 5432 -t 60
-          & "$pgBin\psql.exe" "postgresql://postgres@localhost:5432/postgres" -tAc "SELECT version();"
+          & "$pgBin\psql.exe" "postgresql://postgres@localhost:5432/postgres" -tAc "SHOW server_version;"
 
       - name: Create the verification superuser
         shell: bash
