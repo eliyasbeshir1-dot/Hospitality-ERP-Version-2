@@ -32,6 +32,12 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from console import use_utf8_output  # noqa: E402
+
+use_utf8_output()
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from migrate import MigrationFailure, checksum, psql, psql_file, sql_literal  # noqa: E402
 

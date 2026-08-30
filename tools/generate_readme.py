@@ -23,6 +23,12 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from console import use_utf8_output  # noqa: E402
+
+use_utf8_output()
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from repo_history import (  # noqa: E402
     HistoryUnavailable, assert_history_available, commit_for_subject_prefix,
 )

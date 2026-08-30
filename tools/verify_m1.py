@@ -41,6 +41,13 @@ from __future__ import annotations
 import argparse, json, re, sys
 from pathlib import Path
 from datetime import datetime, timezone
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from console import use_utf8_output  # noqa: E402
+
+use_utf8_output()
+
 
 # The shared loader lives beside the harnesses that also consume it. The verifier imports
 # it rather than keeping a copy, because a copy is precisely what failed here before.

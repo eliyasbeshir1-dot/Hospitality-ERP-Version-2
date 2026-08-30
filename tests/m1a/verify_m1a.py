@@ -34,6 +34,11 @@ from gates import (
 from fenced import fenced_identifier_pattern  # noqa: E402
 from pg import CommandUnreadable, ProbeFailed, count, run, run_command  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
+from console import use_utf8_output  # noqa: E402
+
+use_utf8_output()
+
 REPO = Path(__file__).resolve().parents[2]
 MIGRATION = REPO / "migrations" / "0001_organizational_model_and_rls.sql"
 PACKAGE = REPO / "docs" / "Hospitality_OS_Phase_1_Clean_Build_Package_v2.0.9"
@@ -491,6 +496,35 @@ def section_cross_platform() -> None:
               f"({'; '.join(bash_only)}), which is correct — they are POSIX-only entry "
               f"points with no Windows path." if bash_only else
               "no POSIX device path appears in any of them."))
+
+    # Reading psql with a stated encoding was fixed everywhere; what this process writes
+    # to its OWN stdout was not, and Python takes that from the platform. On Windows that
+    # is cp1252, which cannot hold Amharic or Arabic: the M2-A suite proved it had stored
+    # them and then died reporting it. Every entry point must therefore state its output
+    # encoding rather than inherit one, and the guard is only worth anything if a new
+    # entry point cannot quietly skip it.
+    # Which files must carry the guard is derived from what they do, not from a list
+    # somebody maintains: anything that can be run, or that writes to stdout at all. A
+    # library that never prints cannot corrupt evidence, and naming exceptions by hand
+    # is how a check stops noticing the file that was added last.
+    entry_points, unguarded = [], []
+    for path in sorted([*(REPO / "tools").glob("*.py"),
+                        *(REPO / "tests").glob("*/*.py")]):
+        source = path.read_text(encoding="utf-8")
+        if "def use_utf8_output" in source:
+            continue                      # the guard itself
+        if '__main__' not in source and "print(" not in source:
+            continue                      # a library that prints nothing
+        entry_points.append(path)
+        if "use_utf8_output()" not in source:
+            unguarded.append(str(path.relative_to(REPO)))
+    record("every entry point states the encoding it writes evidence in",
+           not unguarded and len(entry_points) > 10,
+           f"{len(entry_points)} entry point(s) checked; "
+           + ("all call use_utf8_output() before printing, so a locale that cannot hold "
+              "Amharic or Arabic cannot destroy or silently alter what a suite reports"
+              if not unguarded else
+              f"{len(unguarded)} inherit the platform default: {', '.join(unguarded)}"))
 
     # The mechanisms above hold wherever this runs. The one thing only a real run can
     # establish is which platform it actually executed on, so that is what this reports —

@@ -20,6 +20,13 @@ from __future__ import annotations
 import argparse, json, re, sys
 from pathlib import Path
 from datetime import datetime, timezone
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from console import use_utf8_output  # noqa: E402
+
+use_utf8_output()
+
 
 # Everything under this prefix is pinned evidence and is not scanned as repository source.
 DOCS_PREFIX = "docs/"

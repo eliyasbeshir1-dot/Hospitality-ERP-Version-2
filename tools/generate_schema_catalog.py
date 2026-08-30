@@ -19,6 +19,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from console import use_utf8_output  # noqa: E402
+
+use_utf8_output()
+
+
 UNIT = "\x1f"
 
 # Schemas the catalog must always contain. This is a FLOOR, not the list: the schemas
