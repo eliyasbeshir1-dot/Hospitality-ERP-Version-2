@@ -63,8 +63,12 @@ def _link_or_copy(destination: Path):
     change between two files in the same pair of directories, and a per-file fallback
     would quietly produce a half-linked, half-copied tree.
     """
-    probe_source = destination.parent / ".link-probe-source"
-    probe_target = destination.parent / ".link-probe-target"
+    # The probe must span the SAME two directories the copy will: from the repository
+    # into the destination. Probing inside the destination alone answers a different
+    # question and answers it wrongly — on a Windows runner that link is C: to C: and
+    # succeeds, while every real link is D: to C: and cannot.
+    probe_source = REPO / ".link-probe-source"
+    probe_target = destination / ".link-probe-target"
     try:
         probe_source.write_text("probe", encoding="utf-8")
         try:
