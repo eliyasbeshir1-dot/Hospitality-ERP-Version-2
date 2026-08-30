@@ -125,7 +125,12 @@ def build() -> str:
             f"| `{path.relative_to(REPO)}` | {SUITE_PURPOSE.get(path.parent.name, 'verification')} |")
 
     substitutions = {
-        "{{GATE_STATUS}}": f"M1 — complete through **{current}**, awaiting independent review as a whole",
+        # The milestone is read from the last slice that landed, not written here. It said
+        # "M1" while the table already listed an M2 slice, which is the same shape of
+        # defect as a hardcoded schema list: a fact stated in two places, one of which
+        # stops being updated.
+        "{{GATE_STATUS}}": (f"{current.split('-')[0]} — complete through **{current}**, "
+                            f"awaiting independent review as a whole"),
         "{{PACKAGE_SHA}}": PACKAGE_SHA,
         "{{SLICE_TABLE}}": "\n".join(slice_table),
         "{{LAYOUT_TABLE}}": "\n".join(layout),
