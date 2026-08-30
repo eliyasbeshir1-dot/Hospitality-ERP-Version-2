@@ -165,81 +165,48 @@ jobs:
           echo "LOG_DIR=$RUNNER_TEMP/m1-logs" >> "$GITHUB_ENV"
           echo "M1D_WORKSPACE=$RUNNER_TEMP/m1d-workspace" >> "$GITHUB_ENV"
 
-      - name: Start the runner's PostgreSQL and open it on trust
+      - name: Run a throwaway PostgreSQL from the image's binaries
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          # The Linux job uses a postgres:16 service container. Windows runners cannot run
-          # Linux containers, so the server comes from the image — and the image ships
-          # PostgreSQL 17, not 16. That difference is real and is PRINTED rather than
-          # assumed away. Running the suites against two majors is a property of this
-          # arrangement worth keeping: anything depending on version-specific behaviour
-          # surfaces here rather than in production.
-          $service = Get-Service -Name 'postgresql*' -ErrorAction SilentlyContinue |
-                     Select-Object -First 1
-          if (-not $service) {
-              throw "no PostgreSQL service on this runner image; the job cannot silently skip the database"
-          }
-
-          # Ask the service where its binaries and data are. Guessing the path under
-          # Program Files got this wrong: the binaries were there and the data was not.
-          $definition = (Get-CimInstance Win32_Service -Filter "Name='$($service.Name)'").PathName
-          if ($definition -match '"?([A-Za-z]:\\[^"]*?\\bin\\pg_ctl\.exe)"?') {
-              $pgBin = Split-Path $Matches[1] -Parent
-          } else {
-              throw "could not read the PostgreSQL bin directory from the service definition: $definition"
-          }
-          if ($definition -match '-D\s+"([^"]+)"') { $pgData = $Matches[1] }
-          elseif ($env:PGDATA)                      { $pgData = $env:PGDATA }
-          else { throw "could not read the PostgreSQL data directory from: $definition" }
-          Write-Host "service : $($service.Name)"
-          Write-Host "bin     : $pgBin"
-          Write-Host "data    : $pgData"
+          # The Linux job gets a fresh postgres:16 container per run. Windows runners
+          # cannot run Linux containers, so this makes the equivalent by hand: a cluster
+          # initialised into the runner temp directory, started under the runner's own
+          # account, thrown away with the runner.
+          #
+          # The image's PostgreSQL SERVICE is deliberately not used. It refuses to start —
+          # the newest line in its log is from the day the image was built, so it dies
+          # before writing anything — and diagnosing a service account's rights on a
+          # machine that exists for four minutes is not verification, it is archaeology.
+          # Running the server ourselves also removes the need to rewrite pg_hba.conf at
+          # all: initdb is told to trust from the start, which is the same posture as the
+          # Linux container and keeps every credential out of the repository.
+          $root = Get-ChildItem 'C:\Program Files\PostgreSQL' -Directory -ErrorAction SilentlyContinue |
+                  Sort-Object Name -Descending | Select-Object -First 1
+          if (-not $root) { throw "no PostgreSQL installation on this runner image" }
+          $pgBin = Join-Path $root.FullName 'bin'
           "$pgBin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-          # Start FIRST, with the configuration the image shipped. Editing pg_hba.conf and
-          # then starting made the service refuse with only "cannot start service" to say
-          # why — a failure with no diagnosis. Starting first separates "the image's server
-          # does not work" from "our edit broke it", and auth changes need a reload rather
-          # than a restart anyway.
-          try {
-              Start-Service $service.Name -ErrorAction Stop
-          } catch {
-              Write-Host "::error::the runner's PostgreSQL service did not start"
-              Get-Service $service.Name | Format-List * | Out-String | Write-Host
-              $log = Join-Path $pgData 'log'
-              if (Test-Path $log) {
-                  Get-ChildItem $log | Sort-Object LastWriteTime -Descending |
-                      Select-Object -First 1 | Get-Content -Tail 40 | Write-Host
-              }
-              Get-EventLog -LogName Application -Newest 20 -ErrorAction SilentlyContinue |
-                  Where-Object { $_.Source -like '*postgres*' } |
-                  Format-List TimeGenerated, Message | Out-String | Write-Host
-              throw
+          $data = Join-Path $env:RUNNER_TEMP 'pgdata'
+          $log  = Join-Path $env:RUNNER_TEMP 'postgres.log'
+          if (Test-Path $data) { Remove-Item $data -Recurse -Force }
+
+          # The superuser is created here, named to match SUPERUSER, so no separate
+          # bootstrap step is needed and no password exists to leak.
+          & "$pgBin\initdb.exe" -D "$data" -U "$env:SUPERUSER" --auth=trust --encoding=UTF8 --locale=C
+          if ($LASTEXITCODE -ne 0) { throw "initdb failed" }
+
+          & "$pgBin\pg_ctl.exe" -D "$data" -l "$log" -o "-p $env:PGPORT -h localhost" -w start
+          if ($LASTEXITCODE -ne 0) {
+              Write-Host "::error::the server did not start"
+              if (Test-Path $log) { Get-Content $log -Tail 40 | Write-Host }
+              throw "pg_ctl start failed"
           }
-          & "$pgBin\pg_isready.exe" -h localhost -p 5432 -t 60
+
+          & "$pgBin\pg_isready.exe" -h localhost -p $env:PGPORT -t 60
           if ($LASTEXITCODE -ne 0) { throw "the server started but never accepted connections" }
-
-          # Trust auth on an ephemeral, job-local server, applied by RELOAD. This is what
-          # keeps every credential out of the repository: there is no password to check in.
-          $hba = Join-Path $pgData 'pg_hba.conf'
-          if (-not (Test-Path $hba)) { throw "no pg_hba.conf at $hba" }
-          (Get-Content $hba) -replace '(scram-sha-256|md5|sspi)', 'trust' | Set-Content $hba -Encoding utf8
-          & "$pgBin\pg_ctl.exe" reload -D "$pgData"
-          if ($LASTEXITCODE -ne 0) { throw "the server refused to reload the rewritten pg_hba.conf" }
-
-          & "$pgBin\psql.exe" "postgresql://postgres@localhost:5432/postgres" -tAc "SHOW server_version;"
-          if ($LASTEXITCODE -ne 0) { throw "trust authentication did not take effect after reload" }
-
-      - name: Create the verification superuser
-        shell: bash
-        run: |
-          set -euo pipefail
-          psql --version
-          psql "postgresql://postgres@localhost:5432/postgres" -v ON_ERROR_STOP=1 -q -c \
-            "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='pgadmin') \
-             THEN CREATE ROLE pgadmin LOGIN SUPERUSER; END IF; END \$\$;"
-          psql "postgresql://pgadmin@localhost:5432/postgres" -tAc "SELECT current_user, version();"
+          & "$pgBin\psql.exe" "postgresql://$env:SUPERUSER@localhost:$env:PGPORT/postgres" -tAc "SHOW server_version;"
+          if ($LASTEXITCODE -ne 0) { throw "trust authentication is not in effect" }
 
       - name: Prerequisites, discovered the way the documentation says to
         shell: bash
