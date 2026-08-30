@@ -4,7 +4,7 @@
 Do not edit by hand: the verification suite regenerates this file and fails on any
 difference, so a hand edit is reported as drift (FR-DAT-015).
 
-Schemas covered: `app`, `audit`, `config`, `identity`, `menu`, `money`, `org`, discovered from the database rather than listed here.
+Schemas covered: `app`, `audit`, `config`, `identity`, `menu`, `money`, `org`, `safety`, `service`, discovered from the database rather than listed here.
 
 ---
 
@@ -23,7 +23,7 @@ Schemas covered: `app`, `audit`, `config`, `identity`, `menu`, `money`, `org`, d
 | `config.configuration_category` | branding, locale, currency, timezone, tax, calendar, numbering, payment_method, service, feature, connector |
 | `config.policy_category` | ordering, service, cancellation, discount, refund, tip, cash, approval, local_continuity |
 | `config.reason_code_category` | order_cancellation, void, refund, discount, complimentary_item, payment_reversal, tip_correction, service_failure, printer_failure, manager_override |
-| `config.retention_action` | archive, purge |
+| `config.retention_action` | archive, purge, anonymize |
 | `config.scope_kind` | tenant, legal_entity, outlet |
 | `identity.auth_strength` | low, standard, strong |
 | `identity.channel_kind` | phone, email |
@@ -34,7 +34,7 @@ Schemas covered: `app`, `audit`, `config`, `identity`, `menu`, `money`, `org`, d
 | `menu.availability_state` | available, limited, temporarily_unavailable, scheduled_later, hidden |
 | `menu.customer_locale` | en, am, ar |
 | `menu.image_format` | webp, avif, jpeg, png |
-| `menu.menu_entity` | menu, category, item_group, item, variant, modifier_group, modifier, image |
+| `menu.menu_entity` | menu, category, item_group, item, variant, modifier_group, modifier, image, allergen, dietary_claim |
 | `menu.publication_state` | draft, review, scheduled, published, paused, archived |
 | `menu.sales_channel` | dine_in, counter, room_service, kiosk |
 | `menu.translation_provenance` | human, machine_assisted |
@@ -43,6 +43,16 @@ Schemas covered: `app`, `audit`, `config`, `identity`, `menu`, `money`, `org`, d
 | `money.rounding_mode` | half_up, half_even, floor, ceiling |
 | `org.lifecycle_status` | active, inactive, archived |
 | `org.node_kind` | brand, legal_entity, outlet, service_area, preparation_station, dining_table, device |
+| `safety.declaration_class` | contains, may_contain, cross_contact |
+| `safety.reference_context` | publication_snapshot, cart_line |
+| `safety.review_state` | draft, in_review, approved |
+| `service.cart_kind` | personal, shared |
+| `service.cart_state` | open, abandoned, expired |
+| `service.concern_source` | guest, waiter |
+| `service.occupancy_state` | open, closed |
+| `service.opening_source` | qr_scan, staff, host_stand |
+| `service.transfer_state` | proposed, acknowledged, supervisor_reassigned, declined |
+| `service.verification_method` | staff_confirmation, table_code, host_approval |
 
 ## Relationships
 
@@ -104,6 +114,30 @@ graph LR
   org_device_registration["org.device_registration"]
   org_org_closure["org.org_closure"]
   org_outlet_profile["org.outlet_profile"]
+  safety_allergen["safety.allergen"]
+  safety_jurisdiction["safety.jurisdiction"]
+  safety_allergy_concern["safety.allergy_concern"]
+  safety_approved_wording["safety.approved_wording"]
+  service_guest_session["service.guest_session"]
+  service_table_session["service.table_session"]
+  safety_declaration["safety.declaration"]
+  safety_declaration_reference["safety.declaration_reference"]
+  safety_dietary_claim["safety.dietary_claim"]
+  safety_dietary_claim_outlet["safety.dietary_claim_outlet"]
+  safety_item_dietary_claim["safety.item_dietary_claim"]
+  safety_jurisdiction_requirement["safety.jurisdiction_requirement"]
+  service_cart["service.cart"]
+  service_cart_line["service.cart_line"]
+  service_cart_line_modifier["service.cart_line_modifier"]
+  service_cart_line_transfer["service.cart_line_transfer"]
+  service_ownership_transfer["service.ownership_transfer"]
+  service_qr_placard["service.qr_placard"]
+  service_table_qr_token["service.table_qr_token"]
+  service_qr_scan["service.qr_scan"]
+  service_session_participant["service.session_participant"]
+  service_table_ownership["service.table_ownership"]
+  service_table_profile["service.table_profile"]
+  service_verification_policy["service.verification_policy"]
   audit_operational_event --> org_org_node
   audit_operational_event --> org_tenant
   audit_security_event --> org_org_node
@@ -226,6 +260,89 @@ graph LR
   org_org_node --> org_org_node
   org_org_node --> org_tenant
   org_outlet_profile --> org_org_node
+  safety_allergen --> org_org_node
+  safety_allergen --> org_tenant
+  safety_allergen --> safety_jurisdiction
+  safety_allergy_concern --> identity_user_account
+  safety_allergy_concern --> org_org_node
+  safety_allergy_concern --> org_tenant
+  safety_allergy_concern --> safety_allergen
+  safety_allergy_concern --> safety_approved_wording
+  safety_allergy_concern --> service_guest_session
+  safety_allergy_concern --> service_table_session
+  safety_approved_wording --> identity_user_account
+  safety_approved_wording --> org_org_node
+  safety_approved_wording --> org_tenant
+  safety_declaration --> identity_user_account
+  safety_declaration --> org_org_node
+  safety_declaration --> org_tenant
+  safety_declaration --> safety_allergen
+  safety_declaration_reference --> org_org_node
+  safety_declaration_reference --> org_tenant
+  safety_declaration_reference --> safety_declaration
+  safety_dietary_claim --> identity_user_account
+  safety_dietary_claim --> org_org_node
+  safety_dietary_claim --> org_tenant
+  safety_dietary_claim_outlet --> org_org_node
+  safety_dietary_claim_outlet --> safety_dietary_claim
+  safety_item_dietary_claim --> identity_user_account
+  safety_item_dietary_claim --> org_org_node
+  safety_item_dietary_claim --> org_tenant
+  safety_item_dietary_claim --> safety_dietary_claim
+  safety_jurisdiction_requirement --> safety_jurisdiction
+  service_cart --> org_org_node
+  service_cart --> org_tenant
+  service_cart --> service_guest_session
+  service_cart --> service_table_session
+  service_cart_line --> menu_item_variant
+  service_cart_line --> menu_sellable_item
+  service_cart_line --> money_currency
+  service_cart_line --> org_org_node
+  service_cart_line --> org_tenant
+  service_cart_line --> service_cart
+  service_cart_line --> service_guest_session
+  service_cart_line_modifier --> menu_modifier
+  service_cart_line_modifier --> org_org_node
+  service_cart_line_modifier --> org_tenant
+  service_cart_line_modifier --> service_cart_line
+  service_cart_line_transfer --> org_org_node
+  service_cart_line_transfer --> org_tenant
+  service_cart_line_transfer --> service_cart
+  service_cart_line_transfer --> service_cart_line
+  service_guest_session --> org_org_node
+  service_guest_session --> org_tenant
+  service_ownership_transfer --> config_reason_code
+  service_ownership_transfer --> identity_user_account
+  service_ownership_transfer --> org_org_node
+  service_ownership_transfer --> org_tenant
+  service_ownership_transfer --> service_table_session
+  service_qr_placard --> identity_user_account
+  service_qr_placard --> org_org_node
+  service_qr_placard --> org_tenant
+  service_qr_placard --> service_table_qr_token
+  service_qr_scan --> org_org_node
+  service_qr_scan --> org_tenant
+  service_qr_scan --> service_guest_session
+  service_qr_scan --> service_table_qr_token
+  service_session_participant --> org_org_node
+  service_session_participant --> org_tenant
+  service_session_participant --> service_guest_session
+  service_session_participant --> service_table_session
+  service_table_ownership --> identity_user_account
+  service_table_ownership --> org_org_node
+  service_table_ownership --> org_tenant
+  service_table_ownership --> service_table_session
+  service_table_profile --> org_org_node
+  service_table_qr_token --> config_reason_code
+  service_table_qr_token --> identity_user_account
+  service_table_qr_token --> org_org_node
+  service_table_qr_token --> org_tenant
+  service_table_qr_token --> service_table_profile
+  service_table_session --> identity_user_account
+  service_table_session --> org_org_node
+  service_table_session --> org_tenant
+  service_table_session --> service_table_profile
+  service_verification_policy --> org_tenant
 ```
 
 ## Schemas
@@ -302,6 +419,26 @@ Policies:
 ### `config`
 
 Versioned tenant configuration, policy, numbering, entitlements.
+
+#### `config.anonymization_rule`
+
+Which columns an "anonymize" retention policy empties, and where it records having done so. Anonymizing severs the identity and keeps the row, which is what a guest session needs: the allergy concern raised at a table is operational evidence that must outlive the guest identity attached to it (FR-CST-002).
+
+Row level security: **DISABLED**, **not forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `target_schema` | `text` | NOT NULL |  |  |
+| `target_table` | `text` | NOT NULL |  |  |
+| `identity_columns` | `text[]` | NOT NULL |  |  |
+| `stamp_column` | `text` | NOT NULL |  |  |
+
+Constraints:
+
+- `anonymization_rule_has_columns` — `CHECK ((cardinality(identity_columns) >= 1))`
+- `anonymization_rule_never_targets_audit` — `CHECK ((lower(target_schema) <> 'audit'::text))`
+- `anonymization_rule_pkey` — `PRIMARY KEY (target_schema, target_table)`
+- `anonymization_rule_stamp_not_blank` — `CHECK ((btrim(stamp_column) <> ''::text))`
 
 #### `config.configuration_version`
 
@@ -1829,6 +1966,7 @@ Constraints:
 - `org_node_reference_code_unique` — `UNIQUE (tenant_id, kind, reference_code)`
 - `org_node_row_version_positive` — `CHECK ((row_version > 0))`
 - `org_node_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `org_node_tenant_id_kind_unique` — `UNIQUE (tenant_id, id, kind)`
 - `org_node_tenant_id_unique` — `UNIQUE (tenant_id, id)`
 
 Policies:
@@ -1891,4 +2029,738 @@ Constraints:
 Policies:
 
 - `tenant_isolation` — `((app.current_tenant_id() IS NOT NULL) AND (id = app.current_tenant_id()))`
+
+### `safety`
+
+Allergen and dietary safety: the tenant- and jurisdiction-configurable catalog, declarations by item, variant and modifier, and live resolution. Nothing here is cached or pinned into a customer-facing read path.
+
+#### `safety.allergen`
+
+The tenant and jurisdiction configurable allergen catalog (FR-SAF-001). Customer text lives in menu.translation as a safety-critical field, so it inherits the human-reviewer requirement and blocks publication when absent. The icon is stored here but is not readable by the application role: icons supplement written warnings and never replace them (FR-SAF-002), which is enforced by there being no query path that returns one without the other.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `jurisdiction_code` | `text` | NOT NULL |  |  |
+| `kitchen_code` | `text` | NOT NULL |  |  |
+| `icon_key` | `text` |  |  |  |
+| `status` | `org.lifecycle_status` | NOT NULL | `'active'::org.lifecycle_status` |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `allergen_icon_key_not_blank` — `CHECK (((icon_key IS NULL) OR (btrim(icon_key) <> ''::text)))`
+- `allergen_jurisdiction_fk` — `FOREIGN KEY (jurisdiction_code) REFERENCES safety.jurisdiction(code) ON DELETE RESTRICT`
+- `allergen_kitchen_code_not_blank` — `CHECK ((btrim(kitchen_code) <> ''::text))`
+- `allergen_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `allergen_pkey` — `PRIMARY KEY (id)`
+- `allergen_row_version_positive` — `CHECK ((row_version > 0))`
+- `allergen_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `allergen_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `allergen_unique` — `UNIQUE (tenant_id, jurisdiction_code, kitchen_code)`
+
+Policies:
+
+- `allergen_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `safety.allergy_concern`
+
+An allergy concern flagged for a table by a guest or a waiter (FR-SAF-003), with the exact acknowledgement wording the guest was shown. The order-level flag and the waiter workflow around it arrive at M3; the table-level record is this. guest_session_id is ON DELETE SET NULL so anonymizing a guest severs the identity and leaves the concern, which is operational evidence rather than personal data.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `table_session_id` | `uuid` | NOT NULL |  |  |
+| `raised_by` | `service.concern_source` | NOT NULL |  |  |
+| `guest_session_id` | `uuid` |  |  |  |
+| `raised_by_user_id` | `uuid` |  |  |  |
+| `allergen_id` | `uuid` |  |  |  |
+| `note` | `text` |  |  |  |
+| `acknowledgement_wording_id` | `uuid` | NOT NULL |  |  |
+| `acknowledgement_text` | `text` | NOT NULL |  |  |
+| `acknowledged_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `acknowledged_by_user_id` | `uuid` |  |  |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `allergy_concern_allergen_fk` — `FOREIGN KEY (tenant_id, allergen_id) REFERENCES safety.allergen(tenant_id, id) ON DELETE RESTRICT`
+- `allergy_concern_attributed` — `CHECK ((((raised_by = 'waiter'::service.concern_source) AND (raised_by_user_id IS NOT NULL)) OR ((raised_by = 'guest'::service.concern_source) AND (guest_session_id IS NOT NULL))))`
+- `allergy_concern_guest_fk` — `FOREIGN KEY (tenant_id, guest_session_id) REFERENCES service.guest_session(tenant_id, id) ON DELETE SET NULL`
+- `allergy_concern_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `allergy_concern_pkey` — `PRIMARY KEY (id)`
+- `allergy_concern_session_fk` — `FOREIGN KEY (tenant_id, table_session_id) REFERENCES service.table_session(tenant_id, id) ON DELETE RESTRICT`
+- `allergy_concern_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `allergy_concern_text_not_blank` — `CHECK ((btrim(acknowledgement_text) <> ''::text))`
+- `allergy_concern_user_fk` — `FOREIGN KEY (tenant_id, raised_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `allergy_concern_wording_fk` — `FOREIGN KEY (tenant_id, acknowledgement_wording_id) REFERENCES safety.approved_wording(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `allergy_concern_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `safety.approved_wording`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `purpose` | `text` | NOT NULL |  |  |
+| `locale` | `menu.customer_locale` | NOT NULL |  |  |
+| `wording` | `text` | NOT NULL |  |  |
+| `approved_by_user_id` | `uuid` | NOT NULL |  |  |
+| `approved_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `approved_wording_approver_fk` — `FOREIGN KEY (tenant_id, approved_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `approved_wording_not_blank` — `CHECK ((btrim(wording) <> ''::text))`
+- `approved_wording_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `approved_wording_pkey` — `PRIMARY KEY (id)`
+- `approved_wording_purpose_not_blank` — `CHECK ((btrim(purpose) <> ''::text))`
+- `approved_wording_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `approved_wording_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `approved_wording_unique` — `UNIQUE (tenant_id, purpose, locale)`
+
+Policies:
+
+- `approved_wording_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `safety.declaration`
+
+What an item, variant or modifier declares about an allergen, in one of three classes, with the version history intact (FR-SAF-002). The currently effective row is the one with effective_to IS NULL. There is no derived or cached table beside this one: safety.effective_allergens() computes from these rows on every call, because a stored answer that does not move when its inputs move is a safety defect rather than a caching bug (FR-SAF-005).
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `subject` | `menu.menu_entity` | NOT NULL |  |  |
+| `subject_id` | `uuid` | NOT NULL |  |  |
+| `allergen_id` | `uuid` | NOT NULL |  |  |
+| `declaration_class` | `safety.declaration_class` | NOT NULL |  |  |
+| `effective_version` | `integer` | NOT NULL | `1` |  |
+| `effective_from` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `effective_to` | `timestamp with time zone` |  |  |  |
+| `review_state` | `safety.review_state` | NOT NULL | `'draft'::safety.review_state` |  |
+| `created_by_user_id` | `uuid` | NOT NULL |  |  |
+| `reviewed_by_user_id` | `uuid` |  |  |  |
+| `reviewed_at` | `timestamp with time zone` |  |  |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `declaration_allergen_fk` — `FOREIGN KEY (tenant_id, allergen_id) REFERENCES safety.allergen(tenant_id, id) ON DELETE RESTRICT`
+- `declaration_approval_is_reviewed` — `CHECK (((review_state = 'approved'::safety.review_state) = ((reviewed_by_user_id IS NOT NULL) AND (reviewed_at IS NOT NULL))))`
+- `declaration_author_fk` — `FOREIGN KEY (tenant_id, created_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `declaration_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `declaration_pkey` — `PRIMARY KEY (id)`
+- `declaration_range_ordered` — `CHECK (((effective_to IS NULL) OR (effective_to > effective_from)))`
+- `declaration_reviewer_fk` — `FOREIGN KEY (tenant_id, reviewed_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `declaration_subject_can_carry_ingredients` — `CHECK ((subject = ANY (ARRAY['item'::menu.menu_entity, 'variant'::menu.menu_entity, 'modifier'::menu.menu_entity])))`
+- `declaration_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `declaration_version_positive` — `CHECK ((effective_version > 0))`
+
+Policies:
+
+- `declaration_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `safety.declaration_reference`
+
+What was believed at publication, or when a line was added to a cart. It exists so a later dispute can establish what the kitchen had declared at that moment, and for no other purpose. The application role holds INSERT and nothing else: it cannot SELECT these rows, and no function it may execute returns them. That is deliberate and it is the point — a readable pinned value becomes a cache the first time a display path is under deadline, and a cached allergen is exactly the defect FR-SAF-005 names. Reading this table is an audit activity performed by an identity that is not serving a guest.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `bigint` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `context` | `safety.reference_context` | NOT NULL |  |  |
+| `context_id` | `uuid` | NOT NULL |  |  |
+| `declaration_id` | `uuid` | NOT NULL |  |  |
+| `effective_version` | `integer` | NOT NULL |  |  |
+| `recorded_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `declaration_reference_declaration_fk` — `FOREIGN KEY (declaration_id) REFERENCES safety.declaration(id) ON DELETE RESTRICT`
+- `declaration_reference_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `declaration_reference_pkey` — `PRIMARY KEY (id)`
+- `declaration_reference_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `declaration_reference_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `safety.dietary_claim`
+
+Vegetarian, vegan, fasting, halal and whatever else a tenant defines (FR-SAF-006). Fasting is a first-class claim rather than a note: in the pilot market a large share of the calendar is fasting, and an outlet that cannot state it loses the business.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `code` | `text` | NOT NULL |  |  |
+| `definition` | `text` | NOT NULL |  |  |
+| `evidence_owner_user_id` | `uuid` | NOT NULL |  |  |
+| `review_due_on` | `date` | NOT NULL |  |  |
+| `status` | `org.lifecycle_status` | NOT NULL | `'active'::org.lifecycle_status` |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `dietary_claim_code_not_blank` — `CHECK ((btrim(code) <> ''::text))`
+- `dietary_claim_definition_not_blank` — `CHECK ((btrim(definition) <> ''::text))`
+- `dietary_claim_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `dietary_claim_owner_fk` — `FOREIGN KEY (tenant_id, evidence_owner_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `dietary_claim_pkey` — `PRIMARY KEY (id)`
+- `dietary_claim_row_version_positive` — `CHECK ((row_version > 0))`
+- `dietary_claim_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `dietary_claim_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `dietary_claim_unique` — `UNIQUE (tenant_id, code)`
+
+Policies:
+
+- `dietary_claim_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `safety.dietary_claim_outlet`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `claim_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+
+Constraints:
+
+- `dietary_claim_outlet_claim_fk` — `FOREIGN KEY (tenant_id, claim_id) REFERENCES safety.dietary_claim(tenant_id, id) ON DELETE RESTRICT`
+- `dietary_claim_outlet_node_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `dietary_claim_outlet_pkey` — `PRIMARY KEY (claim_id, outlet_id)`
+
+Policies:
+
+- `dietary_claim_outlet_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `safety.item_dietary_claim`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `subject` | `menu.menu_entity` | NOT NULL |  |  |
+| `subject_id` | `uuid` | NOT NULL |  |  |
+| `claim_id` | `uuid` | NOT NULL |  |  |
+| `effective_version` | `integer` | NOT NULL | `1` |  |
+| `effective_from` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `effective_to` | `timestamp with time zone` |  |  |  |
+| `review_state` | `safety.review_state` | NOT NULL | `'draft'::safety.review_state` |  |
+| `created_by_user_id` | `uuid` | NOT NULL |  |  |
+| `reviewed_by_user_id` | `uuid` |  |  |  |
+| `reviewed_at` | `timestamp with time zone` |  |  |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `item_dietary_claim_approval_is_reviewed` — `CHECK (((review_state = 'approved'::safety.review_state) = ((reviewed_by_user_id IS NOT NULL) AND (reviewed_at IS NOT NULL))))`
+- `item_dietary_claim_author_fk` — `FOREIGN KEY (tenant_id, created_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `item_dietary_claim_claim_fk` — `FOREIGN KEY (tenant_id, claim_id) REFERENCES safety.dietary_claim(tenant_id, id) ON DELETE RESTRICT`
+- `item_dietary_claim_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `item_dietary_claim_pkey` — `PRIMARY KEY (id)`
+- `item_dietary_claim_reviewer_fk` — `FOREIGN KEY (tenant_id, reviewed_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `item_dietary_claim_subject` — `CHECK ((subject = ANY (ARRAY['item'::menu.menu_entity, 'variant'::menu.menu_entity, 'modifier'::menu.menu_entity])))`
+- `item_dietary_claim_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `item_dietary_claim_version_positive` — `CHECK ((effective_version > 0))`
+
+Policies:
+
+- `item_dietary_claim_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `safety.jurisdiction`
+
+Row level security: **DISABLED**, **not forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `code` | `text` | NOT NULL |  |  |
+| `display_name` | `text` | NOT NULL |  |  |
+
+Constraints:
+
+- `jurisdiction_code_not_blank` — `CHECK ((btrim(code) <> ''::text))`
+- `jurisdiction_display_name_not_blank` — `CHECK ((btrim(display_name) <> ''::text))`
+- `jurisdiction_pkey` — `PRIMARY KEY (code)`
+
+#### `safety.jurisdiction_requirement`
+
+Row level security: **DISABLED**, **not forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `jurisdiction_code` | `text` | NOT NULL |  |  |
+| `kitchen_code` | `text` | NOT NULL |  |  |
+
+Constraints:
+
+- `jurisdiction_requirement_fk` — `FOREIGN KEY (jurisdiction_code) REFERENCES safety.jurisdiction(code) ON DELETE RESTRICT`
+- `jurisdiction_requirement_pkey` — `PRIMARY KEY (jurisdiction_code, kitchen_code)`
+
+### `service`
+
+Table service: QR resolution, occupancy, guest sessions, carts before submission, and table ownership. Submission itself is M3 and has no representation here.
+
+#### `service.cart`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `table_session_id` | `uuid` | NOT NULL |  |  |
+| `kind` | `service.cart_kind` | NOT NULL |  |  |
+| `owner_guest_session_id` | `uuid` |  |  |  |
+| `state` | `service.cart_state` | NOT NULL | `'open'::service.cart_state` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `cart_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `cart_owner_fk` — `FOREIGN KEY (tenant_id, owner_guest_session_id) REFERENCES service.guest_session(tenant_id, id) ON DELETE RESTRICT`
+- `cart_ownership_matches_kind` — `CHECK (((kind = 'personal'::service.cart_kind) = (owner_guest_session_id IS NOT NULL)))`
+- `cart_pkey` — `PRIMARY KEY (id)`
+- `cart_session_fk` — `FOREIGN KEY (tenant_id, table_session_id) REFERENCES service.table_session(tenant_id, id) ON DELETE RESTRICT`
+- `cart_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `cart_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `cart_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.cart_line`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `cart_id` | `uuid` | NOT NULL |  |  |
+| `item_id` | `uuid` | NOT NULL |  |  |
+| `variant_id` | `uuid` | NOT NULL |  |  |
+| `quantity` | `integer` | NOT NULL | `1` |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `unit_amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `added_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `added_by_guest_session_id` | `uuid` |  |  |  |
+
+Constraints:
+
+- `cart_line_cart_fk` — `FOREIGN KEY (tenant_id, cart_id) REFERENCES service.cart(tenant_id, id) ON DELETE RESTRICT`
+- `cart_line_currency_fk` — `FOREIGN KEY (currency_code) REFERENCES money.currency(code) ON DELETE RESTRICT`
+- `cart_line_guest_fk` — `FOREIGN KEY (tenant_id, added_by_guest_session_id) REFERENCES service.guest_session(tenant_id, id) ON DELETE RESTRICT`
+- `cart_line_item_fk` — `FOREIGN KEY (item_id) REFERENCES menu.sellable_item(id) ON DELETE RESTRICT`
+- `cart_line_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `cart_line_pkey` — `PRIMARY KEY (id)`
+- `cart_line_quantity_positive` — `CHECK ((quantity > 0))`
+- `cart_line_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `cart_line_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `cart_line_variant_fk` — `FOREIGN KEY (variant_id) REFERENCES menu.item_variant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `cart_line_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.cart_line_modifier`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `cart_line_id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `modifier_id` | `uuid` | NOT NULL |  |  |
+
+Constraints:
+
+- `cart_line_modifier_line_fk` — `FOREIGN KEY (tenant_id, cart_line_id) REFERENCES service.cart_line(tenant_id, id) ON DELETE RESTRICT`
+- `cart_line_modifier_modifier_fk` — `FOREIGN KEY (modifier_id) REFERENCES menu.modifier(id) ON DELETE RESTRICT`
+- `cart_line_modifier_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `cart_line_modifier_pkey` — `PRIMARY KEY (cart_line_id, modifier_id)`
+- `cart_line_modifier_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `cart_line_modifier_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.cart_line_transfer`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `cart_line_id` | `uuid` | NOT NULL |  |  |
+| `from_cart_id` | `uuid` | NOT NULL |  |  |
+| `to_cart_id` | `uuid` | NOT NULL |  |  |
+| `moved_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `moved_by_guest_session_id` | `uuid` |  |  |  |
+
+Constraints:
+
+- `cart_line_transfer_from_fk` — `FOREIGN KEY (tenant_id, from_cart_id) REFERENCES service.cart(tenant_id, id) ON DELETE RESTRICT`
+- `cart_line_transfer_line_fk` — `FOREIGN KEY (tenant_id, cart_line_id) REFERENCES service.cart_line(tenant_id, id) ON DELETE RESTRICT`
+- `cart_line_transfer_moves` — `CHECK ((from_cart_id <> to_cart_id))`
+- `cart_line_transfer_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `cart_line_transfer_pkey` — `PRIMARY KEY (id)`
+- `cart_line_transfer_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `cart_line_transfer_to_fk` — `FOREIGN KEY (tenant_id, to_cart_id) REFERENCES service.cart(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `cart_line_transfer_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.guest_session`
+
+A privacy-minimized guest session for QR ordering (FR-AUTH-003): no phone, no email, no registration, no link to a user account. It expires on a date it carries, and config.apply_retention anonymizes it under an "anonymize" policy rather than deleting it, because the allergy concerns raised at a table outlive the identity that raised them (FR-CST-002).
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `display_nickname` | `text` |  |  |  |
+| `locale` | `menu.customer_locale` | NOT NULL | `'en'::menu.customer_locale` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `expires_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `anonymized_at` | `timestamp with time zone` |  |  |  |
+
+Constraints:
+
+- `guest_session_anonymization_is_real` — `CHECK (((anonymized_at IS NULL) OR (display_nickname IS NULL)))`
+- `guest_session_expiry_after_creation` — `CHECK ((expires_at > created_at))`
+- `guest_session_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `guest_session_pkey` — `PRIMARY KEY (id)`
+- `guest_session_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `guest_session_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `guest_session_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.ownership_transfer`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `table_session_id` | `uuid` | NOT NULL |  |  |
+| `from_user_id` | `uuid` | NOT NULL |  |  |
+| `to_user_id` | `uuid` | NOT NULL |  |  |
+| `state` | `service.transfer_state` | NOT NULL | `'proposed'::service.transfer_state` |  |
+| `reason_code_id` | `uuid` |  |  |  |
+| `proposed_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `proposed_by_user_id` | `uuid` | NOT NULL |  |  |
+| `acknowledged_at` | `timestamp with time zone` |  |  |  |
+| `acknowledged_by_user_id` | `uuid` |  |  |  |
+| `supervisor_user_id` | `uuid` |  |  |  |
+
+Constraints:
+
+- `ownership_transfer_pkey` — `PRIMARY KEY (id)`
+- `transfer_acknowledgement_is_by_the_receiver` — `CHECK (((state = 'acknowledged'::service.transfer_state) = ((acknowledged_at IS NOT NULL) AND (acknowledged_by_user_id IS NOT NULL))))`
+- `transfer_acknowledger_fk` — `FOREIGN KEY (tenant_id, acknowledged_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `transfer_acknowledger_is_recipient` — `CHECK (((acknowledged_by_user_id IS NULL) OR (acknowledged_by_user_id = to_user_id)))`
+- `transfer_from_fk` — `FOREIGN KEY (tenant_id, from_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `transfer_not_to_self` — `CHECK ((from_user_id <> to_user_id))`
+- `transfer_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `transfer_proposer_fk` — `FOREIGN KEY (tenant_id, proposed_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `transfer_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `transfer_session_fk` — `FOREIGN KEY (tenant_id, table_session_id) REFERENCES service.table_session(tenant_id, id) ON DELETE RESTRICT`
+- `transfer_supervisor_fk` — `FOREIGN KEY (tenant_id, supervisor_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `transfer_supervisor_named_when_reassigned` — `CHECK (((state = 'supervisor_reassigned'::service.transfer_state) = (supervisor_user_id IS NOT NULL)))`
+- `transfer_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `transfer_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `transfer_to_fk` — `FOREIGN KEY (tenant_id, to_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `ownership_transfer_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.qr_placard`
+
+Printable version history (FR-TAB-002): which version of a table's code was put on a placard, when and by whom. It records that a placard was produced, never the code on it. Named for the placard rather than the printing because M1-B guards against any table whose name reads as print-agent or edge behaviour, and it was right to: that is M5a's, and this is a history of physical signs.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `token_id` | `uuid` | NOT NULL |  |  |
+| `version` | `integer` | NOT NULL |  |  |
+| `printed_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `printed_by_user_id` | `uuid` | NOT NULL |  |  |
+| `note` | `text` |  |  |  |
+
+Constraints:
+
+- `qr_placard_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `qr_placard_pkey` — `PRIMARY KEY (id)`
+- `qr_placard_printer_fk` — `FOREIGN KEY (tenant_id, printed_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `qr_placard_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `qr_placard_token_fk` — `FOREIGN KEY (tenant_id, token_id) REFERENCES service.table_qr_token(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `qr_placard_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.qr_scan`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `token_id` | `uuid` | NOT NULL |  |  |
+| `guest_session_id` | `uuid` | NOT NULL |  |  |
+| `scanned_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `occupancy_at_scan` | `integer` |  |  |  |
+
+Constraints:
+
+- `qr_scan_guest_fk` — `FOREIGN KEY (tenant_id, guest_session_id) REFERENCES service.guest_session(tenant_id, id) ON DELETE RESTRICT`
+- `qr_scan_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `qr_scan_pkey` — `PRIMARY KEY (id)`
+- `qr_scan_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `qr_scan_token_fk` — `FOREIGN KEY (tenant_id, token_id) REFERENCES service.table_qr_token(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `qr_scan_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.session_participant`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `table_session_id` | `uuid` | NOT NULL |  |  |
+| `guest_session_id` | `uuid` | NOT NULL |  |  |
+| `joined_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `left_at` | `timestamp with time zone` |  |  |  |
+| `shares_basket` | `boolean` | NOT NULL | `true` |  |
+
+Constraints:
+
+- `participant_guest_fk` — `FOREIGN KEY (tenant_id, guest_session_id) REFERENCES service.guest_session(tenant_id, id) ON DELETE RESTRICT`
+- `participant_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `participant_session_fk` — `FOREIGN KEY (tenant_id, table_session_id) REFERENCES service.table_session(tenant_id, id) ON DELETE RESTRICT`
+- `participant_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `participant_unique` — `UNIQUE (table_session_id, guest_session_id)`
+- `session_participant_pkey` — `PRIMARY KEY (id)`
+
+Policies:
+
+- `session_participant_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.table_ownership`
+
+Who is answerable for a table, right now and historically (FR-TAB-006). Rows are superseded, never edited: a trigger refuses any UPDATE that changes the waiter or the section, so ownership can only move through service.transfer_ownership(), which requires an acknowledgement or a named supervisor. A reassignment nobody acknowledged is not auditable, and an unauditable handover is the requirement unmet rather than a lesser form of it.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `table_session_id` | `uuid` | NOT NULL |  |  |
+| `primary_waiter_user_id` | `uuid` | NOT NULL |  |  |
+| `section_code` | `text` |  |  |  |
+| `assigned_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `assigned_by_user_id` | `uuid` | NOT NULL |  |  |
+| `effective_to` | `timestamp with time zone` |  |  |  |
+
+Constraints:
+
+- `ownership_assigner_fk` — `FOREIGN KEY (tenant_id, assigned_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `ownership_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `ownership_session_fk` — `FOREIGN KEY (tenant_id, table_session_id) REFERENCES service.table_session(tenant_id, id) ON DELETE RESTRICT`
+- `ownership_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `ownership_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `ownership_waiter_fk` — `FOREIGN KEY (tenant_id, primary_waiter_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `table_ownership_pkey` — `PRIMARY KEY (id)`
+
+Policies:
+
+- `table_ownership_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.table_profile`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `table_node_id` | `uuid` | NOT NULL |  |  |
+| `node_kind` | `org.node_kind` | NOT NULL | `'dining_table'::org.node_kind` |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `service_area_id` | `uuid` |  |  |  |
+| `seat_count` | `integer` |  |  |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `table_profile_area_fk` — `FOREIGN KEY (tenant_id, service_area_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `table_profile_is_a_table` — `CHECK ((node_kind = 'dining_table'::org.node_kind))`
+- `table_profile_node_fk` — `FOREIGN KEY (tenant_id, table_node_id, node_kind) REFERENCES org.org_node(tenant_id, id, kind) ON DELETE RESTRICT`
+- `table_profile_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `table_profile_pkey` — `PRIMARY KEY (table_node_id)`
+- `table_profile_row_version_positive` — `CHECK ((row_version > 0))`
+- `table_profile_seats_positive` — `CHECK (((seat_count IS NULL) OR (seat_count > 0)))`
+- `table_profile_tenant_id_unique` — `UNIQUE (tenant_id, table_node_id)`
+
+Policies:
+
+- `table_profile_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.table_qr_token`
+
+The signed reference a QR encodes (FR-TAB-001). The reference carries no internal identifier: it is 244 bits drawn from the server CSPRNG, so it is not sequential, not guessable from a neighbouring table's code, and does not decode to a primary key. Only its hash is stored. Tokens rotate by issuing a new version and revoking the old, and every version printed is recorded so staff can tell which placard is current (FR-TAB-002).
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `table_node_id` | `uuid` | NOT NULL |  |  |
+| `token_hash` | `bytea` | NOT NULL |  |  |
+| `version` | `integer` | NOT NULL |  |  |
+| `issued_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `issued_by_user_id` | `uuid` | NOT NULL |  |  |
+| `revoked_at` | `timestamp with time zone` |  |  |  |
+| `revoked_by_user_id` | `uuid` |  |  |  |
+| `revoke_reason_id` | `uuid` |  |  |  |
+
+Constraints:
+
+- `qr_token_hash_is_sha256` — `CHECK ((octet_length(token_hash) = 32))`
+- `qr_token_hash_unique` — `UNIQUE (token_hash)`
+- `qr_token_issuer_fk` — `FOREIGN KEY (tenant_id, issued_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `qr_token_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `qr_token_revocation_is_attributed` — `CHECK (((revoked_at IS NULL) = (revoked_by_user_id IS NULL)))`
+- `qr_token_revoke_reason_fk` — `FOREIGN KEY (tenant_id, revoke_reason_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `qr_token_revoker_fk` — `FOREIGN KEY (tenant_id, revoked_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `qr_token_table_fk` — `FOREIGN KEY (tenant_id, table_node_id) REFERENCES service.table_profile(tenant_id, table_node_id) ON DELETE RESTRICT`
+- `qr_token_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `qr_token_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `qr_token_version_positive` — `CHECK ((version > 0))`
+- `qr_token_version_unique` — `UNIQUE (tenant_id, table_node_id, version)`
+- `table_qr_token_pkey` — `PRIMARY KEY (id)`
+
+Policies:
+
+- `table_qr_token_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.table_session`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `table_node_id` | `uuid` | NOT NULL |  |  |
+| `occupancy_number` | `integer` | NOT NULL |  |  |
+| `state` | `service.occupancy_state` | NOT NULL | `'open'::service.occupancy_state` |  |
+| `opening_source` | `service.opening_source` | NOT NULL |  |  |
+| `host_staff_user_id` | `uuid` |  |  |  |
+| `opened_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `closed_at` | `timestamp with time zone` |  |  |  |
+
+Constraints:
+
+- `table_session_closure_consistent` — `CHECK ((((state = 'open'::service.occupancy_state) AND (closed_at IS NULL)) OR ((state = 'closed'::service.occupancy_state) AND (closed_at IS NOT NULL))))`
+- `table_session_host_fk` — `FOREIGN KEY (tenant_id, host_staff_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `table_session_host_named_when_staff_opened` — `CHECK (((opening_source = 'qr_scan'::service.opening_source) OR (host_staff_user_id IS NOT NULL)))`
+- `table_session_occupancy_positive` — `CHECK ((occupancy_number > 0))`
+- `table_session_occupancy_unique` — `UNIQUE (tenant_id, table_node_id, occupancy_number)`
+- `table_session_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `table_session_pkey` — `PRIMARY KEY (id)`
+- `table_session_table_fk` — `FOREIGN KEY (tenant_id, table_node_id) REFERENCES service.table_profile(tenant_id, table_node_id) ON DELETE RESTRICT`
+- `table_session_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `table_session_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `table_session_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.verification_policy`
+
+Which verification methods a tenant accepts when a scan from an earlier occupancy is presented against a later one (FR-TAB-010). Method only. Nothing in this schema can express "do not verify": the array cannot be empty, there is no boolean beside it, and service.join_table_session() refuses when no policy row exists at all. The guarantee is an invariant rather than a default, for the same reason row level security is not a tenant preference.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `accepted_methods` | `service.verification_method[]` | NOT NULL |  |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `verification_policy_at_least_one_method` — `CHECK ((cardinality(accepted_methods) >= 1))`
+- `verification_policy_pkey` — `PRIMARY KEY (tenant_id)`
+- `verification_policy_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `verification_policy_isolation` — `(tenant_id = app.current_tenant_id())`
 

@@ -743,13 +743,15 @@ def section_search() -> None:
         WHERE n.nspname = 'menu' AND p.proname = 'search_items';
     """)
     args = signature.scalar or ""
-    record("dietary and allergen filters are ABSENT here, not present and vacuous",
-           signature.ok and "dietary" not in args.lower() and "allergen" not in args.lower(),
-           "FR-MNU-012 is closed for category, availability, price and preparation time at "
-           "M2-A, and for dietary tag and allergen at M2-B with the catalogue they depend "
-           "on. A filter built now would examine an empty catalogue and pass without "
-           "testing anything — the vacuity money.assert_currency_paired() carried through "
-           "all of M1. M2-B is the completing gate.")
+    record("dietary and allergen filters are PRESENT, completed at M2-B",
+           signature.ok and "dietary" in args.lower() and "allergen" in args.lower(),
+           "FR-MNU-012 was dual-gated: category, availability, price and preparation time "
+           "closed at M2-A, and dietary tag and allergen were left absent rather than "
+           "present and vacuous, because a filter over an empty catalogue passes without "
+           "testing anything. M2-B built the catalogue and closed them. This check is "
+           "kept here, where the deferral was recorded, so the completion is visible at "
+           "the same place — that the filters actually filter is proved by the M2-B suite "
+           f"against real declarations. Signature now: {args or 'unavailable'}")
 
 
 # ===========================================================================
@@ -817,22 +819,33 @@ def section_images() -> None:
 def section_boundary() -> None:
     print("\n--- 10. Slice boundary: what M2-A did NOT build ---")
 
-    later_slices = count(ADMIN, """
+    # This asserted that M2-B did not exist yet, which was the right thing to assert
+    # while it did not. M2-B has since landed, so the assertion is re-aimed at what M2-A
+    # itself owns and can go on being true forever: migration 0006 put no table service or
+    # safety surface into the menu schema. The absence of that surface is no longer M2-A's
+    # to police — M2-B owns those tables and its own suite proves what they may contain.
+    in_menu = count(ADMIN, """
         SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+        WHERE c.relkind = 'r' AND n.nspname = 'menu'
           AND c.relname ~* '(^|_)(dining_table_session|qr_token|guest_session|allergen|dietary_claim)($|_)';
     """)
-    record("no tables, QR tokens, guest sessions, allergens or dietary claims exist",
-           later_slices == 0,
-           f"{later_slices} table(s) belonging to M2-B; they are not stubbed, not "
-           f"registered and not reserved")
+    record("the menu schema holds no table service or safety surface",
+           in_menu == 0,
+           f"{in_menu} such table(s) in schema menu. Menu structure stayed independent of "
+           f"the service and safety domains that came after it, so M2-B could add them "
+           f"beside the menu rather than inside it")
 
     order_surface = count(ADMIN, """
         SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND c.relname ~* '(^|_)(order|order_line|cart|check|bill|payment|tip|receipt)($|_)';
+          AND c.relname ~* '(^|_)(order|order_line|check|bill|payment|tip|receipt)($|_)';
     """)
-    record("no order, cart, check, payment or receipt surface exists",
+    # 'cart' left this pattern when M2-B landed: a basket BEFORE submission is FR-TAB-005
+    # and belongs to M2-B, while submission remains M3. Narrowing a pattern is how a check
+    # quietly stops catching things, so the cart boundary did not evaporate — it moved to
+    # the M2-B suite, which proves there is no submitted state, no submission function and
+    # no ticket or routing surface anywhere.
+    record("no order, check, payment or receipt surface exists",
            order_surface == 0,
            f"{order_surface} table(s) belonging to M3 or M4")
 

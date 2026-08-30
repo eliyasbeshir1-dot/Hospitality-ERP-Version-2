@@ -65,6 +65,7 @@ SUITE_PURPOSE = {
     "m1c": "configuration, audit, money exactness, numbering, retention",
     "m1d": "the running API, security controls, operations, evidence",
     "m2a": "menu structure, pricing, availability, dayparts, translation storage",
+    "m2b": "tables, QR, guest sessions, carts, allergens and dietary safety",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
 }
 

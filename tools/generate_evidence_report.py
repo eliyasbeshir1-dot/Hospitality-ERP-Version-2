@@ -120,6 +120,21 @@ CONTROLS = [
     ("NC-M1D-006", "Route served without context", "ROUTE_SERVED_WITHOUT_CONTEXT", "m1d"),
     ("NC-M1D-007", "Readiness reads a stale role snapshot", "READINESS_GREEN_WITH_PRIVILEGED_ROLE", "m1d"),
     ("NC-M1D-008", "Readiness discloses deployment detail", "READINESS_DISCLOSES_DEPLOYMENT_DETAIL", "m1d"),
+    ("NC-M2A-001", "Snapshot mutated after publish", "IMMUTABLE_SNAPSHOT_ALTERED", "m2a"),
+    ("NC-M2A-002", "Inexact or currency-less price", "INEXACT_PRICE_TYPE_ACCEPTED", "m2a"),
+    ("NC-M2A-003", "Availability discloses a figure", "EXACT_QUANTITY_DISCLOSED", "m2a"),
+    ("NC-M2A-004", "Publish with a locale missing", "REQUIRED_TRANSLATION_MISSING", "m2a"),
+    ("NC-M2A-005", "Daypart in server time", "WRONG_DAYPART_AT_BOUNDARY", "m2a"),
+    ("NC-M2-001", "QR reference enumerable", "ENUMERABLE_QR_REFERENCE", "m2b"),
+    ("NC-M2-002", "Foreign session accepted", "FOREIGN_SESSION_ACCEPTED", "m2b"),
+    ("NC-M2-003", "Publish with safety text missing", "REQUIRED_SAFETY_TRANSLATION_MISSING", "m2b"),
+    ("NC-M2B-004", "Allergen conveyed by icon alone", "WRITTEN_WARNING_ABSENT", "m2b"),
+    ("NC-M2B-005", "Declaration not re-evaluated", "STALE_DECLARATION_SERVED", "m2b"),
+    ("NC-M2B-006", "Stale QR joins a later occupancy", "STALE_SESSION_ADMITTED", "m2b"),
+    ("NC-M2B-007", "Ownership moved without acknowledgement", "OWNERSHIP_TRANSFERRED_SILENTLY", "m2b"),
+    ("NC-M2B-008", "Pinned reference readable by display", "AUDIT_REFERENCE_DISCLOSED_TO_DISPLAY", "m2b"),
+    ("NC-M2B-009", "Correction withheld from a published menu", "CORRECTION_WITHHELD_FROM_PUBLISHED_MENU", "m2b"),
+    ("NC-M2B-010", "Archive policy deletes instead", "ARCHIVE_POLICY_DELETED_ROWS", "m2b"),
 ]
 
 
@@ -259,6 +274,8 @@ def build(dsn: str, logs: Path) -> str:
                         ("m1b", "M1-B identity and authentication"),
                         ("m1c", "M1-C configuration, audit, money"),
                         ("m1d", "M1-D API, security, operations"),
+                        ("m2a", "M2-A menu, pricing, translation storage"),
+                        ("m2b", "M2-B tables, QR, guests, allergen safety"),
                         ("fenced_gate", "Fenced-domain gate, vocabulary and mutations")):
         verdict, ran, failed = suite_result(logs, name)
         if ran.isdigit():
@@ -283,7 +300,62 @@ def build(dsn: str, logs: Path) -> str:
     return "\n".join(out) + "\n"
 
 
-NARRATIVE = """## Repaired: the fenced gate was not authoritative (P1-01)
+NARRATIVE = """## Design decision: a price is pinned, an allergen is not (M2-B)
+
+Recorded here because M3 and M4 both inherit it, and because the reasoning is not obvious
+from either half on its own.
+
+`menu.publication_snapshot` exists so that a price cannot be argued about after the fact.
+It is append-only twice over, it carries a digest of its own lines, and an M3 order will
+reference it as evidence of what the guest agreed to pay. Extending the same treatment to
+allergen text would have been the natural symmetry, and it would have been a safety
+defect:
+
+- **A price must be what was AGREED.** It is fixed at publication and does not move. If
+  the kitchen raises the price of a dish this afternoon, a guest reading a menu published
+  this morning is still owed the morning's price.
+- **An allergen must be what is TRUE.** It is resolved live, on every read, from the
+  declarations that are open at that moment. If the kitchen discovers this afternoon that
+  a dish contains sesame, a guest reading the menu published this morning must be told —
+  immediately, without a republication step, and whether or not anyone remembers to
+  perform one.
+
+So `menu.published_menu_for_guest()` reads name and price from the snapshot line and
+allergens from `safety.selection_safety()`, which computes from `safety.declaration` rows
+whose `effective_to` is still NULL. There is no materialized view, no cache table and no
+resolved-set column anywhere in the safety schema: a stored answer that does not move when
+its inputs move is a safety defect rather than a caching bug, so the answer is not stored.
+
+What IS recorded at publication is `safety.declaration_reference` — which declaration
+version was in force at that moment — so a later dispute can establish what the kitchen
+believed then. That table is deliberately unreadable by the application role, which holds
+INSERT on it and nothing else, and no function other than `menu.publish_menu()` names it.
+A pinned value that a display path can read becomes a cache the first time that path is
+under deadline. The snapshot's content digest deliberately does not cover these rows
+either: binding it to a safety state would make correcting an allergen look like tampering.
+
+Two negative controls hold this in place. `NC-M2B-009` publishes a menu, corrects a
+declaration afterwards, reads the EARLIER snapshot as a guest and requires the new text —
+and in the same probe raises the live price and requires the published price NOT to move.
+`NC-M2B-008` requires the pinned reference to be unreachable from any display path, so the
+convenience that would undo all of this is not available to reach for.
+
+## Repaired: retention ignored the action it was told to perform (M1-C, found at M2-B)
+
+`config.retention_action` offered `archive` and `purge`; `config.retention_policy` stored
+the tenant's choice; and `config.apply_retention()` executed `DELETE` for both. A tenant
+that configured archival had its rows destroyed, and the sweep reported success. The
+action was recorded and then ignored, which is data loss presenting as correct operation.
+
+Found while wiring guest-session anonymization to the engine rather than building a second
+one. The repair honours the action: `purge` deletes, `anonymize` empties the columns
+`config.anonymization_rule` names and stamps the row, and `archive` refuses with
+`RETENTION_ACTION_UNIMPLEMENTED` because Phase 1 has no archive store. Refusing is the
+honest answer to being asked for something that does not exist; deleting the rows a tenant
+asked to keep is the worst one. Proved by `NC-M2B-010`, whose planted defect is the
+original M1-C function body.
+
+## Repaired: the fenced gate was not authoritative (P1-01)
 
 An independent review found `tools/verify_m1.py` scanning against a vocabulary written
 into the tool by hand, rather than the one shipped in the pinned package. Measured against

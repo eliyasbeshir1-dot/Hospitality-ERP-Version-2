@@ -104,7 +104,14 @@ def reset() -> None:
         f"DELETE FROM menu.availability_pause       WHERE tenant_id = '{TENANT}'",
         f"DELETE FROM menu.availability             WHERE tenant_id = '{TENANT}'",
         f"DELETE FROM menu.price                    WHERE tenant_id = '{TENANT}'",
-        f"DELETE FROM menu.translation              WHERE tenant_id = '{TENANT}'",
+        # Scoped to the entities M2-A seeds. It used to delete every translation in the
+        # tenant, which reached into rows a later slice owns: once M2-B declared allergens
+        # on these items, wiping their warning text made this fixture unable to publish
+        # its own menu, and the failure surfaced in M2-A rather than where it came from.
+        # A teardown removes what it created.
+        f"DELETE FROM menu.translation WHERE tenant_id = '{TENANT}' AND entity IN "
+        f"('menu', 'category', 'item_group', 'item', 'variant', 'modifier_group', "
+        f"'modifier', 'image')",
         f"DELETE FROM menu.image_derivative         WHERE tenant_id = '{TENANT}'",
         f"DELETE FROM menu.image                    WHERE tenant_id = '{TENANT}'",
         f"DELETE FROM menu.modifier_incompatibility WHERE tenant_id = '{TENANT}'",
