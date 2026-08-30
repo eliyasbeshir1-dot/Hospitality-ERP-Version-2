@@ -448,6 +448,37 @@ def section_cross_platform() -> None:
     bash_only = [f"{path.relative_to(REPO)} ({', '.join(device_paths(path))})"
                  for path in sorted((REPO / "tests").rglob("*.sh")) if device_paths(path)]
 
+    # The bash drivers were named as UNSCANNED when the Python scan was narrowed, and a
+    # POSIX device path survived in one of them until the drivers were first run on
+    # Windows. They are scanned now. A redirection bash performs itself is fine on every
+    # platform; handing that path as an ARGUMENT to a native program is not, because Git
+    # Bash passes arguments through verbatim.
+    argument_paths = []
+    shell_drivers = (sorted((REPO / "tests").rglob("*.sh"))
+                     + sorted((REPO / "api").rglob("*.sh")))
+    for path in shell_drivers:
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            for device in ("null", "stdout", "stderr", "zero"):
+                literal = root + device
+                for match in re.finditer(re.escape(literal), line):
+                    before = line[:match.start()].rstrip()
+                    # A redirection bash performs itself is translated on every platform.
+                    if before.endswith((">", ">>", "&>")):
+                        continue
+                    # An ASSIGNMENT is the portability mechanism, not a breach of it: the
+                    # POSIX branch of a per-platform selection has to name the POSIX path
+                    # somewhere. Flagging it would flag the fix. What must not happen is
+                    # the literal reaching a native program as an argument.
+                    if re.search(r"[A-Za-z_][A-Za-z0-9_]*=\"?$", before):
+                        continue
+                    argument_paths.append(
+                        f"{path.relative_to(REPO)}:{number} passes {literal} as an argument")
+    record("no shell driver passes a POSIX-only device path as an argument (F3)",
+           not argument_paths,
+           "; ".join(argument_paths) if argument_paths else
+           f"{len(shell_drivers)} shell driver(s) scanned; redirections bash performs "
+           f"itself are left alone, because bash translates those on every platform")
+
     record("no cross-platform harness file hardcodes a POSIX-only device path (F3)",
            not posix_only,
            "; ".join(posix_only) if posix_only else

@@ -33,6 +33,17 @@ if [ -z "$PY_BIN" ]; then
     exit 1
 fi
 export PYTHON="$PY_BIN"
+# psql is a NATIVE program, so a POSIX device path handed to it as an ARGUMENT is passed
+# through verbatim — Git Bash rewrites paths in redirections it performs itself, not in
+# arguments to the program it launches. On Windows psql then fails to open the file and
+# ON_ERROR_STOP aborts the driver. This is the same defect os.devnull fixed in
+# tests/m1a/pg.py; it survived here because the bash drivers had never been run on
+# Windows, only the Python entry points.
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) NULL_DEVICE="NUL" ;;
+    *)                    NULL_DEVICE="/dev/null" ;;
+esac
+
 
 PGHOST_DIR="${PGHOST_DIR:-/var/lib/m1apg/run}"
 PGPORT="${PGPORT:-5433}"
@@ -89,7 +100,7 @@ psql "$M1A_ADMIN_DSN" -v ON_ERROR_STOP=1 -q \
 
 echo
 echo "=== 2. Seed populated fixtures through the application role ==="
-psql "$M1A_APP_DSN" -v ON_ERROR_STOP=1 -q -o /dev/null -f "$REPO/tests/m1a/fixtures.sql"
+psql "$M1A_APP_DSN" -v ON_ERROR_STOP=1 -q -o "$NULL_DEVICE" -f "$REPO/tests/m1a/fixtures.sql"
 echo "fixtures seeded (two tenants, two sibling outlets, depth 3)"
 
 echo

@@ -29,23 +29,6 @@ if [ -z "$PY_BIN" ]; then
 fi
 export PYTHON="$PY_BIN"
 
-# The interpreter is named differently per platform, and the harness must not assume the
-# POSIX one. A standard Windows Python installs python.exe and no python3.exe, and the
-# python3.exe usually on a Windows PATH is the zero-byte Microsoft Store alias, which runs
-# nothing — tools/check_prerequisites.py already refuses that one by name. Resolving here
-# means the documented Windows path runs these drivers rather than a hand-copied subset.
-PY_BIN="${PYTHON:-}"
-if [ -z "$PY_BIN" ]; then
-    if command -v "$PY_BIN" >/dev/null 2>&1 && "$PY_BIN" -c "" >/dev/null 2>&1; then
-        PY_BIN=python3
-    elif command -v python >/dev/null 2>&1 && python -c "" >/dev/null 2>&1; then
-        PY_BIN=python
-    else
-        echo "FAIL PREREQUISITE_ABSENT: no runnable "$PY_BIN" or python on PATH" >&2
-        exit 1
-    fi
-fi
-export PYTHON="$PY_BIN"
 
 
 bash "$REPO/tests/m1d/run_verification.sh"
