@@ -39,6 +39,14 @@ from fenced import (  # noqa: E402
 )
 
 ENV = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+
+
+class VerifierUnreadable(RuntimeError):
+    """The verifier ran but its output could not be read.
+
+    Raised rather than returned, so a caller cannot mistake "nothing was captured" for
+    "nothing was found" — the same fail-closed rule pg.count() follows.
+    """
 results: list[tuple[str, bool, str]] = []
 
 
@@ -103,7 +111,20 @@ def run_verifier(repo: Path, report: Path | None = None) -> tuple[int, str, str]
     command = [sys.executable, str(repo / "tools" / "verify_m1.py"), "--repo", str(repo)]
     if report is not None:
         command += ["--json-report", str(report)]
-    proc = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", env=ENV)
+    proc = subprocess.run(command, capture_output=True, text=True, encoding="utf-8",
+                          errors="replace", env=ENV)
+
+    # capture_output=True is supposed to make both streams strings, and on Linux it
+    # always has. On a Windows runner one of them came back as None, and the caller —
+    # which reasonably assumed a string — died with an AttributeError three frames away
+    # from the cause. A helper that returns something its callers cannot use should say
+    # so itself, in the terms of what it was asked to do.
+    if proc.stdout is None or proc.stderr is None:
+        raise VerifierUnreadable(
+            f"the verifier ran (exit {proc.returncode}) but its output could not be "
+            f"captured: stdout is {type(proc.stdout).__name__}, stderr is "
+            f"{type(proc.stderr).__name__}. Every assertion downstream reads one of "
+            f"those, so this is reported rather than passed on.")
     return proc.returncode, proc.stdout, proc.stderr
 
 
@@ -272,10 +293,15 @@ def main() -> int:
     print("Fenced-domain gate verification — repair P1-01")
     print("vocabulary loaded from the pinned package; no fenced term appears in this suite\n")
 
-    section_provenance()
-    section_fail_closed()
-    section_every_term()
-    section_domain_mutations()
+    # A section whose verifier output could not be read is a recorded FAILURE, not a
+    # traceback. The suite still reports a verdict — a failing one, which is the correct
+    # verdict for a section whose evidence could not be gathered.
+    for section in (section_provenance, section_fail_closed,
+                    section_every_term, section_domain_mutations):
+        try:
+            section()
+        except VerifierUnreadable as error:
+            record(f"{section.__name__} completed", False, str(error))
 
     failed = [n for n, ok, _ in results if not ok]
     print("\n" + "=" * 74)
