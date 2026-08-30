@@ -64,6 +64,7 @@ SUITE_PURPOSE = {
     "m1b": "identity, memberships, sessions, step-up authentication",
     "m1c": "configuration, audit, money exactness, numbering, retention",
     "m1d": "the running API, security controls, operations, evidence",
+    "m2a": "menu structure, pricing, availability, dayparts, translation storage",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
 }
 
@@ -127,8 +128,20 @@ def build() -> str:
 
     suite_table = ["| Suite | Covers |", "|---|---|"]
     for path in suites:
-        suite_table.append(
-            f"| `{path.relative_to(REPO)}` | {SUITE_PURPOSE.get(path.parent.name, 'verification')} |")
+        # as_posix(), not str(): this file is checksum-locked and CI regenerates it to
+        # compare byte for byte. str() on a Windows Path yields backslashes, so the
+        # README a Windows run produced differed from the committed one in every suite
+        # row — a generated artefact must not record which platform generated it.
+        relative = path.relative_to(REPO).as_posix()
+        # A suite with no description used to render as the word "verification", which
+        # reads like a description and is not one. M2-A landed and said exactly that for
+        # a gate, unnoticed, because a default filled the hole. Missing text is a fault
+        # in this generator, not a row.
+        if path.parent.name not in SUITE_PURPOSE:
+            raise SystemExit(
+                f"FAIL SUITE_UNDESCRIBED: {relative} has no entry in SUITE_PURPOSE. Add "
+                f"one; the README must say what a suite covers, not that it verifies.")
+        suite_table.append(f"| `{relative}` | {SUITE_PURPOSE[path.parent.name]} |")
 
     substitutions = {
         # The milestone is read from the last slice that landed, not written here. It said

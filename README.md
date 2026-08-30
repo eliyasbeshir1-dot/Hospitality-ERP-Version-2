@@ -113,7 +113,7 @@ bash tests/m1d/run_verification.sh         # rebuilds from empty, runs every sli
 | `tests/m1b/verify_m1b.py` | identity, memberships, sessions, step-up authentication |
 | `tests/m1c/verify_m1c.py` | configuration, audit, money exactness, numbering, retention |
 | `tests/m1d/verify_m1d.py` | the running API, security controls, operations, evidence |
-| `tests/m2a/verify_m2a.py` | verification |
+| `tests/m2a/verify_m2a.py` | menu structure, pricing, availability, dayparts, translation storage |
 
 Every suite runs against a real PostgreSQL through the least-privileged application role,
 and every negative control is proved red with a defect planted before it is trusted green.
