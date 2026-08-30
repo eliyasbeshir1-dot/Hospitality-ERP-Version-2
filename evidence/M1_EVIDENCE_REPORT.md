@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `bad3cb50dcb9eb39ee90023d382e410cad71bcaa` |
-| Short | `bad3cb5` |
+| Commit | `5c3e1ec999777953322c999c9cc4d4610415c9c2` |
+| Short | `5c3e1ec` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation |
@@ -326,7 +326,7 @@ Neither survives a restart, and running two instances doubles the effective allo
 readiness payload reports `rateLimiting.scope: singleInstance` so no operator can mistake
 it for more. **Distributed enforcement is M6 infrastructure and is not claimed at M1.**
 
-### The currency-pairing check is vacuous at M1
+### The currency-pairing check was vacuous at M1, and is live from M2-A
 
 `money.assert_currency_paired()` reports any `money.amount_minor` column with no
 `currency_code` beside it. **No M1 table holds money**, so it examines an empty population
@@ -337,9 +337,14 @@ Migration 0005 adds `money.currency_pairing_population()` so "zero offenders" an
 to check" are distinguishable, and the M1-C suite asserts the vacuity explicitly rather
 than passing quietly. The mechanism is proved separately against a real column, created
 and dropped inside a rolled-back transaction: a bare amount column is reported, and adding
-`currency_code` beside it clears the report. **It becomes live at M4**, when checks, bills
-and payments introduce the first stored amounts. This is not covered by the
-`money.currency` exception above.
+`currency_code` beside it clears the report. This is not covered by the `money.currency`
+exception above.
+
+**Closed at M2-A**, earlier than the M4 this section originally predicted: `menu.price`
+and `menu.publication_snapshot_line` were the first stored amounts, and M2-B added
+`service.cart_line`. The population is no longer empty, the check examines real columns
+and reports zero offenders, and the M1-C assertion was rewritten from "this is vacuous" to
+a population-relative form so it could go on being true once it stopped being vacuous.
 
 ### Windows execution: verified by running it
 
@@ -366,10 +371,15 @@ Bash, npm's extensionless `tsc`, a `python3` requirement no standard Windows ins
 satisfy, a POSIX-only temporary path, and a service start window too tight for a cold
 start. That is the argument for executing a documented path rather than reasoning about it.
 
-**What is still not claimed.** These are the versions above, on one machine. The suites do
-not run on Windows in CI, so Windows is verified by execution but **not guarded against
-regression** by it: a Windows defect introduced tomorrow would not be caught until someone
-runs the suites there again.
+**Guarded from M2-A.** A `windows-latest` job now runs every suite on every push, so
+Windows is no longer verified once and trusted afterwards. Standing that job up found
+three more defects that the one-off run had not: a resolver that chose bash by where git
+was installed rather than by what that bash could open — and then reported the WSL
+launcher as the cause without ever having checked; a harness that proved it had stored
+Amharic and then died with `UnicodeEncodeError` reporting it, because Python takes its
+stdout encoding from the platform and cp1252 has no code point for it; and a generated
+README that recorded which platform generated it, `str(Path)` being backslash-separated on
+Windows. Ten Windows defects in total, none of which Linux could expose.
 
 ### Windows commands are documented and executed
 
