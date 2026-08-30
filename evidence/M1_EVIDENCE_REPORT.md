@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `63d061a49e3d58c07125355930bcebe4b1e7cfc4` |
-| Short | `63d061a` |
+| Commit | `bad3cb50dcb9eb39ee90023d382e410cad71bcaa` |
+| Short | `bad3cb5` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation |
@@ -45,6 +45,8 @@ Ordered, forward-only and checksum-locked. An edited applied migration fails pre
 | `0004` | `0004_readiness_provenance_grants.sql` | `1f01ff0de17b3ded…` | applied |
 | `0005` | `0005_security_event_storage_allocation_and_context.sql` | `da7ad17299fd496a…` | applied |
 | `0006` | `0006_menu_pricing_availability_and_translation.sql` | `54887df68eb1c25b…` | applied |
+| `0007` | `0007_safety_and_retention_enum_extensions.sql` | `037c6307c777e914…` | applied |
+| `0008` | `0008_tables_qr_guest_sessions_and_allergen_safety.sql` | `94896d1c525e8ffb…` | applied |
 
 ## Seeds applied
 
@@ -63,7 +65,7 @@ least-privileged application role.
 | Schema | Tables | RLS enabled | RLS forced |
 |---|---:|---:|---:|
 | `audit` | 2 | 2 | 2 |
-| `config` | 8 | 8 | 8 |
+| `config` | 9 | 8 | 8 |
 | `identity` | 17 | 17 | 17 |
 | `money` | 1 | 0 | 0 |
 | `org` | 5 | 5 | 5 |
@@ -79,8 +81,10 @@ Money is stored as integer minor units beside an explicit currency.
 | M1-B identity and authentication | **PASS** | 35 | 0 |
 | M1-C configuration, audit, money | **PASS** | 60 | 0 |
 | M1-D API, security, operations | **PASS** | 49 | 0 |
+| M2-A menu, pricing, translation storage | **PASS** | 75 | 0 |
+| M2-B tables, QR, guests, allergen safety | **PASS** | 107 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
-| **Total** | | **222** | |
+| **Total** | | **404** | |
 
 ## Negative controls
 
@@ -112,6 +116,76 @@ a coverage gap wearing a green badge, and CI fails the build when one is missing
 | `NC-M1D-006` | Route served without context | `ROUTE_SERVED_WITHOUT_CONTEXT` | red, then green |
 | `NC-M1D-007` | Readiness reads a stale role snapshot | `READINESS_GREEN_WITH_PRIVILEGED_ROLE` | red, then green |
 | `NC-M1D-008` | Readiness discloses deployment detail | `READINESS_DISCLOSES_DEPLOYMENT_DETAIL` | red, then green |
+| `NC-M2A-001` | Snapshot mutated after publish | `IMMUTABLE_SNAPSHOT_ALTERED` | red, then green |
+| `NC-M2A-002` | Inexact or currency-less price | `INEXACT_PRICE_TYPE_ACCEPTED` | red, then green |
+| `NC-M2A-003` | Availability discloses a figure | `EXACT_QUANTITY_DISCLOSED` | red, then green |
+| `NC-M2A-004` | Publish with a locale missing | `REQUIRED_TRANSLATION_MISSING` | red, then green |
+| `NC-M2A-005` | Daypart in server time | `WRONG_DAYPART_AT_BOUNDARY` | red, then green |
+| `NC-M2-001` | QR reference enumerable | `ENUMERABLE_QR_REFERENCE` | red, then green |
+| `NC-M2-002` | Foreign session accepted | `FOREIGN_SESSION_ACCEPTED` | red, then green |
+| `NC-M2-003` | Publish with safety text missing | `REQUIRED_SAFETY_TRANSLATION_MISSING` | red, then green |
+| `NC-M2B-004` | Allergen conveyed by icon alone | `WRITTEN_WARNING_ABSENT` | red, then green |
+| `NC-M2B-005` | Declaration not re-evaluated | `STALE_DECLARATION_SERVED` | red, then green |
+| `NC-M2B-006` | Stale QR joins a later occupancy | `STALE_SESSION_ADMITTED` | red, then green |
+| `NC-M2B-007` | Ownership moved without acknowledgement | `OWNERSHIP_TRANSFERRED_SILENTLY` | red, then green |
+| `NC-M2B-008` | Pinned reference readable by display | `AUDIT_REFERENCE_DISCLOSED_TO_DISPLAY` | red, then green |
+| `NC-M2B-009` | Correction withheld from a published menu | `CORRECTION_WITHHELD_FROM_PUBLISHED_MENU` | red, then green |
+| `NC-M2B-010` | Archive policy deletes instead | `ARCHIVE_POLICY_DELETED_ROWS` | red, then green |
+
+## Design decision: a price is pinned, an allergen is not (M2-B)
+
+Recorded here because M3 and M4 both inherit it, and because the reasoning is not obvious
+from either half on its own.
+
+`menu.publication_snapshot` exists so that a price cannot be argued about after the fact.
+It is append-only twice over, it carries a digest of its own lines, and an M3 order will
+reference it as evidence of what the guest agreed to pay. Extending the same treatment to
+allergen text would have been the natural symmetry, and it would have been a safety
+defect:
+
+- **A price must be what was AGREED.** It is fixed at publication and does not move. If
+  the kitchen raises the price of a dish this afternoon, a guest reading a menu published
+  this morning is still owed the morning's price.
+- **An allergen must be what is TRUE.** It is resolved live, on every read, from the
+  declarations that are open at that moment. If the kitchen discovers this afternoon that
+  a dish contains sesame, a guest reading the menu published this morning must be told —
+  immediately, without a republication step, and whether or not anyone remembers to
+  perform one.
+
+So `menu.published_menu_for_guest()` reads name and price from the snapshot line and
+allergens from `safety.selection_safety()`, which computes from `safety.declaration` rows
+whose `effective_to` is still NULL. There is no materialized view, no cache table and no
+resolved-set column anywhere in the safety schema: a stored answer that does not move when
+its inputs move is a safety defect rather than a caching bug, so the answer is not stored.
+
+What IS recorded at publication is `safety.declaration_reference` — which declaration
+version was in force at that moment — so a later dispute can establish what the kitchen
+believed then. That table is deliberately unreadable by the application role, which holds
+INSERT on it and nothing else, and no function other than `menu.publish_menu()` names it.
+A pinned value that a display path can read becomes a cache the first time that path is
+under deadline. The snapshot's content digest deliberately does not cover these rows
+either: binding it to a safety state would make correcting an allergen look like tampering.
+
+Two negative controls hold this in place. `NC-M2B-009` publishes a menu, corrects a
+declaration afterwards, reads the EARLIER snapshot as a guest and requires the new text —
+and in the same probe raises the live price and requires the published price NOT to move.
+`NC-M2B-008` requires the pinned reference to be unreachable from any display path, so the
+convenience that would undo all of this is not available to reach for.
+
+## Repaired: retention ignored the action it was told to perform (M1-C, found at M2-B)
+
+`config.retention_action` offered `archive` and `purge`; `config.retention_policy` stored
+the tenant's choice; and `config.apply_retention()` executed `DELETE` for both. A tenant
+that configured archival had its rows destroyed, and the sweep reported success. The
+action was recorded and then ignored, which is data loss presenting as correct operation.
+
+Found while wiring guest-session anonymization to the engine rather than building a second
+one. The repair honours the action: `purge` deletes, `anonymize` empties the columns
+`config.anonymization_rule` names and stamps the row, and `archive` refuses with
+`RETENTION_ACTION_UNIMPLEMENTED` because Phase 1 has no archive store. Refusing is the
+honest answer to being asked for something that does not exist; deleting the rows a tenant
+asked to keep is the worst one. Proved by `NC-M2B-010`, whose planted defect is the
+original M1-C function body.
 
 ## Repaired: the fenced gate was not authoritative (P1-01)
 
