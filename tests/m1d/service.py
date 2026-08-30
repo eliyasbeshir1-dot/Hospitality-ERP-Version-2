@@ -17,6 +17,7 @@ import shutil
 import signal
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.error
@@ -24,7 +25,12 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent / "m1a"))
+
+from pg import CommandUnreadable, run_command  # noqa: E402
+
+REPO = HERE.parents[1]
 WORKSPACE = Path(os.environ.get("M1D_WORKSPACE", "/var/lib/m1d-workspace"))
 
 WINDOWS = os.name == "nt"
@@ -34,9 +40,8 @@ WINDOWS = os.name == "nt"
 # characters: the repository path arrived at bash with every separator eaten and the build
 # died on a filename that was never on disk. as_posix() is identical to str() on Linux, so
 # this changes nothing on the CI runner.
-ENV = {**os.environ,
-       "PYTHONDONTWRITEBYTECODE": "1",
-       "M1D_WORKSPACE": WORKSPACE.as_posix()}
+ENV_OVERRIDES = {"M1D_WORKSPACE": WORKSPACE.as_posix()}
+ENV = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", **ENV_OVERRIDES}
 
 # npm publishes two entry points in .bin: an extensionless shell script for POSIX and a
 # .cmd shim for Windows. Only the shim is a valid Win32 executable — handing CreateProcess
@@ -48,46 +53,120 @@ TSC = "tsc.cmd" if WINDOWS else "tsc"
 # slower than the default allows.
 READY_TIMEOUT = float(os.environ.get("M1D_READY_TIMEOUT", "60"))
 
+# Resolved once. The discovery below launches child processes to probe, and repeating
+# that on every build and rebuild would charge the suite for an answer that cannot change
+# mid-run.
+_BASH: str | None = None
+
+
+def _bash_candidates() -> "list[Path]":
+    """Every bash this machine offers, in the order worth trying.
+
+    Discovery, not assumption. Three independent routes, because each fails on a
+    different machine: git may be a shim whose own directory holds no bash, PATH may
+    carry a bash that git knows nothing about, and on the GitHub Windows image the
+    directory holding bash is deliberately kept off PATH so it cannot shadow the
+    system tools. Asking git where its own executables live (`git --exec-path`)
+    survives all three, because it is git answering about itself rather than us
+    guessing where it was installed.
+    """
+    roots: list[Path] = []
+
+    exec_path = None
+    try:
+        proc = run_command(["git", "--exec-path"])
+        if proc.returncode == 0 and proc.stdout.strip():
+            exec_path = Path(proc.stdout.strip())
+    except (CommandUnreadable, OSError):
+        exec_path = None
+
+    for anchor in (exec_path, Path(shutil.which("git")) if shutil.which("git") else None):
+        if anchor is None:
+            continue
+        # .../Git/cmd/git.exe, .../Git/bin/git.exe and
+        # .../Git/mingw64/libexec/git-core all reach the install root by walking up.
+        for parent in [anchor, *anchor.parents][:6]:
+            roots.append(parent)
+
+    candidates: list[Path] = []
+    for root in roots:
+        for relative in ("bin/bash.exe", "usr/bin/bash.exe"):
+            candidate = root / relative
+            if candidate.is_file() and candidate not in candidates:
+                candidates.append(candidate)
+
+    on_path = shutil.which("bash")
+    if on_path and Path(on_path) not in candidates:
+        # Kept last, and still probed rather than trusted: on Windows this is usually
+        # C:\WINDOWS\system32\bash.exe, the WSL launcher, which the probe rejects.
+        candidates.append(Path(on_path))
+    return candidates
+
+
+def _sees_this_filesystem(bash: "Path | str") -> bool:
+    """Can this bash open the very file it is about to be asked to run?
+
+    The WSL launcher is a real bash on a real filesystem — just not this one. It is
+    excluded by what it can reach, not by where it is installed, because a name is not
+    a capability and the path spelling of a shell says nothing about the volume it
+    mounts. This is the exact question the build depends on, asked directly.
+    """
+    build = (REPO / "api" / "build.sh").as_posix()
+    try:
+        proc = run_command([str(bash), "-c", 'test -f "$1"', "probe", build])
+    except (CommandUnreadable, OSError):
+        return False
+    return proc.returncode == 0
+
 
 def bash_executable() -> str:
     """The bash that shares this process's filesystem, discovered rather than assumed.
 
-    On Windows, plain "bash" resolves to C:\\WINDOWS\\system32\\bash.exe — the WSL launcher.
-    That is a different operating system with a different filesystem view (/mnt/c/...), its
-    own node and its own npm. It cannot open a C:/ path at all, and if it could, the build
-    under test would no longer be the Windows build. Git for Windows is already a required
-    prerequisite, so its bash is located from the git on PATH and used deliberately.
+    On Windows, plain "bash" resolves to C:\\WINDOWS\\system32\\bash.exe — the WSL
+    launcher. That is a different operating system with a different filesystem view
+    (/mnt/c/...), its own node and its own npm. It cannot open a C:/ or D:/ path at
+    all, and if it could, the build under test would no longer be the Windows build.
 
-    Absence is reported by name rather than silently falling back to WSL (FR-OPS-021).
+    Absence is reported with the full list of what was examined, so the next reader
+    learns which candidates this machine actually offered rather than being told a
+    cause the code never checked (FR-OPS-021).
     """
+    global _BASH
+    if _BASH is not None:
+        return _BASH
     if not WINDOWS:
-        return "bash"
-    git = shutil.which("git")
-    if git:
-        # .../Git/cmd/git.exe and .../Git/bin/git.exe both sit one level under the root.
-        for candidate in (Path(git).parents[1] / "bin" / "bash.exe",
-                          Path(git).parents[1] / "usr" / "bin" / "bash.exe"):
-            if candidate.is_file():
-                return str(candidate)
+        _BASH = "bash"
+        return _BASH
+
+    examined: list[str] = []
+    for candidate in _bash_candidates():
+        if _sees_this_filesystem(candidate):
+            _BASH = str(candidate)
+            return _BASH
+        examined.append(f"{candidate} (cannot open {(REPO / 'api' / 'build.sh').as_posix()})")
+
     raise RuntimeError(
-        "PREREQUISITE_ABSENT: no Git Bash found. The API build is a bash script and the "
-        "only bash on PATH is the WSL launcher, which cannot see this filesystem. "
-        "Install Git for Windows (winget install Git.Git).")
+        "PREREQUISITE_ABSENT: no bash on this machine can see this filesystem. The API "
+        "build is a bash script and must run against the Windows volume the repository "
+        "is checked out on. Install Git for Windows (winget install Git.Git). "
+        + (f"Examined: {'; '.join(examined)}." if examined
+           else "No bash executable was found at all: neither git --exec-path nor PATH "
+                "led to one."))
 
 
 def sync_and_build() -> None:
     """Copy source from the repository into the workspace and compile it."""
-    proc = subprocess.run([bash_executable(), (REPO / "api" / "build.sh").as_posix()],
-                          capture_output=True, text=True, encoding="utf-8", env=ENV)
+    proc = run_command([bash_executable(), (REPO / "api" / "build.sh").as_posix()],
+                       extra_env=ENV_OVERRIDES)
     if proc.returncode != 0:
         raise RuntimeError(f"build failed: {proc.stderr.strip() or proc.stdout.strip()}")
 
 
 def compile_only() -> None:
     """Recompile whatever is in the workspace, without re-copying from the repository."""
-    proc = subprocess.run([str(WORKSPACE / "node_modules" / ".bin" / TSC),
-                           "-p", str(WORKSPACE / "tsconfig.json")],
-                          capture_output=True, text=True, encoding="utf-8", cwd=WORKSPACE, env=ENV)
+    proc = run_command([str(WORKSPACE / "node_modules" / ".bin" / TSC),
+                        "-p", str(WORKSPACE / "tsconfig.json")],
+                       cwd=str(WORKSPACE), extra_env=ENV_OVERRIDES)
     if proc.returncode != 0:
         raise RuntimeError(f"compile failed: {proc.stdout.strip() or proc.stderr.strip()}")
 
