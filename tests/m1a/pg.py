@@ -164,3 +164,37 @@ def count_or(dsn: str, sql: str, fallback: int, **ctx) -> int:
         return count(dsn, sql, **ctx)
     except ProbeFailed:
         return fallback
+
+
+class CommandUnreadable(RuntimeError):
+    """A child process ran, but its output could not be read.
+
+    subprocess.run(capture_output=True) is documented to return strings for both
+    streams, and on Linux it always has. On a Windows runner one came back as None and
+    the caller — reasonably assuming a string — died with a TypeError several frames
+    from the cause, naming nothing useful.
+
+    Raised rather than returned, and never swallowed: a command whose output cannot be
+    read has produced no evidence, and no evidence is not the same as evidence of
+    absence. Same rule count() follows.
+    """
+
+
+def run_command(command: list[str], *, extra_env: dict[str, str] | None = None,
+                cwd: str | None = None) -> subprocess.CompletedProcess:
+    """Run a child process and guarantee its output is readable, or say why it is not.
+
+    Every suite that shells out goes through here, so a platform that breaks stream
+    capture is reported once, by name, at whichever call site hit it — instead of
+    surfacing as a different exception in a different file each time.
+    """
+    proc = subprocess.run(
+        command, capture_output=True, text=True, encoding="utf-8", errors="replace",
+        cwd=cwd, env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1", **(extra_env or {})},
+    )
+    if proc.stdout is None or proc.stderr is None:
+        raise CommandUnreadable(
+            f"{command[0]} ran (exit {proc.returncode}) but its output could not be "
+            f"captured: stdout is {type(proc.stdout).__name__}, stderr is "
+            f"{type(proc.stderr).__name__}. Command: {' '.join(map(str, command))[:200]}")
+    return proc

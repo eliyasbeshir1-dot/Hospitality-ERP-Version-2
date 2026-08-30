@@ -32,7 +32,7 @@ from gates import (
     rls_sibling_outlet_gate, runtime_role_gate,
 )
 from fenced import fenced_identifier_pattern  # noqa: E402
-from pg import ProbeFailed, count, run  # noqa: E402
+from pg import CommandUnreadable, ProbeFailed, count, run, run_command  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[2]
 MIGRATION = REPO / "migrations" / "0001_organizational_model_and_rls.sql"
@@ -55,12 +55,13 @@ def record(name: str, ok: bool, detail: str) -> None:
 
 
 def migrate(dsn: str, command: str) -> subprocess.CompletedProcess:
-    return subprocess.run(
+    # run_command guarantees both streams are readable or raises with the reason. The
+    # assertions below read proc.stderr for a signature; on Windows that came back as
+    # None and this function returned it anyway, so the failure surfaced as a TypeError
+    # at the call site rather than as a named fault here.
+    return run_command(
         [sys.executable, str(REPO / "tools" / "migrate.py"), "--dsn", dsn,
-         "--migrations", str(REPO / "migrations"), command],
-        capture_output=True, text=True, encoding="utf-8",
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
-    )
+         "--migrations", str(REPO / "migrations"), command])
 
 
 # ===========================================================================
@@ -585,6 +586,8 @@ def main() -> int:
             section()
         except ProbeFailed as exc:
             record(f"{section.__name__} completed", False, f"probe did not execute: {exc}")
+        except CommandUnreadable as exc:
+            record(f"{section.__name__} completed", False, f"command output unreadable: {exc}")
 
     failed = [name for name, ok, _ in results if not ok]
     print("\n" + "=" * 74)

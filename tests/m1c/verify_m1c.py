@@ -24,7 +24,7 @@ sys.path.insert(0, str(HERE.parent / "m1a"))
 sys.path.insert(0, str(HERE.parent))
 
 from fenced import fenced_identifier_pattern, representative_term  # noqa: E402
-from pg import count, run  # noqa: E402
+from pg import CommandUnreadable, count, run, run_command  # noqa: E402
 
 ADMIN = os.environ["M1A_ADMIN_DSN"]
 APP = os.environ["M1A_APP_DSN"]
@@ -89,11 +89,9 @@ def ensure_seeds() -> None:
     # legitimate `seed.py apply` re-applies and collides on a primary key — and the
     # environment has no provenance for the data it holds, which is the whole reason the
     # runner exists.
-    proc = subprocess.run(
+    proc = run_command(
         [sys.executable, str(REPO / "tools" / "seed.py"),
-         "--dsn", MIGRATOR, "--content-dsn", APP, "--seeds", str(REPO / "seeds"), "apply"],
-        capture_output=True, text=True, encoding="utf-8",
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+         "--dsn", MIGRATOR, "--content-dsn", APP, "--seeds", str(REPO / "seeds"), "apply"])
     if proc.returncode != 0:
         raise RuntimeError(f"seeding failed: {proc.stderr.strip() or proc.stdout.strip()}")
 
@@ -844,11 +842,9 @@ def section_catalog() -> None:
     print("\n--- 9. Schema documentation (FR-DAT-015) ---")
 
     catalog = REPO / "schema" / "SCHEMA_CATALOG.md"
-    proc = subprocess.run(
+    proc = run_command(
         [sys.executable, str(REPO / "tools" / "generate_schema_catalog.py"),
-         "--dsn", ADMIN, "--check", str(catalog)],
-        capture_output=True, text=True, encoding="utf-8",
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+         "--dsn", ADMIN, "--check", str(catalog)])
     record("the committed schema catalog matches the live schema", proc.returncode == 0,
            (proc.stdout.strip() or proc.stderr.strip()).splitlines()[0] if (proc.stdout or proc.stderr) else "")
 
@@ -1011,16 +1007,16 @@ def main() -> int:
     ensure_seeds()
     print("seeds present: two branded tenants, three outlets, ten reason-code categories")
 
-    section_money()
-    section_audit()
-    section_configuration()
-    section_reason_codes()
-    section_entitlements()
-    section_numbering()
-    section_seeds()
-    section_retention()
-    section_catalog()
-    section_controls()
+    # A command whose output could not be read has produced no evidence, and no
+    # evidence is not evidence of absence. Recorded as a failure, never a traceback.
+    for section in (section_money, section_audit, section_configuration,
+                    section_reason_codes, section_entitlements, section_numbering,
+                    section_seeds, section_retention, section_catalog, section_controls):
+        try:
+            section()
+        except CommandUnreadable as exc:
+            record(f"{section.__name__} completed", False,
+                   f"command output unreadable: {exc}")
 
     failed = [n for n, ok, _ in results if not ok]
     print("\n" + "=" * 74)

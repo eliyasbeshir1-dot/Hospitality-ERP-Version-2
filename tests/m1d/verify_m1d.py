@@ -29,7 +29,7 @@ sys.path.insert(0, str(HERE.parent / "m1a"))
 sys.path.insert(0, str(HERE.parent))
 
 from fenced import representative_term  # noqa: E402
-from pg import count, run  # noqa: E402
+from pg import CommandUnreadable, count, run, run_command  # noqa: E402
 from service import Service, patch_workspace, sync_and_build  # noqa: E402
 
 ADMIN = os.environ["M1A_ADMIN_DSN"]
@@ -70,11 +70,9 @@ def ensure_seeds() -> None:
     present = count(ADMIN, f"SELECT count(*) FROM org.tenant WHERE id = '{TENANT_HABESHA}';")
     if present == 1:
         return
-    proc = subprocess.run(
+    proc = run_command(
         [sys.executable, str(REPO / "tools" / "seed.py"), "--dsn", MIGRATOR,
-         "--content-dsn", APP, "--seeds", str(REPO / "seeds"), "apply"],
-        capture_output=True, text=True, encoding="utf-8",
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+         "--content-dsn", APP, "--seeds", str(REPO / "seeds"), "apply"])
     if proc.returncode != 0:
         raise RuntimeError(f"seeding failed: {proc.stderr.strip() or proc.stdout.strip()}")
 
@@ -339,31 +337,25 @@ def seed_lock_gate() -> tuple[bool, str, str]:
     problems: list[str] = []
     try:
         seed.write_bytes(original + b"\n-- deliberate edit to an applied seed\n")
-        proc = subprocess.run(
+        proc = run_command(
             [sys.executable, str(REPO / "tools" / "seed.py"), "--dsn", MIGRATOR,
-             "--content-dsn", APP, "--seeds", str(REPO / "seeds"), "preflight"],
-            capture_output=True, text=True, encoding="utf-8",
-            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+             "--content-dsn", APP, "--seeds", str(REPO / "seeds"), "preflight"])
         if proc.returncode == 0:
             problems.append("preflight accepted a seed edited after it was applied")
         elif "SEED_CHECKSUM_MISMATCH" not in proc.stderr:
             problems.append("the edited seed was refused, but not on its checksum")
 
-        apply_proc = subprocess.run(
+        apply_proc = run_command(
             [sys.executable, str(REPO / "tools" / "seed.py"), "--dsn", MIGRATOR,
-             "--content-dsn", APP, "--seeds", str(REPO / "seeds"), "apply"],
-            capture_output=True, text=True, encoding="utf-8",
-            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+             "--content-dsn", APP, "--seeds", str(REPO / "seeds"), "apply"])
         if apply_proc.returncode == 0:
             problems.append("apply proceeded while the seed history was broken")
     finally:
         seed.write_bytes(original)
 
-    ok_proc = subprocess.run(
+    ok_proc = run_command(
         [sys.executable, str(REPO / "tools" / "seed.py"), "--dsn", MIGRATOR,
-         "--content-dsn", APP, "--seeds", str(REPO / "seeds"), "preflight"],
-        capture_output=True, text=True, encoding="utf-8",
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+         "--content-dsn", APP, "--seeds", str(REPO / "seeds"), "preflight"])
     if ok_proc.returncode != 0:
         problems.append("preflight still failed after the seed was restored")
 
@@ -586,15 +578,13 @@ def section_cross_platform() -> None:
            f"{doc.relative_to(REPO)} lists the Windows and Linux equivalents")
 
     probe = REPO / "tools" / "check_prerequisites.py"
-    proc = subprocess.run([sys.executable, str(probe)], capture_output=True, text=True, encoding="utf-8",
-                          env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+    proc = run_command([sys.executable, str(probe)])
     record("tool discovery runs and reports every prerequisite",
            proc.returncode == 0 and "PASS PREREQUISITES" in proc.stdout,
            (proc.stdout.strip().splitlines() or [""])[0])
 
-    missing = subprocess.run([sys.executable, str(probe), "--require", "a_binary_that_is_not_installed"],
-                             capture_output=True, text=True, encoding="utf-8",
-                             env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+    missing = run_command([sys.executable, str(probe),
+                           "--require", "a_binary_that_is_not_installed"])
     record("a missing tool fails clearly rather than mysteriously",
            missing.returncode != 0 and "PREREQUISITE_ABSENT" in missing.stderr,
            "the failure names the tool, where it was looked for, and how to install it")
@@ -768,12 +758,16 @@ def main() -> int:
     TOKENS["nile"] = issue_session(TENANT_NILE, OUTLET_N1, USER_NILE, "M1D_VERIFIER")
     print("build synchronised; two sessions minted, digests only")
 
-    section_api_surface()
-    section_validation_and_injection()
-    section_rate_limiting()
-    section_secrets_and_neutrality()
-    section_cross_platform()
-    section_evidence()
+    # A command whose output could not be read has produced no evidence, and no evidence
+    # is not evidence of absence. Recorded as a failure, never a traceback.
+    for section in (section_api_surface, section_validation_and_injection,
+                    section_rate_limiting, section_secrets_and_neutrality,
+                    section_cross_platform, section_evidence):
+        try:
+            section()
+        except CommandUnreadable as exc:
+            record(f"{section.__name__} completed", False,
+                   f"command output unreadable: {exc}")
 
     print("\n--- 7a. Gates that the controls exercise ---")
     for name, gate in (
@@ -787,7 +781,10 @@ def main() -> int:
         ok, sig, detail = gate()
         record(name, ok, detail if ok else f"{sig}: {detail}")
 
-    section_controls()
+    try:
+        section_controls()
+    except CommandUnreadable as exc:
+        record("section_controls completed", False, f"command output unreadable: {exc}")
 
     failed = [n for n, ok, _ in results if not ok]
     print("\n" + "=" * 74)
