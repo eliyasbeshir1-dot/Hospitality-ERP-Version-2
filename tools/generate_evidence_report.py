@@ -135,6 +135,13 @@ CONTROLS = [
     ("NC-M2B-008", "Pinned reference readable by display", "AUDIT_REFERENCE_DISCLOSED_TO_DISPLAY", "m2b"),
     ("NC-M2B-009", "Correction withheld from a published menu", "CORRECTION_WITHHELD_FROM_PUBLISHED_MENU", "m2b"),
     ("NC-M2B-010", "Archive policy deletes instead", "ARCHIVE_POLICY_DELETED_ROWS", "m2b"),
+    ("NC-M2-004", "Arabic does not lay out right-to-left", "RTL_LAYOUT_OR_READING_ORDER_FAILURE", "m2c"),
+    ("NC-M2C-005", "Icon rendered without its warning", "WRITTEN_WARNING_ABSENT_FROM_RENDER", "m2c"),
+    ("NC-M2C-006", "State told by colour alone", "STATE_CONVEYED_BY_COLOUR_ALONE", "m2c"),
+    ("NC-M2C-007", "Language change loses the basket", "CART_LOST_ON_LOCALE_CHANGE", "m2c"),
+    ("NC-M2C-008", "A locale renders only partly", "INCOMPLETE_LOCALE_RENDER", "m2c"),
+    ("NC-M2C-009", "Retry commits a second time", "DUPLICATE_COMMITMENT_ON_RETRY", "m2c"),
+    ("NC-M2C-010", "Chosen locale not recorded", "LOCALE_SNAPSHOT_ABSENT", "m2c"),
 ]
 
 
@@ -143,8 +150,10 @@ def control_state(logs: Path, control: str, suite: str) -> str:
     if not path.exists():
         return "not run"
     text = path.read_text(encoding="utf-8", errors="ignore")
-    red = f"[PASS] {control} — RED" in text
-    green = f"[PASS] {control} — GREEN" in text
+    # M2-C prefixes each result with whether its evidence was measured in a browser or
+    # asserted from source, so the marker is no longer directly after "[PASS] ".
+    red = re.search(rf"\[PASS\] (?:\([a-z]+\) )?{re.escape(control)} — RED", text) is not None
+    green = re.search(rf"\[PASS\] (?:\([a-z]+\) )?{re.escape(control)} — GREEN", text) is not None
     if red and green:
         return "red, then green"
     if green:
@@ -276,6 +285,7 @@ def build(dsn: str, logs: Path) -> str:
                         ("m1d", "M1-D API, security, operations"),
                         ("m2a", "M2-A menu, pricing, translation storage"),
                         ("m2b", "M2-B tables, QR, guests, allergen safety"),
+                        ("m2c", "M2-C customer surface, rendered"),
                         ("fenced_gate", "Fenced-domain gate, vocabulary and mutations")):
         verdict, ran, failed = suite_result(logs, name)
         if ran.isdigit():

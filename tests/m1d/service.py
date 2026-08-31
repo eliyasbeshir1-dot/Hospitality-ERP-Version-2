@@ -308,6 +308,18 @@ class Service:
     def delete(self, path: str, token: str | None = None, **kw) -> Response:
         return self.request("DELETE", path, token, **kw)
 
+    def restart(self) -> None:
+        """Stop and start again, picking up a rebuilt bundle.
+
+        Added for M2-C. The service reads the customer surface's files once at startup —
+        which is what a server should do — so a rebuilt bundle only reaches a browser
+        after a restart. Additive: nothing in M1-D's own path calls this.
+        """
+        self.stop()
+        if not self.start():
+            raise RuntimeError(f"service did not restart — {self._not_ready}; "
+                               f"log:\n{self.logs()[:2000]}")
+
     def __enter__(self) -> "Service":
         if not self.start():
             raise RuntimeError(f"service did not start — {self._not_ready}; "

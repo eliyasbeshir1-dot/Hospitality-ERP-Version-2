@@ -66,6 +66,8 @@ SUITE_PURPOSE = {
     "m1d": "the running API, security controls, operations, evidence",
     "m2a": "menu structure, pricing, availability, dayparts, translation storage",
     "m2b": "tables, QR, guest sessions, carts, allergens and dietary safety",
+    "m2c": "the customer surface rendered in a real browser: three locales, Arabic "
+           "right-to-left, accessibility and performance budgets",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
 }
 

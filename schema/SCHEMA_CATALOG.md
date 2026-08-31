@@ -130,6 +130,7 @@ graph LR
   service_cart_line["service.cart_line"]
   service_cart_line_modifier["service.cart_line_modifier"]
   service_cart_line_transfer["service.cart_line_transfer"]
+  service_idempotency_key["service.idempotency_key"]
   service_ownership_transfer["service.ownership_transfer"]
   service_qr_placard["service.qr_placard"]
   service_table_qr_token["service.table_qr_token"]
@@ -311,6 +312,8 @@ graph LR
   service_cart_line_transfer --> service_cart_line
   service_guest_session --> org_org_node
   service_guest_session --> org_tenant
+  service_idempotency_key --> org_org_node
+  service_idempotency_key --> org_tenant
   service_ownership_transfer --> config_reason_code
   service_ownership_transfer --> identity_user_account
   service_ownership_transfer --> org_org_node
@@ -2466,6 +2469,7 @@ Row level security: **enabled**, **forced**.
 | `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
 | `expires_at` | `timestamp with time zone` | NOT NULL |  |  |
 | `anonymized_at` | `timestamp with time zone` |  |  |  |
+| `token_hash` | `bytea` |  |  | SHA-256 of the bearer token the browser holds. The token itself is returned once by service.mint_guest_session() and stored nowhere, so a dump of this table lets nobody resume a guest's session (FR-SEC-007). Nullable because M2-B creates guest sessions from the staff side too, and those have no browser to hold anything. |
 
 Constraints:
 
@@ -2475,10 +2479,41 @@ Constraints:
 - `guest_session_pkey` — `PRIMARY KEY (id)`
 - `guest_session_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
 - `guest_session_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `guest_session_token_is_sha256` — `CHECK (((token_hash IS NULL) OR (octet_length(token_hash) = 32)))`
+- `guest_session_token_unique` — `UNIQUE (token_hash)`
 
 Policies:
 
 - `guest_session_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.idempotency_key`
+
+One row per customer write that a browser may retry. The row is claimed BEFORE the work is done and carries the result afterwards, so a retry arriving while the first attempt is still in flight is refused rather than racing it. Nothing at M2-C is committed in the sense M3 and M4 mean, which is exactly why this is the cheap moment to build it: a duplicate cart line is an annoyance and a duplicate payment is not.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `scope` | `text` | NOT NULL |  |  |
+| `idem_key` | `text` | NOT NULL |  |  |
+| `request_digest` | `bytea` | NOT NULL |  |  |
+| `result_id` | `uuid` |  |  |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `idempotency_digest_is_sha256` — `CHECK ((octet_length(request_digest) = 32))`
+- `idempotency_key_not_blank` — `CHECK ((btrim(idem_key) <> ''::text))`
+- `idempotency_key_pkey` — `PRIMARY KEY (tenant_id, scope, idem_key)`
+- `idempotency_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `idempotency_scope_not_blank` — `CHECK ((btrim(scope) <> ''::text))`
+- `idempotency_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `idempotency_key_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
 #### `service.ownership_transfer`
 
@@ -2724,12 +2759,15 @@ Row level security: **enabled**, **forced**.
 | `host_staff_user_id` | `uuid` |  |  |  |
 | `opened_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
 | `closed_at` | `timestamp with time zone` |  |  |  |
+| `customer_locale` | `menu.customer_locale` |  |  | The language the customer explicitly chose, snapshotted for M3's order communications and M4's receipts (FR-I18N-005). Nullable on purpose: no default is written, because a customer who has not chosen has not chosen English. |
+| `customer_locale_selected_at` | `timestamp with time zone` |  |  |  |
 
 Constraints:
 
 - `table_session_closure_consistent` — `CHECK ((((state = 'open'::service.occupancy_state) AND (closed_at IS NULL)) OR ((state = 'closed'::service.occupancy_state) AND (closed_at IS NOT NULL))))`
 - `table_session_host_fk` — `FOREIGN KEY (tenant_id, host_staff_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
 - `table_session_host_named_when_staff_opened` — `CHECK (((opening_source = 'qr_scan'::service.opening_source) OR (host_staff_user_id IS NOT NULL)))`
+- `table_session_locale_snapshot_is_a_choice` — `CHECK (((customer_locale IS NULL) = (customer_locale_selected_at IS NULL)))`
 - `table_session_occupancy_positive` — `CHECK ((occupancy_number > 0))`
 - `table_session_occupancy_unique` — `UNIQUE (tenant_id, table_node_id, occupancy_number)`
 - `table_session_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`

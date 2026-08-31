@@ -2185,7 +2185,7 @@ def section_controls() -> None:
           break_sql="""
               CREATE OR REPLACE FUNCTION menu.published_menu_for_guest(
                   p_tenant_id uuid, p_snapshot_id uuid, p_locale menu.customer_locale)
-              RETURNS TABLE (item_code text, canonical_name text,
+              RETURNS TABLE (item_code text, canonical_name text, display_name text,
                              currency_code char(3), amount_minor money.amount_minor,
                              allergen_kitchen_code text,
                              declaration_class safety.declaration_class,
@@ -2195,7 +2195,8 @@ def section_controls() -> None:
                   -- The defect: the natural symmetry. Allergen text is read from what was
                   -- pinned at publication, exactly as the price is, so a correction made
                   -- afterwards never reaches a guest holding an older link.
-                  SELECT l.item_code, l.canonical_name, l.currency_code, l.amount_minor,
+                  SELECT l.item_code, l.canonical_name, l.canonical_name,
+                         l.currency_code, l.amount_minor,
                          a.kitchen_code, d.declaration_class, t.translated_text, a.icon_key
                   FROM menu.publication_snapshot_line l
                   JOIN safety.declaration_reference r

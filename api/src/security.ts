@@ -33,6 +33,39 @@ export function registerSecurityHeaders(app: FastifyInstance): void {
 }
 
 /**
+ * The customer surface needs to load its own script and stylesheet, which
+ * `default-src 'none'` forbids — correctly, for a JSON API that serves no documents.
+ *
+ * Rather than loosening the policy every route inherits, the surface paths get their own,
+ * applied after the M1 headers and only to them. It is still deny-by-default: no inline
+ * script, no inline style, no external origin, no framing, and the only permitted
+ * connect target is this same origin. A page that cannot execute an injected `<script>`
+ * tag is worth more here than anywhere else in the system, because this is the surface an
+ * untrusted device loads.
+ *
+ * The M1 header set above is untouched, and every response still carries all six.
+ */
+export const SURFACE_CSP =
+  "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; " +
+  "font-src 'self'; connect-src 'self'; manifest-src 'self'; " +
+  "frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+
+export function registerCustomerSurfaceHeaders(app: FastifyInstance): void {
+  app.addHook('onSend', async (request, reply, payload) => {
+    // The PATH, not the URL. The entry point carries the QR code as a query string, so
+    // comparing the whole URL matched nothing and the document was served the API's
+    // deny-everything policy — which refused the surface's own stylesheet and script.
+    // The browser said so plainly; a check that only looked at the response header would
+    // have called this correct.
+    const path = request.url.split('?')[0] ?? '';
+    if (path === '/' || path.startsWith('/app/')) {
+      reply.header('content-security-policy', SURFACE_CSP);
+    }
+    return payload;
+  });
+}
+
+/**
  * Cookie attributes for any cookie this service sets (FR-SEC-005).
  *
  * The M1 surface authenticates with a bearer token in the Authorization header, which a

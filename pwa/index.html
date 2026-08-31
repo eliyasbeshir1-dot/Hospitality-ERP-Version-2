@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<!--
+  The customer surface.
+
+  lang and dir are set from the customer's explicit choice, not from the browser's
+  Accept-Language and not from a guess. They start as English because the page has to
+  start as something; the language chooser is the first thing in the document and nothing
+  else is reachable until a language is chosen.
+
+  No inline script and no inline style anywhere: the content security policy this page is
+  served with permits neither, so an injected <script> tag on the one surface an untrusted
+  device loads does not execute.
+-->
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>Menu</title>
+  <link rel="stylesheet" href="/app/app.css">
+  <link rel="manifest" href="/app/manifest.webmanifest">
+</head>
+<body>
+  <!-- Skip link first in the tab order, as the first focusable thing on the page. -->
+  <a class="skip-link" href="#main" data-i18n="skipToMenu">Skip to the menu</a>
+
+  <header class="masthead">
+    <h1 class="masthead-title" data-i18n="title">Menu</h1>
+
+    <!--
+      The language chooser. Offered explicitly and always reachable, because a customer
+      who is handed the wrong language has no other way out. The browser's preferred
+      language is shown as a suggestion beside it and is never applied on its own
+      (FR-I18N-001A).
+    -->
+    <nav class="locales" aria-label="Language">
+      <ul class="locale-list">
+        <li><button type="button" class="locale" data-locale="en" lang="en" aria-pressed="true">English</button></li>
+        <li><button type="button" class="locale" data-locale="am" lang="am" aria-pressed="false">አማርኛ</button></li>
+        <li><button type="button" class="locale" data-locale="ar" lang="ar" aria-pressed="false">العربية</button></li>
+      </ul>
+      <p class="locale-hint" id="locale-hint" hidden></p>
+    </nav>
+  </header>
+
+  <!--
+    The connection state. Text and a glyph and a time, never colour on its own
+    (FR-UX-005). aria-live so a change is announced rather than only drawn.
+  -->
+  <div class="status" id="status" role="status" aria-live="polite">
+    <span class="status-glyph" id="status-glyph" aria-hidden="true"></span>
+    <span class="status-text" id="status-text"></span>
+    <time class="status-time" id="status-time"></time>
+  </div>
+
+  <main id="main" class="main">
+    <section class="menu" aria-labelledby="menu-heading">
+      <h2 id="menu-heading" data-i18n="menuHeading">Today</h2>
+      <p class="empty" id="menu-empty" hidden></p>
+      <ul class="items" id="items"></ul>
+    </section>
+
+    <section class="cart" aria-labelledby="cart-heading">
+      <h2 id="cart-heading" data-i18n="cartHeading">Your basket</h2>
+      <p class="empty" id="cart-empty" data-i18n="cartEmpty">Nothing chosen yet. Add a dish to start.</p>
+      <ul class="cart-lines" id="cart-lines"></ul>
+      <p class="cart-total" id="cart-total" hidden></p>
+      <!--
+        Retry is a button, not an automatic loop. It reuses the key the first attempt
+        carried, so pressing it twice cannot commit twice (FR-UX-007).
+      -->
+      <button type="button" class="retry" id="retry" hidden data-i18n="retry">Try again</button>
+    </section>
+  </main>
+
+  <script type="module" src="/app/app.js"></script>
+</body>
+</html>

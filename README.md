@@ -91,6 +91,7 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0006_menu_pricing_availability_and_translation.sql`
 - `0007_safety_and_retention_enum_extensions.sql`
 - `0008_tables_qr_guest_sessions_and_allergen_safety.sql`
+- `0009_customer_surface_locale_snapshot_and_idempotency.sql`
 
 ## Seeds
 
@@ -117,6 +118,7 @@ bash tests/m1d/run_verification.sh         # rebuilds from empty, runs every sli
 | `tests/m1d/verify_m1d.py` | the running API, security controls, operations, evidence |
 | `tests/m2a/verify_m2a.py` | menu structure, pricing, availability, dayparts, translation storage |
 | `tests/m2b/verify_m2b.py` | tables, QR, guest sessions, carts, allergens and dietary safety |
+| `tests/m2c/verify_m2c.py` | the customer surface rendered in a real browser: three locales, Arabic right-to-left, accessibility and performance budgets |
 
 Every suite runs against a real PostgreSQL through the least-privileged application role,
 and every negative control is proved red with a defect planted before it is trusted green.

@@ -6,6 +6,7 @@
  * opens and therefore before the process can make any healthy or startup claim. A service
  * that binds first and validates second has already told an orchestrator it is fine.
  */
+import { join } from 'node:path';
 import Fastify from 'fastify';
 import { Database } from './db';
 import {
@@ -15,9 +16,12 @@ import {
 import { StructuredLogger } from './logging';
 import { InMemoryObservability, type ObservabilityProvider } from './observability';
 import { registerApiRoutes } from './routes/api';
+import { registerCustomerRoutes } from './routes/customer';
+import { registerSurfaceRoutes } from './routes/surface';
 import { registerHealthRoutes } from './routes/health';
 import {
-  InProcessRateLimiter, registerCsrfGuard, registerRateLimits, registerSecurityHeaders,
+  InProcessRateLimiter, registerCsrfGuard, registerCustomerSurfaceHeaders,
+  registerRateLimits, registerSecurityHeaders,
 } from './security';
 
 export async function start(): Promise<{ close(): Promise<void>; port: number }> {
@@ -43,6 +47,7 @@ export async function start(): Promise<{ close(): Promise<void>; port: number }>
   const app = Fastify({ logger: false, disableRequestLogging: true, trustProxy: false });
 
   registerSecurityHeaders(app);
+  registerCustomerSurfaceHeaders(app);
   registerCsrfGuard(app);
   registerRateLimits(app, new InProcessRateLimiter());
 
@@ -96,6 +101,10 @@ export async function start(): Promise<{ close(): Promise<void>; port: number }>
     environmentName: env.environmentName, startedAt: new Date(),
   });
   registerApiRoutes(app, { db, logger });
+  registerCustomerRoutes(app, { db, logger });
+  // The compiled surface sits beside the compiled server, so one build produces both and
+  // there is no second artefact to deploy or forget.
+  registerSurfaceRoutes(app, join(__dirname, 'public'));
 
   app.get('/metrics', async () => observability.snapshot());
 

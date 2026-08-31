@@ -2,9 +2,11 @@
   "name": "hospitality-os-api",
   "version": "1.0.0-m1",
   "private": true,
-  "description": "Hospitality OS Phase 1 cloud API — M1 surface only",
+  "description": "Hospitality OS Phase 1 cloud API and customer surface",
   "license": "UNLICENSED",
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js"
@@ -16,6 +18,8 @@
   "devDependencies": {
     "typescript": "5.7.2",
     "@types/node": "22.10.2",
-    "@types/pg": "8.11.10"
+    "@types/pg": "8.11.10",
+    "playwright": "1.56.0",
+    "axe-core": "4.10.2"
   }
 }
