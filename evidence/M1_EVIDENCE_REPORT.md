@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `5c3e1ec999777953322c999c9cc4d4610415c9c2` |
-| Short | `5c3e1ec` |
+| Commit | `cb7dec1773857f3be955cee08c4413178ee66cea` |
+| Short | `cb7dec1` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation |
@@ -47,6 +47,7 @@ Ordered, forward-only and checksum-locked. An edited applied migration fails pre
 | `0006` | `0006_menu_pricing_availability_and_translation.sql` | `54887df68eb1c25b…` | applied |
 | `0007` | `0007_safety_and_retention_enum_extensions.sql` | `037c6307c777e914…` | applied |
 | `0008` | `0008_tables_qr_guest_sessions_and_allergen_safety.sql` | `94896d1c525e8ffb…` | applied |
+| `0009` | `0009_customer_surface_locale_snapshot_and_idempotency.sql` | `65ff4b5ab1e5d9da…` | applied |
 
 ## Seeds applied
 
@@ -83,8 +84,9 @@ Money is stored as integer minor units beside an explicit currency.
 | M1-D API, security, operations | **PASS** | 49 | 0 |
 | M2-A menu, pricing, translation storage | **PASS** | 75 | 0 |
 | M2-B tables, QR, guests, allergen safety | **PASS** | 107 | 0 |
+| M2-C customer surface, rendered | **PASS** | 63 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
-| **Total** | | **404** | |
+| **Total** | | **467** | |
 
 ## Negative controls
 
@@ -131,6 +133,13 @@ a coverage gap wearing a green badge, and CI fails the build when one is missing
 | `NC-M2B-008` | Pinned reference readable by display | `AUDIT_REFERENCE_DISCLOSED_TO_DISPLAY` | red, then green |
 | `NC-M2B-009` | Correction withheld from a published menu | `CORRECTION_WITHHELD_FROM_PUBLISHED_MENU` | red, then green |
 | `NC-M2B-010` | Archive policy deletes instead | `ARCHIVE_POLICY_DELETED_ROWS` | red, then green |
+| `NC-M2-004` | Arabic does not lay out right-to-left | `RTL_LAYOUT_OR_READING_ORDER_FAILURE` | red, then green |
+| `NC-M2C-005` | Icon rendered without its warning | `WRITTEN_WARNING_ABSENT_FROM_RENDER` | red, then green |
+| `NC-M2C-006` | State told by colour alone | `STATE_CONVEYED_BY_COLOUR_ALONE` | red, then green |
+| `NC-M2C-007` | Language change loses the basket | `CART_LOST_ON_LOCALE_CHANGE` | red, then green |
+| `NC-M2C-008` | A locale renders only partly | `INCOMPLETE_LOCALE_RENDER` | red, then green |
+| `NC-M2C-009` | Retry commits a second time | `DUPLICATE_COMMITMENT_ON_RETRY` | red, then green |
+| `NC-M2C-010` | Chosen locale not recorded | `LOCALE_SNAPSHOT_ABSENT` | red, then green |
 
 ## Design decision: a price is pinned, an allergen is not (M2-B)
 
