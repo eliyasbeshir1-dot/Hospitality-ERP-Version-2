@@ -13,11 +13,11 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `524cb81882edf0954216ad9f7df5fece6afd7620` |
-| Short | `524cb81` |
+| Commit | `49470ac8adb5c7b2bc468a340086e6bb82761a4a` |
+| Short | `49470ac` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
-| Working tree | NOT CLEAN — regenerate from a clean tree |
+| Working tree | clean at generation |
 
 ## Versions
 
