@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `8c6e210f3be6663fcf8cdc70f43162bd0fca24d2` |
-| Short | `8c6e210` |
+| Commit | `b55690314c0b242023958df0448d3d37e96dcb4c` |
+| Short | `b556903` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation |
@@ -78,7 +78,7 @@ Money is stored as integer minor units beside an explicit currency.
 
 | Suite | Verdict | Checks | Failures |
 |---|---|---:|---:|
-| M1-A database, RLS, roles | **PASS** | 45 | 0 |
+| M1-A database, RLS, roles | **PASS** | 46 | 0 |
 | M1-B identity and authentication | **PASS** | 35 | 0 |
 | M1-C configuration, audit, money | **PASS** | 60 | 0 |
 | M1-D API, security, operations | **PASS** | 49 | 0 |
@@ -86,7 +86,7 @@ Money is stored as integer minor units beside an explicit currency.
 | M2-B tables, QR, guests, allergen safety | **PASS** | 107 | 0 |
 | M2-C customer surface, rendered | **PASS** | 63 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
-| **Total** | | **467** | |
+| **Total** | | **468** | |
 
 ## Negative controls
 
