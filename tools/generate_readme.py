@@ -25,6 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from console import use_utf8_output  # noqa: E402
+import partial_closures  # noqa: E402
 
 use_utf8_output()
 
@@ -58,6 +59,8 @@ SLICE_DELIVERS = {
     "M2-A": "menu, pricing, availability, dayparts and translation storage",
     "M2-B": "tables, QR resolution, guest sessions, carts, allergens and dietary safety",
     "M2-C": "the customer surface: three locales, Arabic right-to-left, accessibility",
+    "M3-A": "the order aggregate: preview, submission, snapshots, notes, timeline, "
+            "session merge, move and close",
 }
 
 # The gates in order, and what each one brings that does not exist yet. Rows are emitted
@@ -96,6 +99,9 @@ SUITE_PURPOSE = {
     "m2b": "tables, QR, guest sessions, carts, allergens and dietary safety",
     "m2c": "the customer surface rendered in a real browser: three locales, Arabic "
            "right-to-left, accessibility and performance budgets",
+    "m3a": "orders: server-calculated preview, idempotent submission, commercial and "
+           "language snapshots, four note kinds, the append-only ledger every projection "
+           "is rebuilt from, and session merge, move and close",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
 }
 
@@ -133,6 +139,14 @@ def slice_tags() -> list[str]:
 
 class SliceUndescribed(RuntimeError):
     """A slice exists in the repository and this generator has nothing to say about it."""
+
+
+class PartialClosureDrift(RuntimeError):
+    """The partial-closure register disagrees with the repository or the requirements.
+
+    Separate from SliceUndescribed because the remedy is different: one means "say what
+    this slice delivered", the other means "a completer has landed, go and look".
+    """
 
 
 NARRATIVE = REPO / "planning" / "README_NARRATIVE.md"
@@ -199,6 +213,26 @@ def build() -> str:
             f"{', '.join(missing_gate_note)} has not landed and GATE_DELIVERS does not say "
             f"what it brings, so the still-absent table would silently omit it")
 
+    # The partial-closure register, checked and rendered. Checked FIRST, because a
+    # register that disagrees with the repository must stop the document rather than be
+    # printed inside it — the M2-C finding was a README that described the repository
+    # wrongly while its own lock stayed green, and a gap register that could go stale
+    # would be the same defect wearing this slice's clothes.
+    try:
+        closure_failures = partial_closures.check()
+        closures = partial_closures.load()
+    except partial_closures.RegisterUnreadable as error:
+        raise PartialClosureDrift(str(error)) from error
+    if closure_failures:
+        raise PartialClosureDrift("; ".join(f"{sig}: {detail}"
+                                            for sig, detail in closure_failures))
+
+    closure_table = ["| Requirement | Half that waits | Completed at |", "|---|---|---|"]
+    for entry in sorted(closures, key=lambda e: (e["requirement"], e.get("aspect", ""))):
+        closure_table.append(
+            f"| **{entry['requirement']}** | {entry.get('aspect', '')} "
+            f"| {entry['completing_gate']} |")
+
     absent_table = ["| Absent | Arrives at |", "|---|---|"]
     for gate in GATE_ORDER:
         if gate in landed_gates or gate in ("M0", "M0R"):
@@ -256,6 +290,7 @@ def build() -> str:
         "{{PACKAGE_SHA}}": PACKAGE_SHA,
         "{{SLICE_TABLE}}": "\n".join(slice_table),
         "{{ABSENT_TABLE}}": "\n".join(absent_table),
+        "{{PARTIAL_CLOSURES}}": "\n".join(closure_table),
         "{{GATE_SEQUENCE}}": " → ".join(sequence) + ".",
         "{{LAYOUT_TABLE}}": "\n".join(layout),
         "{{MIGRATIONS}}": "\n".join(f"- `{p.name}`" for p in migrations),
@@ -282,6 +317,10 @@ def main() -> int:
         generated = build()
     except HistoryUnavailable as error:
         print("FAIL GIT_HISTORY_UNAVAILABLE", file=sys.stderr)
+        print(f"  {error}", file=sys.stderr)
+        return 1
+    except PartialClosureDrift as error:
+        print("FAIL PARTIAL_CLOSURE_REGISTER", file=sys.stderr)
         print(f"  {error}", file=sys.stderr)
         return 1
     except SliceUndescribed as error:

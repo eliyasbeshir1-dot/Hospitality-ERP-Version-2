@@ -122,6 +122,15 @@ def reset() -> None:
         f"DELETE FROM menu.assignment               WHERE tenant_id = '{TENANT}'",
         f"DELETE FROM menu.daypart                  WHERE tenant_id = '{TENANT}'",
         # The daylight-saving outlet, now that nothing in the menu schema points at it.
+        # The order number series goes with it. This fixture creates the outlet, so it
+        # owns everything that comes into being because the outlet does — and from 0010
+        # an outlet acquires a dine_in_order series by trigger the moment it is inserted.
+        # A teardown that removed only what it wrote by hand left a row behind that made
+        # the outlet undeletable on the NEXT run, in a suite three slices away.
+        f"DELETE FROM config.issued_document_number WHERE tenant_id = '{TENANT}' "
+        f"AND outlet_id = '{OUTLET_DST}'",
+        f"DELETE FROM config.number_series WHERE tenant_id = '{TENANT}' "
+        f"AND outlet_id = '{OUTLET_DST}'",
         f"DELETE FROM org.outlet_profile WHERE outlet_id = '{OUTLET_DST}'",
         f"DELETE FROM org.org_closure    WHERE tenant_id = '{TENANT}' "
         f"AND (ancestor_id = '{OUTLET_DST}' OR descendant_id = '{OUTLET_DST}')",

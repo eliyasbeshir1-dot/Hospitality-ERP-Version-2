@@ -16,6 +16,7 @@
 | **M2-A** | menu, pricing, availability, dayparts and translation storage | `f0b92f3` |
 | **M2-B** | tables, QR resolution, guest sessions, carts, allergens and dietary safety | `bad3cb5` |
 | **M2-C** | the customer surface: three locales, Arabic right-to-left, accessibility | `cb7dec1` |
+| **M3-A** | the order aggregate: preview, submission, snapshots, notes, timeline, session merge, move and close | `unreleased` |
 
 The M1 evidence report is at `evidence/M1_EVIDENCE_REPORT.md`.
 
@@ -54,6 +55,34 @@ Still absent, by design:
 | Outlet node, synchronization, printing | M5a |
 | Same-QR DNS/TLS, authority lease | M5b |
 | Multi-region distribution | M6 |
+
+### Closed as far as this gate allows
+
+Some requirements can only be half-proved until a later slice builds the artifact they
+depend on. Rather than claim them complete or leave them unmentioned, each is recorded
+with the gate that completes it. `tools/partial_closures.py` refuses to build this
+document when an entry names no completing gate, names one the requirements register does
+not have, or is still open after its completing gate has landed.
+
+| Requirement | Half that waits | Completed at |
+|---|---|---|
+| **FR-DAT-010** | financial projections | M4 |
+| **FR-ORD-002** | no financial commitment | M4 |
+| **FR-ORD-003** | discount and tax interaction order | M4 |
+| **FR-ORD-003** | fee component | M4 |
+| **FR-ORD-005** | fee snapshot | M4 |
+| **FR-ORD-006** | station capacity | M3-B |
+| **FR-ORD-009** | separate fulfillment per add-on order | M3-B |
+| **FR-ORD-010** | post-preparation refusal | M3-B |
+| **FR-ORD-011** | payment dimension of the cancellation policy | M4 |
+| **FR-ORD-012A** | unpaid precondition | M4 |
+| **FR-ORD-016A** | service events on the timeline | M3-C |
+| **FR-ORD-016A** | station events on the timeline | M3-B |
+| **FR-ORD-019A** | fulfillment ticket in the chain | M3-B |
+| **FR-ORD-019A** | service request in the chain | M3-C |
+| **FR-TAB-007A** | service requests consolidated by a merge | M3-C |
+| **FR-TAB-008** | service requests preserved by a move | M3-C |
+| **FR-TAB-009** | financial closure condition | M4 |
 
 ## Repository lineage
 
@@ -94,6 +123,7 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0007_safety_and_retention_enum_extensions.sql`
 - `0008_tables_qr_guest_sessions_and_allergen_safety.sql`
 - `0009_customer_surface_locale_snapshot_and_idempotency.sql`
+- `0010_orders_submission_snapshots_and_session_lifecycle.sql`
 
 ## Seeds
 
@@ -121,6 +151,7 @@ bash tests/m1d/run_verification.sh         # rebuilds from empty, runs every sli
 | `tests/m2a/verify_m2a.py` | menu structure, pricing, availability, dayparts, translation storage |
 | `tests/m2b/verify_m2b.py` | tables, QR, guest sessions, carts, allergens and dietary safety |
 | `tests/m2c/verify_m2c.py` | the customer surface rendered in a real browser: three locales, Arabic right-to-left, accessibility and performance budgets |
+| `tests/m3a/verify_m3a.py` | orders: server-calculated preview, idempotent submission, commercial and language snapshots, four note kinds, the append-only ledger every projection is rebuilt from, and session merge, move and close |
 
 Every suite runs against a real PostgreSQL through the least-privileged application role,
 and every negative control is proved red with a defect planted before it is trusted green.

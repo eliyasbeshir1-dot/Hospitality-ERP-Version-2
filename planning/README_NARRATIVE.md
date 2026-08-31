@@ -57,6 +57,16 @@ Still absent, by design:
 
 {{ABSENT_TABLE}}
 
+### Closed as far as this gate allows
+
+Some requirements can only be half-proved until a later slice builds the artifact they
+depend on. Rather than claim them complete or leave them unmentioned, each is recorded
+with the gate that completes it. `tools/partial_closures.py` refuses to build this
+document when an entry names no completing gate, names one the requirements register does
+not have, or is still open after its completing gate has landed.
+
+{{PARTIAL_CLOSURES}}
+
 ## Repository lineage
 
 | Repository | Role |

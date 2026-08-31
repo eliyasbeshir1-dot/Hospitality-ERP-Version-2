@@ -1,0 +1,158 @@
+{
+  "purpose": "Requirements closed as far as the artifacts of their own gate allow, each naming the gate or slice that completes them. tools/partial_closures.py fails the build on an entry with no completer, an unknown completer, or a completer that has landed while the entry is still open.",
+  "partial_closures": [
+    {
+      "requirement": "FR-ORD-003",
+      "aspect": "fee component",
+      "opened_at": "M3-A",
+      "completing_gate": "M4",
+      "state": "open",
+      "why": "The preview names line prices, modifiers, tax, fees and discounts. Tax resolves to config.configuration_version under category 'tax' and a discount to config.policy under category 'discount'; both are configured, non-zero and exercised. A FEE has no configuration heading before FR-CFG-001C, so ordering.charge_rule can hold one and nothing at this gate creates one. The total is a sum over the components that exist and carries no zero literal for the absent kind.",
+      "completed_by": "FR-CFG-001C"
+    },
+    {
+      "requirement": "FR-ORD-003",
+      "aspect": "discount and tax interaction order",
+      "opened_at": "M3-A",
+      "completing_gate": "M4",
+      "state": "open",
+      "why": "Whether a discount applies before or after tax is a bill-calculation decision. At M3-A both are computed on the line subtotal, which is the only reading that does not pre-empt FR-BIL-005.",
+      "completed_by": "FR-BIL-005"
+    },
+    {
+      "requirement": "FR-ORD-005",
+      "aspect": "fee snapshot",
+      "opened_at": "M3-A",
+      "completing_gate": "M4",
+      "state": "open",
+      "why": "Item, modifier, discount, tax and total snapshots persist at acceptance with the locale. The fee snapshot persists the moment a fee component exists, and no configured source produces one before M4.",
+      "completed_by": "FR-CFG-001C"
+    },
+    {
+      "requirement": "FR-ORD-002",
+      "aspect": "no financial commitment",
+      "opened_at": "M3-A",
+      "completing_gate": "M4",
+      "state": "open",
+      "why": "A draft cart creates no order, no ledger event and no charge component, and a cart with an order against it is frozen. That a draft creates no FINANCIAL obligation is re-proved once checks and payments exist; the requirements register already dual-gates this row at M4.",
+      "completed_by": "FR-BIL-005"
+    },
+    {
+      "requirement": "FR-ORD-006",
+      "aspect": "station capacity",
+      "opened_at": "M3-A",
+      "completing_gate": "M3-B",
+      "state": "open",
+      "why": "Availability, hours, channel and quantity are revalidated at submission. Capacity is the fifth dimension the requirement names and it means station workload, which needs the stations and their thresholds that FR-FUL-013 builds at M3-B.",
+      "completed_by": "FR-FUL-013"
+    },
+    {
+      "requirement": "FR-ORD-009",
+      "aspect": "separate fulfillment per add-on order",
+      "opened_at": "M3-A",
+      "completing_gate": "M3-B",
+      "state": "open",
+      "why": "Add-on orders in one session are distinct aggregates with independent timestamps and independent ledgers, which is proved here. That their FULFILLMENT is independent needs tickets, which are M3-B.",
+      "completed_by": "FR-FUL-002"
+    },
+    {
+      "requirement": "FR-ORD-010",
+      "aspect": "post-preparation refusal",
+      "opened_at": "M3-A",
+      "completing_gate": "M3-B",
+      "state": "open",
+      "why": "Amendment emits an explicit event retaining before and after, and the window is enforced from the ordering policy. The policy can only speak in commercial states at this gate: 'after preparation has begun' is a ticket state and tickets are M3-B.",
+      "completed_by": "FR-FUL-003"
+    },
+    {
+      "requirement": "FR-ORD-011",
+      "aspect": "payment dimension of the cancellation policy",
+      "opened_at": "M3-A",
+      "completing_gate": "M4",
+      "state": "open",
+      "why": "Cancellation resolves by state, channel and reason. The payment dimension needs payments to exist; the requirements register already dual-gates this row at M4.",
+      "completed_by": "FR-BIL-005"
+    },
+    {
+      "requirement": "FR-ORD-012A",
+      "aspect": "unpaid precondition",
+      "opened_at": "M3-A",
+      "completing_gate": "M4",
+      "state": "open",
+      "why": "An authorized void after acceptance records its reason and an immutable audit row. 'For an unpaid order' cannot be falsified at M3-A because no payment artifact exists to make it false, so the precondition is asserted against an empty set and must be re-proved at M4.",
+      "completed_by": "FR-BIL-014"
+    },
+    {
+      "requirement": "FR-ORD-016A",
+      "aspect": "station events on the timeline",
+      "opened_at": "M3-A",
+      "completing_gate": "M3-B",
+      "state": "open",
+      "why": "The timeline renders order events chronologically with the audience decided when each entry is written. Station events belong on it and do not exist until M3-B.",
+      "completed_by": "FR-FUL-002"
+    },
+    {
+      "requirement": "FR-ORD-016A",
+      "aspect": "service events on the timeline",
+      "opened_at": "M3-A",
+      "completing_gate": "M3-C",
+      "state": "open",
+      "why": "Service-request events belong on the same timeline and do not exist until M3-C.",
+      "completed_by": "FR-SRV-001"
+    },
+    {
+      "requirement": "FR-ORD-019A",
+      "aspect": "fulfillment ticket in the chain",
+      "opened_at": "M3-A",
+      "completing_gate": "M3-B",
+      "state": "open",
+      "why": "The chain links four of the six artifacts the requirement names — request, cart, table session and order — and survives projection rebuild. 'fulfillment_ticket' is a label of ordering.artifact_kind with no rows until M3-B, so the later slice extends the chain rather than reshaping it.",
+      "completed_by": "FR-FUL-002"
+    },
+    {
+      "requirement": "FR-ORD-019A",
+      "aspect": "service request in the chain",
+      "opened_at": "M3-A",
+      "completing_gate": "M3-C",
+      "state": "open",
+      "why": "'service_request' is likewise a label with no rows until M3-C.",
+      "completed_by": "FR-SRV-001"
+    },
+    {
+      "requirement": "FR-TAB-007A",
+      "aspect": "service requests consolidated by a merge",
+      "opened_at": "M3-A",
+      "completing_gate": "M3-C",
+      "state": "open",
+      "why": "A merge consolidates orders, participants, carts and allergy concerns, each move audited and counted. Service requests are the other thing the requirement says must be consolidated and they do not exist until M3-C.",
+      "completed_by": "FR-SRV-001"
+    },
+    {
+      "requirement": "FR-TAB-008",
+      "aspect": "service requests preserved by a move",
+      "opened_at": "M3-A",
+      "completing_gate": "M3-C",
+      "state": "open",
+      "why": "A move preserves session identity and every order, which is proved by inventory. Service requests are named by the requirement and do not exist until M3-C.",
+      "completed_by": "FR-SRV-001"
+    },
+    {
+      "requirement": "FR-TAB-009",
+      "aspect": "financial closure condition",
+      "opened_at": "M3-A",
+      "completing_gate": "M4",
+      "state": "open",
+      "why": "A session cannot close over an unresolved order unless an authorized exception is recorded with a reason and an account. The FINANCIAL condition cannot be proved before checks and settlement exist; the requirements register already dual-gates this row at M4.",
+      "completed_by": "FR-BIL-005"
+    },
+    {
+      "requirement": "FR-DAT-010",
+      "aspect": "financial projections",
+      "opened_at": "M3-A",
+      "completing_gate": "M4",
+      "state": "open",
+      "why": "Order projections rebuild from the ledger and compare byte-deterministically. Financial projections arrive at M4 and rebuild after outage replay at M5a; the requirements register dual-gates this row at both.",
+      "completed_by": "FR-BIL-005"
+    }
+  ]
+}

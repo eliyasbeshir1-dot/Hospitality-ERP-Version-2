@@ -142,6 +142,14 @@ CONTROLS = [
     ("NC-M2C-008", "A locale renders only partly", "INCOMPLETE_LOCALE_RENDER", "m2c"),
     ("NC-M2C-009", "Retry commits a second time", "DUPLICATE_COMMITMENT_ON_RETRY", "m2c"),
     ("NC-M2C-010", "Chosen locale not recorded", "LOCALE_SNAPSHOT_ABSENT", "m2c"),
+    ("NC-M3-001", "A retry produces a second effect", "DUPLICATE_ORDER_EFFECT", "m3a"),
+    ("NC-M3-002", "Price moved between preview and submission", "STALE_PRICE_ACCEPTED", "m3a"),
+    ("NC-M3-003", "Allergy declaration lost on a hop", "ALLERGY_FLAG_LOST", "m3a"),
+    ("NC-M3-005", "Client-stated total is stored", "CLIENT_CALCULATED_TOTAL_ACCEPTED", "m3a"),
+    ("NC-M3-006", "Accepted order edited destructively", "ACCEPTED_ORDER_MUTATED", "m3a"),
+    ("NC-M3-007", "Merge or move loses an order", "ORDER_LOST_ON_SESSION_CHANGE", "m3a"),
+    ("NC-M3-008", "Private staff note reaches a customer", "PRIVATE_NOTE_DISCLOSED", "m3a"),
+    ("NC-M3-009", "Rebuild diverges from the ledger", "REBUILD_NOT_DETERMINISTIC", "m3a"),
 ]
 
 
@@ -286,6 +294,7 @@ def build(dsn: str, logs: Path) -> str:
                         ("m2a", "M2-A menu, pricing, translation storage"),
                         ("m2b", "M2-B tables, QR, guests, allergen safety"),
                         ("m2c", "M2-C customer surface, rendered"),
+                        ("m3a", "M3-A orders, snapshots, session lifecycle"),
                         ("fenced_gate", "Fenced-domain gate, vocabulary and mutations")):
         verdict, ran, failed = suite_result(logs, name)
         if ran.isdigit():
@@ -310,7 +319,55 @@ def build(dsn: str, logs: Path) -> str:
     return "\n".join(out) + "\n"
 
 
-NARRATIVE = """## Design decision: a price is pinned, an allergen is not (M2-B)
+NARRATIVE = """## Design decision: the ledger is the record, everything else is a projection (M3-A)
+
+M3 is the first gate that commits. Two of its requirements look like separate problems and
+are answered by one arrangement rather than by two mechanisms that could disagree:
+FR-DAT-008A says an accepted order has no destructive edit path, and FR-DAT-010 says key
+projections rebuild from authoritative events and compare deterministically.
+
+`ordering.order_event` is authoritative and append-only. Everything else in the schema —
+the order, its lines, its charge components, its notes, its timeline, its correlation
+chain — is derived from it by `ordering.apply_event()` and can be discarded and rebuilt
+byte for byte. So there is no destructive edit path because there is nothing to edit that
+is not derived, and the rebuild comparison is the thing that would notice if somebody
+found one.
+
+Three consequences the negative controls rest on:
+
+- **The fold is pure.** It reads no clock, no sequence and no random source: every value
+  it writes comes out of the event. That is what makes a rebuild byte-deterministic rather
+  than merely equivalent, and `NC-M3-009` plants a single dropped field to prove the
+  comparison notices.
+- **The allergy declaration is an EVENT, not a column somebody might forget to copy.**
+  Every surface that shows it is a projection of that event, so "does it survive the hop"
+  and "does the projection rebuild" are the same question asked twice.
+- **The projections are locked twice, on inputs that do not overlap.** The application
+  role holds SELECT and nothing else, and a trigger refuses any write from outside the
+  fold — for the table owner too, under FORCE row level security. `NC-M3-006` drops only
+  the triggers, leaving the grants alone, which is the question FR-DAT-008A actually asks:
+  is the guarantee carried by the trigger, or was it only ever the grant?
+
+## Design decision: the total is a sum over components that exist (M3-A)
+
+FR-ORD-003 names line prices, modifiers, tax, fees and discounts. Tax resolves to M1's
+`config.configuration_version` under category `tax` and a discount to `config.policy` under
+category `discount`; both are configured, non-zero and exercised. A FEE has no
+configuration heading before FR-CFG-001C at M4.
+
+The wrong way to hold that gap is a fee column reading zero. A hardcoded zero survives to
+M4 unnoticed and looks wired when it is not — the `money.assert_currency_paired()` vacuity
+recorded at M1 is the standing reminder. So there is no fee column and no fee constant
+anywhere in the schema. `ordering.order_total()` is `SUM(amount_minor)` over the components
+that exist; it names no charge kind at all, and a deferred constraint trigger refuses to
+commit an order whose stored total differs from that sum.
+
+The suite proves both ends. One check shows no fee component and no fee rule exists. A
+second inserts a fee rule with a real configured source, shows the total move by exactly
+the configured rate, and shows `ordering.order_total()` byte-identical either side — so the
+absence of a fee at M3-A is a missing SOURCE rather than a missing feature.
+
+## Design decision: a price is pinned, an allergen is not (M2-B)
 
 Recorded here because M3 and M4 both inherit it, and because the reasoning is not obvious
 from either half on its own.
