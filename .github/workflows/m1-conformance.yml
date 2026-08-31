@@ -165,18 +165,6 @@ jobs:
           echo "LOG_DIR=$RUNNER_TEMP/m1-logs" >> "$GITHUB_ENV"
           echo "M1D_WORKSPACE=$RUNNER_TEMP/m1d-workspace" >> "$GITHUB_ENV"
 
-      - name: Install the browser M2-C renders in
-        shell: bash
-        run: |
-          set -euo pipefail
-          # M2-C's claims about right-to-left layout, contrast and clipping are facts about
-          # rendered pixels, so CI needs a real browser to read them out of. playwright is
-          # pinned in api/package.json and this fetches exactly the Chromium build that
-          # pin expects, on both platforms, so the two runners render in the same engine.
-          bash api/build.sh
-          cd "$M1D_WORKSPACE"
-          ./node_modules/.bin/playwright install --with-deps chromium
-
       - name: Run a throwaway PostgreSQL from the image's binaries
         shell: pwsh
         run: |
@@ -443,6 +431,21 @@ jobs:
           # checkout: tools/verify_m1.py treats those directories as forbidden surface and
           # inspects the filesystem, so a build inside the repository would fail the gate.
           echo "M1D_WORKSPACE=$RUNNER_TEMP/m1d-workspace" >> "$GITHUB_ENV"
+
+      - name: Install the browser M2-C renders in
+        shell: bash
+        run: |
+          set -euo pipefail
+          # M2-C's claims about right-to-left layout, contrast and clipping are facts about
+          # rendered pixels, so CI needs a real browser to read them out of. playwright is
+          # pinned in api/package.json and this fetches exactly the Chromium build that pin
+          # expects, on both platforms, so the two runners render in the same engine.
+          # --with-deps installs the system libraries Chromium needs on a Linux runner; the
+          # Windows job runs the same command without it.
+          export M1D_WORKSPACE="$RUNNER_TEMP/m1d-workspace"
+          bash api/build.sh
+          cd "$M1D_WORKSPACE"
+          ./node_modules/.bin/playwright install --with-deps chromium
 
       - name: M1-D — API surface, security controls, operations, evidence
         shell: bash
