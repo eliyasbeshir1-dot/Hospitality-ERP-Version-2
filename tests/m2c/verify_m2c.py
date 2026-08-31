@@ -35,7 +35,7 @@ sys.path.insert(0, str(HERE))
 import fixtures as fx                                   # noqa: E402
 from fenced import fenced_identifier_pattern            # noqa: E402
 from pg import CommandUnreadable, count, count_or, run, run_command   # noqa: E402
-from service import Service, WORKSPACE                  # noqa: E402
+from service import Service, TSC, WORKSPACE             # noqa: E402
 
 assert fx.__file__ == str(HERE / "fixtures.py"), f"wrong fixtures module: {fx.__file__}"
 
@@ -564,7 +564,13 @@ def rebuild_surface() -> None:
     rebuilt bundle only reaches a browser after a restart. Doing it here rather than
     serving from disk per request keeps the thing under test the thing that ships.
     """
-    proc = run_command([str(WORKSPACE / "node_modules" / ".bin" / "tsc"),
+    # TSC, not the literal "tsc". npm publishes two entry points in .bin: an extensionless
+    # shell script for POSIX and a .cmd shim for Windows, and only the shim is a valid
+    # Win32 executable — handing CreateProcess the other one fails with WinError 193,
+    # which is not a compile error and would be reported as one. M1-D learned this and
+    # exports the resolved name; this file was written after it and hardcoded the POSIX
+    # one anyway, and Windows CI caught it on the first run that had a browser.
+    proc = run_command([str(WORKSPACE / "node_modules" / ".bin" / TSC),
                         "-p", str(WORKSPACE / "pwa" / "tsconfig.json"),
                         "--outDir", str(WORKSPACE / "dist" / "public")],
                        cwd=str(WORKSPACE))
