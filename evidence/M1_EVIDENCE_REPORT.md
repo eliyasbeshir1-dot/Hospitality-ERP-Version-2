@@ -13,11 +13,11 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `b55690314c0b242023958df0448d3d37e96dcb4c` |
-| Short | `b556903` |
+| Commit | `524cb81882edf0954216ad9f7df5fece6afd7620` |
+| Short | `524cb81` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
-| Working tree | clean at generation |
+| Working tree | NOT CLEAN — regenerate from a clean tree |
 
 ## Versions
 
@@ -48,6 +48,7 @@ Ordered, forward-only and checksum-locked. An edited applied migration fails pre
 | `0007` | `0007_safety_and_retention_enum_extensions.sql` | `037c6307c777e914…` | applied |
 | `0008` | `0008_tables_qr_guest_sessions_and_allergen_safety.sql` | `94896d1c525e8ffb…` | applied |
 | `0009` | `0009_customer_surface_locale_snapshot_and_idempotency.sql` | `65ff4b5ab1e5d9da…` | applied |
+| `0010` | `0010_orders_submission_snapshots_and_session_lifecycle.sql` | `ee909c9d7363d52a…` | applied |
 
 ## Seeds applied
 
@@ -80,13 +81,14 @@ Money is stored as integer minor units beside an explicit currency.
 |---|---|---:|---:|
 | M1-A database, RLS, roles | **PASS** | 46 | 0 |
 | M1-B identity and authentication | **PASS** | 35 | 0 |
-| M1-C configuration, audit, money | **PASS** | 60 | 0 |
+| M1-C configuration, audit, money | **PASS** | 61 | 0 |
 | M1-D API, security, operations | **PASS** | 49 | 0 |
 | M2-A menu, pricing, translation storage | **PASS** | 75 | 0 |
 | M2-B tables, QR, guests, allergen safety | **PASS** | 107 | 0 |
 | M2-C customer surface, rendered | **PASS** | 63 | 0 |
+| M3-A orders, snapshots, session lifecycle | **PASS** | 136 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
-| **Total** | | **468** | |
+| **Total** | | **605** | |
 
 ## Negative controls
 
@@ -140,6 +142,62 @@ a coverage gap wearing a green badge, and CI fails the build when one is missing
 | `NC-M2C-008` | A locale renders only partly | `INCOMPLETE_LOCALE_RENDER` | red, then green |
 | `NC-M2C-009` | Retry commits a second time | `DUPLICATE_COMMITMENT_ON_RETRY` | red, then green |
 | `NC-M2C-010` | Chosen locale not recorded | `LOCALE_SNAPSHOT_ABSENT` | red, then green |
+| `NC-M3-001` | A retry produces a second effect | `DUPLICATE_ORDER_EFFECT` | red, then green |
+| `NC-M3-002` | Price moved between preview and submission | `STALE_PRICE_ACCEPTED` | red, then green |
+| `NC-M3-003` | Allergy declaration lost on a hop | `ALLERGY_FLAG_LOST` | red, then green |
+| `NC-M3-005` | Client-stated total is stored | `CLIENT_CALCULATED_TOTAL_ACCEPTED` | red, then green |
+| `NC-M3-006` | Accepted order edited destructively | `ACCEPTED_ORDER_MUTATED` | red, then green |
+| `NC-M3-007` | Merge or move loses an order | `ORDER_LOST_ON_SESSION_CHANGE` | red, then green |
+| `NC-M3-008` | Private staff note reaches a customer | `PRIVATE_NOTE_DISCLOSED` | red, then green |
+| `NC-M3-009` | Rebuild diverges from the ledger | `REBUILD_NOT_DETERMINISTIC` | red, then green |
+
+## Design decision: the ledger is the record, everything else is a projection (M3-A)
+
+M3 is the first gate that commits. Two of its requirements look like separate problems and
+are answered by one arrangement rather than by two mechanisms that could disagree:
+FR-DAT-008A says an accepted order has no destructive edit path, and FR-DAT-010 says key
+projections rebuild from authoritative events and compare deterministically.
+
+`ordering.order_event` is authoritative and append-only. Everything else in the schema —
+the order, its lines, its charge components, its notes, its timeline, its correlation
+chain — is derived from it by `ordering.apply_event()` and can be discarded and rebuilt
+byte for byte. So there is no destructive edit path because there is nothing to edit that
+is not derived, and the rebuild comparison is the thing that would notice if somebody
+found one.
+
+Three consequences the negative controls rest on:
+
+- **The fold is pure.** It reads no clock, no sequence and no random source: every value
+  it writes comes out of the event. That is what makes a rebuild byte-deterministic rather
+  than merely equivalent, and `NC-M3-009` plants a single dropped field to prove the
+  comparison notices.
+- **The allergy declaration is an EVENT, not a column somebody might forget to copy.**
+  Every surface that shows it is a projection of that event, so "does it survive the hop"
+  and "does the projection rebuild" are the same question asked twice.
+- **The projections are locked twice, on inputs that do not overlap.** The application
+  role holds SELECT and nothing else, and a trigger refuses any write from outside the
+  fold — for the table owner too, under FORCE row level security. `NC-M3-006` drops only
+  the triggers, leaving the grants alone, which is the question FR-DAT-008A actually asks:
+  is the guarantee carried by the trigger, or was it only ever the grant?
+
+## Design decision: the total is a sum over components that exist (M3-A)
+
+FR-ORD-003 names line prices, modifiers, tax, fees and discounts. Tax resolves to M1's
+`config.configuration_version` under category `tax` and a discount to `config.policy` under
+category `discount`; both are configured, non-zero and exercised. A FEE has no
+configuration heading before FR-CFG-001C at M4.
+
+The wrong way to hold that gap is a fee column reading zero. A hardcoded zero survives to
+M4 unnoticed and looks wired when it is not — the `money.assert_currency_paired()` vacuity
+recorded at M1 is the standing reminder. So there is no fee column and no fee constant
+anywhere in the schema. `ordering.order_total()` is `SUM(amount_minor)` over the components
+that exist; it names no charge kind at all, and a deferred constraint trigger refuses to
+commit an order whose stored total differs from that sum.
+
+The suite proves both ends. One check shows no fee component and no fee rule exists. A
+second inserts a fee rule with a real configured source, shows the total move by exactly
+the configured rate, and shows `ordering.order_total()` byte-identical either side — so the
+absence of a fee at M3-A is a missing SOURCE rather than a missing feature.
 
 ## Design decision: a price is pinned, an allergen is not (M2-B)
 

@@ -1371,29 +1371,47 @@ def section_boundary() -> None:
            f"{(columns.scalar or '').strip() or 'none'}. An allergen declaration names "
            f"what a guest must know, never an operational recipe, a quantity or a cost")
 
+    # The order surface left this pattern when M3-A built it, the same way 'cart' left
+    # M2-A's pattern when this slice built that. What M2-B still owns is the boundary
+    # BELOW its own: no fulfillment (M3-B), no service request (M3-C), no billing (M4).
     m3_m4 = run(ADMIN, """
         SELECT coalesce(string_agg(n.nspname || '.' || c.relname, ', '), '')
         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND c.relname ~* '(^|_)(order|order_line|check|bill|payment|tip|receipt)($|_)';
+          AND c.relname ~* '(^|_)(ticket|station|expo|service_request|check|bill|payment|'
+                           'tip|receipt)($|_)';
     """)
-    record("no order, check, payment or receipt surface exists",
+    record("no fulfillment, service-request or billing surface exists",
            m3_m4.ok and not (m3_m4.scalar or "").strip(),
            f"{(m3_m4.scalar or '').strip() or 'none'}. A basket before submission is "
-           f"FR-TAB-005 and lives here; submission is M3 and has no representation")
+           f"FR-TAB-005 and lives here; the order it becomes is M3-A and polices its own "
+           f"boundary; tickets are M3-B, service requests M3-C, billing M4")
 
+    # Submission itself now exists, in the ordering schema, and M3-A proves it. What this
+    # slice must still be able to say is that ITS OWN schemas contain no path across the
+    # boundary — a cart cannot become an order by way of anything service, safety or menu
+    # owns. Restricting the scan to those three schemas is what the check always did; the
+    # cart-freezing trigger 0010 adds to service.cart_line is named here explicitly
+    # rather than excluded by a looser pattern, because it is the one function in these
+    # schemas that KNOWS about orders and it only ever refuses.
     submit = run(ADMIN, """
         SELECT coalesce(string_agg(n.nspname || '.' || p.proname, ', '), '')
         FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
         WHERE n.nspname IN ('service', 'safety', 'menu')
-          AND p.proname ~* '(submit|place_order|send_to_kitchen|fire)';
+          AND p.proname ~* '(submit|place_order|send_to_kitchen|fire)'
+          AND p.proname <> 'refuse_change_to_submitted_cart';
     """)
-    record("nothing anywhere can submit a cart",
-           submit.ok and not (submit.scalar or "").strip(),
+    refusal = run(ADMIN, """
+        SELECT pg_get_functiondef(
+            'service.refuse_change_to_submitted_cart()'::regprocedure);""")
+    record("nothing this slice owns can submit a cart",
+           submit.ok and not (submit.scalar or "").strip()
+           and refusal.ok and "RAISE EXCEPTION" in refusal.out
+           and "INSERT INTO ordering" not in refusal.out,
            f"functions that could cross the boundary: "
-           f"{(submit.scalar or '').strip() or 'none'}. The M2-A suite stopped policing "
-           f"the word 'cart' when this slice landed, so the boundary moved here rather "
-           f"than evaporating")
+           f"{(submit.scalar or '').strip() or 'none'}. The single service function that "
+           f"names an order at all is refuse_change_to_submitted_cart(), and it only "
+           f"raises: it freezes a cart once an order exists and creates nothing")
 
     pwa = count(ADMIN, """
         SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace

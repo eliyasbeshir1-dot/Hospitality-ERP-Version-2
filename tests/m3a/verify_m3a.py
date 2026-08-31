@@ -10,8 +10,9 @@ about three things the earlier suites did not have to be:
     at run time so it covers the tables M3-B and M4 have not built yet.
   * the allergy declaration is followed through every hop it makes, and each hop is a
     separate assertion, so a failure names the hop rather than the outcome.
-  * merge and move are proved by inventory — the exact set of orders, lines, notes,
-    declarations and timeline entries before and after — rather than by a count.
+  * merge and move are proved by a full census — the exact SET of orders, lines, notes,
+    declarations and timeline entries before and after, compared as sets rather than as
+    counts, because a change that drops one row and duplicates another keeps the count.
 
 Every check here runs against a real PostgreSQL through the least-privileged application
 role, exactly as the earlier suites do.
@@ -209,14 +210,42 @@ def section_aggregate() -> None:
            f"automatic; the QR order is {guest_row[4]} and the waiter order is "
            f"{waiter_row[4]} (FR-ORD-007A)")
 
-    counter = count(APP, """
-        SELECT count(*) FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
-        WHERE t.typname = 'order_origin' AND e.enumlabel IN ('counter_pos', 'counter',
-              'pickup', 'delivery', 'kiosk');""", **CTX)
-    record("the origin type names no channel this phase does not build",
-           counter == 0,
-           "counter POS is FR-POS-003B at M4 and pickup and delivery are fenced "
-           "outright; an unreachable label is a claim the schema cannot keep")
+    # An order number must be unique across the TENANT, because that is what
+    # config.issued_document_number's unique key says — it carries no outlet column. A
+    # series that numbered from one at every outlet under a shared prefix would therefore
+    # collide on the second outlet's very first order. Exercised through the issuer
+    # itself, at two outlets, rather than inferred from the prefixes.
+    numbers = []
+    for outlet in (fx.OUTLET_H1, fx.OUTLET_H2):
+        issued = run(APP, f"""
+            SELECT config.issue_document_number('{fx.TENANT}', 'dine_in_order',
+                to_char(now(), 'YYYY'), NULL, '{outlet}');""",
+            tenant=fx.TENANT, outlet=outlet)
+        numbers.append((issued.ok, (issued.scalar or "").strip() or issued.why()))
+    record("two outlets in one tenant can both number an order, and the numbers differ",
+           all(ok for ok, _n in numbers) and numbers[0][1] != numbers[1][1],
+           f"issued {[n for _o, n in numbers]}. The prefix carries each outlet's "
+           f"reference code; with a constant prefix the second outlet's first order "
+           f"collides on the tenant-wide uniqueness of the issued number")
+
+    stored_number = scalar(f"""
+        SELECT order_number FROM ordering.customer_order WHERE id = '{guest['order']}';""")
+    record("an order carries an opaque identifier and a separate human number (FR-DAT-003)",
+           stored_number.startswith("ORD-") and guest['order'] not in stored_number,
+           f"number {stored_number}, identifier {guest['order'][:8]}… — the number never "
+           f"encodes the key and the key is never shown as a number")
+
+    # Stated as an exhaustive positive assertion rather than as a list of labels that
+    # must be absent. An absence list only ever forbids what somebody thought of; this
+    # says what the type IS, so any label at all that nobody put there fails it.
+    origin_labels = [r[0] for r in rows("""
+        SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+        WHERE t.typname = 'order_origin' ORDER BY e.enumsortorder;""", dsn=ADMIN)]
+    record("the origin type names exactly the two origins this gate builds, and no other",
+           origin_labels == ["guest_qr", "waiter_entered"],
+           f"order_origin: {origin_labels}. FR-ORD-001A names a third channel that does "
+           f"not exist until the POS surface is built at M4, and two more that are not "
+           f"Phase 1 at all; an unreachable label is a claim the schema cannot keep")
 
 
 # ===========================================================================
@@ -254,8 +283,9 @@ def section_draft_carts() -> None:
     record("a cart with lines in it has produced no consequence a guest could be held to",
            all(v == 0 for v in consequences.values()),
            "; ".join(f"{k}: {v}" for k, v in consequences.items())
-           + ". There is no stock model to reserve from — that is the inventory fence — "
-             "so 'no commitment' is the half of FR-ORD-002 that is testable, and this is it")
+           + ". Nothing here reserves anything, because there is no such model in this "
+             "database at all, so 'no commitment' is the half of FR-ORD-002 that is "
+             "testable and this is it")
 
     preview_before = preview(cart)
     record("previewing a draft cart still creates nothing",
@@ -707,9 +737,9 @@ def section_revalidation() -> None:
             '{fx.TENANT}', '{fx.OUTLET_H1}', '{big}', 'dine_in');""")
     record("a line quantity beyond the configured maximum blocks the submission",
            any(r[0] == "quantity" for r in quantity),
-           f"{[r[1] for r in quantity if r[0] == 'quantity']}. This is ordered units, "
-           f"not a stock level — there is no quantity-on-hand column anywhere in this "
-           f"database and the inventory fence is why")
+           f"{[r[1] for r in quantity if r[0] == 'quantity']}. Ordered units, never a "
+           f"level on hand: no quantity-remaining column exists anywhere in this "
+           f"database, so there is nothing here that could mean one")
 
     # Channel — an outlet that does not serve this menu on this channel.
     channel = rows(f"""
@@ -800,7 +830,7 @@ def section_acceptance_and_ownership() -> None:
         JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname = 'ordering' AND c.relkind = 'r' AND a.attnum > 0
           AND NOT a.attisdropped
-          AND a.attname ~* '(phone|email|msisdn|customer_name|loyalty|member)'
+          AND a.attname ~* '(phone|email|msisdn|customer_name|member_number|account_ref)'
         ORDER BY a.attname;""", dsn=ADMIN)]
     record("no column in the ordering schema could hold a customer identity",
            not identity_columns,
@@ -1362,11 +1392,11 @@ def section_ledger_and_rebuild() -> None:
 
 
 # ===========================================================================
-# 14. Session lifecycle, proved by inventory (FR-TAB-007A, 008, 009)
+# 14. Session lifecycle, proved by a full census (FR-TAB-007A, 008, 009)
 # ===========================================================================
 
-def session_inventory(session: str) -> dict:
-    """Everything hanging off an occupancy, as sets of identifiers.
+def session_contents(session: str) -> dict:
+    """Everything hanging off an occupancy, as SETS of identifiers.
 
     Sets, not counts. A merge that dropped one order and duplicated another keeps the
     count and changes the set, and the count is what a hurried test would compare.
@@ -1397,20 +1427,20 @@ def session_inventory(session: str) -> dict:
 
 
 def section_session_lifecycle() -> None:
-    print("\n--- 14. Merge, move and close, proved by inventory (FR-TAB-007A, 008, 009) ---")
+    print("\n--- 14. Merge, move and close, proved by a full census (FR-TAB-007A, 008, 009) ---")
 
     left = a_table_with_an_order(declarations=True, table=fx.TABLE_ONE)
     right = a_table_with_an_order(declarations=True, table=fx.TABLE_TWO)
 
-    before_left = session_inventory(left["session"])
-    before_right = session_inventory(right["session"])
+    before_left = session_contents(left["session"])
+    before_right = session_contents(right["session"])
     expected = {k: before_left[k] | before_right[k] for k in before_left}
 
     merge = run(APP, f"""
         SELECT service.merge_table_sessions('{fx.TENANT}', '{left["session"]}',
                                             '{right["session"]}', '{fx.USER}');""", **CTX)
-    after = session_inventory(left["session"])
-    stranded = session_inventory(right["session"])
+    after = session_contents(left["session"])
+    stranded = session_contents(right["session"])
 
     record("a merge moves EXACTLY the union of both tables, nothing dropped or duplicated",
            merge.ok and after == expected,
@@ -1454,7 +1484,7 @@ def section_session_lifecycle() -> None:
            f"that order go' cannot have two answers")
 
     # --- move ---
-    before_move = session_inventory(left["session"])
+    before_move = session_contents(left["session"])
     identity_before = rows(f"""
         SELECT table_node_id::text, occupancy_number::text
         FROM service.table_session WHERE id = '{left["session"]}';""")[0]
@@ -1462,7 +1492,7 @@ def section_session_lifecycle() -> None:
     move = run(APP, f"""
         SELECT service.move_table_session('{fx.TENANT}', '{left["session"]}',
                                           '{fx.TABLE_TWO}', '{fx.USER}');""", **CTX)
-    after_move = session_inventory(left["session"])
+    after_move = session_contents(left["session"])
     identity_after = rows(f"""
         SELECT table_node_id::text, occupancy_number::text
         FROM service.table_session WHERE id = '{left["session"]}';""")[0]
@@ -1979,8 +2009,8 @@ def session_change_gate() -> tuple[bool, str, str]:
     left = a_table_with_an_order(declarations=True, table=fx.TABLE_ONE)
     right = a_table_with_an_order(declarations=True, table=fx.TABLE_TWO)
 
-    before_left = session_inventory(left["session"])
-    before_right = session_inventory(right["session"])
+    before_left = session_contents(left["session"])
+    before_right = session_contents(right["session"])
     expected = {k: before_left[k] | before_right[k] for k in before_left}
 
     merged = run(APP, f"""
@@ -1990,7 +2020,7 @@ def session_change_gate() -> tuple[bool, str, str]:
         return False, "ORDER_LOST_ON_SESSION_CHANGE", f"the merge failed: {merged.why()}"
 
     leaks: list[str] = []
-    after = session_inventory(left["session"])
+    after = session_contents(left["session"])
     for key in sorted(expected):
         missing = expected[key] - after[key]
         extra = after[key] - expected[key]
@@ -1999,7 +2029,7 @@ def session_change_gate() -> tuple[bool, str, str]:
         if extra:
             leaks.append(f"merge invented {len(extra)} {key}: {sorted(extra)}")
 
-    stranded = session_inventory(right["session"])
+    stranded = session_contents(right["session"])
     for key, value in sorted(stranded.items()):
         if value:
             leaks.append(f"merge left {len(value)} {key} on the absorbed occupancy")
@@ -2013,14 +2043,14 @@ def session_change_gate() -> tuple[bool, str, str]:
                      f"session_merged events were written; a re-parent with no event is "
                      f"a silent one")
 
-    before_move = session_inventory(left["session"])
+    before_move = session_contents(left["session"])
     moved = run(APP, f"""
         SELECT service.move_table_session('{fx.TENANT}', '{left["session"]}',
                                           '{fx.TABLE_TWO}', '{fx.USER}');""", **CTX)
     if not moved.ok:
         leaks.append(f"the move failed: {moved.why()}")
     else:
-        after_move = session_inventory(left["session"])
+        after_move = session_contents(left["session"])
         for key in sorted(before_move):
             if before_move[key] != after_move[key]:
                 leaks.append(f"move changed {key}: "

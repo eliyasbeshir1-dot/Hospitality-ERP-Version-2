@@ -4,7 +4,7 @@
 Do not edit by hand: the verification suite regenerates this file and fails on any
 difference, so a hand edit is reported as drift (FR-DAT-015).
 
-Schemas covered: `app`, `audit`, `config`, `identity`, `menu`, `money`, `org`, `safety`, `service`, discovered from the database rather than listed here.
+Schemas covered: `app`, `audit`, `config`, `identity`, `menu`, `money`, `ordering`, `org`, `safety`, `service`, discovered from the database rather than listed here.
 
 ---
 
@@ -41,6 +41,15 @@ Schemas covered: `app`, `audit`, `config`, `identity`, `menu`, `money`, `org`, `
 | `menu.translation_state` | draft, in_review, approved, rejected |
 | `menu.variant_axis` | size, portion, temperature, preparation_style |
 | `money.rounding_mode` | half_up, half_even, floor, ceiling |
+| `ordering.acceptance_mode` | automatic, staff_confirmed |
+| `ordering.actor_kind` | guest, staff, system |
+| `ordering.artifact_kind` | request, cart, table_session, order, fulfillment_ticket, service_request |
+| `ordering.charge_kind` | item_subtotal, discount, tax, fee |
+| `ordering.charge_source_kind` | menu_price, tax_configuration, discount_policy, service_configuration |
+| `ordering.event_kind` | submitted, accepted, rejected, amended, cancelled, voided, note_added, allergy_declared, session_merged, session_moved |
+| `ordering.note_kind` | customer, allergy_declaration, kitchen_instruction, private_staff |
+| `ordering.order_origin` | guest_qr, waiter_entered |
+| `ordering.order_state` | submitted, accepted, rejected, cancelled, voided |
 | `org.lifecycle_status` | active, inactive, archived |
 | `org.node_kind` | brand, legal_entity, outlet, service_area, preparation_station, dining_table, device |
 | `safety.declaration_class` | contains, may_contain, cross_contact |
@@ -111,22 +120,32 @@ graph LR
   menu_publication_snapshot_line["menu.publication_snapshot_line"]
   menu_translation["menu.translation"]
   menu_translatable_field["menu.translatable_field"]
+  ordering_charge_rule["ordering.charge_rule"]
+  ordering_correlation_link["ordering.correlation_link"]
+  ordering_customer_order["ordering.customer_order"]
+  service_cart["service.cart"]
+  service_guest_session["service.guest_session"]
+  service_table_session["service.table_session"]
+  ordering_duplicate_signal["ordering.duplicate_signal"]
+  ordering_order_charge_component["ordering.order_charge_component"]
+  ordering_order_event["ordering.order_event"]
+  ordering_order_line["ordering.order_line"]
+  ordering_order_line_modifier["ordering.order_line_modifier"]
+  ordering_order_note["ordering.order_note"]
+  safety_allergen["safety.allergen"]
+  safety_allergy_concern["safety.allergy_concern"]
+  safety_approved_wording["safety.approved_wording"]
+  ordering_order_timeline_entry["ordering.order_timeline_entry"]
   org_device_registration["org.device_registration"]
   org_org_closure["org.org_closure"]
   org_outlet_profile["org.outlet_profile"]
-  safety_allergen["safety.allergen"]
   safety_jurisdiction["safety.jurisdiction"]
-  safety_allergy_concern["safety.allergy_concern"]
-  safety_approved_wording["safety.approved_wording"]
-  service_guest_session["service.guest_session"]
-  service_table_session["service.table_session"]
   safety_declaration["safety.declaration"]
   safety_declaration_reference["safety.declaration_reference"]
   safety_dietary_claim["safety.dietary_claim"]
   safety_dietary_claim_outlet["safety.dietary_claim_outlet"]
   safety_item_dietary_claim["safety.item_dietary_claim"]
   safety_jurisdiction_requirement["safety.jurisdiction_requirement"]
-  service_cart["service.cart"]
   service_cart_line["service.cart_line"]
   service_cart_line_modifier["service.cart_line_modifier"]
   service_cart_line_transfer["service.cart_line_transfer"]
@@ -135,9 +154,12 @@ graph LR
   service_qr_placard["service.qr_placard"]
   service_table_qr_token["service.table_qr_token"]
   service_qr_scan["service.qr_scan"]
+  service_session_closure_exception["service.session_closure_exception"]
+  service_session_merge["service.session_merge"]
+  service_session_move["service.session_move"]
+  service_table_profile["service.table_profile"]
   service_session_participant["service.session_participant"]
   service_table_ownership["service.table_ownership"]
-  service_table_profile["service.table_profile"]
   service_verification_policy["service.verification_policy"]
   audit_operational_event --> org_org_node
   audit_operational_event --> org_tenant
@@ -255,6 +277,59 @@ graph LR
   menu_translation --> menu_translatable_field
   menu_translation --> org_org_node
   menu_translation --> org_tenant
+  ordering_charge_rule --> config_configuration_version
+  ordering_charge_rule --> config_policy
+  ordering_charge_rule --> money_currency
+  ordering_charge_rule --> org_org_node
+  ordering_charge_rule --> org_tenant
+  ordering_correlation_link --> org_org_node
+  ordering_correlation_link --> org_tenant
+  ordering_customer_order --> identity_user_account
+  ordering_customer_order --> menu_publication_snapshot
+  ordering_customer_order --> money_currency
+  ordering_customer_order --> org_org_node
+  ordering_customer_order --> org_tenant
+  ordering_customer_order --> service_cart
+  ordering_customer_order --> service_guest_session
+  ordering_customer_order --> service_table_session
+  ordering_duplicate_signal --> ordering_customer_order
+  ordering_duplicate_signal --> org_org_node
+  ordering_duplicate_signal --> org_tenant
+  ordering_order_charge_component --> money_currency
+  ordering_order_charge_component --> ordering_charge_rule
+  ordering_order_charge_component --> ordering_customer_order
+  ordering_order_charge_component --> org_org_node
+  ordering_order_charge_component --> org_tenant
+  ordering_order_event --> config_reason_code
+  ordering_order_event --> identity_user_account
+  ordering_order_event --> org_org_node
+  ordering_order_event --> org_tenant
+  ordering_order_event --> service_guest_session
+  ordering_order_line --> menu_item_variant
+  ordering_order_line --> menu_publication_snapshot_line
+  ordering_order_line --> menu_sellable_item
+  ordering_order_line --> money_currency
+  ordering_order_line --> ordering_customer_order
+  ordering_order_line --> org_org_node
+  ordering_order_line --> org_tenant
+  ordering_order_line --> service_guest_session
+  ordering_order_line_modifier --> menu_modifier
+  ordering_order_line_modifier --> money_currency
+  ordering_order_line_modifier --> ordering_order_line
+  ordering_order_line_modifier --> org_org_node
+  ordering_order_line_modifier --> org_tenant
+  ordering_order_note --> identity_user_account
+  ordering_order_note --> ordering_customer_order
+  ordering_order_note --> ordering_order_line
+  ordering_order_note --> org_org_node
+  ordering_order_note --> org_tenant
+  ordering_order_note --> safety_allergen
+  ordering_order_note --> safety_allergy_concern
+  ordering_order_note --> safety_approved_wording
+  ordering_order_note --> service_guest_session
+  ordering_order_timeline_entry --> ordering_customer_order
+  ordering_order_timeline_entry --> org_org_node
+  ordering_order_timeline_entry --> org_tenant
   org_device_registration --> org_org_node
   org_org_closure --> org_org_node
   org_org_closure --> org_tenant
@@ -327,6 +402,21 @@ graph LR
   service_qr_scan --> org_tenant
   service_qr_scan --> service_guest_session
   service_qr_scan --> service_table_qr_token
+  service_session_closure_exception --> config_reason_code
+  service_session_closure_exception --> identity_user_account
+  service_session_closure_exception --> org_org_node
+  service_session_closure_exception --> org_tenant
+  service_session_closure_exception --> service_table_session
+  service_session_merge --> config_reason_code
+  service_session_merge --> identity_user_account
+  service_session_merge --> org_org_node
+  service_session_merge --> org_tenant
+  service_session_merge --> service_table_session
+  service_session_move --> identity_user_account
+  service_session_move --> org_org_node
+  service_session_move --> org_tenant
+  service_session_move --> service_table_profile
+  service_session_move --> service_table_session
   service_session_participant --> org_org_node
   service_session_participant --> org_tenant
   service_session_participant --> service_guest_session
@@ -1874,6 +1964,404 @@ Constraints:
 - `currency_minor_unit_digits_sane` — `CHECK (((minor_unit_digits >= 0) AND (minor_unit_digits <= 4)))`
 - `currency_pkey` — `PRIMARY KEY (code)`
 
+### `ordering`
+
+The commercial order: submission, snapshots, notes, timeline and the append-only ledger they are all projections of (FR-ORD-001A, FR-DAT-008A, FR-DAT-010).
+
+#### `ordering.charge_rule`
+
+Where a tax, discount or fee figure comes from (FR-ORD-003). Every row names the M1 configuration or policy it was derived from, so no amount on an order is a number somebody chose. There is no fee row at M3-A and no path that creates one: the configuration a fee resolves to is FR-CFG-001C at M4.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `kind` | `ordering.charge_kind` | NOT NULL |  |  |
+| `source_kind` | `ordering.charge_source_kind` | NOT NULL |  |  |
+| `source_configuration_id` | `uuid` |  |  |  |
+| `source_policy_id` | `uuid` |  |  |  |
+| `tax_context` | `text` |  |  |  |
+| `rate_percentage` | `money.percentage` |  |  |  |
+| `fixed_amount_minor` | `money.amount_minor` |  |  |  |
+| `currency_code` | `character(3)` |  |  |  |
+| `rounding_mode` | `money.rounding_mode` | NOT NULL |  |  |
+| `effective_from` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `effective_to` | `timestamp with time zone` |  |  |  |
+
+Constraints:
+
+- `charge_rule_configuration_fk` — `FOREIGN KEY (source_configuration_id) REFERENCES config.configuration_version(id) ON DELETE RESTRICT`
+- `charge_rule_currency_fk` — `FOREIGN KEY (currency_code) REFERENCES money.currency(code) ON DELETE RESTRICT`
+- `charge_rule_fixed_amount_has_currency` — `CHECK (((fixed_amount_minor IS NULL) = (currency_code IS NULL)))`
+- `charge_rule_fixed_amount_is_a_magnitude` — `CHECK (((fixed_amount_minor IS NULL) OR ((fixed_amount_minor)::bigint >= 0)))`
+- `charge_rule_not_a_line_price` — `CHECK ((kind <> 'item_subtotal'::ordering.charge_kind))`
+- `charge_rule_one_basis` — `CHECK (((((rate_percentage IS NOT NULL))::integer + ((fixed_amount_minor IS NOT NULL))::integer) = 1))`
+- `charge_rule_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `charge_rule_pkey` — `PRIMARY KEY (id)`
+- `charge_rule_policy_fk` — `FOREIGN KEY (source_policy_id) REFERENCES config.policy(id) ON DELETE RESTRICT`
+- `charge_rule_source_matches_kind` — `CHECK ((((kind = 'tax'::ordering.charge_kind) AND (source_kind = 'tax_configuration'::ordering.charge_source_kind) AND (source_configuration_id IS NOT NULL) AND (source_policy_id IS NULL)) OR ((kind = 'discount'::ordering.charge_kind) AND (source_kind = 'discount_policy'::ordering.charge_source_kind) AND (source_policy_id IS NOT NULL) AND (source_configuration_id IS NULL)) OR ((kind = 'fee'::ordering.charge_kind) AND (source_kind = 'service_configuration'::ordering.charge_source_kind) AND (source_configuration_id IS NOT NULL) AND (source_policy_id IS NULL))))`
+- `charge_rule_tax_context_not_blank` — `CHECK (((tax_context IS NULL) OR (btrim(tax_context) <> ''::text)))`
+- `charge_rule_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `charge_rule_window_valid` — `CHECK (((effective_to IS NULL) OR (effective_to > effective_from)))`
+
+Policies:
+
+- `charge_rule_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `ordering.correlation_link`
+
+The stable chain linking a request, a cart, a table session and an order (FR-ORD-019A), rebuilt from ordering.order_event so it survives a projection rebuild by construction. artifact_id is deliberately not a foreign key: the chain must be able to name an artifact kind whose table a later slice builds.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `correlation_id` | `uuid` | NOT NULL |  |  |
+| `artifact_kind` | `ordering.artifact_kind` | NOT NULL |  |  |
+| `artifact_id` | `uuid` | NOT NULL |  |  |
+| `linked_at` | `timestamp with time zone` | NOT NULL |  |  |
+
+Constraints:
+
+- `correlation_link_pkey` — `PRIMARY KEY (correlation_id, artifact_kind, artifact_id)`
+- `correlation_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `correlation_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `correlation_link_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `ordering.customer_order`
+
+ONE order aggregate for QR dine-in and waiter-entered dine-in (FR-ORD-001A), with the origin as the channel-specific policy dimension rather than a second model. A projection of ordering.order_event: nothing writes here except ordering.apply_event(), and the whole table can be discarded and rebuilt from the ledger byte for byte (FR-DAT-010).
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `table_session_id` | `uuid` | NOT NULL |  |  |
+| `cart_id` | `uuid` | NOT NULL |  |  |
+| `origin` | `ordering.order_origin` | NOT NULL |  |  |
+| `channel` | `menu.sales_channel` | NOT NULL |  |  |
+| `state` | `ordering.order_state` | NOT NULL |  |  |
+| `placed_by_guest_session_id` | `uuid` |  |  |  |
+| `placed_by_user_id` | `uuid` |  |  |  |
+| `order_number` | `text` | NOT NULL |  |  |
+| `customer_locale` | `menu.customer_locale` | NOT NULL |  |  |
+| `publication_snapshot_id` | `uuid` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `total_amount_minor` | `money.amount_minor` | NOT NULL |  | The sum of ordering.order_charge_component for this order, and nothing else. A deferred constraint trigger refuses to commit a row where it is not, so a total and its components cannot drift apart. It is never a figure a client supplied (FR-ORD-003). |
+| `correlation_id` | `uuid` | NOT NULL |  |  |
+| `idempotency_key` | `text` | NOT NULL |  |  |
+| `submitted_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `acceptance_mode` | `ordering.acceptance_mode` |  |  |  |
+| `accepted_at` | `timestamp with time zone` |  |  |  |
+| `accepted_by_user_id` | `uuid` |  |  |  |
+| `resolved_at` | `timestamp with time zone` |  |  |  |
+| `ledger_sequence` | `integer` | NOT NULL |  |  |
+
+Constraints:
+
+- `customer_order_acceptance_recorded_together` — `CHECK (((accepted_at IS NULL) = (acceptance_mode IS NULL)))`
+- `customer_order_accepted_and_voided_name_the_acceptance` — `CHECK (((state <> ALL (ARRAY['accepted'::ordering.order_state, 'voided'::ordering.order_state])) OR (accepted_at IS NOT NULL)))`
+- `customer_order_accepter_fk` — `FOREIGN KEY (tenant_id, accepted_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `customer_order_automatic_has_no_confirmer` — `CHECK (((acceptance_mode IS DISTINCT FROM 'automatic'::ordering.acceptance_mode) OR (accepted_by_user_id IS NULL)))`
+- `customer_order_cart_fk` — `FOREIGN KEY (tenant_id, cart_id) REFERENCES service.cart(tenant_id, id) ON DELETE RESTRICT`
+- `customer_order_confirmer_named` — `CHECK (((acceptance_mode IS DISTINCT FROM 'staff_confirmed'::ordering.acceptance_mode) OR (accepted_by_user_id IS NOT NULL)))`
+- `customer_order_currency_fk` — `FOREIGN KEY (currency_code) REFERENCES money.currency(code) ON DELETE RESTRICT`
+- `customer_order_guest_fk` — `FOREIGN KEY (tenant_id, placed_by_guest_session_id) REFERENCES service.guest_session(tenant_id, id) ON DELETE RESTRICT`
+- `customer_order_idempotency_key_not_blank` — `CHECK ((btrim(idempotency_key) <> ''::text))`
+- `customer_order_number_not_blank` — `CHECK ((btrim(order_number) <> ''::text))`
+- `customer_order_one_per_key` — `UNIQUE (tenant_id, outlet_id, idempotency_key)`
+- `customer_order_origin_consistent` — `CHECK ((((origin = 'guest_qr'::ordering.order_origin) AND (placed_by_guest_session_id IS NOT NULL) AND (placed_by_user_id IS NULL)) OR ((origin = 'waiter_entered'::ordering.order_origin) AND (placed_by_user_id IS NOT NULL) AND (placed_by_guest_session_id IS NULL))))`
+- `customer_order_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `customer_order_pkey` — `PRIMARY KEY (id)`
+- `customer_order_resolution_consistent` — `CHECK (((state = ANY (ARRAY['submitted'::ordering.order_state, 'accepted'::ordering.order_state])) = (resolved_at IS NULL)))`
+- `customer_order_sequence_positive` — `CHECK ((ledger_sequence > 0))`
+- `customer_order_session_fk` — `FOREIGN KEY (tenant_id, table_session_id) REFERENCES service.table_session(tenant_id, id) ON DELETE RESTRICT`
+- `customer_order_snapshot_fk` — `FOREIGN KEY (publication_snapshot_id) REFERENCES menu.publication_snapshot(id) ON DELETE RESTRICT`
+- `customer_order_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `customer_order_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `customer_order_total_reconciles` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
+- `customer_order_unaccepted_states_claim_nothing` — `CHECK (((state <> ALL (ARRAY['submitted'::ordering.order_state, 'rejected'::ordering.order_state])) OR (accepted_at IS NULL)))`
+- `customer_order_user_fk` — `FOREIGN KEY (tenant_id, placed_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `customer_order_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `ordering.duplicate_signal`
+
+A suspected duplicate order, flagged and never refused (FR-ORD-017). A control that blocked a legitimate second round of drinks would be wrong in the other direction, so a declared repeat produces NO ROW here at all. There is deliberately no "repeat_intent_declared" column: it could only ever hold false, and a column with one possible value reads like a real value while carrying nothing. The absence of the row is the record, and tests/m3a asserts the absence rather than a flag.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `order_id` | `uuid` | NOT NULL |  |  |
+| `matched_order_id` | `uuid` | NOT NULL |  |  |
+| `content_digest` | `bytea` | NOT NULL |  |  |
+| `seconds_apart` | `integer` | NOT NULL |  |  |
+| `raised_at` | `timestamp with time zone` | NOT NULL |  |  |
+
+Constraints:
+
+- `duplicate_signal_digest_is_sha256` — `CHECK ((octet_length(content_digest) = 32))`
+- `duplicate_signal_distinct_orders` — `CHECK ((order_id <> matched_order_id))`
+- `duplicate_signal_interval_not_negative` — `CHECK ((seconds_apart >= 0))`
+- `duplicate_signal_matched_fk` — `FOREIGN KEY (tenant_id, matched_order_id) REFERENCES ordering.customer_order(tenant_id, id) ON DELETE RESTRICT`
+- `duplicate_signal_order_fk` — `FOREIGN KEY (tenant_id, order_id) REFERENCES ordering.customer_order(tenant_id, id) ON DELETE RESTRICT`
+- `duplicate_signal_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `duplicate_signal_pkey` — `PRIMARY KEY (id)`
+- `duplicate_signal_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `duplicate_signal_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `ordering.order_charge_component`
+
+One row per charge that applied to an order (FR-ORD-005). The order total is SUM(amount_minor) over these rows — a component whose source does not exist yet produces no row, never a zero. Discounts are stored negative so the summation has no per-kind sign logic and cannot get a new kind's sign wrong.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `order_id` | `uuid` | NOT NULL |  |  |
+| `kind` | `ordering.charge_kind` | NOT NULL |  |  |
+| `source_kind` | `ordering.charge_source_kind` | NOT NULL |  |  |
+| `charge_rule_id` | `uuid` |  |  |  |
+| `basis` | `jsonb` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+
+Constraints:
+
+- `order_charge_additions_add` — `CHECK (((kind = 'discount'::ordering.charge_kind) OR ((amount_minor)::bigint >= 0)))`
+- `order_charge_component_pkey` — `PRIMARY KEY (id)`
+- `order_charge_currency_fk` — `FOREIGN KEY (currency_code) REFERENCES money.currency(code) ON DELETE RESTRICT`
+- `order_charge_discount_reduces` — `CHECK (((kind <> 'discount'::ordering.charge_kind) OR ((amount_minor)::bigint <= 0)))`
+- `order_charge_one_per_rule` — `UNIQUE (order_id, kind, charge_rule_id)`
+- `order_charge_order_fk` — `FOREIGN KEY (tenant_id, order_id) REFERENCES ordering.customer_order(tenant_id, id) ON DELETE RESTRICT`
+- `order_charge_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `order_charge_rule_fk` — `FOREIGN KEY (charge_rule_id) REFERENCES ordering.charge_rule(id) ON DELETE RESTRICT`
+- `order_charge_rule_required` — `CHECK ((((kind = 'item_subtotal'::ordering.charge_kind) AND (source_kind = 'menu_price'::ordering.charge_source_kind) AND (charge_rule_id IS NULL)) OR ((kind <> 'item_subtotal'::ordering.charge_kind) AND (charge_rule_id IS NOT NULL))))`
+- `order_charge_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `order_charge_total_reconciles` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
+
+Policies:
+
+- `order_charge_component_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `ordering.order_event`
+
+The authoritative, append-only order ledger (FR-DAT-008A). Every other table in this schema is a projection rebuilt from it by ordering.apply_event(), so an order has no destructive edit path: there is nothing to edit that is not derived. Enforced twice over — the application role holds INSERT and SELECT only, and ordering.refuse_ledger_mutation() refuses UPDATE, DELETE and TRUNCATE whoever asks.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `bigint` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `order_id` | `uuid` | NOT NULL |  |  |
+| `sequence_number` | `integer` | NOT NULL |  |  |
+| `kind` | `ordering.event_kind` | NOT NULL |  |  |
+| `occurred_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `actor_kind` | `ordering.actor_kind` | NOT NULL |  |  |
+| `actor_user_id` | `uuid` |  |  |  |
+| `actor_guest_session_id` | `uuid` |  |  |  |
+| `correlation_id` | `uuid` | NOT NULL |  |  |
+| `reason_code_id` | `uuid` |  |  |  |
+| `before` | `jsonb` |  |  |  |
+| `after` | `jsonb` | NOT NULL |  |  |
+
+Constraints:
+
+- `order_event_actor_consistent` — `CHECK ((((actor_kind = 'guest'::ordering.actor_kind) AND (actor_guest_session_id IS NOT NULL) AND (actor_user_id IS NULL)) OR ((actor_kind = 'staff'::ordering.actor_kind) AND (actor_user_id IS NOT NULL) AND (actor_guest_session_id IS NULL)) OR ((actor_kind = 'system'::ordering.actor_kind) AND (actor_user_id IS NULL) AND (actor_guest_session_id IS NULL))))`
+- `order_event_actor_guest_fk` — `FOREIGN KEY (tenant_id, actor_guest_session_id) REFERENCES service.guest_session(tenant_id, id) ON DELETE RESTRICT`
+- `order_event_actor_user_fk` — `FOREIGN KEY (tenant_id, actor_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `order_event_before_required_for_changes` — `CHECK ((((kind = ANY (ARRAY['amended'::ordering.event_kind, 'cancelled'::ordering.event_kind, 'voided'::ordering.event_kind, 'session_merged'::ordering.event_kind, 'session_moved'::ordering.event_kind])) AND (before IS NOT NULL)) OR ((kind = ANY (ARRAY['submitted'::ordering.event_kind, 'accepted'::ordering.event_kind, 'rejected'::ordering.event_kind, 'note_added'::ordering.event_kind, 'allergy_declared'::ordering.event_kind])) AND (before IS NULL))))`
+- `order_event_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `order_event_pkey` — `PRIMARY KEY (id)`
+- `order_event_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `order_event_reason_required` — `CHECK (((kind = ANY (ARRAY['cancelled'::ordering.event_kind, 'voided'::ordering.event_kind])) = (reason_code_id IS NOT NULL)))`
+- `order_event_sequence_positive` — `CHECK ((sequence_number > 0))`
+- `order_event_sequence_unique` — `UNIQUE (tenant_id, order_id, sequence_number)`
+- `order_event_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `order_event_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `ordering.order_line`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `order_id` | `uuid` | NOT NULL |  |  |
+| `line_number` | `integer` | NOT NULL |  |  |
+| `item_id` | `uuid` | NOT NULL |  |  |
+| `variant_id` | `uuid` | NOT NULL |  |  |
+| `quantity` | `integer` | NOT NULL |  |  |
+| `participant_guest_session_id` | `uuid` |  |  |  |
+| `snapshot_line_id` | `bigint` | NOT NULL |  |  |
+| `item_code` | `text` | NOT NULL |  |  |
+| `canonical_name` | `text` | NOT NULL |  |  |
+| `display_name` | `text` | NOT NULL |  | The dish name in the language the order was placed in, resolved from the approved translation at submission. canonical_name travels beside it unchanged: M2-C found that showing a translated warning next to an untranslated name is a defect a SQL suite cannot see, and an order carries both so neither question needs a join. |
+| `tax_context` | `text` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `unit_amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `line_amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+
+Constraints:
+
+- `order_line_code_not_blank` — `CHECK ((btrim(item_code) <> ''::text))`
+- `order_line_currency_fk` — `FOREIGN KEY (currency_code) REFERENCES money.currency(code) ON DELETE RESTRICT`
+- `order_line_display_name_not_blank` — `CHECK ((btrim(display_name) <> ''::text))`
+- `order_line_item_fk` — `FOREIGN KEY (item_id) REFERENCES menu.sellable_item(id) ON DELETE RESTRICT`
+- `order_line_name_not_blank` — `CHECK ((btrim(canonical_name) <> ''::text))`
+- `order_line_number_positive` — `CHECK ((line_number > 0))`
+- `order_line_number_unique` — `UNIQUE (tenant_id, order_id, line_number)`
+- `order_line_order_fk` — `FOREIGN KEY (tenant_id, order_id) REFERENCES ordering.customer_order(tenant_id, id) ON DELETE RESTRICT`
+- `order_line_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `order_line_participant_fk` — `FOREIGN KEY (tenant_id, participant_guest_session_id) REFERENCES service.guest_session(tenant_id, id) ON DELETE RESTRICT`
+- `order_line_pkey` — `PRIMARY KEY (id)`
+- `order_line_quantity_positive` — `CHECK ((quantity > 0))`
+- `order_line_snapshot_fk` — `FOREIGN KEY (snapshot_line_id) REFERENCES menu.publication_snapshot_line(id) ON DELETE RESTRICT`
+- `order_line_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `order_line_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `order_line_variant_fk` — `FOREIGN KEY (variant_id) REFERENCES menu.item_variant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `order_line_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `ordering.order_line_modifier`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `order_line_id` | `uuid` | NOT NULL |  |  |
+| `modifier_id` | `uuid` | NOT NULL |  |  |
+| `canonical_name` | `text` | NOT NULL |  |  |
+| `display_name` | `text` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `unit_amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+
+Constraints:
+
+- `order_line_modifier_currency_fk` — `FOREIGN KEY (currency_code) REFERENCES money.currency(code) ON DELETE RESTRICT`
+- `order_line_modifier_line_fk` — `FOREIGN KEY (tenant_id, order_line_id) REFERENCES ordering.order_line(tenant_id, id) ON DELETE RESTRICT`
+- `order_line_modifier_modifier_fk` — `FOREIGN KEY (modifier_id) REFERENCES menu.modifier(id) ON DELETE RESTRICT`
+- `order_line_modifier_name_not_blank` — `CHECK ((btrim(canonical_name) <> ''::text))`
+- `order_line_modifier_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `order_line_modifier_pkey` — `PRIMARY KEY (id)`
+- `order_line_modifier_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `order_line_modifier_unique` — `UNIQUE (order_line_id, modifier_id)`
+
+Policies:
+
+- `order_line_modifier_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `ordering.order_note`
+
+Four note kinds with four required shapes (FR-ORD-013), so the distinction is structural rather than a label. The application role holds NO direct SELECT here: reads go through the audience functions below, and the one a customer surface can call takes no audience argument, so it cannot be asked for a private staff note.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `order_id` | `uuid` | NOT NULL |  |  |
+| `order_line_id` | `uuid` |  |  |  |
+| `kind` | `ordering.note_kind` | NOT NULL |  |  |
+| `body` | `text` | NOT NULL |  |  |
+| `author_user_id` | `uuid` |  |  |  |
+| `author_guest_session_id` | `uuid` |  |  |  |
+| `allergen_id` | `uuid` |  |  |  |
+| `allergy_concern_id` | `uuid` |  |  |  |
+| `acknowledgement_wording_id` | `uuid` |  |  |  |
+| `acknowledgement_text` | `text` |  |  |  |
+| `created_at` | `timestamp with time zone` | NOT NULL |  |  |
+
+Constraints:
+
+- `order_note_allergen_fk` — `FOREIGN KEY (tenant_id, allergen_id) REFERENCES safety.allergen(tenant_id, id) ON DELETE RESTRICT`
+- `order_note_allergy_shape` — `CHECK ((((kind = 'allergy_declaration'::ordering.note_kind) AND (allergen_id IS NOT NULL) AND (allergy_concern_id IS NOT NULL) AND (acknowledgement_wording_id IS NOT NULL) AND (acknowledgement_text IS NOT NULL) AND (btrim(acknowledgement_text) <> ''::text)) OR ((kind <> 'allergy_declaration'::ordering.note_kind) AND (allergen_id IS NULL) AND (allergy_concern_id IS NULL) AND (acknowledgement_wording_id IS NULL) AND (acknowledgement_text IS NULL))))`
+- `order_note_author_fk` — `FOREIGN KEY (tenant_id, author_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `order_note_authorship_matches_kind` — `CHECK ((((kind = ANY (ARRAY['kitchen_instruction'::ordering.note_kind, 'private_staff'::ordering.note_kind])) AND (author_user_id IS NOT NULL) AND (author_guest_session_id IS NULL)) OR ((kind = ANY (ARRAY['customer'::ordering.note_kind, 'allergy_declaration'::ordering.note_kind])) AND ((author_guest_session_id IS NOT NULL) OR (author_user_id IS NOT NULL)))))`
+- `order_note_body_not_blank` — `CHECK ((btrim(body) <> ''::text))`
+- `order_note_concern_fk` — `FOREIGN KEY (allergy_concern_id) REFERENCES safety.allergy_concern(id) ON DELETE RESTRICT`
+- `order_note_guest_fk` — `FOREIGN KEY (tenant_id, author_guest_session_id) REFERENCES service.guest_session(tenant_id, id) ON DELETE RESTRICT`
+- `order_note_line_fk` — `FOREIGN KEY (tenant_id, order_line_id) REFERENCES ordering.order_line(tenant_id, id) ON DELETE RESTRICT`
+- `order_note_order_fk` — `FOREIGN KEY (tenant_id, order_id) REFERENCES ordering.customer_order(tenant_id, id) ON DELETE RESTRICT`
+- `order_note_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `order_note_pkey` — `PRIMARY KEY (id)`
+- `order_note_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `order_note_wording_fk` — `FOREIGN KEY (tenant_id, acknowledgement_wording_id) REFERENCES safety.approved_wording(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `order_note_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `ordering.order_timeline_entry`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `order_id` | `uuid` | NOT NULL |  |  |
+| `sequence_number` | `integer` | NOT NULL |  |  |
+| `occurred_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `kind` | `ordering.event_kind` | NOT NULL |  |  |
+| `visible_to_customer` | `boolean` | NOT NULL |  |  |
+| `visible_to_staff` | `boolean` | NOT NULL |  |  |
+| `customer_summary` | `text` |  |  |  |
+| `staff_summary` | `text` | NOT NULL |  |  |
+
+Constraints:
+
+- `order_timeline_entry_pkey` — `PRIMARY KEY (id)`
+- `timeline_customer_text_matches_visibility` — `CHECK ((visible_to_customer = ((customer_summary IS NOT NULL) AND (btrim(COALESCE(customer_summary, ''::text)) <> ''::text))))`
+- `timeline_order_fk` — `FOREIGN KEY (tenant_id, order_id) REFERENCES ordering.customer_order(tenant_id, id) ON DELETE RESTRICT`
+- `timeline_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `timeline_sequence_unique` — `UNIQUE (tenant_id, order_id, sequence_number)`
+- `timeline_staff_always_see_it` — `CHECK (visible_to_staff)`
+- `timeline_staff_summary_not_blank` — `CHECK ((btrim(staff_summary) <> ''::text))`
+- `timeline_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `order_timeline_entry_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
 ### `org`
 
 Phase 1 organizational model (FR-TEN-002A).
@@ -2611,6 +3099,106 @@ Constraints:
 Policies:
 
 - `qr_scan_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.session_closure_exception`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `table_session_id` | `uuid` | NOT NULL |  |  |
+| `reason_code_id` | `uuid` | NOT NULL |  |  |
+| `authorized_by_user_id` | `uuid` | NOT NULL |  |  |
+| `outstanding_orders` | `integer` | NOT NULL |  |  |
+| `note` | `text` | NOT NULL |  |  |
+| `recorded_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `closure_exception_actor_fk` — `FOREIGN KEY (tenant_id, authorized_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `closure_exception_had_something_outstanding` — `CHECK ((outstanding_orders > 0))`
+- `closure_exception_note_not_blank` — `CHECK ((btrim(note) <> ''::text))`
+- `closure_exception_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `closure_exception_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `closure_exception_session_fk` — `FOREIGN KEY (tenant_id, table_session_id) REFERENCES service.table_session(tenant_id, id) ON DELETE RESTRICT`
+- `closure_exception_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `session_closure_exception_pkey` — `PRIMARY KEY (id)`
+
+Policies:
+
+- `session_closure_exception_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.session_merge`
+
+Two physical tables merged into one service session (FR-TAB-007A), audited with the count of orders consolidated so the record itself states what moved.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `surviving_session_id` | `uuid` | NOT NULL |  |  |
+| `absorbed_session_id` | `uuid` | NOT NULL |  |  |
+| `merged_by_user_id` | `uuid` | NOT NULL |  |  |
+| `reason_code_id` | `uuid` |  |  |  |
+| `orders_moved` | `integer` | NOT NULL |  |  |
+| `merged_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `session_merge_absorbed_fk` — `FOREIGN KEY (tenant_id, absorbed_session_id) REFERENCES service.table_session(tenant_id, id) ON DELETE RESTRICT`
+- `session_merge_absorbed_once` — `UNIQUE (tenant_id, absorbed_session_id)`
+- `session_merge_actor_fk` — `FOREIGN KEY (tenant_id, merged_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `session_merge_distinct` — `CHECK ((surviving_session_id <> absorbed_session_id))`
+- `session_merge_orders_not_negative` — `CHECK ((orders_moved >= 0))`
+- `session_merge_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `session_merge_pkey` — `PRIMARY KEY (id)`
+- `session_merge_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `session_merge_surviving_fk` — `FOREIGN KEY (tenant_id, surviving_session_id) REFERENCES service.table_session(tenant_id, id) ON DELETE RESTRICT`
+- `session_merge_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `session_merge_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.session_move`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `table_session_id` | `uuid` | NOT NULL |  |  |
+| `from_table_node_id` | `uuid` | NOT NULL |  |  |
+| `to_table_node_id` | `uuid` | NOT NULL |  |  |
+| `from_occupancy_number` | `integer` | NOT NULL |  |  |
+| `to_occupancy_number` | `integer` | NOT NULL |  |  |
+| `moved_by_user_id` | `uuid` | NOT NULL |  |  |
+| `orders_carried` | `integer` | NOT NULL |  |  |
+| `moved_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `session_move_actor_fk` — `FOREIGN KEY (tenant_id, moved_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `session_move_actually_moves` — `CHECK ((from_table_node_id <> to_table_node_id))`
+- `session_move_from_fk` — `FOREIGN KEY (tenant_id, from_table_node_id) REFERENCES service.table_profile(tenant_id, table_node_id) ON DELETE RESTRICT`
+- `session_move_orders_not_negative` — `CHECK ((orders_carried >= 0))`
+- `session_move_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `session_move_pkey` — `PRIMARY KEY (id)`
+- `session_move_session_fk` — `FOREIGN KEY (tenant_id, table_session_id) REFERENCES service.table_session(tenant_id, id) ON DELETE RESTRICT`
+- `session_move_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `session_move_to_fk` — `FOREIGN KEY (tenant_id, to_table_node_id) REFERENCES service.table_profile(tenant_id, table_node_id) ON DELETE RESTRICT`
+
+Policies:
+
+- `session_move_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
 #### `service.session_participant`
 

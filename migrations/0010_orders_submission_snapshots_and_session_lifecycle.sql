@@ -3316,6 +3316,14 @@ WHERE NOT EXISTS (
 -- One series per outlet per year. Created for the outlets that exist and by trigger for
 -- the ones that arrive later, so an outlet cannot take its first order and discover it
 -- has no way to number it.
+--
+-- The prefix carries the OUTLET'S REFERENCE CODE, and that is not decoration.
+-- config.issued_document_number is unique on (tenant, document_type, fiscal_period,
+-- document_number) with NO outlet in the key, so a series that numbered from one at every
+-- outlet under a constant prefix would produce the same string twice in one tenant and
+-- collide on the second outlet's FIRST ORDER. M1-C's seeded 'check' series already avoids
+-- this with 'H1-' and 'N1-'; this one is written the same way. It was written with a
+-- constant 'ORD-' first and the collision surfaced immediately.
 
 CREATE FUNCTION config.install_order_number_series() RETURNS trigger
 LANGUAGE plpgsql
@@ -3324,7 +3332,8 @@ BEGIN
     IF NEW.kind = 'outlet' THEN
         INSERT INTO config.number_series
             (tenant_id, outlet_id, document_type, fiscal_period, prefix, next_value)
-        VALUES (NEW.tenant_id, NEW.id, 'dine_in_order', to_char(now(), 'YYYY'), 'ORD-', 1)
+        VALUES (NEW.tenant_id, NEW.id, 'dine_in_order', to_char(now(), 'YYYY'),
+                'ORD-' || NEW.reference_code || '-', 1)
         ON CONFLICT DO NOTHING;
     END IF;
     RETURN NULL;
@@ -3337,7 +3346,8 @@ CREATE TRIGGER outlet_install_order_number_series
 
 INSERT INTO config.number_series
     (tenant_id, outlet_id, document_type, fiscal_period, prefix, next_value)
-SELECT n.tenant_id, n.id, 'dine_in_order', to_char(now(), 'YYYY'), 'ORD-', 1
+SELECT n.tenant_id, n.id, 'dine_in_order', to_char(now(), 'YYYY'),
+       'ORD-' || n.reference_code || '-', 1
 FROM org.org_node n
 WHERE n.kind = 'outlet'
   AND NOT EXISTS (

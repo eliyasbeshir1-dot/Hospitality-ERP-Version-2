@@ -838,16 +838,24 @@ def section_boundary() -> None:
     order_surface = count(ADMIN, """
         SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND c.relname ~* '(^|_)(order|order_line|check|bill|payment|tip|receipt)($|_)';
+          AND c.relname ~* '(^|_)(check|bill|payment|tip|receipt|settlement|refund)($|_)';
     """)
-    # 'cart' left this pattern when M2-B landed: a basket BEFORE submission is FR-TAB-005
-    # and belongs to M2-B, while submission remains M3. Narrowing a pattern is how a check
-    # quietly stops catching things, so the cart boundary did not evaporate — it moved to
-    # the M2-B suite, which proves there is no submitted state, no submission function and
-    # no ticket or routing surface anywhere.
-    record("no order, check, payment or receipt surface exists",
+    # Two words have left this pattern, each when the gate that owns them landed, and each
+    # time the boundary MOVED rather than evaporated:
+    #
+    #   'cart'  left at M2-B. A basket BEFORE submission is FR-TAB-005; the M2-B suite
+    #           took over proving there is no submitted state and no submission function.
+    #   'order' leaves at M3-A, which builds the aggregate. The M3-A suite took over
+    #           proving there is no ticket, station, service request, check or payment
+    #           surface, and its own governance section names every requirement it could
+    #           only half-close.
+    #
+    # Narrowing a pattern is otherwise exactly how a check quietly stops catching things,
+    # so what remains here is the M4 half, which is still genuinely forbidden.
+    record("no check, payment, tip or receipt surface exists",
            order_surface == 0,
-           f"{order_surface} table(s) belonging to M3 or M4")
+           f"{order_surface} table(s) belonging to M4. The order surface left this "
+           f"pattern when M3-A built it; billing has not landed and is still refused here")
 
     pattern, term_total = fenced_identifier_pattern()
     fenced_anywhere = run(ADMIN, f"""

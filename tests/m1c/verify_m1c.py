@@ -567,13 +567,46 @@ def section_reason_codes() -> None:
            bad_locale.failed_with("23514", "locale"),
            f"the locale CHECK enforces the ll or ll-CC shape: {bad_locale.why()}")
 
-    consuming = count(ADMIN, """
+    # M1 seeded the registry and nothing consumed it. M3-A is the first gate that does,
+    # so the ORIGINAL form of this check — "no consuming table exists at all" — retired
+    # the moment orders landed. Deleting it would have retired the governance with it, so
+    # the criterion is replaced rather than the assertion removed, and it is replaced with
+    # the property that outlives every gate: a consumer REFERENCES the registry and never
+    # copies it. A second table holding reason codes is how two lists come to disagree
+    # about what a cancellation means.
+    unbilled = count(ADMIN, """
         SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND c.relname ~* '(^|_)(order|check|payment|tip|void|discount_application)($|_)';
+          AND c.relname ~* '(^|_)(check|payment|tip|refund|settlement)($|_)';
     """)
-    record("no action that consumes a reason code was built", consuming == 0,
-           f"{consuming} consuming table(s); ordering is M3 and checks and payments are M4")
+    record("nothing that consumes a reason code at a LATER gate has been built early",
+           unbilled == 0,
+           f"{unbilled} table(s) naming a check, payment, tip, refund or settlement — "
+           f"all of them M4. Order tables may exist from M3 and do")
+
+    consumers = run(ADMIN, """
+        SELECT n.nspname || '.' || c.relname
+        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+        WHERE c.relkind = 'r'
+          AND n.nspname NOT IN ('pg_catalog', 'information_schema', 'config')
+          AND a.attname = 'reason_code_id'
+          AND NOT EXISTS (
+                SELECT 1 FROM pg_constraint fk
+                JOIN pg_class target ON target.oid = fk.confrelid
+                WHERE fk.conrelid = c.oid AND fk.contype = 'f'
+                  AND target.relname = 'reason_code'
+                  AND a.attnum = ANY (fk.conkey))
+        ORDER BY 1;""")
+    if not consumers.ok:
+        raise CommandUnreadable(
+            f"the reason-code consumer scan did not run: {consumers.why()}")
+    copied = [r[0] for r in consumers.rows]
+    record("every consumer references the reason-code registry rather than copying it",
+           not copied,
+           f"tables naming a reason code without a foreign key into config.reason_code: "
+           f"{copied or 'none'}. Absence of the key is how a second, divergent list of "
+           f"reasons gets started")
 
 
 # ===========================================================================
@@ -676,10 +709,17 @@ def numbering_concurrency_gate() -> tuple[bool, str, str]:
     Sequential issuance would pass even with a badly broken issuer, so the workers run
     genuinely in parallel against one series.
     """
+    # Scoped to the document type this gate issues, exactly like the DELETE beside it.
+    # Without the document_type predicate the UPDATE reached EVERY series at this outlet
+    # and rewound the ones it does not own — including M3-A's order series, whose issued
+    # numbers this DELETE does not clean up. The next order then reissued a number that
+    # was already taken. A reset that is broader than the cleanup beside it is a reset
+    # that corrupts whatever else shares the scope.
     run(APP, f"""
         DELETE FROM config.issued_document_number WHERE document_type = 'check';
         UPDATE config.number_series SET next_value = 1
-        WHERE tenant_id = '{TENANT_HABESHA}' AND outlet_id = '{OUTLET_H1}';
+        WHERE tenant_id = '{TENANT_HABESHA}' AND outlet_id = '{OUTLET_H1}'
+          AND document_type = 'check';
     """, **H1)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=WORKERS) as pool:
@@ -731,9 +771,21 @@ def section_numbering() -> None:
            absent.failed_with("NUMBER_SERIES_ABSENT"),
            f"a missing series raises rather than inventing a number: {absent.why()}")
 
-    isolated = count(APP, "SELECT count(*) FROM config.number_series;", **H2)
-    record("a series belongs to its outlet alone", isolated == 1,
-           f"outlet H2 sees {isolated} series — its own, not H1's")
+    # Asserted as "none belonging to anyone else", not as a count. The count was 1 while
+    # a 'check' series was the only one an outlet had; M3-A gives every outlet a
+    # dine_in_order series by trigger, and a check that counted rows would have gone red
+    # on a correct change. What isolation means is that nothing from ANOTHER outlet is
+    # visible, and that is what this now says.
+    foreign = count(APP, f"""
+        SELECT count(*) FROM config.number_series
+        WHERE outlet_id IS DISTINCT FROM '{OUTLET_H2}'::uuid;""", **H2)
+    mine = count(APP, f"""
+        SELECT count(*) FROM config.number_series
+        WHERE outlet_id = '{OUTLET_H2}'::uuid;""", **H2)
+    record("a series belongs to its outlet alone", foreign == 0 and mine >= 1,
+           f"outlet H2 sees {mine} series of its own and {foreign} belonging to anyone "
+           f"else. H1's are invisible, which is the isolation; how many H2 has is a "
+           f"question about how many document types exist, not about isolation")
 
 
 # ===========================================================================
