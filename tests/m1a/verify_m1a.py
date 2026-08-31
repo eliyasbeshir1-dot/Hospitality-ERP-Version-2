@@ -526,6 +526,36 @@ def section_cross_platform() -> None:
               if not unguarded else
               f"{len(unguarded)} inherit the platform default: {', '.join(unguarded)}"))
 
+    # A generated artefact has to describe the REPOSITORY, not its generator.
+    #
+    # README.md is regenerated and compared byte for byte in CI, and that lock passed for
+    # two whole slices while the README said the gate was complete through M2-A and that
+    # menus and guest sessions were still absent — because the generator's slice list was
+    # stale in exactly the same way the document was. A lock that compares an artifact to
+    # its own source of truth goes green on a false document whenever the source of truth
+    # is wrong.
+    #
+    # This reads the repository instead. Every slice with a verification suite must be
+    # named in the README, and the gate line must name the latest one. It shares no data
+    # with generate_readme.py, so the two cannot be stale together.
+    readme = (REPO / "README.md").read_text(encoding="utf-8")
+    suite_tags = sorted(
+        f"M{m.group(1)}-{m.group(2).upper()}"
+        for m in (re.fullmatch(r"m(\d)([a-z])", path.parent.name)
+                  for path in (REPO / "tests").glob("*/verify_*.py"))
+        if m)
+    unnamed = [tag for tag in suite_tags if f"**{tag}**" not in readme]
+    latest = suite_tags[-1] if suite_tags else ""
+    gate_line = next((line for line in readme.splitlines()
+                      if line.startswith("**Gate:**")), "")
+    record("the README names every slice the repository actually has",
+           not unnamed and bool(latest) and latest in gate_line,
+           f"{len(suite_tags)} slice(s) with a verification suite: {', '.join(suite_tags)}. "
+           + (f"absent from the README: {', '.join(unnamed)}. " if unnamed else "")
+           + f"Gate line: {gate_line or '(none)'} — it must name {latest or '(nothing)'}. "
+           f"Read from tests/ and README.md directly, sharing nothing with the generator, "
+           f"so a stale generator cannot make a stale document look correct")
+
     # The mechanisms above hold wherever this runs. The one thing only a real run can
     # establish is which platform it actually executed on, so that is what this reports —
     # read from the interpreter, not written down. The line it replaces said "This harness

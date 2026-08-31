@@ -165,6 +165,21 @@ async function measureLocale(page, locale) {
     }
     measurement.chrome = chrome;
 
+    // The language chooser as rendered: which buttons exist, which is pressed, and
+    // whether each is actually on screen with a usable target size. The suite used to
+    // infer "the three are offered" from the chrome list being non-empty, which is not
+    // the same claim and could not have failed.
+    measurement.localeButtons = [...document.querySelectorAll('.locale')].map((node) => {
+      const box = node.getBoundingClientRect();
+      return {
+        locale: node.dataset.locale,
+        label: (node.textContent || '').trim(),
+        pressed: node.getAttribute('aria-pressed') === 'true',
+        visible: box.width > 0 && box.height > 0,
+        width: box.width, height: box.height, x: box.left,
+      };
+    });
+
     measurement.itemCount = document.querySelectorAll('.item').length;
     measurement.itemNames = [...document.querySelectorAll('.item-name')]
       .map((n) => (n.textContent || '').trim());

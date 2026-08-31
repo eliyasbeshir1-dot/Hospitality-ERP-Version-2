@@ -58,12 +58,16 @@ BUDGET_MENU_VISIBLE_MS = 5000
 BUDGET_INTERACTION_MS = 500
 BUDGET_TRANSFER_BYTES = 150 * 1024
 
-results: list[tuple[str, bool, str]] = []
+results: list[tuple[str, bool, str, str]] = []
 
 
 def record(name: str, ok: bool, detail: str = "", *, evidence: str = "asserted") -> None:
-    """`evidence` is 'measured' when the fact came out of a real browser's layout."""
-    results.append((name, ok, detail))
+    """`evidence` is 'measured' when the fact came out of a real browser's layout.
+
+    Recorded on the result, not only printed, so the summary can report the split from
+    what actually ran. Counting the printed lines by hand is how a figure drifts.
+    """
+    results.append((name, ok, detail, evidence))
     mark = "PASS" if ok else "FAIL"
     print(f"  [{mark}] ({evidence}) {name}")
     for line in (detail or "").splitlines():
@@ -189,12 +193,18 @@ def section_locales(probe: dict) -> None:
              f"menu.translation through the snapshot read, so this is the database's "
              f"translation reaching the screen rather than a bundled string table")
 
-    hints = [probe["locales"][locale]["chrome"] for locale in LOCALES]
-    record("the three locales are offered explicitly",
-           all(len(h) > 0 for h in hints),
-           "the chooser is the first thing after the skip link and is always reachable; "
-           "the browser's preferred language is shown beside it as a suggestion and is "
-           "applied to nothing (FR-I18N-001A)")
+    buttons = probe["locales"]["ar"]["localeButtons"]
+    offered = sorted(b["locale"] for b in buttons)
+    pressed = [b["locale"] for b in buttons if b["pressed"]]
+    too_small = [b["locale"] for b in buttons if b["height"] < 44 or not b["visible"]]
+    measured("the three locales are offered explicitly",
+             offered == ["am", "ar", "en"] and pressed == ["ar"] and not too_small,
+             f"{len(buttons)} chooser button(s) rendered — {', '.join(offered)} — each "
+             f"visible at a thumb-sized target, with {pressed} marked pressed while "
+             f"Arabic is showing. The chooser is the first thing after the skip link and "
+             f"is always reachable; the browser's preferred language is shown beside it "
+             f"as a suggestion and applied to nothing (FR-I18N-001A)"
+             + (f". Undersized or invisible: {too_small}" if too_small else ""))
 
     source = (REPO / "pwa" / "src" / "app.ts").read_text(encoding="utf-8")
     record("browser language is a suggestion in the code, not a setting",
@@ -460,12 +470,19 @@ def section_boundary(probe: dict) -> None:
            f"is no chart, no placeholder figure and no sample number anywhere: every "
            f"value on the screen came from the database this run (FR-UX-014)")
 
-    record("the fixture content is real, not lorem ipsum",
-           "ዶሮ" in json.dumps(probe["locales"]["am"]["itemNames"], ensure_ascii=False)
-           or len(probe["locales"]["am"]["itemNames"]) > 0,
-           f"the Amharic render drew {probe['locales']['am']['itemNames'][:2]} — the "
-           f"M2-A fixture's real dish names, which is what FR-UX-013 asks to be measured "
-           f"against")
+    # The `or len(...) > 0` this check used to carry made it pass on any menu at all,
+    # including an English one — an assertion about real Amharic content that could not
+    # fail. Both halves are required now: the drawn names must differ from the English
+    # ones AND carry Ethiopic script.
+    amharic = probe["locales"]["am"]["itemNames"]
+    english = probe["locales"]["en"]["itemNames"]
+    ethiopic = [name for name in amharic if any("\u1200" <= ch <= "\u137f" for ch in name)]
+    measured("the fixture content is real, not lorem ipsum",
+             bool(amharic) and amharic != english and len(ethiopic) == len(amharic),
+             f"the Amharic render drew {amharic[:2]}, all {len(ethiopic)} of "
+             f"{len(amharic)} in Ethiopic script and none of them the English "
+             f"{english[:2]}. Real fixture content, which is what FR-UX-013 asks to be "
+             f"measured against")
 
     submission = [word for word in ("submitOrder", "placeOrder", "checkout", "payment",
                                     "kitchenTicket", "tip")
@@ -966,12 +983,16 @@ def main() -> int:
             section_performance(probe)
             section_controls()
 
-    passed = sum(1 for _, ok, _ in results if ok)
-    failed = [name for name, ok, _ in results if not ok]
+    passed = sum(1 for _n, ok, _d, _e in results if ok)
+    failed = [name for name, ok, _d, _e in results if not ok]
+    measured_count = sum(1 for _n, _o, _d, e in results if e == "measured")
+    asserted_count = len(results) - measured_count
     print("\n" + "=" * 74)
     print(f"  checks run    : {len(results)}")
     print(f"  passed        : {passed}")
     print(f"  failed        : {len(failed)}")
+    print(f"  measured      : {measured_count}   (read out of a real browser's layout)")
+    print(f"  asserted      : {asserted_count}   (source, served DOM, or database)")
     for name in failed:
         print(f"  - {name}")
     print()

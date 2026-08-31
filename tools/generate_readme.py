@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -36,15 +37,42 @@ from repo_history import (  # noqa: E402
 REPO = Path(__file__).resolve().parents[1]
 PACKAGE_SHA = "b89a2d4211356be5941dc25ff2dc540728c87ed761ffd9894a3f2691ccf5b590"
 
-# Slice tag -> what it delivered. The commit for each is discovered from git history.
-SLICES = [
-    ("M0R", "repository conformance: docs, plans, CI, no code"),
-    ("M1-A", "PostgreSQL, migration 0001, organizational model, row level security"),
-    ("M1-B", "identity, memberships, sessions, step-up authentication, service principals"),
-    ("M1-C", "configuration, audit, exact money and quantity, numbering, retention"),
-    ("M1-D", "cloud API, security controls, operations, evidence"),
-    ("M2-A", "menu, pricing, availability, dayparts and translation storage"),
-]
+# What each slice delivered. WHICH slices exist is not written here — it is derived from
+# the repository, because a hand-maintained list is exactly what went wrong.
+#
+# This list stopped at M2-A while M2-B and M2-C were in the tree, so the README said the
+# gate was complete through M2-A and that menus and guest sessions were still absent. The
+# equality lock in CI passed the whole time, because it compares the artifact to the
+# generator and both were stale together: a lock that compares a document to its own
+# source of truth goes green on a false document whenever the source of truth is wrong.
+#
+# Now the slice tags come from the verification suites in tests/, and a tag with no entry
+# below stops the generator instead of being quietly omitted. Same shape as the
+# SUITE_UNDESCRIBED failure below, and for the same reason.
+SLICE_DELIVERS = {
+    "M0R":  "repository conformance: docs, plans, CI, no code",
+    "M1-A": "PostgreSQL, migration 0001, organizational model, row level security",
+    "M1-B": "identity, memberships, sessions, step-up authentication, service principals",
+    "M1-C": "configuration, audit, exact money and quantity, numbering, retention",
+    "M1-D": "cloud API, security controls, operations, evidence",
+    "M2-A": "menu, pricing, availability, dayparts and translation storage",
+    "M2-B": "tables, QR resolution, guest sessions, carts, allergens and dietary safety",
+    "M2-C": "the customer surface: three locales, Arabic right-to-left, accessibility",
+}
+
+# The gates in order, and what each one brings that does not exist yet. Rows are emitted
+# only for gates with nothing landed, so "still absent" stops claiming a thing is absent
+# the moment its first slice appears in tests/.
+GATE_ORDER = ["M0", "M0R", "M1", "M2", "M3", "M4", "M5a", "M5b", "M6"]
+
+GATE_DELIVERS = {
+    "M2":  "Menu, translations, QR-bound tables, guest sessions",
+    "M3":  "Orders, tickets, service requests",
+    "M4":  "Checks, payments, tips, receipts",
+    "M5a": "Outlet node, synchronization, printing",
+    "M5b": "Same-QR DNS/TLS, authority lease",
+    "M6":  "Multi-region distribution",
+}
 
 DIRECTORY_PURPOSE = {
     "api": "the cloud API — Fastify and TypeScript, M1 surface only",
@@ -86,6 +114,27 @@ def slice_commit(tag: str) -> str:
     return commit_for_subject_prefix(f"{tag}:") or "unreleased"
 
 
+def slice_tags() -> list[str]:
+    """Which slices exist, according to the repository rather than to this file.
+
+    A slice is a thing with a verification suite: tests/m2c/verify_m2c.py means M2-C
+    happened, and no amount of forgetting to update a list here can make that untrue.
+    M0R is included explicitly because it predates the suite convention — its verifier is
+    tools/verify_m0r_skeleton.py, kept as historical evidence — and because a gate that
+    produced no code cannot be discovered by looking for code.
+    """
+    tags = ["M0R"]
+    for path in sorted((REPO / "tests").glob("*/verify_*.py")):
+        matched = re.fullmatch(r"m(\d)([a-z])", path.parent.name)
+        if matched:
+            tags.append(f"M{matched.group(1)}-{matched.group(2).upper()}")
+    return tags
+
+
+class SliceUndescribed(RuntimeError):
+    """A slice exists in the repository and this generator has nothing to say about it."""
+
+
 NARRATIVE = REPO / "planning" / "README_NARRATIVE.md"
 
 
@@ -111,7 +160,19 @@ def build() -> str:
     seeds = sorted((REPO / "seeds").glob("[0-9][0-9][0-9][0-9]_*.sql"))
     suites = sorted(p for p in (REPO / "tests").glob("*/verify_*.py"))
 
-    landed = [(tag, note, slice_commit(tag)) for tag, note in SLICES]
+    tags = slice_tags()
+    undescribed = [tag for tag in tags if tag not in SLICE_DELIVERS]
+    if undescribed:
+        # Loud, not silent. The previous shape of this generator simply did not mention a
+        # slice it had never heard of, which is how the README came to describe a gate two
+        # slices behind the repository while its equality lock stayed green.
+        raise SliceUndescribed(
+            f"{', '.join(undescribed)} has a verification suite and no entry in "
+            f"SLICE_DELIVERS. Add one: the README must say what a slice delivered, and a "
+            f"slice the repository knows about cannot be left out of the document that "
+            f"describes the repository.")
+
+    landed = [(tag, SLICE_DELIVERS[tag], slice_commit(tag)) for tag in tags]
     if all(commit == "unreleased" for _tag, _note, commit in landed):
         # A full history that resolves no slice at all means the derivation is broken,
         # not that nothing has ever shipped.
@@ -123,6 +184,45 @@ def build() -> str:
     slice_table = ["| Slice | Delivered | Commit |", "|---|---|---|"]
     for tag, note, commit in landed:
         slice_table.append(f"| **{tag}** | {note} | `{commit}` |")
+
+    # Which gates have landed anything, derived from the slice tags above. "M2-C" lands
+    # gate "M2"; the sequence and the still-absent table both read this rather than
+    # stating it.
+    landed_gates = {tag.split("-")[0] for tag, _n, commit in landed if commit != "unreleased"}
+    current_gate = current.split("-")[0]
+
+    missing_gate_note = [g for g in GATE_ORDER
+                         if g not in landed_gates and g not in ("M0", "M0R")
+                         and g not in GATE_DELIVERS]
+    if missing_gate_note:
+        raise SliceUndescribed(
+            f"{', '.join(missing_gate_note)} has not landed and GATE_DELIVERS does not say "
+            f"what it brings, so the still-absent table would silently omit it")
+
+    absent_table = ["| Absent | Arrives at |", "|---|---|"]
+    for gate in GATE_ORDER:
+        if gate in landed_gates or gate in ("M0", "M0R"):
+            continue
+        absent_table.append(f"| {GATE_DELIVERS[gate]} | {gate} |")
+
+    # The gate sequence, with the frontier marked. A gate BEHIND the current one is shown
+    # complete because this project does not begin a gate until the previous one has been
+    # independently reviewed and approved — every brief says so, and every slice here
+    # started that way. That inference is the only thing in this line the repository
+    # cannot show directly, and it is why it is written down.
+    sequence = []
+    for gate in GATE_ORDER:
+        if gate in ("M0", "M0R"):
+            sequence.append(gate)
+            continue
+        letters = sorted(tag.split("-")[1] for tag, _n, c in landed
+                         if c != "unreleased" and tag.startswith(f"{gate}-"))
+        if gate == current_gate and letters:
+            sequence.append(f"**{gate} ({', '.join(letters)} — landed, in review)**")
+        elif letters:
+            sequence.append(f"**{gate} ({', '.join(letters)} — complete)**")
+        else:
+            sequence.append(gate)
 
     layout = ["| Path | Contents |", "|---|---|"]
     for name in sorted(DIRECTORY_PURPOSE):
@@ -155,6 +255,8 @@ def build() -> str:
                             f"awaiting independent review as a whole"),
         "{{PACKAGE_SHA}}": PACKAGE_SHA,
         "{{SLICE_TABLE}}": "\n".join(slice_table),
+        "{{ABSENT_TABLE}}": "\n".join(absent_table),
+        "{{GATE_SEQUENCE}}": " → ".join(sequence) + ".",
         "{{LAYOUT_TABLE}}": "\n".join(layout),
         "{{MIGRATIONS}}": "\n".join(f"- `{p.name}`" for p in migrations),
         "{{SEEDS}}": "\n".join(f"- `{p.name}`" for p in seeds),
@@ -180,6 +282,12 @@ def main() -> int:
         generated = build()
     except HistoryUnavailable as error:
         print("FAIL GIT_HISTORY_UNAVAILABLE", file=sys.stderr)
+        print(f"  {error}", file=sys.stderr)
+        return 1
+    except SliceUndescribed as error:
+        # A named failure, not a traceback: this is the one a contributor will hit after
+        # adding a slice, and it should read like the tool's other refusals.
+        print("FAIL SLICE_UNDESCRIBED", file=sys.stderr)
         print(f"  {error}", file=sys.stderr)
         return 1
 

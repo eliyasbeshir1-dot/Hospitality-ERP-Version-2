@@ -511,9 +511,11 @@ jobs:
           test "${failed:-1}" -eq 0 || { echo "::error::${failed} M2-C check(s) failed"; exit 1; }
           # A rendering suite that quietly stopped rendering would still report PASS on the
           # checks it did run, so the split between browser-measured and asserted evidence
-          # is guarded too.
-          measured="$(grep -c '(measured)' "$LOG_DIR/m2c.log" || true)"
-          test "${measured:-0}" -ge 30 || {
+          # is guarded too. Read from the figure the suite DERIVES from its own results,
+          # not by counting printed lines here: a count assembled in two places drifts in
+          # one of them, which is how the reported split came to be wrong.
+          measured="$(grep -oP 'measured\s+:\s+\K[0-9]+' "$LOG_DIR/m2c.log" | tail -1)"
+          test "${measured:-0}" -ge 40 || {
             echo "::error::only ${measured:-0} M2-C checks were browser-measured"; exit 1; }
           echo "M2-C: $checks checks, 0 failures, $measured of them measured in a real browser"
 

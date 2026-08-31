@@ -55,13 +55,7 @@ with redaction, and a checksum-locked seed runner.
 
 Still absent, by design:
 
-| Absent | Arrives at |
-|---|---|
-| Menu, translations, QR-bound tables, guest sessions | M2 |
-| Orders, tickets, service requests | M3 |
-| Checks, payments, tips, receipts | M4 |
-| Outlet node, synchronization, printing | M5a |
-| Same-QR DNS/TLS, authority lease | M5b |
+{{ABSENT_TABLE}}
 
 ## Repository lineage
 
@@ -120,7 +114,7 @@ therefore stays clean at every moment, with no cleanup step to forget.
 
 ## Gate sequence
 
-M0 → M0R → **M1 (A, B, C, D — complete)** → M2 → M3 → M4 → M5a → M5b → M6.
+{{GATE_SEQUENCE}}
 
 Each gate has its own independent review. A gate closes only on behavior provable at that
 gate.
