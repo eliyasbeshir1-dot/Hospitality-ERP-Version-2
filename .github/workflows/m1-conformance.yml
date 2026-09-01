@@ -655,6 +655,16 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
+          # The connection strings, exported here rather than inherited. Every step above
+          # runs a DRIVER, and each driver builds these for itself; this step runs the
+          # suite directly, as the reordered run below does, so it has to do what the
+          # driver would have. Without them the suite raises KeyError at import and the
+          # journeys report nothing at all — which is the one outcome this step exists to
+          # make impossible.
+          export M1A_ADMIN_DSN="postgresql://$SUPERUSER@$PGTCP_HOST:$PGPORT/$DB"
+          export M1A_APP_DSN="postgresql://hospitality_app@$PGTCP_HOST:$PGPORT/$DB"
+          export M1A_MIGRATOR_DSN="postgresql://hospitality_migrator@$PGTCP_HOST:$PGPORT/$DB"
+          export M1A_PRIVILEGED_DSN="postgresql://hospitality_bypassrls@$PGTCP_HOST:$PGPORT/$DB"
           "${PYTHON:-python3}" tests/journeys/verify_journeys.py 2>&1 | tee "$LOG_DIR/journeys.log"
           grep -q '^PASS GOLDEN_JOURNEY_VERIFICATION' "$LOG_DIR/journeys.log" || {
             echo "::error::the golden journeys did not report PASS"; exit 1; }
