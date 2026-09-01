@@ -1,0 +1,81 @@
+/*
+ * The station surface's styles.
+ *
+ * ONE rule governs everything below: no fact is ever carried by colour alone. Every
+ * distinction a station must act on is also a difference in WORDS, WEIGHT, SIZE or a
+ * GLYPH, so the surface survives being rendered with every colour identical. The suite
+ * proves that by doing exactly that — re-rendering with colour flattened and requiring
+ * the allergy emphasis to still be measurable — and NC-M3B-001 plants an emphasis
+ * carried only by colour to show the check can fail.
+ *
+ * A kitchen screen is where a missed allergy becomes a hospital visit, and a kitchen is
+ * also where a screen gets grease on it, gets glanced at from two metres, and gets read
+ * by somebody who is colour blind under a heat lamp.
+ */
+:root {
+  --ink: #101418;
+  --paper: #ffffff;
+  --rule: #7a828a;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+}
+.skip { position: absolute; left: -9999px; }
+.skip:focus { left: 0.5rem; top: 0.5rem; position: fixed; background: var(--paper); padding: 0.5rem; }
+header { padding: 0.75rem 1rem; border-bottom: 2px solid var(--rule); }
+h1 { font-size: 1.25rem; margin: 0; }
+main, section { padding: 0.75rem 1rem; }
+
+.ticket { border: 2px solid var(--rule); padding: 0.75rem; margin-bottom: 0.75rem; }
+.ticket-head { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: baseline; }
+
+/* The bucket is a WORD. There is no colour-coded lane and no position that means
+ * anything on its own. */
+.bucket { font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.elapsed { font-variant-numeric: tabular-nums; }
+.breached::before { content: "OVER "; font-weight: 700; }
+
+/* FR-FUL-007: the priority and WHO applied it, on the same line. A rush with no name
+ * beside it is what the requirement forbids. */
+.priority { font-weight: 700; }
+.priority-attribution { font-style: italic; }
+
+/*
+ * FR-FUL-008 and FR-SAF-004. The emphasis is weight, size, a glyph and a border — four
+ * non-colour channels — and the WORDS are always present because the row cannot exist
+ * without them. Deliberately no background-color and no color declaration at all: there
+ * is nothing here for a colour-flattened render to take away.
+ */
+.allergy {
+  font-weight: 800;
+  /* Larger than the largest ordinary text on the page — the bucket HEADINGS are 1.5em,
+   * so 1.35rem read as "prominent" beside a ticket line and smaller than a group title.
+   * The suite measures prominence relatively against everything else it can see, and it
+   * caught that. */
+  font-size: 1.6rem;
+  line-height: 1.3;
+  border: 4px double var(--rule);
+  padding: 0.5rem 0.6rem;
+  margin: 0 0 0.6rem 0;
+  text-transform: uppercase;
+}
+.allergy-glyph { font-weight: 800; padding-right: 0.4rem; }
+.allergy-ack { font-size: 1rem; font-weight: 400; text-transform: none; display: block; }
+.allergy-unacknowledged::after {
+  content: " — NOT YET ACKNOWLEDGED";
+  font-weight: 800;
+}
+
+.line { display: flex; gap: 0.5rem; }
+.line-quantity { font-weight: 700; font-variant-numeric: tabular-nums; }
+.progress { font-variant-numeric: tabular-nums; }
+.note { border-left: 4px solid var(--rule); padding-left: 0.5rem; }
+
+.block { font-weight: 700; }
+.block::before { content: "BLOCKED: "; }
+.empty { font-style: italic; }

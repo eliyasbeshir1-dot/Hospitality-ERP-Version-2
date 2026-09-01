@@ -42,27 +42,33 @@
       "aspect": "station capacity",
       "opened_at": "M3-A",
       "completing_gate": "M3-B",
-      "state": "open",
+      "state": "closed",
       "why": "Availability, hours, channel and quantity are revalidated at submission. Capacity is the fifth dimension the requirement names and it means station workload, which needs the stations and their thresholds that FR-FUL-013 builds at M3-B.",
-      "completed_by": "FR-FUL-013"
+      "completed_by": "FR-FUL-013",
+      "closed_at": "M3-B",
+      "closed_by_evidence": "ordering.revalidate_cart() gained a fifth leg at M3-B reading fulfillment.capacity_pressure(), which compares each station's live ticket count against its configured concurrent_ticket_threshold and reports the outlet's configured capacity_response. A service policy stating neither is refused, not defaulted. tests/m3b loads a station past its threshold and requires the submission to be blocked under a throttling policy and to proceed under a promise-time policy."
     },
     {
       "requirement": "FR-ORD-009",
       "aspect": "separate fulfillment per add-on order",
       "opened_at": "M3-A",
       "completing_gate": "M3-B",
-      "state": "open",
+      "state": "closed",
       "why": "Add-on orders in one session are distinct aggregates with independent timestamps and independent ledgers, which is proved here. That their FULFILLMENT is independent needs tickets, which are M3-B.",
-      "completed_by": "FR-FUL-002"
+      "completed_by": "FR-FUL-002",
+      "closed_at": "M3-B",
+      "closed_by_evidence": "Tickets belong to an ORDER, and an add-on is a different order, so independent fulfillment came out of the model rather than being added to it. tests/m3b places a second order on one occupancy and requires disjoint ticket sets, independent state machines and independent timings."
     },
     {
       "requirement": "FR-ORD-010",
       "aspect": "post-preparation refusal",
       "opened_at": "M3-A",
       "completing_gate": "M3-B",
-      "state": "open",
+      "state": "closed",
       "why": "Amendment emits an explicit event retaining before and after, and the window is enforced from the ordering policy. The policy can only speak in commercial states at this gate: 'after preparation has begun' is a ticket state and tickets are M3-B.",
-      "completed_by": "FR-FUL-003"
+      "completed_by": "FR-FUL-003",
+      "closed_at": "M3-B",
+      "closed_by_evidence": "ordering.amend_order_line() was replaced at M3-B (CREATE OR REPLACE; 0010 is checksum-locked) to refuse when any ticket for the order has left queued, acknowledged or held. The commercial state alone was never enough: an order can sit in a state the ordering policy permits while a station is already cooking it."
     },
     {
       "requirement": "FR-ORD-011",
@@ -87,9 +93,11 @@
       "aspect": "station events on the timeline",
       "opened_at": "M3-A",
       "completing_gate": "M3-B",
-      "state": "open",
+      "state": "closed",
       "why": "The timeline renders order events chronologically with the audience decided when each entry is written. Station events belong on it and do not exist until M3-B.",
-      "completed_by": "FR-FUL-002"
+      "completed_by": "FR-FUL-002",
+      "closed_at": "M3-B",
+      "closed_by_evidence": "fulfillment.apply_ticket_event() writes station milestones onto the order timeline through ordering.write_station_timeline_entry(), and ordering.rebuild_projections() was extended to replay the fulfillment ledger so those entries survive a rebuild. One timeline out of two ledgers, with the audience decided where the entry is written."
     },
     {
       "requirement": "FR-ORD-016A",
@@ -105,9 +113,11 @@
       "aspect": "fulfillment ticket in the chain",
       "opened_at": "M3-A",
       "completing_gate": "M3-B",
-      "state": "open",
-      "why": "The chain links four of the six artifacts the requirement names — request, cart, table session and order — and survives projection rebuild. 'fulfillment_ticket' is a label of ordering.artifact_kind with no rows until M3-B, so the later slice extends the chain rather than reshaping it.",
-      "completed_by": "FR-FUL-002"
+      "state": "closed",
+      "why": "The chain links four of the six artifacts the requirement names \u2014 request, cart, table session and order \u2014 and survives projection rebuild. 'fulfillment_ticket' is a label of ordering.artifact_kind with no rows until M3-B, so the later slice extends the chain rather than reshaping it.",
+      "completed_by": "FR-FUL-002",
+      "closed_at": "M3-B",
+      "closed_by_evidence": "fulfillment.release_order() links each ticket into the chain through ordering.link_correlation_artifact(), so the 'fulfillment_ticket' label M3-A declared with no rows now has them. tests/m3b requires the link to survive a projection rebuild."
     },
     {
       "requirement": "FR-ORD-019A",
@@ -153,6 +163,78 @@
       "state": "open",
       "why": "Order projections rebuild from the ledger and compare byte-deterministically. Financial projections arrive at M4 and rebuild after outage replay at M5a; the requirements register dual-gates this row at both.",
       "completed_by": "FR-BIL-005"
+    },
+    {
+      "requirement": "FR-FUL-001",
+      "aspect": "routing during an outage",
+      "opened_at": "M3-B",
+      "completing_gate": "M5a",
+      "state": "open",
+      "completed_by": "FR-CFG-001E",
+      "why": "Accepted line units route by versioned rule and a ticket records the rule version that placed it. That routing continues to work when the outlet node is authoritative is this row's revalidation at M5a, where the node exists."
+    },
+    {
+      "requirement": "FR-FUL-003",
+      "aspect": "KDS from the local node",
+      "opened_at": "M3-B",
+      "completing_gate": "M5a",
+      "state": "open",
+      "completed_by": "FR-CFG-001E",
+      "why": "All eleven states render and the seven display buckets are measured in a real browser. That the same KDS operates from the local node during an outage needs the node, which is M5a."
+    },
+    {
+      "requirement": "FR-FUL-008",
+      "aspect": "salience on real paper",
+      "opened_at": "M3-B",
+      "completing_gate": "M5a",
+      "state": "open",
+      "completed_by": "FR-CFG-001E",
+      "why": "Allergy emphasis is measured non-colour-only on the KDS and expo surfaces, and the generated station ticket document carries its allergy lines first and in words. That the salience survives PHYSICAL printing needs the print path, which is M5a; this gate proves the document, not the paper."
+    },
+    {
+      "requirement": "FR-FUL-010",
+      "aspect": "notification delivery",
+      "opened_at": "M3-B",
+      "completing_gate": "M3-C",
+      "state": "open",
+      "completed_by": "FR-NOT-001",
+      "why": "A ready notice is emitted naming the ticket and the assigned waiter, and uncollected notices escalate on the configured window. Delivery is a channel and channels are FR-NOT-001 at M3-C; there is no transport, template or delivery-status column here for one to be mistaken for."
+    },
+    {
+      "requirement": "FR-FUL-012",
+      "aspect": "analytical consumption",
+      "opened_at": "M3-B",
+      "completing_gate": "M6",
+      "state": "open",
+      "completed_by": "FR-RPT-003",
+      "why": "Prep, wait and SLA times compute per station, item and order from timestamps the fold wrote out of the ledger. Consuming them as analytics is operational reporting at M6."
+    },
+    {
+      "requirement": "FR-FUL-014",
+      "aspect": "physical printing and dedup across restart",
+      "opened_at": "M3-B",
+      "completing_gate": "M5a",
+      "state": "open",
+      "completed_by": "FR-CFG-001E",
+      "why": "Station ticket documents are generated and deduplicated by a unique key on (ticket, revision), where the revision ignores document generation itself. Physical printing, print-agent delivery and deduplication across a restart are the local print path, which is M5a."
+    },
+    {
+      "requirement": "FR-FUL-015",
+      "aspect": "rerouting with the outlet node authoritative",
+      "opened_at": "M3-B",
+      "completing_gate": "M5a",
+      "state": "open",
+      "completed_by": "FR-CFG-001E",
+      "why": "An authorized reroute moves the ticket and its line units without creating anything, proved by a unit-count constraint across every live ticket for the order. Behaviour while the outlet node is authoritative is M5a's."
+    },
+    {
+      "requirement": "SM-ORDER",
+      "aspect": "fulfillment labels derived rather than stored",
+      "opened_at": "M3-B",
+      "completing_gate": "M4",
+      "state": "open",
+      "completed_by": "FR-BIL-005",
+      "why": "A LITERAL DIVERGENCE from the pinned SM-ORDER, recorded as a decision rather than an omission. That machine lists in_fulfillment, partially_ready, ready, partially_served and served as ORDER states; migration 0010 recorded at M3-A that no fulfillment label appears on the commercial order, and M3-B keeps that. fulfillment.order_fulfillment_state() computes every one of those labels from the order's tickets, so the machine's SEMANTICS are preserved while the same fact is refused a second home that could contradict the first. tests/m3b proves each label reachable and correct and asserts against the catalog that no column in ordering could hold one. SM-ORDER's last edge \u2014 served -> completed on operational AND FINANCIAL conditions \u2014 needs checks, so this is revisited at M4."
     }
   ]
 }

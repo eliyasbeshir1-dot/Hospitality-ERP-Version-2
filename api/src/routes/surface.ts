@@ -31,6 +31,11 @@ const FILES = [
   'app.css',
   'app.js',
   'manifest.webmanifest',
+  // The station surface (M3-B). Separate files, not a mode of the customer surface: a
+  // kitchen screen reachable by scanning a table's QR code would be a defect.
+  'station.html',
+  'station.css',
+  'station.js',
 ] as const;
 
 export function registerSurfaceRoutes(app: FastifyInstance, publicDir: string): void {
@@ -51,6 +56,16 @@ export function registerSurfaceRoutes(app: FastifyInstance, publicDir: string): 
 
   app.get('/', async (_request, reply) => {
     const file = loaded.get('index.html');
+    if (!file) { reply.code(503); return { error: 'surface not built' }; }
+    reply.type(file.type);
+    return file.body;
+  });
+
+  // The station surface's document. A separate entry point from the customer surface's
+  // '/', because they are separate surfaces with separate audiences: nothing a guest can
+  // reach serves this, and it carries the same locked-down policy.
+  app.get('/station', async (_request, reply) => {
+    const file = loaded.get('station.html');
     if (!file) { reply.code(503); return { error: 'surface not built' }; }
     reply.type(file.type);
     return file.body;

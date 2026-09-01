@@ -1284,15 +1284,20 @@ def section_allergy_input() -> None:
            f"(currently {stations}) — a station is where something is made, and nothing "
            f"in this slice routes anything to one (FR-CFG-001B)")
 
+    # Moved when M3-B landed, not deleted — the same way this slice stopped policing the
+    # word 'cart' when it built one. "No ticket exists anywhere" was true at M2-B and is
+    # now false by design; what M2-B still owns is that NOTHING IT OWNS routes to a
+    # station. A station stays configuration as far as this gate is concerned.
     routing = count(ADMIN, """
         SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+        WHERE c.relkind = 'r' AND n.nspname IN ('menu', 'safety', 'service', 'org')
           AND c.relname ~* '(^|_)(ticket|kds|routing|prep_queue|fire|course)($|_)';
     """)
-    record("no kitchen ticket, routing or queue surface exists",
+    record("nothing this slice owns sends anything to a preparation station",
            routing == 0,
-           f"{routing} such table(s). A preparation station is configuration; sending "
-           f"anything to one is M3")
+           f"{routing} such table(s) across menu, safety, service and org. A preparation "
+           f"station is configuration here; routing to one is fulfillment's, and it "
+           f"lives in its own schema (M3-B)")
 
     # ===== FR-MNU-012, completed =====
     vegan = run(APP, f"""
@@ -1374,14 +1379,16 @@ def section_boundary() -> None:
     # The order surface left this pattern when M3-A built it, the same way 'cart' left
     # M2-A's pattern when this slice built that. What M2-B still owns is the boundary
     # BELOW its own: no fulfillment (M3-B), no service request (M3-C), no billing (M4).
+    # Fulfillment left this pattern when M3-B built it, exactly as the order surface left
+    # it at M3-A and 'cart' left M2-A's at M2-B. What M2-B still owns is the boundary
+    # below its own: no service request (M3-C), no billing (M4).
     m3_m4 = run(ADMIN, """
         SELECT coalesce(string_agg(n.nspname || '.' || c.relname, ', '), '')
         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND c.relname ~* '(^|_)(ticket|station|expo|service_request|check|bill|payment|'
-                           'tip|receipt)($|_)';
+          AND c.relname ~* '(^|_)(service_request|check|bill|payment|tip|receipt)($|_)';
     """)
-    record("no fulfillment, service-request or billing surface exists",
+    record("no service-request or billing surface exists",
            m3_m4.ok and not (m3_m4.scalar or "").strip(),
            f"{(m3_m4.scalar or '').strip() or 'none'}. A basket before submission is "
            f"FR-TAB-005 and lives here; the order it becomes is M3-A and polices its own "

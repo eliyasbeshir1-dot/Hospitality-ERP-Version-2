@@ -251,7 +251,7 @@ jobs:
           # themselves, and the fallback is tested on this runner by the fact that
           # check_prerequisites.py ran under the documented name above.
           export PYTHON=python
-          bash tests/m3a/run_verification.sh 2>&1 | tee "$LOG_DIR/windows-suites.log"
+          bash tests/m3b/run_verification.sh 2>&1 | tee "$LOG_DIR/windows-suites.log"
           for verdict in M1A M1B M1C M1D M2A M2B M2C M3A; do
             grep -q "^PASS ${verdict}_VERIFICATION" "$LOG_DIR/windows-suites.log" || {
               echo "::error::${verdict} did not report PASS on Windows"; exit 1; }
@@ -544,6 +544,36 @@ jobs:
             echo "::error::the retry differential covered only ${tables:-0} tables"; exit 1; }
           echo "M3-A: $checks checks, 0 failures, retry differential over $tables tables"
 
+      - name: M3-B — fulfillment, tickets, stations, the KDS, the state machine
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Chains from the M3-A driver. A kitchen ticket is where M2-B's live allergen
+          # catalog and M3-A's surviving declaration have to arrive on a screen somebody
+          # cooks from, so the chain is the point rather than an inconvenience.
+          bash tests/m3b/run_verification.sh 2>&1 | tee "$LOG_DIR/m3b.log"
+          grep -q '^PASS M3B_VERIFICATION' "$LOG_DIR/m3b.log" || {
+            echo "::error::M3-B suite did not report PASS"; exit 1; }
+          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' "$LOG_DIR/m3b.log" | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/m3b.log" | tail -1)"
+          test "${checks:-0}" -ge 95 || { echo "::error::only ${checks:-0} M3-B checks ran"; exit 1; }
+          test "${failed:-1}" -eq 0 || { echo "::error::${failed} M3-B check(s) failed"; exit 1; }
+          # The state machine is read from the pinned package at run time and the suite
+          # fails closed if it cannot read it. Guarded here too, because a suite that
+          # quietly walked ten states would still report PASS on the ten it walked.
+          grep -qE 'SM-FULFILLMENT-TICKET loaded from the pinned package: 11 states' \
+            "$LOG_DIR/m3b.log" || {
+            echo "::error::the pinned ticket state machine did not load with 11 states"; exit 1; }
+          pairs="$(grep -oP '[0-9]+(?= ordered pairs attempted)' "$LOG_DIR/m3b.log" | tail -1)"
+          test "${pairs:-0}" -ge 110 || {
+            echo "::error::only ${pairs:-0} ordered state pairs were attempted"; exit 1; }
+          # The safety claim is a claim about a screen, so a run that stopped rendering
+          # must not pass on its database checks alone.
+          measured="$(grep -oP 'measured\s+:\s+\K[0-9]+' "$LOG_DIR/m3b.log" | tail -1)"
+          test "${measured:-0}" -ge 8 || {
+            echo "::error::only ${measured:-0} M3-B checks were browser-measured"; exit 1; }
+          echo "M3-B: $checks checks, 0 failures, $pairs state pairs, $measured measured"
+
       - name: The partial-closure register must agree with the repository
         shell: bash
         run: |
@@ -565,11 +595,11 @@ jobs:
           mkdir -p "$LOG_DIR/reorder"
           # Reverse order, same database, no rebuild. A suite that only passes when it runs
           # first is depending on state another suite left behind.
-          for suite in m3a m2c m2b m2a m1d m1c m1b m1a; do
+          for suite in m3b m3a m2c m2b m2a m1d m1c m1b m1a; do
             python3 "tests/$suite/verify_${suite}.py" > "$LOG_DIR/reorder/$suite.log" 2>&1 || true
           done
           fail=0
-          for suite in m1a m1b m1c m1d m2a m2b m2c m3a; do
+          for suite in m1a m1b m1c m1d m2a m2b m2c m3a m3b; do
             tag="$(echo "$suite" | tr '[:lower:]' '[:upper:]')"
             declared="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/$suite.log" | tail -1)"
             reordered="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/reorder/$suite.log" | tail -1)"
@@ -596,7 +626,7 @@ jobs:
           mkdir -p "$LOG_DIR/evidence-logs"
           cp "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log \
              "$LOG_DIR"/m2a.log "$LOG_DIR"/m2b.log "$LOG_DIR"/m2c.log \
-             "$LOG_DIR"/m3a.log \
+             "$LOG_DIR"/m3a.log "$LOG_DIR"/m3b.log \
              "$LOG_DIR/evidence-logs/"
           # No "|| true" here. A missing suite log must stop the report, not silently
           # become a "not run" row with a wrong total.
@@ -644,9 +674,11 @@ jobs:
                          NC-M2-004 NC-M2C-005 NC-M2C-006 NC-M2C-007 NC-M2C-008 \
                          NC-M2C-009 NC-M2C-010 \
                          NC-M3-001 NC-M3-002 NC-M3-003 NC-M3-005 NC-M3-006 \
-                         NC-M3-007 NC-M3-008 NC-M3-009; do
-            red="$(grep -cE "\[PASS\] (\([a-z]+\) )?$control — RED" "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log "$LOG_DIR"/m2a.log "$LOG_DIR"/m2b.log "$LOG_DIR"/m2c.log "$LOG_DIR"/m3a.log | awk -F: '{s+=$2} END {print s}')"
-            green="$(grep -cE "\[PASS\] (\([a-z]+\) )?$control — GREEN" "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log "$LOG_DIR"/m2a.log "$LOG_DIR"/m2b.log "$LOG_DIR"/m2c.log "$LOG_DIR"/m3a.log | awk -F: '{s+=$2} END {print s}')"
+                         NC-M3-007 NC-M3-008 NC-M3-009 \
+                         NC-M3-004 NC-M3B-001 NC-M3B-002 NC-M3B-003 \
+                         NC-M3B-004 NC-M3B-005 NC-M3B-006; do
+            red="$(grep -cE "\[PASS\] (\([a-z]+\) )?$control — RED" "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log "$LOG_DIR"/m2a.log "$LOG_DIR"/m2b.log "$LOG_DIR"/m2c.log "$LOG_DIR"/m3a.log "$LOG_DIR"/m3b.log | awk -F: '{s+=$2} END {print s}')"
+            green="$(grep -cE "\[PASS\] (\([a-z]+\) )?$control — GREEN" "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log "$LOG_DIR"/m2a.log "$LOG_DIR"/m2b.log "$LOG_DIR"/m2c.log "$LOG_DIR"/m3a.log "$LOG_DIR"/m3b.log | awk -F: '{s+=$2} END {print s}')"
             if [ "${red:-0}" -lt 1 ] || [ "${green:-0}" -lt 1 ]; then
               echo "::error::$control was not shown both red and green (red=$red green=$green)"
               exit 1
@@ -667,6 +699,7 @@ jobs:
             ${{ runner.temp }}/m1-logs/m2b.log
             ${{ runner.temp }}/m1-logs/m2c.log
             ${{ runner.temp }}/m1-logs/m3a.log
+            ${{ runner.temp }}/m1-logs/m3b.log
             ${{ runner.temp }}/m1-logs/reorder/
             evidence/M1_EVIDENCE_REPORT.md
           if-no-files-found: error

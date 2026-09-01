@@ -58,7 +58,10 @@ export function registerCustomerSurfaceHeaders(app: FastifyInstance): void {
     // The browser said so plainly; a check that only looked at the response header would
     // have called this correct.
     const path = request.url.split('?')[0] ?? '';
-    if (path === '/' || path.startsWith('/app/')) {
+    // '/station' joins the list for the same reason '/' is on it: it serves a DOCUMENT
+    // that loads its own stylesheet and script, and the API's deny-everything policy
+    // would refuse both. Its assets come from /app/ like the customer surface's.
+    if (path === '/' || path === '/station' || path.startsWith('/app/')) {
       reply.header('content-security-policy', SURFACE_CSP);
     }
     return payload;

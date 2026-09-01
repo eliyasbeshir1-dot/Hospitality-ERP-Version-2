@@ -1384,11 +1384,35 @@ def section_ledger_and_rebuild() -> None:
         SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
         WHERE t.typname = 'event_kind' ORDER BY e.enumsortorder;""", dsn=ADMIN)]
     unfolded = [label for label in labels if f"'{label}'" not in handled]
-    record("every event kind the type declares has a fold",
-           not unfolded,
-           f"{len(labels)} kinds, unfolded: {unfolded or 'none'}. Read out of the catalog "
-           f"rather than from a list here, so an eleventh label added without a fold "
-           f"fails this rather than passing quietly")
+
+    # M3-B added seven labels to this type for the STATION half of the order timeline.
+    # They are timeline kinds, never order-ledger kinds, and the ledger's own CHECK
+    # constraint enumerates every kind on one side or the other — so a new label
+    # satisfies neither branch and cannot be written here at all. The property that
+    # survives both gates is therefore not "every label has a fold" but the stronger one
+    # underneath it: NO LABEL CAN REACH THIS LEDGER WITHOUT A FOLD. Proved by attempting
+    # each unfolded kind rather than by naming them, so a label added tomorrow with
+    # neither a fold nor a refusal fails this.
+    admitted = []
+    for label in unfolded:
+        attempt = run(ADMIN, f"""
+            INSERT INTO ordering.order_event
+                (tenant_id, outlet_id, order_id, sequence_number, kind, actor_kind,
+                 actor_user_id, correlation_id, after)
+            SELECT tenant_id, outlet_id, id, 999, '{label}', 'system', NULL,
+                   correlation_id, '{{}}'::jsonb
+            FROM ordering.customer_order WHERE id = '{order}';""")
+        if attempt.ok or not attempt.failed_with("23514"):
+            admitted.append(f"{label}: {attempt.why() or 'accepted'}")
+
+    record("no event kind can reach the order ledger without a fold",
+           not admitted,
+           f"{len(labels)} kinds; {len(labels) - len(unfolded)} folded by "
+           f"ordering.apply_event() and {len(unfolded)} refused outright by the ledger's "
+           f"own CHECK: {unfolded or 'none'}. Admitted with neither: "
+           f"{admitted or 'none'}. Read out of the catalog rather than from a list here, "
+           f"so a label added with neither a fold nor a refusal fails this rather than "
+           f"passing quietly")
 
 
 # ===========================================================================
@@ -1612,19 +1636,29 @@ def section_governance() -> None:
            f"fails — no completer, an unknown completer, a completer that has landed — "
            f"are proved red below")
 
+    # Written when M3-A was the only slice with entries, as "every entry here is mine".
+    # Later slices open their own, so what this gate still owns is that ITS OWN entries
+    # are present and each names a completer — not that nobody else has any.
     m3a_entries = [e for e in entries if e["opened_at"] == "M3-A"]
+    expected = {"FR-ORD-002", "FR-ORD-003", "FR-ORD-005", "FR-ORD-006", "FR-ORD-009",
+                "FR-ORD-010", "FR-ORD-011", "FR-ORD-012A", "FR-ORD-016A", "FR-ORD-019A",
+                "FR-TAB-007A", "FR-TAB-008", "FR-TAB-009", "FR-DAT-010"}
     record("this slice's half-closed requirements are all in the register",
-           len(m3a_entries) == len(entries),
-           f"{len(m3a_entries)} opened at M3-A: "
-           f"{sorted({e['requirement'] for e in m3a_entries})}")
+           {e["requirement"] for e in m3a_entries} == expected
+           and all(e.get("completing_gate") for e in m3a_entries),
+           f"{len(m3a_entries)} opened at M3-A of {len(entries)} in the register: "
+           f"{sorted({e['requirement'] for e in m3a_entries})}. Missing: "
+           f"{sorted(expected - {e['requirement'] for e in m3a_entries}) or 'none'}")
 
-    unlanded = {e["completing_gate"] for e in entries} - partial_closures.landed_gates()
+    landed = partial_closures.landed_gates()
+    overdue = {e["completing_gate"] for e in entries
+               if (e.get("state") or "") == "open"} & landed
     record("no completing gate has landed while its entry is still open",
-           unlanded == {e["completing_gate"] for e in entries},
-           f"completers named: {sorted(unlanded)}; landed: "
-           f"{sorted(partial_closures.landed_gates())}. When tests/m3b appears, "
-           f"FR-ORD-006, FR-ORD-009, FR-ORD-010, FR-ORD-016A and FR-ORD-019A stop the "
-           f"build until somebody goes back to them")
+           not overdue,
+           f"still open against a landed gate: {sorted(overdue) or 'none'}; landed: "
+           f"{sorted(landed)}. When tests/m3b appeared, FR-ORD-006, FR-ORD-009, "
+           f"FR-ORD-010, FR-ORD-016A and FR-ORD-019A all stopped the build until "
+           f"somebody went back to them, which is what the mechanism is for")
 
     floats = rows("""
         SELECT n.nspname || '.' || c.relname || '.' || a.attname
@@ -1984,18 +2018,22 @@ def accepted_order_mutation_gate() -> tuple[bool, str, str]:
         (APP, f"UPDATE ordering.customer_order SET state = 'submitted' WHERE id = '{order}';",
          "the application role rewriting the projection", ("PROJECTION_WRITTEN_DIRECTLY", "42501")),
     )
+    # Each attempt runs in a transaction that is ROLLED BACK. The observation is real —
+    # the statement genuinely runs, and with the triggers removed it genuinely succeeds —
+    # while nothing it did survives the probe.
+    #
+    # It used to run in autocommit and repair the damage afterwards with a rebuild, and
+    # that stopped being enough at M3-B. The RED run blanks every payload on the order's
+    # ledger AND deletes the rows; a rebuild cannot restore what is gone, and the
+    # fulfillment ledger now carries events about work for that order, so the replay
+    # would try to attach a ticket to an order the order ledger can no longer produce.
+    # One suite's negative control was left able to make the next suite's rebuild fail.
+    # Rolling back leaves nothing to repair, which is better than repairing well.
     for dsn, statement, what, reasons in attempts:
-        res = run(dsn, statement, **(CTX if dsn == APP else {}))
+        res = run(dsn, statement, rollback=True, **(CTX if dsn == APP else {}))
         if not res.failed_with(*reasons):
             leaks.append(f"{what} was not refused by name: "
                          f"{res.why() or 'it succeeded'}")
-
-    # When this gate runs RED the triggers are gone, so the attempts above SUCCEED and
-    # leave a projection that no longer matches its ledger — an order reading 'submitted'
-    # with its lines deleted. Rebuilding puts it back from the authoritative events,
-    # which is both the repair and a demonstration of what the ledger is for: damage done
-    # to a projection is recoverable precisely because the projection is not the record.
-    run(APP, f"SELECT ordering.rebuild_projections('{fx.TENANT}');", **CTX)
 
     if leaks:
         return False, "ACCEPTED_ORDER_MUTATED", "; ".join(leaks)

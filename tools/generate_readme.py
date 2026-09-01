@@ -61,6 +61,8 @@ SLICE_DELIVERS = {
     "M2-C": "the customer surface: three locales, Arabic right-to-left, accessibility",
     "M3-A": "the order aggregate: preview, submission, snapshots, notes, timeline, "
             "session merge, move and close",
+    "M3-B": "fulfillment: routing, station tickets, the eleven-state machine enforced in "
+            "the database, the KDS, expo and non-colour-only allergy salience",
 }
 
 # The gates in order, and what each one brings that does not exist yet. Rows are emitted
@@ -102,6 +104,10 @@ SUITE_PURPOSE = {
     "m3a": "orders: server-calculated preview, idempotent submission, commercial and "
            "language snapshots, four note kinds, the append-only ledger every projection "
            "is rebuilt from, and session merge, move and close",
+    "m3b": "fulfillment: versioned routing to stations, tickets separate from the "
+           "commercial order, every ordered pair of SM-FULFILLMENT-TICKET's eleven "
+           "states walked against the database, expo blocking, printer-fallback "
+           "deduplication, and allergy salience measured in a colour-flattened render",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
 }
 

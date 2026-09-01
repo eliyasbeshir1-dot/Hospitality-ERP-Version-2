@@ -4,7 +4,7 @@
 Do not edit by hand: the verification suite regenerates this file and fails on any
 difference, so a hand edit is reported as drift (FR-DAT-015).
 
-Schemas covered: `app`, `audit`, `config`, `identity`, `menu`, `money`, `ordering`, `org`, `safety`, `service`, discovered from the database rather than listed here.
+Schemas covered: `app`, `audit`, `config`, `fulfillment`, `identity`, `menu`, `money`, `ordering`, `org`, `safety`, `service`, discovered from the database rather than listed here.
 
 ---
 
@@ -25,6 +25,13 @@ Schemas covered: `app`, `audit`, `config`, `identity`, `menu`, `money`, `orderin
 | `config.reason_code_category` | order_cancellation, void, refund, discount, complimentary_item, payment_reversal, tip_correction, service_failure, printer_failure, manager_override |
 | `config.retention_action` | archive, purge, anonymize |
 | `config.scope_kind` | tenant, legal_entity, outlet |
+| `fulfillment.document_trigger` | kds_unavailable, policy_requires_paper |
+| `fulfillment.priority_level` | ordinary, rush, service_access |
+| `fulfillment.serve_exception` | missing_item, wrong_item |
+| `fulfillment.station_kind` | kitchen, bar, coffee, bakery, dessert, expo |
+| `fulfillment.ticket_event_kind` | released, transitioned, reprioritised, transferred, recalled, unit_progress, acknowledged_allergy, document_generated, served, waste, amended |
+| `fulfillment.ticket_state` | queued, acknowledged, held, preparing, partially_completed, ready, collected, completed, rework, cancelled, exception |
+| `fulfillment.waste_kind` | rework, remake, service_waste |
 | `identity.auth_strength` | low, standard, strong |
 | `identity.channel_kind` | phone, email |
 | `identity.credential_kind` | password, otp, quick_pin, service_secret |
@@ -46,7 +53,7 @@ Schemas covered: `app`, `audit`, `config`, `identity`, `menu`, `money`, `orderin
 | `ordering.artifact_kind` | request, cart, table_session, order, fulfillment_ticket, service_request |
 | `ordering.charge_kind` | item_subtotal, discount, tax, fee |
 | `ordering.charge_source_kind` | menu_price, tax_configuration, discount_policy, service_configuration |
-| `ordering.event_kind` | submitted, accepted, rejected, amended, cancelled, voided, note_added, allergy_declared, session_merged, session_moved |
+| `ordering.event_kind` | submitted, accepted, rejected, amended, cancelled, voided, note_added, allergy_declared, session_merged, session_moved, tickets_released, station_acknowledged, station_preparing, station_ready, items_collected, items_served, station_exception |
 | `ordering.note_kind` | customer, allergy_declaration, kitchen_instruction, private_staff |
 | `ordering.order_origin` | guest_qr, waiter_entered |
 | `ordering.order_state` | submitted, accepted, rejected, cancelled, voided |
@@ -83,6 +90,24 @@ graph LR
   config_reason_code["config.reason_code"]
   config_reason_code_label["config.reason_code_label"]
   config_retention_policy["config.retention_policy"]
+  fulfillment_priority_change["fulfillment.priority_change"]
+  fulfillment_ticket["fulfillment.ticket"]
+  fulfillment_ready_notice["fulfillment.ready_notice"]
+  fulfillment_routing_rule["fulfillment.routing_rule"]
+  fulfillment_routing_rule_set["fulfillment.routing_rule_set"]
+  fulfillment_station_profile["fulfillment.station_profile"]
+  menu_category["menu.category"]
+  menu_item_variant["menu.item_variant"]
+  menu_sellable_item["menu.sellable_item"]
+  fulfillment_serve_record["fulfillment.serve_record"]
+  fulfillment_station_ticket_document["fulfillment.station_ticket_document"]
+  fulfillment_station_transfer["fulfillment.station_transfer"]
+  ordering_customer_order["ordering.customer_order"]
+  fulfillment_ticket_event["fulfillment.ticket_event"]
+  fulfillment_ticket_line["fulfillment.ticket_line"]
+  ordering_order_line["ordering.order_line"]
+  fulfillment_ticket_recall["fulfillment.ticket_recall"]
+  fulfillment_waste_event["fulfillment.waste_event"]
   identity_auth_attempt["identity.auth_attempt"]
   identity_auth_lockout["identity.auth_lockout"]
   identity_auth_provider_binding["identity.auth_provider_binding"]
@@ -102,11 +127,8 @@ graph LR
   menu_daypart["menu.daypart"]
   menu_menu["menu.menu"]
   menu_availability["menu.availability"]
-  menu_item_variant["menu.item_variant"]
   menu_modifier["menu.modifier"]
-  menu_sellable_item["menu.sellable_item"]
   menu_availability_pause["menu.availability_pause"]
-  menu_category["menu.category"]
   menu_image["menu.image"]
   menu_image_derivative["menu.image_derivative"]
   menu_item_group["menu.item_group"]
@@ -122,14 +144,12 @@ graph LR
   menu_translatable_field["menu.translatable_field"]
   ordering_charge_rule["ordering.charge_rule"]
   ordering_correlation_link["ordering.correlation_link"]
-  ordering_customer_order["ordering.customer_order"]
   service_cart["service.cart"]
   service_guest_session["service.guest_session"]
   service_table_session["service.table_session"]
   ordering_duplicate_signal["ordering.duplicate_signal"]
   ordering_order_charge_component["ordering.order_charge_component"]
   ordering_order_event["ordering.order_event"]
-  ordering_order_line["ordering.order_line"]
   ordering_order_line_modifier["ordering.order_line_modifier"]
   ordering_order_note["ordering.order_note"]
   safety_allergen["safety.allergen"]
@@ -181,6 +201,65 @@ graph LR
   config_reason_code_label --> config_reason_code
   config_retention_policy --> org_org_node
   config_retention_policy --> org_tenant
+  fulfillment_priority_change --> config_reason_code
+  fulfillment_priority_change --> fulfillment_ticket
+  fulfillment_priority_change --> identity_user_account
+  fulfillment_priority_change --> org_org_node
+  fulfillment_priority_change --> org_tenant
+  fulfillment_ready_notice --> fulfillment_ticket
+  fulfillment_ready_notice --> identity_user_account
+  fulfillment_ready_notice --> org_org_node
+  fulfillment_ready_notice --> org_tenant
+  fulfillment_routing_rule --> fulfillment_routing_rule_set
+  fulfillment_routing_rule --> fulfillment_station_profile
+  fulfillment_routing_rule --> menu_category
+  fulfillment_routing_rule --> menu_item_variant
+  fulfillment_routing_rule --> menu_sellable_item
+  fulfillment_routing_rule --> org_org_node
+  fulfillment_routing_rule --> org_tenant
+  fulfillment_routing_rule_set --> identity_user_account
+  fulfillment_routing_rule_set --> org_org_node
+  fulfillment_routing_rule_set --> org_tenant
+  fulfillment_serve_record --> fulfillment_ticket
+  fulfillment_serve_record --> identity_user_account
+  fulfillment_serve_record --> org_org_node
+  fulfillment_serve_record --> org_tenant
+  fulfillment_station_profile --> org_org_node
+  fulfillment_station_profile --> org_tenant
+  fulfillment_station_ticket_document --> fulfillment_ticket
+  fulfillment_station_ticket_document --> org_org_node
+  fulfillment_station_ticket_document --> org_tenant
+  fulfillment_station_transfer --> config_reason_code
+  fulfillment_station_transfer --> fulfillment_station_profile
+  fulfillment_station_transfer --> fulfillment_ticket
+  fulfillment_station_transfer --> identity_user_account
+  fulfillment_station_transfer --> org_org_node
+  fulfillment_station_transfer --> org_tenant
+  fulfillment_ticket --> fulfillment_routing_rule_set
+  fulfillment_ticket --> fulfillment_station_profile
+  fulfillment_ticket --> identity_user_account
+  fulfillment_ticket --> ordering_customer_order
+  fulfillment_ticket --> org_org_node
+  fulfillment_ticket --> org_tenant
+  fulfillment_ticket_event --> config_reason_code
+  fulfillment_ticket_event --> identity_user_account
+  fulfillment_ticket_event --> org_org_node
+  fulfillment_ticket_event --> org_tenant
+  fulfillment_ticket_line --> fulfillment_ticket
+  fulfillment_ticket_line --> ordering_order_line
+  fulfillment_ticket_line --> org_org_node
+  fulfillment_ticket_line --> org_tenant
+  fulfillment_ticket_recall --> config_reason_code
+  fulfillment_ticket_recall --> fulfillment_ticket
+  fulfillment_ticket_recall --> identity_user_account
+  fulfillment_ticket_recall --> org_org_node
+  fulfillment_ticket_recall --> org_tenant
+  fulfillment_waste_event --> config_reason_code
+  fulfillment_waste_event --> fulfillment_ticket
+  fulfillment_waste_event --> identity_user_account
+  fulfillment_waste_event --> ordering_customer_order
+  fulfillment_waste_event --> org_org_node
+  fulfillment_waste_event --> org_tenant
   identity_auth_attempt --> org_org_node
   identity_auth_attempt --> org_tenant
   identity_auth_lockout --> org_tenant
@@ -773,6 +852,475 @@ Constraints:
 Policies:
 
 - `retention_policy_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+### `fulfillment`
+
+What a station must do, and what it did (FR-FUL-001 … FR-FUL-016A). Separate from ordering by design: the order is what the customer agreed, the ticket is the work.
+
+#### `fulfillment.priority_change`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `ticket_id` | `uuid` | NOT NULL |  |  |
+| `from_priority` | `fulfillment.priority_level` | NOT NULL |  |  |
+| `to_priority` | `fulfillment.priority_level` | NOT NULL |  |  |
+| `reason_code_id` | `uuid` | NOT NULL |  |  |
+| `applied_by_user_id` | `uuid` | NOT NULL |  |  |
+| `applied_at` | `timestamp with time zone` | NOT NULL |  |  |
+
+Constraints:
+
+- `priority_change_actor_fk` — `FOREIGN KEY (tenant_id, applied_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `priority_change_actually_changes` — `CHECK ((from_priority <> to_priority))`
+- `priority_change_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `priority_change_pkey` — `PRIMARY KEY (id)`
+- `priority_change_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `priority_change_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `priority_change_ticket_fk` — `FOREIGN KEY (tenant_id, ticket_id) REFERENCES fulfillment.ticket(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `priority_change_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `fulfillment.ready_notice`
+
+FR-FUL-010, the half this gate owns: the EVENT that a ticket is ready and who it is for. Delivery is FR-NOT-001 at M3-C: there is no channel, transport or template here, and no delivery-status column for it to be mistaken for.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `ticket_id` | `uuid` | NOT NULL |  |  |
+| `assigned_user_id` | `uuid` |  |  |  |
+| `became_ready_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `escalated_at` | `timestamp with time zone` |  |  |  |
+| `escalation_after_seconds` | `integer` |  |  |  |
+
+Constraints:
+
+- `ready_notice_escalation_after_ready` — `CHECK (((escalated_at IS NULL) OR (escalated_at >= became_ready_at)))`
+- `ready_notice_escalation_recorded_together` — `CHECK (((escalated_at IS NULL) = (escalation_after_seconds IS NULL)))`
+- `ready_notice_one_per_ticket` — `UNIQUE (tenant_id, ticket_id)`
+- `ready_notice_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `ready_notice_pkey` — `PRIMARY KEY (id)`
+- `ready_notice_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `ready_notice_ticket_fk` — `FOREIGN KEY (tenant_id, ticket_id) REFERENCES fulfillment.ticket(tenant_id, id) ON DELETE RESTRICT`
+- `ready_notice_user_fk` — `FOREIGN KEY (tenant_id, assigned_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `ready_notice_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `fulfillment.routing_rule`
+
+Where a line unit goes (FR-FUL-001). Rules belong to a VERSIONED set and a ticket records the version that routed it, so a rule change does not rewrite history. Precedence is explicit: a rule set whose meaning depended on row order would change behaviour when it was reseeded.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `rule_set_id` | `uuid` | NOT NULL |  |  |
+| `precedence` | `integer` | NOT NULL |  |  |
+| `item_id` | `uuid` |  |  |  |
+| `variant_id` | `uuid` |  |  |  |
+| `category_id` | `uuid` |  |  |  |
+| `target_station_node_id` | `uuid` | NOT NULL |  |  |
+
+Constraints:
+
+- `routing_rule_at_most_one_subject` — `CHECK ((((((item_id IS NOT NULL))::integer + ((variant_id IS NOT NULL))::integer) + ((category_id IS NOT NULL))::integer) <= 1))`
+- `routing_rule_category_fk` — `FOREIGN KEY (category_id) REFERENCES menu.category(id) ON DELETE RESTRICT`
+- `routing_rule_item_fk` — `FOREIGN KEY (item_id) REFERENCES menu.sellable_item(id) ON DELETE RESTRICT`
+- `routing_rule_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `routing_rule_pkey` — `PRIMARY KEY (id)`
+- `routing_rule_precedence_positive` — `CHECK ((precedence > 0))`
+- `routing_rule_precedence_unique` — `UNIQUE (rule_set_id, precedence)`
+- `routing_rule_set_fk` — `FOREIGN KEY (tenant_id, rule_set_id) REFERENCES fulfillment.routing_rule_set(tenant_id, id) ON DELETE RESTRICT`
+- `routing_rule_station_fk` — `FOREIGN KEY (tenant_id, target_station_node_id) REFERENCES fulfillment.station_profile(tenant_id, station_node_id) ON DELETE RESTRICT`
+- `routing_rule_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `routing_rule_variant_fk` — `FOREIGN KEY (variant_id) REFERENCES menu.item_variant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `routing_rule_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `fulfillment.routing_rule_set`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `version` | `integer` | NOT NULL |  |  |
+| `effective_from` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `effective_to` | `timestamp with time zone` |  |  |  |
+| `approved_by_user_id` | `uuid` | NOT NULL |  |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `routing_rule_set_approver_fk` — `FOREIGN KEY (tenant_id, approved_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `routing_rule_set_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `routing_rule_set_pkey` — `PRIMARY KEY (id)`
+- `routing_rule_set_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `routing_rule_set_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `routing_rule_set_version_positive` — `CHECK ((version > 0))`
+- `routing_rule_set_version_unique` — `UNIQUE (tenant_id, outlet_id, version)`
+- `routing_rule_set_window_valid` — `CHECK (((effective_to IS NULL) OR (effective_to > effective_from)))`
+
+Policies:
+
+- `routing_rule_set_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `fulfillment.serve_record`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `ticket_id` | `uuid` | NOT NULL |  |  |
+| `collected_by_user_id` | `uuid` | NOT NULL |  |  |
+| `collected_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `served_by_user_id` | `uuid` |  |  |  |
+| `served_at` | `timestamp with time zone` |  |  |  |
+| `exception_kind` | `fulfillment.serve_exception` |  |  |  |
+| `exception_note` | `text` |  |  |  |
+
+Constraints:
+
+- `serve_record_collector_fk` — `FOREIGN KEY (tenant_id, collected_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `serve_record_exception_explained` — `CHECK ((((exception_kind IS NULL) AND (exception_note IS NULL)) OR ((exception_kind IS NOT NULL) AND (btrim(COALESCE(exception_note, ''::text)) <> ''::text))))`
+- `serve_record_one_per_ticket` — `UNIQUE (tenant_id, ticket_id)`
+- `serve_record_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `serve_record_pkey` — `PRIMARY KEY (id)`
+- `serve_record_server_fk` — `FOREIGN KEY (tenant_id, served_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `serve_record_service_recorded_together` — `CHECK (((served_at IS NULL) = (served_by_user_id IS NULL)))`
+- `serve_record_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `serve_record_ticket_fk` — `FOREIGN KEY (tenant_id, ticket_id) REFERENCES fulfillment.ticket(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `serve_record_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `fulfillment.station_profile`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `station_node_id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `station_kind` | `fulfillment.station_kind` | NOT NULL |  |  |
+| `sla_minutes` | `integer` |  |  |  |
+| `concurrent_ticket_threshold` | `integer` |  |  |  |
+| `allergy_acknowledgement_required` | `boolean` | NOT NULL | `true` |  |
+| `status` | `org.lifecycle_status` | NOT NULL | `'active'::org.lifecycle_status` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `station_profile_node_fk` — `FOREIGN KEY (tenant_id, station_node_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `station_profile_one_per_outlet` — `UNIQUE (tenant_id, outlet_id, station_node_id)`
+- `station_profile_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `station_profile_pkey` — `PRIMARY KEY (station_node_id)`
+- `station_profile_sla_sane` — `CHECK (((sla_minutes IS NULL) OR ((sla_minutes > 0) AND (sla_minutes <= 600))))`
+- `station_profile_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `station_profile_tenant_id_unique` — `UNIQUE (tenant_id, station_node_id)`
+- `station_profile_threshold_positive` — `CHECK (((concurrent_ticket_threshold IS NULL) OR (concurrent_ticket_threshold > 0)))`
+
+Policies:
+
+- `station_profile_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `fulfillment.station_ticket_document`
+
+FR-FUL-014. Deduplicated by a unique key on (ticket, revision), so a second request for the same revision cannot store a second document however many times it is made. A document, not a print job — the resilient local print path is M5a.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `ticket_id` | `uuid` | NOT NULL |  |  |
+| `revision` | `integer` | NOT NULL |  |  |
+| `trigger_reason` | `fulfillment.document_trigger` | NOT NULL |  |  |
+| `content` | `text` | NOT NULL |  |  |
+| `content_digest` | `bytea` | NOT NULL |  |  |
+| `allergy_line_count` | `integer` | NOT NULL |  |  |
+| `generated_at` | `timestamp with time zone` | NOT NULL |  |  |
+
+Constraints:
+
+- `station_ticket_document_allergy_count_sane` — `CHECK ((allergy_line_count >= 0))`
+- `station_ticket_document_content_not_blank` — `CHECK ((btrim(content) <> ''::text))`
+- `station_ticket_document_digest_is_sha256` — `CHECK ((octet_length(content_digest) = 32))`
+- `station_ticket_document_one_per_revision` — `UNIQUE (tenant_id, ticket_id, revision)`
+- `station_ticket_document_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `station_ticket_document_pkey` — `PRIMARY KEY (id)`
+- `station_ticket_document_revision_positive` — `CHECK ((revision > 0))`
+- `station_ticket_document_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `station_ticket_document_ticket_fk` — `FOREIGN KEY (tenant_id, ticket_id) REFERENCES fulfillment.ticket(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `station_ticket_document_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `fulfillment.station_transfer`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `ticket_id` | `uuid` | NOT NULL |  |  |
+| `from_station_node_id` | `uuid` | NOT NULL |  |  |
+| `to_station_node_id` | `uuid` | NOT NULL |  |  |
+| `reason_code_id` | `uuid` | NOT NULL |  |  |
+| `transferred_by_user_id` | `uuid` | NOT NULL |  |  |
+| `transferred_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `units_moved` | `integer` | NOT NULL |  |  |
+
+Constraints:
+
+- `station_transfer_actor_fk` — `FOREIGN KEY (tenant_id, transferred_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `station_transfer_actually_moves` — `CHECK ((from_station_node_id <> to_station_node_id))`
+- `station_transfer_from_fk` — `FOREIGN KEY (tenant_id, from_station_node_id) REFERENCES fulfillment.station_profile(tenant_id, station_node_id) ON DELETE RESTRICT`
+- `station_transfer_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `station_transfer_pkey` — `PRIMARY KEY (id)`
+- `station_transfer_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `station_transfer_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `station_transfer_ticket_fk` — `FOREIGN KEY (tenant_id, ticket_id) REFERENCES fulfillment.ticket(tenant_id, id) ON DELETE RESTRICT`
+- `station_transfer_to_fk` — `FOREIGN KEY (tenant_id, to_station_node_id) REFERENCES fulfillment.station_profile(tenant_id, station_node_id) ON DELETE RESTRICT`
+- `station_transfer_units_positive` — `CHECK ((units_moved > 0))`
+
+Policies:
+
+- `station_transfer_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `fulfillment.ticket`
+
+What one station must do for one order (FR-FUL-002). A projection of fulfillment.ticket_event: nothing writes here except fulfillment.apply_ticket_event(), and the state column is additionally guarded by a trigger that consults fulfillment.transition — so the fold itself cannot write an illegal state.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `order_id` | `uuid` | NOT NULL |  |  |
+| `station_node_id` | `uuid` | NOT NULL |  |  |
+| `state` | `fulfillment.ticket_state` | NOT NULL |  |  |
+| `priority` | `fulfillment.priority_level` | NOT NULL |  |  |
+| `routing_rule_set_id` | `uuid` | NOT NULL |  |  |
+| `station_sequence` | `integer` | NOT NULL |  |  |
+| `released_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `sla_due_at` | `timestamp with time zone` |  |  |  |
+| `acknowledged_at` | `timestamp with time zone` |  |  |  |
+| `preparation_started_at` | `timestamp with time zone` |  |  |  |
+| `ready_at` | `timestamp with time zone` |  |  |  |
+| `collected_at` | `timestamp with time zone` |  |  |  |
+| `completed_at` | `timestamp with time zone` |  |  |  |
+| `allergy_acknowledged_at` | `timestamp with time zone` |  |  |  |
+| `allergy_acknowledged_by_user_id` | `uuid` |  |  |  |
+| `ledger_sequence` | `integer` | NOT NULL |  |  |
+
+Constraints:
+
+- `ticket_ack_recorded_together` — `CHECK (((allergy_acknowledged_at IS NULL) = (allergy_acknowledged_by_user_id IS NULL)))`
+- `ticket_ack_user_fk` — `FOREIGN KEY (tenant_id, allergy_acknowledged_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `ticket_ledger_sequence_positive` — `CHECK ((ledger_sequence > 0))`
+- `ticket_one_per_order_station` — `UNIQUE (tenant_id, order_id, station_node_id)`
+- `ticket_order_fk` — `FOREIGN KEY (tenant_id, order_id) REFERENCES ordering.customer_order(tenant_id, id) ON DELETE RESTRICT`
+- `ticket_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `ticket_pkey` — `PRIMARY KEY (id)`
+- `ticket_rule_set_fk` — `FOREIGN KEY (tenant_id, routing_rule_set_id) REFERENCES fulfillment.routing_rule_set(tenant_id, id) ON DELETE RESTRICT`
+- `ticket_sequence_positive` — `CHECK ((station_sequence > 0))`
+- `ticket_station_fk` — `FOREIGN KEY (tenant_id, station_node_id) REFERENCES fulfillment.station_profile(tenant_id, station_node_id) ON DELETE RESTRICT`
+- `ticket_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `ticket_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `ticket_timestamps_ordered` — `CHECK ((((acknowledged_at IS NULL) OR (acknowledged_at >= released_at)) AND ((preparation_started_at IS NULL) OR (acknowledged_at IS NOT NULL)) AND ((ready_at IS NULL) OR (preparation_started_at IS NOT NULL)) AND ((collected_at IS NULL) OR (ready_at IS NOT NULL)) AND ((completed_at IS NULL) OR (collected_at IS NOT NULL))))`
+
+Policies:
+
+- `ticket_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `fulfillment.ticket_event`
+
+The authoritative, append-only fulfillment ledger (FR-FUL-002, FR-FUL-005). Every ticket projection and every station timeline entry is folded out of it, so a station's history has no destructive edit path and rebuilds deterministically alongside the order projections it belongs beside.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `bigint` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `ticket_id` | `uuid` | NOT NULL |  |  |
+| `sequence_number` | `integer` | NOT NULL |  |  |
+| `kind` | `fulfillment.ticket_event_kind` | NOT NULL |  |  |
+| `occurred_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `actor_kind` | `ordering.actor_kind` | NOT NULL |  |  |
+| `actor_user_id` | `uuid` |  |  |  |
+| `correlation_id` | `uuid` | NOT NULL |  |  |
+| `reason_code_id` | `uuid` |  |  |  |
+| `before` | `jsonb` |  |  |  |
+| `after` | `jsonb` | NOT NULL |  |  |
+
+Constraints:
+
+- `ticket_event_actor_consistent` — `CHECK ((((actor_kind = 'staff'::ordering.actor_kind) AND (actor_user_id IS NOT NULL)) OR ((actor_kind = 'system'::ordering.actor_kind) AND (actor_user_id IS NULL))))`
+- `ticket_event_actor_fk` — `FOREIGN KEY (tenant_id, actor_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `ticket_event_before_required` — `CHECK (((kind = 'released'::fulfillment.ticket_event_kind) = (before IS NULL)))`
+- `ticket_event_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `ticket_event_pkey` — `PRIMARY KEY (id)`
+- `ticket_event_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `ticket_event_reason_required` — `CHECK (((kind = ANY (ARRAY['recalled'::fulfillment.ticket_event_kind, 'reprioritised'::fulfillment.ticket_event_kind, 'transferred'::fulfillment.ticket_event_kind, 'waste'::fulfillment.ticket_event_kind])) = (reason_code_id IS NOT NULL)))`
+- `ticket_event_sequence_positive` — `CHECK ((sequence_number > 0))`
+- `ticket_event_sequence_unique` — `UNIQUE (tenant_id, ticket_id, sequence_number)`
+- `ticket_event_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `ticket_event_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `fulfillment.ticket_line`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `ticket_id` | `uuid` | NOT NULL |  |  |
+| `order_line_id` | `uuid` | NOT NULL |  |  |
+| `quantity` | `integer` | NOT NULL |  |  |
+| `ready_quantity` | `integer` | NOT NULL | `0` |  |
+| `item_code` | `text` | NOT NULL |  |  |
+| `canonical_name` | `text` | NOT NULL |  |  |
+
+Constraints:
+
+- `ticket_line_one_per_order_line` — `UNIQUE (ticket_id, order_line_id)`
+- `ticket_line_order_line_fk` — `FOREIGN KEY (tenant_id, order_line_id) REFERENCES ordering.order_line(tenant_id, id) DEFERRABLE INITIALLY DEFERRED`
+- `ticket_line_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `ticket_line_pkey` — `PRIMARY KEY (id)`
+- `ticket_line_quantity_positive` — `CHECK ((quantity > 0))`
+- `ticket_line_readiness_within_quantity` — `CHECK (((ready_quantity >= 0) AND (ready_quantity <= quantity)))`
+- `ticket_line_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `ticket_line_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `ticket_line_ticket_fk` — `FOREIGN KEY (tenant_id, ticket_id) REFERENCES fulfillment.ticket(tenant_id, id) ON DELETE RESTRICT`
+- `ticket_line_units_within_order` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
+
+Policies:
+
+- `ticket_line_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `fulfillment.ticket_recall`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `ticket_id` | `uuid` | NOT NULL |  |  |
+| `recalled_from` | `fulfillment.ticket_state` | NOT NULL |  |  |
+| `reason_code_id` | `uuid` | NOT NULL |  |  |
+| `recalled_by_user_id` | `uuid` | NOT NULL |  |  |
+| `recalled_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `seconds_since_completion` | `integer` | NOT NULL |  |  |
+
+Constraints:
+
+- `ticket_recall_actor_fk` — `FOREIGN KEY (tenant_id, recalled_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `ticket_recall_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `ticket_recall_pkey` — `PRIMARY KEY (id)`
+- `ticket_recall_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `ticket_recall_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `ticket_recall_ticket_fk` — `FOREIGN KEY (tenant_id, ticket_id) REFERENCES fulfillment.ticket(tenant_id, id) ON DELETE RESTRICT`
+- `ticket_recall_window_not_negative` — `CHECK ((seconds_since_completion >= 0))`
+
+Policies:
+
+- `ticket_recall_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `fulfillment.transition`
+
+The thirteen edges of SM-FULFILLMENT-TICKET. Consulted by a trigger on every state change, so an illegal transition is refused by the database and not merely by the function that meant to write it (the package's fourth invariant). Read-only to the application role: a machine an application can rewrite is not a machine.
+
+Row level security: **DISABLED**, **not forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `from_state` | `fulfillment.ticket_state` | NOT NULL |  |  |
+| `to_state` | `fulfillment.ticket_state` | NOT NULL |  |  |
+| `reason` | `text` | NOT NULL |  |  |
+
+Constraints:
+
+- `transition_is_a_move` — `CHECK ((from_state <> to_state))`
+- `transition_pkey` — `PRIMARY KEY (from_state, to_state)`
+- `transition_reason_not_blank` — `CHECK ((btrim(reason) <> ''::text))`
+
+#### `fulfillment.waste_event`
+
+FR-FUL-016A. Rework, remake and SERVICE waste, each with reason, actor and the linked order and ticket. The package's third invariant is explicit that Phase 1 posts no consumption against any of this, and there is nothing in this schema it could post against.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `ticket_id` | `uuid` | NOT NULL |  |  |
+| `order_id` | `uuid` | NOT NULL |  |  |
+| `kind` | `fulfillment.waste_kind` | NOT NULL |  |  |
+| `units_affected` | `integer` | NOT NULL |  |  |
+| `reason_code_id` | `uuid` | NOT NULL |  |  |
+| `recorded_by_user_id` | `uuid` | NOT NULL |  |  |
+| `recorded_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `note` | `text` | NOT NULL |  |  |
+
+Constraints:
+
+- `waste_event_actor_fk` — `FOREIGN KEY (tenant_id, recorded_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `waste_event_note_not_blank` — `CHECK ((btrim(note) <> ''::text))`
+- `waste_event_order_fk` — `FOREIGN KEY (tenant_id, order_id) REFERENCES ordering.customer_order(tenant_id, id) ON DELETE RESTRICT`
+- `waste_event_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `waste_event_pkey` — `PRIMARY KEY (id)`
+- `waste_event_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `waste_event_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `waste_event_ticket_fk` — `FOREIGN KEY (tenant_id, ticket_id) REFERENCES fulfillment.ticket(tenant_id, id) ON DELETE RESTRICT`
+- `waste_event_units_positive` — `CHECK ((units_affected > 0))`
+
+Policies:
+
+- `waste_event_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
 ### `identity`
 
@@ -2195,11 +2743,13 @@ Constraints:
 - `order_event_actor_consistent` — `CHECK ((((actor_kind = 'guest'::ordering.actor_kind) AND (actor_guest_session_id IS NOT NULL) AND (actor_user_id IS NULL)) OR ((actor_kind = 'staff'::ordering.actor_kind) AND (actor_user_id IS NOT NULL) AND (actor_guest_session_id IS NULL)) OR ((actor_kind = 'system'::ordering.actor_kind) AND (actor_user_id IS NULL) AND (actor_guest_session_id IS NULL))))`
 - `order_event_actor_guest_fk` — `FOREIGN KEY (tenant_id, actor_guest_session_id) REFERENCES service.guest_session(tenant_id, id) ON DELETE RESTRICT`
 - `order_event_actor_user_fk` — `FOREIGN KEY (tenant_id, actor_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `order_event_amends_tickets` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
 - `order_event_before_required_for_changes` — `CHECK ((((kind = ANY (ARRAY['amended'::ordering.event_kind, 'cancelled'::ordering.event_kind, 'voided'::ordering.event_kind, 'session_merged'::ordering.event_kind, 'session_moved'::ordering.event_kind])) AND (before IS NOT NULL)) OR ((kind = ANY (ARRAY['submitted'::ordering.event_kind, 'accepted'::ordering.event_kind, 'rejected'::ordering.event_kind, 'note_added'::ordering.event_kind, 'allergy_declared'::ordering.event_kind])) AND (before IS NULL))))`
 - `order_event_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
 - `order_event_pkey` — `PRIMARY KEY (id)`
 - `order_event_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
 - `order_event_reason_required` — `CHECK (((kind = ANY (ARRAY['cancelled'::ordering.event_kind, 'voided'::ordering.event_kind])) = (reason_code_id IS NOT NULL)))`
+- `order_event_releases_work` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
 - `order_event_sequence_positive` — `CHECK ((sequence_number > 0))`
 - `order_event_sequence_unique` — `UNIQUE (tenant_id, order_id, sequence_number)`
 - `order_event_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`

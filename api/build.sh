@@ -38,6 +38,22 @@ mkdir -p "$WORKSPACE/dist/public"
 cp "$WORKSPACE/pwa/index.html" "$WORKSPACE/pwa/app.css" "$WORKSPACE/pwa/manifest.webmanifest" \
    "$WORKSPACE/dist/public/"
 ./node_modules/.bin/tsc -p "$WORKSPACE/pwa/tsconfig.json" --outDir "$WORKSPACE/dist/public"
+
+# The STATION surface, the same way and for the same reasons. It is a separate surface
+# rather than a mode of the customer one: they share no audience, no authentication and
+# no fate, and a kitchen screen that could be reached by scanning a QR code would be a
+# defect rather than a feature. M3-B's negative controls plant their defects in this
+# workspace copy, so reverting one is a rebuild.
+rm -rf "$WORKSPACE/station"
+cp -r "$REPO/station" "$WORKSPACE/station"
+cp "$WORKSPACE/station/index.html" "$WORKSPACE/dist/public/station.html"
+cp "$WORKSPACE/station/station.css" "$WORKSPACE/dist/public/station.css"
+# The entry point is station/src/station.ts, so tsc emits station.js directly. Naming it
+# app.ts and renaming the output afterwards worked and was fragile: it depended on the
+# two surfaces being compiled in a particular order, because both would have emitted
+# app.js into the same directory.
+./node_modules/.bin/tsc -p "$WORKSPACE/station/tsconfig.json" --outDir "$WORKSPACE/dist/public"
+
 echo "built into $WORKSPACE/dist"
 
 if [ "${1:-}" = "--run" ]; then

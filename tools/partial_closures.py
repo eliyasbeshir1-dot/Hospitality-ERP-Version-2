@@ -1,12 +1,19 @@
 #!/usr/bin/env python3
-"""The partial-closure register, and the three ways it is allowed to fail the build.
+"""The partial-closure register, and the six ways it is allowed to fail the build.
 
 A partial closure is a requirement this repository has closed as far as the artifacts of
 its own gate allow, with the gate or slice that completes it named. The mechanism exists
 because the alternative — a completion claim that is silent about known gaps — is the
 drift class the M2-C README finding was about.
 
-Three rules, all structural, all derived from sources this file does not own:
+Three rules were enough while every entry was open. M3-B is the first gate at which
+entries actually COME DUE, and that exposed a hole: the original checker skipped any
+entry whose state was not "open", so writing state: "done" — or "banana" — silenced it
+completely. Closing was therefore indistinguishable from suppressing, which is the
+failure this register exists to prevent, one level up. A closure is now a claim that has
+to be earned: it names the slice that closed it, that slice must have LANDED, and it
+carries the evidence. Three more rules, all structural, all derived from sources this
+file does not own:
 
   PARTIAL_CLOSURE_UNCOMPLETED
       an entry that names no completing gate. "Partially closed" without a completer is
@@ -23,6 +30,20 @@ Three rules, all structural, all derived from sources this file does not own:
       "partial" forever. Landing is read from the repository — a gate has landed when the
       suite that verifies it exists — so M3-B landing forces FR-ORD-006 to be re-examined
       whether or not anybody remembers.
+
+  PARTIAL_CLOSURE_STATE_UNKNOWN
+      an entry whose state is neither "open" nor "closed". Fail closed: the original
+      checker treated every unrecognised state as "nothing to see", so a typo was a
+      silencer.
+
+  PARTIAL_CLOSURE_CLOSED_WITHOUT_EVIDENCE
+      an entry marked closed that does not name the slice which closed it and what now
+      proves it. "Closed" with no account of how is the same empty claim as "partial"
+      with no completer.
+
+  PARTIAL_CLOSURE_CLOSED_FROM_THE_FUTURE
+      an entry closed by a slice that has not landed. Nothing can be closed by work that
+      does not exist yet, and this is the shape a premature tick would take.
 
 Standard library only. Fails closed: a register it cannot read or parse is an error, not
 an empty list.
@@ -170,7 +191,39 @@ def check(entries: list[dict] | None = None) -> list[tuple[str, str]]:
                 f"register has no gate {gate!r}"))
             continue
 
-        if state != "open":
+        if state not in ("open", "closed"):
+            failures.append((
+                "PARTIAL_CLOSURE_STATE_UNKNOWN",
+                f"{label} has state {state!r}; the only states are 'open' and 'closed', "
+                f"and anything else silences the entry rather than describing it"))
+            continue
+
+        if state == "closed":
+            closed_by = (entry.get("closed_at") or "").strip()
+            evidence = (entry.get("closed_by_evidence") or "").strip()
+            if not closed_by or not evidence:
+                failures.append((
+                    "PARTIAL_CLOSURE_CLOSED_WITHOUT_EVIDENCE",
+                    f"{label} is marked closed but names "
+                    + " and ".join(
+                        part for part, missing in
+                        (("no closing slice", not closed_by),
+                         ("no evidence", not evidence)) if missing)))
+                continue
+
+            closing = SLICE_SUFFIX.fullmatch(closed_by)
+            if not closing or closing.group("gate") not in gates:
+                failures.append((
+                    "PARTIAL_CLOSURE_GATE_UNKNOWN",
+                    f"{label} says it was closed at {closed_by!r}, and the requirements "
+                    f"register has no such gate"))
+                continue
+
+            if closed_by not in landed:
+                failures.append((
+                    "PARTIAL_CLOSURE_CLOSED_FROM_THE_FUTURE",
+                    f"{label} is marked closed at {closed_by}, which has not landed: "
+                    f"there is no tests/{closed_by.lower().replace('-', '')}"))
             continue
 
         if completer in landed:
@@ -196,8 +249,11 @@ def main() -> int:
     if failures:
         return 1
 
-    print(f"PASS PARTIAL_CLOSURES — {len(entries)} entr(ies), each naming a completing "
-          f"gate the requirements register has, none of them landed and unrevisited")
+    closed = [e for e in entries if (e.get("state") or "").strip() == "closed"]
+    print(f"PASS PARTIAL_CLOSURES — {len(entries)} entr(ies): "
+          f"{len(entries) - len(closed)} open, {len(closed)} closed. Every open entry "
+          f"names a completing gate the requirements register has and none has landed; "
+          f"every closed entry names the landed slice that closed it and its evidence")
     return 0
 
 
