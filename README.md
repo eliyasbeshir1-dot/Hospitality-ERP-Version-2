@@ -17,7 +17,7 @@
 | **M2-B** | tables, QR resolution, guest sessions, carts, allergens and dietary safety | `bad3cb5` |
 | **M2-C** | the customer surface: three locales, Arabic right-to-left, accessibility | `cb7dec1` |
 | **M3-A** | the order aggregate: preview, submission, snapshots, notes, timeline, session merge, move and close | `524cb81` |
-| **M3-B** | fulfillment: routing, station tickets, the eleven-state machine enforced in the database, the KDS, expo and non-colour-only allergy salience | `c91009a` |
+| **M3-B** | fulfillment: routing, station tickets, the eleven-state machine enforced in the database, the KDS, expo and non-colour-only allergy salience | `ab63b82` |
 
 The M1 evidence report is at `evidence/M1_EVIDENCE_REPORT.md`.
 
