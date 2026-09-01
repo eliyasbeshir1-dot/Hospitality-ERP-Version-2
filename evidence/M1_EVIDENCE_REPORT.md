@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `14d14da5d36cffc442f50ba7fd44f07a56192382` |
-| Short | `14d14da` |
+| Commit | `a57291761dd6cce3f0a0c45e55786fb3c1c945ab` |
+| Short | `a572917` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation |
@@ -51,6 +51,8 @@ Ordered, forward-only and checksum-locked. An edited applied migration fails pre
 | `0010` | `0010_orders_submission_snapshots_and_session_lifecycle.sql` | `ee909c9d7363d52a…` | applied |
 | `0011` | `0011_fulfillment_timeline_event_kinds.sql` | `9f9ecdfe97bcbe10…` | applied |
 | `0012` | `0012_fulfillment_tickets_stations_and_service.sql` | `3e863b2bac70766e…` | applied |
+| `0013` | `0013_translatable_service_and_notification_entities.sql` | `749029e9e7bec573…` | applied |
+| `0014` | `0014_service_requests_notifications_and_integration_runtime.sql` | `069cd2692cec7406…` | applied |
 
 ## Seeds applied
 
@@ -83,15 +85,16 @@ Money is stored as integer minor units beside an explicit currency.
 |---|---|---:|---:|
 | M1-A database, RLS, roles | **PASS** | 46 | 0 |
 | M1-B identity and authentication | **PASS** | 35 | 0 |
-| M1-C configuration, audit, money | **PASS** | 61 | 0 |
+| M1-C configuration, audit, money | **PASS** | 62 | 0 |
 | M1-D API, security, operations | **PASS** | 49 | 0 |
 | M2-A menu, pricing, translation storage | **PASS** | 75 | 0 |
 | M2-B tables, QR, guests, allergen safety | **PASS** | 107 | 0 |
 | M2-C customer surface, rendered | **PASS** | 63 | 0 |
 | M3-A orders, snapshots, session lifecycle | **PASS** | 136 | 0 |
 | M3-B fulfillment, tickets, stations, the KDS | **PASS** | 125 | 0 |
+| M3-C service requests, notifications, integration | **PASS** | 122 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
-| **Total** | | **730** | |
+| **Total** | | **853** | |
 
 ## Negative controls
 
@@ -160,6 +163,13 @@ a coverage gap wearing a green badge, and CI fails the build when one is missing
 | `NC-M3B-004` | Printer fallback emits a second ticket | `DUPLICATE_STATION_TICKET` | red, then green |
 | `NC-M3B-005` | Expo releases an incomplete set | `INCOMPLETE_SET_SERVED` | red, then green |
 | `NC-M3B-006` | Priority applied with no attributed actor | `PRIORITY_WITHOUT_ATTRIBUTION` | red, then green |
+| `NC-M3C-001` | Deduplication swallows a deliberate repeat | `DELIBERATE_REPEAT_SUPPRESSED` | red, then green |
+| `NC-M3C-002` | Accidental repeated taps raise a second alert | `DUPLICATE_ALERT_EMITTED` | red, then green |
+| `NC-M3C-003` | Staff identity reaches a customer screen unconfigured | `STAFF_IDENTITY_DISCLOSED` | red, then green |
+| `NC-M3C-004` | Presence survives its retention window | `EPHEMERAL_PRESENCE_RETAINED` | red, then green |
+| `NC-M3C-005` | Sensitive data reaches a notification payload | `SENSITIVE_DATA_IN_NOTIFICATION` | red, then green |
+| `NC-M3C-006` | A deep link resolves for an unauthorized session | `DEEP_LINK_CROSSES_SESSION_SCOPE` | red, then green |
+| `NC-M3C-007` | A dead-letter replay causes a duplicate effect | `DUPLICATE_EFFECT_ON_REPLAY` | red, then green |
 
 ## Design decision: the ledger is the record, everything else is a projection (M3-A)
 
@@ -587,6 +597,106 @@ Every check in the suite records whether its evidence is `(measured)` — read o
 browser's own layout — or `(asserted)` — read from source, a payload or the database. The
 split printed at the end is DERIVED from the run rather than tallied by hand, because the
 one time M2-C counted by hand it drifted.
+
+## Design decision: a request belongs to the table, not to the order (M3-C)
+
+A ticket is what a station must make; a service request is what a guest asked for. The
+second half of that line is drawn at M3-C, and where a request LIVES is the decision it
+turns on.
+
+`service.service_request` references the TABLE SESSION. It carries an order id as well,
+present when the request concerns one — a missing item, a bill — and absent for most of a
+meal. Binding it to the order instead would have made a request for water unraisable until
+somebody had ordered something, which is the wrong way round: the guest who most needs to
+call a waiter is the one nobody has come to yet.
+
+FR-SRV-008's internal tasks are the SAME aggregate with `origin = staff`. A second table
+for staff-raised tasks would have been two models of one thing — the same routing, the
+same deadline, the same completion — and the two would have drifted.
+
+That choice pays for itself twice. A merge takes the requests with the session because
+they reference it, so FR-TAB-007A needed no consolidation step; and a move changes which
+table a session sits at, not which session a request belongs to, so FR-TAB-008 needed
+nothing at all. What the merge DID need is recorded below.
+
+## Design decision: deduplication is two-sided, and both sides are the requirement (M3-C)
+
+FR-SRV-006 asks for two things that pull against each other: accidental repeated taps must
+not create uncontrolled duplicate alerts, AND deliberate repeats must survive. A window
+that collapsed everything satisfies the first and fails the requirement. So does one that
+collapses nothing.
+
+Three different questions are kept apart, and conflating any two of them breaks one of
+them:
+
+- **A RETRY** is one command that arrived twice — same idempotency key. It returns the
+  original outcome and has no second effect (FR-INT-005).
+- **AN ACCIDENT** is two commands that look alike, inside the request type's configured
+  window. The second collapses into the first: no second request, no second alert, and
+  the caller is told which request theirs became rather than given an error.
+- **A DELIBERATE REPEAT** is the guest saying so. It always raises a new request, inside
+  the window or outside it, carrying the same deduplication group with the next ordinal —
+  so "the third time I asked for water" is answerable.
+
+The window is per request type, because two taps a minute apart for water are a double tap
+and two taps a minute apart for assistance may not be. `NC-M3C-001` and `NC-M3C-002` are
+the same control failing in opposite directions.
+
+## Design decision: presence is not a workforce record (M3-C)
+
+FR-SRV-007A wants three presence states driving routing. FR-SRV-007B says there is no
+roster, no shift, no break, no attendance, no timekeeping, no payroll and no employment
+history, and requires a retention bound.
+
+The fence is about WHAT EXISTS, not how long it lasts. A retained history of when somebody
+was available would be no less an attendance record for having a window on it — so
+`service.staff_presence` has nowhere to put one. Its primary key is the PERSON, so a
+second row for them cannot exist; there is no `previous_state`, no `ended_at`, no closed
+row and no superseded flag. `tests/m3c` asserts that absence against the CATALOG rather
+than against this paragraph, the way M3-A asserted no order carries a table id.
+
+It is then discarded twice over, and both paths are proved to DELETE rather than to mark:
+ending the staff session that asserted it removes the row, and `config.retention_policy`
+sweeps it by age through `config.apply_retention()` — M1-C's engine, which stays the only
+sweep in the system.
+
+## Design decision: nothing is delivered by a channel that does not exist (M3-C)
+
+FR-NOT-001 names eight classes of event and FR-INT-007 wants repeatedly failing work in an
+operator-visible queue. At M3 there is no transport: outlet-local notices are M5a's.
+
+So the kinds exist and the producers do not pretend to. `notify.catalog_event` carries the
+package's own event ids with `has_producer = false` for bill, payment, tip, outage and
+sync, and `notify.emit()` refuses one by name — a kind with no producer is honest, a
+stubbed bill is not.
+
+In-app notice IS the sink, and it fails for three real domain reasons rather than an
+injected fault: the recipient's authorization was withdrawn between the event happening and
+the notice being written; the guest is no longer live on the session; there is no approved
+template in the language the recipient must be told in. The first is a genuine race and the
+sharpest of the three — in scope at emission, out of scope afterwards, which is M2-B's
+`FOREIGN_SESSION_ACCEPTED` boundary on a different path.
+
+There is no adapter seam, deliberately. An abstraction with one implementation has no
+second case to prove it right. When a transport exists, its failures reach the same queue
+through the same door — `integration.dead_letter_job()` — and the replay control stays
+what it is: the SAME work re-run, never re-emitted, proved against the whole-schema
+differential.
+
+## Governance: an instrument that had quietly stopped covering things (M3-C)
+
+M3-A built a whole-schema differential to prove a retry has no second effect anywhere, and
+its comment says plainly that a fixed list of TABLES would go stale as later gates added
+them, so the tables are enumerated from the catalog.
+
+The list of SCHEMAS underneath had exactly the same defect one level up, and it went stale
+immediately: it was written at M3-A naming the nine schemas that existed then, and when
+M3-B added `fulfillment` the differential silently stopped covering it. A retry that
+duplicated a kitchen ticket would have passed.
+
+M3-C found it by reusing the instrument rather than writing a second one, and widened it to
+every non-system schema — enumerated, not listed. The rule was already written down;
+applying it one level higher is the whole fix.
 
 ## What M1 does not contain
 
