@@ -17,7 +17,7 @@ recorded deliberately and are marked as such.
 | Short | `0ac55ea` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
-| Working tree | clean at generation |
+| Working tree | NOT CLEAN — regenerate from a clean tree |
 
 ## Versions
 

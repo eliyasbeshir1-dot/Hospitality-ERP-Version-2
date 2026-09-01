@@ -692,7 +692,31 @@ async function start(): Promise<void> {
   }
 
   await loadMenu();
+  // The menu first, and the service panel only once the device has a moment.
+  //
+  // Both were loaded together in the first version of this and it cost the interaction
+  // budget: three more requests at 300ms latency, in flight while a guest taps Add on a
+  // throttled mid-range phone, took the basket line from 374ms to 1381ms against a 500ms
+  // budget (FR-UX-012). Nothing about the panel needs to be there first — a guest reads
+  // the menu, then decides to ask for something — so it waits for the browser to say it
+  // is idle, with a bounded fallback for engines that do not offer that.
+  await whenIdle();
   await loadService();
+}
+
+
+/** Resolve when the browser has a spare moment, or after a short bound either way. */
+function whenIdle(bound = 400): Promise<void> {
+  return new Promise((resolve) => {
+    const idle = (window as unknown as {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+    }).requestIdleCallback;
+    if (typeof idle === 'function') {
+      idle(() => resolve(), { timeout: bound });
+    } else {
+      window.setTimeout(resolve, bound);
+    }
+  });
 }
 
 

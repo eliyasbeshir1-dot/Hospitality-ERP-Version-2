@@ -473,6 +473,66 @@ def submit(channel: str, chan: dict, *, total: int | None = None,
                   key=idem(f"{channel}-submit-{os.urandom(4).hex()}"))
 
 
+def refusal_matrix(*, record_plant: bool = True) -> list[tuple[str, str, str]]:
+    """Three refusals, asked of both channels, compared by CODE rather than by outcome.
+
+    Extracted so NC-M3D-001 can run it a second time against a build with a pricing
+    re-implementation planted in the staff route. That is what shows the two halves of
+    FR-POS-003A are independent: with the defect in place the STRUCTURAL check goes red
+    and this matrix still agrees, which is exactly the "two implementations that agree
+    today" the requirement rejects, caught by the half that can see it.
+    """
+    cases: list[tuple[str, str, str]] = []
+
+    for label, kwargs in (
+        ("a total that is not the server's", {"total": 1}),
+        ("a pricing digest that is not the server's", {"digest": "00" * 32}),
+    ):
+        g = submit("guest", guest_channel(), **kwargs)
+        s = submit("staff", staff_channel(), **kwargs)
+        cases.append((label, g.get("reason", str(g)), s.get("reason", str(s))))
+
+    # An unavailable variant, made unavailable for both at once so neither is being asked
+    # a different question.
+    # UPDATE, as M3-A does. menu.availability's uniqueness is an EXPRESSION index over
+    # coalesced item, variant and modifier ids, so an ON CONFLICT naming plain columns
+    # matches no constraint and the statement errors — which the first version of this
+    # plant did, silently, leaving both channels asked a question with no defect in it.
+    planted = run(ADMIN, f"""
+        SELECT set_config('app.tenant_id', '{fx.TENANT}', false);
+        SELECT set_config('app.outlet_id', '{fx.OUTLET_H1}', false);
+        UPDATE menu.availability SET state = 'temporarily_unavailable',
+               row_version = row_version
+         WHERE tenant_id = '{fx.TENANT}' AND outlet_id = '{fx.OUTLET_H1}'
+           AND variant_id = '{CONTEXT["variant"]}';
+    """, tx=True)
+    if record_plant:
+        record("the availability defect the next check needs was actually planted",
+               planted.ok and scalar(f"""
+                   SELECT state::text FROM menu.availability
+                    WHERE outlet_id = '{fx.OUTLET_H1}'
+                      AND variant_id = '{CONTEXT["variant"]}';""")
+               == "temporarily_unavailable",
+               f"{planted.why() or 'variant turned off at this outlet'}. Asserted "
+               f"because a plant that failed silently would make the comparison below "
+               f"pass with nothing to compare")
+    elif not planted.ok:
+        raise ProbeFailed("menu.availability", planted.err)
+    g_unavailable = submit("guest", guest_channel())
+    s_unavailable = submit("staff", staff_channel())
+    cases.append(("a variant the kitchen has turned off",
+                  g_unavailable.get("reason", str(g_unavailable)),
+                  s_unavailable.get("reason", str(s_unavailable))))
+    run(ADMIN, f"""
+        SELECT set_config('app.tenant_id', '{fx.TENANT}', false);
+        SELECT set_config('app.outlet_id', '{fx.OUTLET_H1}', false);
+        UPDATE menu.availability SET state = 'available', row_version = row_version
+         WHERE variant_id = '{CONTEXT["variant"]}' AND outlet_id = '{fx.OUTLET_H1}';
+    """, tx=True)
+
+    return cases
+
+
 def section_same_rules_behaviourally() -> None:
     print("\n--- 3. The same rules refuse for the same REASONS on both channels "
           "(FR-POS-003A) ---")
@@ -538,51 +598,7 @@ def section_same_rules_behaviourally() -> None:
            f"mode because its policy asks for a person and none has confirmed yet — "
            f"which is the same policy, obeyed differently, not a second implementation")
 
-    # --- the refusals, compared by CODE ---
-    cases = []
-
-    for label, kwargs in (
-        ("a total that is not the server's", {"total": 1}),
-        ("a pricing digest that is not the server's", {"digest": "00" * 32}),
-    ):
-        g = submit("guest", guest_channel(), **kwargs)
-        s = submit("staff", staff_channel(), **kwargs)
-        cases.append((label, g.get("reason", str(g)), s.get("reason", str(s))))
-
-    # An unavailable variant, made unavailable for both at once so neither is being asked
-    # a different question.
-    # UPDATE, as M3-A does. menu.availability's uniqueness is an EXPRESSION index over
-    # coalesced item, variant and modifier ids, so an ON CONFLICT naming plain columns
-    # matches no constraint and the statement errors — which the first version of this
-    # plant did, silently, leaving both channels asked a question with no defect in it.
-    planted = run(ADMIN, f"""
-        SELECT set_config('app.tenant_id', '{fx.TENANT}', false);
-        SELECT set_config('app.outlet_id', '{fx.OUTLET_H1}', false);
-        UPDATE menu.availability SET state = 'temporarily_unavailable',
-               row_version = row_version
-         WHERE tenant_id = '{fx.TENANT}' AND outlet_id = '{fx.OUTLET_H1}'
-           AND variant_id = '{CONTEXT["variant"]}';
-    """, tx=True)
-    record("the availability defect the next check needs was actually planted",
-           planted.ok and scalar(f"""
-               SELECT state::text FROM menu.availability
-                WHERE outlet_id = '{fx.OUTLET_H1}'
-                  AND variant_id = '{CONTEXT["variant"]}';""")
-           == "temporarily_unavailable",
-           f"{planted.why() or 'variant turned off at this outlet'}. Asserted because a "
-           f"plant that failed silently would make the comparison below pass with "
-           f"nothing to compare")
-    g_unavailable = submit("guest", guest_channel())
-    s_unavailable = submit("staff", staff_channel())
-    cases.append(("a variant the kitchen has turned off",
-                  g_unavailable.get("reason", str(g_unavailable)),
-                  s_unavailable.get("reason", str(s_unavailable))))
-    run(ADMIN, f"""
-        SELECT set_config('app.tenant_id', '{fx.TENANT}', false);
-        SELECT set_config('app.outlet_id', '{fx.OUTLET_H1}', false);
-        UPDATE menu.availability SET state = 'available', row_version = row_version
-         WHERE variant_id = '{CONTEXT["variant"]}' AND outlet_id = '{fx.OUTLET_H1}';
-    """, tx=True)
+    cases = refusal_matrix()
 
     mismatched = [(label, g, s) for label, g, s in cases if g != s or not g]
     record("every refusal carries the SAME reason code on both channels",
@@ -1368,14 +1384,24 @@ def section_controls() -> None:
     # Planted in the STAFF ROUTE: it stops calling the shared writer and prices the line
     # itself, which is precisely the "two implementations that agree today" shape.
     def red_channel():
+        # A CORRECT second implementation, not a broken one. The first version of this
+        # plant wrote a line at a made-up price and the staff cart came out empty, so the
+        # behavioural matrix went red too — which proves nothing about independence,
+        # because a defect both halves catch is not the defect FR-POS-003A is about. This
+        # one re-implements service.add_cart_line() faithfully: it calls the same pricing
+        # rule, refuses the same way when there is no price, and inserts the same row. It
+        # is a second expression of the same rule that AGREES TODAY, which is precisely
+        # what the requirement rejects and precisely what behaviour cannot see.
         patch_workspace(
             "routes/staff.ts",
             "SELECT service.add_cart_line($1::uuid, $2::uuid, $3::uuid, $4::uuid,\n"
             "                                          $5::uuid, $6::integer, NULL::uuid) AS id",
             "INSERT INTO service.cart_line (tenant_id, outlet_id, cart_id, item_id, "
-            "variant_id, quantity, currency_code, unit_amount_minor) "
+            "variant_id, quantity, currency_code, unit_amount_minor, "
+            "added_by_guest_session_id) "
             "SELECT $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6::integer, "
-            "'ETB', 1 * ($7::uuid IS NULL)::integer + 1 RETURNING id")
+            "'ETB', menu.effective_price($1::uuid, $2::uuid, $5::uuid, "
+            "NULL::menu.sales_channel, 'ETB'::char(3), now()), NULL::uuid RETURNING id")
         guest = strip_comments(
             (WORKSPACE / "src/routes/customer.ts").read_text(encoding="utf-8"))
         staff = strip_comments(
@@ -1384,10 +1410,37 @@ def section_controls() -> None:
         g = named_rules(handler_block(guest, "/c/v1/cart/lines"), universe)
         s = named_rules(handler_block(staff, "/s/v1/cart/lines"), universe)
         prices_itself = bool(re.search(r"unit_amount_minor", staff))
-        return (g != s and prices_itself,
+
+        # AND THE BEHAVIOURAL HALF STILL AGREES. The founder's condition on the two-part
+        # proof was that each half can fail without the other, and this is the case that
+        # shows it: with a second pricing implementation compiled into the staff route,
+        # the refusal matrix asks both channels the same three questions and gets the
+        # same three codes. A slice that had only the behavioural half would report this
+        # system as correct. The matrix runs against a SECOND service process started on
+        # the patched build, because the one serving the rest of the suite loaded the
+        # code before the defect existed and would answer for a system that is not the
+        # one under test.
+        agreed, detail = [], "not run"
+        try:
+            with Service(APP) as planted_service:
+                was = CONTEXT["base_url"]
+                CONTEXT["base_url"] = f"http://127.0.0.1:{planted_service.port}"
+                try:
+                    matrix = refusal_matrix(record_plant=False)
+                finally:
+                    CONTEXT["base_url"] = was
+            agreed = [c for c in matrix if c[1] == c[2] and c[1]]
+            detail = f"{len(agreed)} of {len(matrix)} refusals still identical: {matrix}"
+        except Exception as error:                       # noqa: BLE001
+            detail = f"the planted build could not be exercised: {error}"
+
+        return (g != s and prices_itself
+                and len(agreed) == len(matrix) and len(matrix) == 3,
                 f"CHANNEL_RULE_DIVERGENCE: the staff route prices its own line "
                 f"(guest {g}, staff {s}); the price a waiter sees and the price a guest "
-                f"sees now come from two expressions")
+                f"sees now come from two expressions — while the behavioural matrix is "
+                f"still green ({detail}). Two implementations that agree today is what "
+                f"FR-POS-003A rejects, and only the structural half can see it")
 
     def green_channel():
         sync_and_build()
