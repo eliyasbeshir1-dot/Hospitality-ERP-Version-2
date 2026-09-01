@@ -36,6 +36,10 @@ const FILES = [
   'station.html',
   'station.css',
   'station.js',
+  // The waiter surface (M3-D). Third entry point, same reasoning as the second.
+  'waiter.html',
+  'waiter.css',
+  'waiter.js',
 ] as const;
 
 export function registerSurfaceRoutes(app: FastifyInstance, publicDir: string): void {
@@ -66,6 +70,15 @@ export function registerSurfaceRoutes(app: FastifyInstance, publicDir: string): 
   // reach serves this, and it carries the same locked-down policy.
   app.get('/station', async (_request, reply) => {
     const file = loaded.get('station.html');
+    if (!file) { reply.code(503); return { error: 'surface not built' }; }
+    reply.type(file.type);
+    return file.body;
+  });
+
+  // The waiter surface's document. Third entry point, and for the same reason again:
+  // a screen a guest could reach by scanning a QR code would be a defect, not a feature.
+  app.get('/waiter', async (_request, reply) => {
+    const file = loaded.get('waiter.html');
     if (!file) { reply.code(503); return { error: 'surface not built' }; }
     reply.type(file.type);
     return file.body;

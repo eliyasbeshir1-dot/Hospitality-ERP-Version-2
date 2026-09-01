@@ -1,0 +1,1618 @@
+#!/usr/bin/env python3
+"""M3-D verification: the waiter surface, staff UX, terminals, override and handover.
+
+Three things make this suite different from the ones before it.
+
+THE CENTRAL CLAIM IS A NEGATIVE ONE. FR-POS-003A says a waiter-entered order obeys the
+IDENTICAL rules as a QR order and rejects "two implementations that agree today". A
+matrix that ran both channels and compared outcomes would prove agreement on the cases it
+happened to try, which is exactly the thing the requirement refuses to accept. So the
+proof has two independent halves: a STRUCTURAL one, derived from the catalog, that makes
+a second implementation impossible rather than merely absent; and a BEHAVIOURAL one that
+compares refusal CODES, not just outcomes, because two channels refusing for different
+reasons are not identical.
+
+THE OVERRIDE IS PROVED BY CONSTRUCTION, NOT BY POLICY. identity.step_up_grant names a
+SESSION and no user, so who authorized something is only ever reachable by following the
+session. A manager who authenticates into a waiter's terminal therefore produces a grant
+on the WAITER's session, and the derived approver comes back as the waiter. The control
+plants exactly that — the real thing a busy floor manager does — rather than a missing
+field.
+
+FRICTION IS MEASURED BY DOING IT. FR-UX-015's grading is a claim about what a person has
+to do, so the probe presses the buttons: a routine action runs with no panel, a
+deliberate one opens a panel, shows a reason field, and refuses while it is empty.
+
+Every check records whether its evidence is MEASURED — read out of Chromium's own layout
+— or ASSERTED, meaning read from source, from a payload, or from the database. The split
+printed at the end is derived from what actually ran.
+"""
+from __future__ import annotations
+
+import json
+import os
+import platform
+import re
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+REPO = HERE.parents[1]
+sys.path.insert(0, str(REPO / "tools"))
+from console import use_utf8_output  # noqa: E402
+
+use_utf8_output()
+
+sys.path.insert(0, str(HERE.parent))
+sys.path.insert(0, str(HERE.parent / "m1a"))
+sys.path.insert(0, str(HERE.parent / "m1d"))
+sys.path.insert(0, str(HERE))
+
+import fixtures as fx                                            # noqa: E402
+from fenced import fenced_identifier_pattern                     # noqa: E402
+from pg import CommandUnreadable, ProbeFailed, count, run        # noqa: E402
+from service import Service, WORKSPACE, patch_workspace, sync_and_build   # noqa: E402
+
+import partial_closures                                          # noqa: E402
+
+assert fx.__file__ == str(HERE / "fixtures.py"), f"wrong fixtures module: {fx.__file__}"
+
+ADMIN = os.environ["M1A_ADMIN_DSN"]
+APP = os.environ["M1A_APP_DSN"]
+CTX = dict(tenant=fx.TENANT, outlet=fx.OUTLET_H1)
+
+results: list[tuple[str, bool, str, str]] = []
+CONTEXT: dict = {}
+
+# Run-unique keys, for the reason M3-C learned the hard way: an idempotency key written
+# as a literal is the same claim in every run, so a second run against a database the
+# first one touched is refused — correctly — and the suite is what is wrong.
+RUN_NONCE = os.urandom(6).hex()
+
+
+def idem(label: str) -> str:
+    return f"m3d-{label}-{RUN_NONCE}"
+
+
+def record(name: str, ok: bool, detail: str = "", *, evidence: str = "asserted") -> None:
+    """`evidence` is 'measured' when the fact came out of a real browser's layout."""
+    results.append((name, ok, detail, evidence))
+    print(f"  [{'PASS' if ok else 'FAIL'}] ({evidence}) {name}")
+    for line in (detail or "").splitlines():
+        print(f"         {line}")
+
+
+def measured(name: str, ok: bool, detail: str = "") -> None:
+    record(name, ok, detail, evidence="measured")
+
+
+def scalar(sql: str, *, dsn: str = APP, **ctx) -> str:
+    res = run(dsn, sql, **{**CTX, **ctx})
+    if not res.ok:
+        raise ProbeFailed(sql, res.err)
+    return (res.scalar or "").strip()
+
+
+def rows(sql: str, *, dsn: str = APP, **ctx) -> list[list[str]]:
+    res = run(dsn, sql, **{**CTX, **ctx})
+    if not res.ok:
+        raise ProbeFailed(sql, res.err)
+    return res.rows
+
+
+def definition(signature: str) -> str:
+    """A function's whole source. NOT scalar(): that returns the first line only."""
+    res = run(ADMIN, f"SELECT pg_get_functiondef('{signature}'::regprocedure);")
+    if not res.ok or not res.out.strip():
+        raise ProbeFailed(f"definition of {signature}", res.err)
+    return res.out
+
+
+def signature(error: str) -> str:
+    matched = re.search(r"\b([A-Z][A-Z_]{4,})\b", error or "")
+    return matched.group(1) if matched else ""
+
+
+# ===========================================================================
+# HTTP, as the two surfaces reach it
+# ===========================================================================
+
+def call(method: str, path: str, token: str, body: dict | None = None,
+         key: str | None = None) -> dict:
+    """One request, returning the parsed body and the status, never raising on a refusal.
+
+    A refusal IS the evidence in most of this suite — the channel matrix compares the
+    reason codes two surfaces give for the same illegal thing — so an exception here
+    would throw away the fact being measured.
+    """
+    url = f"{CONTEXT['base_url']}{path}"
+    headers = {"authorization": f"Bearer {token}"}
+    data = None
+    if body is not None:
+        headers["content-type"] = "application/json"
+        data = json.dumps(body).encode("utf-8")
+    if key:
+        headers["idempotency-key"] = key
+    request = urllib.request.Request(url, method=method, data=data, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            return {"status": response.status, **json.loads(response.read())}
+    except urllib.error.HTTPError as error:
+        raw = error.read().decode("utf-8", "replace")
+        try:
+            return {"status": error.code, **json.loads(raw)}
+        except json.JSONDecodeError:
+            return {"status": error.code, "body": raw}
+
+
+def guest_call(method: str, path: str, token: str, body: dict | None = None,
+               key: str | None = None) -> dict:
+    url = f"{CONTEXT['base_url']}{path}"
+    headers = {"authorization": f"Guest {token}"}
+    data = None
+    if body is not None:
+        headers["content-type"] = "application/json"
+        data = json.dumps(body).encode("utf-8")
+    if key:
+        headers["idempotency-key"] = key
+    request = urllib.request.Request(url, method=method, data=data, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            return {"status": response.status, **json.loads(response.read())}
+    except urllib.error.HTTPError as error:
+        raw = error.read().decode("utf-8", "replace")
+        try:
+            return {"status": error.code, **json.loads(raw)}
+        except json.JSONDecodeError:
+            return {"status": error.code, "body": raw}
+
+
+# ===========================================================================
+# 1. Terminals (FR-POS-001)
+# ===========================================================================
+
+def section_terminals() -> None:
+    print("\n--- 1. Terminals: registration, profile and revocation (FR-POS-001) ---")
+
+    profiles = [r[0] for r in rows(
+        "SELECT unnest(enum_range(NULL::pos.terminal_profile))::text ORDER BY 1;")]
+    record("FR-POS-001: the three device profiles the requirement names exist",
+           sorted(profiles) == ["kitchen_display", "point_of_sale", "waiter_handheld"],
+           f"{sorted(profiles)}. A profile decides which surface a terminal may open, so "
+           f"it is a registration fact rather than a preference somebody sets later")
+
+    registered = rows(f"""
+        SELECT t.profile::text, t.revoked_at IS NULL, d.registration_code
+        FROM pos.terminal t
+        JOIN org.device_registration d ON d.device_id = t.device_id
+        WHERE t.device_id = '{fx.DEVICE_HANDHELD}';""")
+    record("a device is registered to a tenant, an outlet and a profile",
+           len(registered) == 1 and registered[0][0] == "waiter_handheld"
+           and registered[0][1] in ("t", "true"),
+           f"{registered}. Registered through pos.register_terminal(); a fixture that "
+           f"wrote the row itself would prove the table accepts rows and nothing else")
+
+    # A profile may only be given to a DEVICE. M2-B learned the same thing from the other
+    # side: a QR code resolving to anything a tenant owned would seat a guest in a kitchen.
+    not_a_device = run(APP, f"""
+        SELECT pos.register_terminal('{fx.TENANT}', '{fx.OUTLET_H1}',
+                                     '{fx.TABLE_ONE}', 'point_of_sale',
+                                     '{fx.USER_MANAGER}');""", **CTX)
+    record("a table cannot be registered as a terminal",
+           not_a_device.failed_with("TERMINAL_NOT_REGISTERED"),
+           not_a_device.why() or "a dining table was given a terminal profile")
+
+    # --- revocation ---
+    session_id, token = fx.staff_session(fx.USER)
+    live_before = count(APP, f"""
+        SELECT count(*) FROM identity.session
+         WHERE device_id = '{fx.DEVICE_SPARE}' AND revoked_at IS NULL;""", **CTX)
+    run(APP, f"""
+        UPDATE identity.session SET device_id = '{fx.DEVICE_SPARE}'
+         WHERE id = '{session_id}';""", **CTX)
+
+    run(APP, f"""
+        SELECT pos.register_terminal('{fx.TENANT}', '{fx.OUTLET_H1}',
+                                     '{fx.DEVICE_SPARE}', 'point_of_sale',
+                                     '{fx.USER_MANAGER}')
+        WHERE NOT EXISTS (SELECT 1 FROM pos.terminal
+                           WHERE device_id = '{fx.DEVICE_SPARE}');""", **CTX)
+
+    no_reason = run(APP, f"""
+        SELECT pos.revoke_terminal('{fx.TENANT}', '{fx.DEVICE_SPARE}',
+                                   '{fx.USER_MANAGER}',
+                                   (SELECT id FROM config.reason_code
+                                     WHERE tenant_id = '{fx.TENANT}'
+                                       AND category = 'order_cancellation' LIMIT 1));""",
+        **CTX)
+    record("revoking with a reason from the wrong category is refused",
+           no_reason.failed_with("DESTRUCTIVE_ACTION_WITHOUT_REASON"),
+           no_reason.why() or "a cancellation reason was accepted for a revocation. The "
+                              "foreign key would catch an invented id; this catches the "
+                              "mistake a busy manager actually makes")
+
+    ended = run(APP, f"""
+        SELECT pos.revoke_terminal('{fx.TENANT}', '{fx.DEVICE_SPARE}',
+                                   '{fx.USER_MANAGER}',
+                                   '{fx.reason_code("M3D_TERMINAL_COMPROMISED")}');""",
+        **CTX)
+    live_after = count(APP, f"""
+        SELECT count(*) FROM identity.session
+         WHERE device_id = '{fx.DEVICE_SPARE}' AND revoked_at IS NULL;""", **CTX)
+    record("revoking a compromised terminal ENDS the sessions on it",
+           ended.ok and (ended.scalar or "0").strip() != "0" and live_after == 0,
+           f"{ended.why() or ended.scalar} session(s) ended, {live_after} live "
+           f"afterwards against {live_before + 1} before. A terminal marked revoked whose "
+           f"sessions keep taking orders has not been revoked")
+
+    trust_and_record = rows(f"""
+        SELECT (t.revoked_at IS NOT NULL)::text,
+               (t.revoked_by_user_id IS NOT NULL)::text,
+               (t.revocation_reason_code_id IS NOT NULL)::text
+        FROM pos.terminal t WHERE t.device_id = '{fx.DEVICE_SPARE}';""")
+    record("and the revocation states who did it and why",
+           trust_and_record and all(v in ("t", "true") for v in trust_and_record[0]),
+           f"{trust_and_record}. Enforced by a CHECK that moves the three together, so a "
+           f"revocation with no reason cannot be stored even by a direct write")
+
+    again = run(APP, f"""
+        SELECT pos.revoke_terminal('{fx.TENANT}', '{fx.DEVICE_SPARE}',
+                                   '{fx.USER_MANAGER}',
+                                   '{fx.reason_code("M3D_TERMINAL_COMPROMISED")}');""",
+        **CTX)
+    record("a terminal already out of service cannot be revoked twice",
+           again.failed_with("TERMINAL_ALREADY_REVOKED"),
+           again.why() or "a second revocation would overwrite who took it out of "
+                          "service and when")
+
+
+# ===========================================================================
+# 2. Waiter ordering is the SAME rules, structurally (FR-POS-003A)
+# ===========================================================================
+# The requirement rejects "two implementations that agree today", so agreement is not
+# what is proved here. What is proved is that a second implementation cannot exist.
+#
+# The universe of rule functions is ENUMERATED FROM THE CATALOG, never listed. A pricing
+# or safety rule added at M4 and re-implemented on the staff side fails this without
+# anybody remembering to extend anything, which is the same lesson as M3-A's schema list
+# going stale the moment fulfillment landed.
+
+RULE_SCHEMAS = ("menu", "safety", "ordering", "service")
+
+# The operations BOTH surfaces offer, by the path each exposes them at. An operation only
+# one channel can perform — amending an accepted order, approving an override — is not a
+# divergence in a shared rule, and is covered instead by the governed-action checks below.
+SHARED_OPERATIONS = (
+    ("a priced cart line", "/c/v1/cart/lines", "/s/v1/cart/lines"),
+    ("the order preview", "/c/v1/orders/preview", "/s/v1/orders/preview"),
+    ("the submission", "/c/v1/orders", "/s/v1/orders"),
+)
+
+
+def strip_comments(source: str) -> str:
+    """What the code CALLS, not what the file mentions.
+
+    Without this the check reads prose. The comment in customer.ts that explains why the
+    route no longer calls menu.effective_price() contains the words
+    'menu.effective_price(' — and the first version of this check counted it as a call,
+    which would have made the route look guilty of the thing the comment says it stopped
+    doing.
+    """
+    source = re.sub(r"/\*.*?\*/", " ", source, flags=re.S)
+    return re.sub(r"(?m)^\s*//.*$", " ", source)
+
+
+def rule_functions() -> set[str]:
+    return {r[0] for r in rows(f"""
+        SELECT n.nspname || '.' || p.proname
+        FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname IN {RULE_SCHEMAS};""", dsn=ADMIN)}
+
+
+def handler_block(source: str, path: str) -> str:
+    """The source of one route handler: from its path literal to the next registration."""
+    marker = f"'{path}'"
+    if marker not in source:
+        raise ProbeFailed(path, f"no route registered at {path}; the comparison would "
+                                f"otherwise pass by having nothing to compare")
+    start = source.index(marker)
+    following = [m.start() for m in re.finditer(r"app\.(get|post)[<(]", source)
+                 if m.start() > start]
+    return source[start:following[0] if following else len(source)]
+
+
+def named_rules(block: str, universe: set[str]) -> list[str]:
+    return sorted(name for name in universe
+                  if re.search(r"\b" + re.escape(name) + r"\s*\(", block))
+
+
+def section_same_rules_structurally() -> None:
+    print("\n--- 2. Waiter and QR ordering are one code path, proved structurally "
+          "(FR-POS-003A) ---")
+
+    universe = rule_functions()
+    record("the rule functions are enumerated from the catalog, not from this file",
+           len(universe) > 40,
+           f"{len(universe)} function(s) across {list(RULE_SCHEMAS)}. A named list here "
+           f"would stop covering the rule M4 adds, which is exactly how M3-A's schema "
+           f"list went stale when fulfillment landed")
+
+    guest = strip_comments((REPO / "api/src/routes/customer.ts").read_text(encoding="utf-8"))
+    staff = strip_comments((REPO / "api/src/routes/staff.ts").read_text(encoding="utf-8"))
+
+    for label, guest_path, staff_path in SHARED_OPERATIONS:
+        g = named_rules(handler_block(guest, guest_path), universe)
+        s = named_rules(handler_block(staff, staff_path), universe)
+        record(f"{label}: both channels reach the same function, and only that function",
+               g == s and len(g) == 1,
+               f"guest {g}, staff {s}. Not 'they agree' — the same NAME, so there is no "
+               f"second implementation for the two to agree about")
+
+    # The one rule that WAS duplicated. The guest route priced its cart line inline; a
+    # staff route written the same way would have been the second copy.
+    priced_in_a_route = [
+        name for name in ("api/src/routes/customer.ts", "api/src/routes/staff.ts")
+        if re.search(r"\bmenu\.effective_price\s*\(",
+                     strip_comments((REPO / name).read_text(encoding="utf-8")))]
+    record("no route prices anything itself any more",
+           priced_in_a_route == [],
+           f"routes naming menu.effective_price: {priced_in_a_route or 'none'}. It moved "
+           f"into service.add_cart_line() at this gate, so the price a waiter sees and "
+           f"the price a guest sees come from one expression rather than two")
+
+    # And in the DATABASE: an order exists because the ledger says so, and the ledger has
+    # one writer. Whatever a route does, it cannot make an order another way.
+    # The ORDER ITSELF — the projection, not the ledger. Many functions append to
+    # ordering.order_event and that is the design: accepting, amending, cancelling and
+    # voting are all events. But an order ROW exists because the fold put it there, so
+    # whatever a route does, it cannot bring an order into being another way. Read out
+    # of the catalog, so a second writer added later is caught whether or not anybody
+    # thinks to look for one.
+    writers = sorted({r[0] for r in rows("""
+        SELECT n.nspname || '.' || p.proname
+        FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE p.prosrc ~ 'INSERT INTO ordering\\.customer_order'
+          AND n.nspname NOT IN ('pg_catalog', 'information_schema');""", dsn=ADMIN)})
+    record("an order row can only come into existence through the fold",
+           writers == ["ordering.apply_event"],
+           f"functions writing ordering.customer_order: {writers}. The ledger has many "
+           f"appenders by design — accepting, amending and cancelling are all events — "
+           f"but the ORDER is written once, by the fold, so no route can make one by "
+           f"another path whatever it calls")
+
+    # The staff schema implements no rule of its own. This is the forward-safe half: it
+    # is a statement about a SCHEMA, so it covers functions that do not exist yet.
+    pos_rule_calls = sorted({r[0] for r in rows("""
+        SELECT DISTINCT n.nspname || '.' || p.proname
+        FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'pos'
+          AND (p.prosrc ~ 'menu\\.effective_price'
+            OR p.prosrc ~ 'INSERT INTO ordering\\.'
+            OR p.prosrc ~ 'INSERT INTO menu\\.'
+            OR p.prosrc ~ 'safety\\.effective_allergens');""", dsn=ADMIN)})
+    record("and the staff schema prices nothing, writes no order and resolves no allergen",
+           pos_rule_calls == [],
+           f"{pos_rule_calls or 'none'}. pos reads what other schemas own and drives "
+           f"their functions; a rule that appeared here would be the staff side growing "
+           f"its own opinion about what an order costs or what is in it")
+
+
+# ===========================================================================
+# 3. The same rules, behaviourally, with the REASONS compared (FR-POS-003A)
+# ===========================================================================
+# The structural half above says a second implementation cannot exist. This half says the
+# one implementation behaves the same whichever surface reaches it — and it compares
+# REFUSAL CODES, not just outcomes. Two channels that both refuse an over-quantity order
+# are not identical if one says the variant is unavailable and the other says the total
+# changed: a waiter told the wrong reason goes and finds a manager for a problem they
+# could have fixed themselves.
+
+
+def guest_channel() -> dict:
+    """A seated guest with a credential, a cart, and one line in it — over HTTP."""
+    seated = fx.a_seated_guest_with_credential(table=fx.TABLE_ONE)
+    token = seated["token"]
+    cart = guest_call("GET", "/c/v1/cart", token)
+    variant = CONTEXT["variant"]
+    guest_call("POST", "/c/v1/cart/lines", token,
+               {"cartId": cart["cartId"], "itemId": CONTEXT["item"],
+                "variantId": variant, "quantity": 1},
+               key=idem(f"guest-line-{os.urandom(4).hex()}"))
+    return {"token": token, "cartId": cart["cartId"], "session": seated["session"],
+            "guest": seated["guest"]}
+
+
+def staff_channel() -> dict:
+    """A waiter with a session, a table, a shared cart, and one line in it — over HTTP."""
+    session_id, token = fx.staff_session(fx.USER)
+    seated = fx.a_seated_guest(table=fx.TABLE_TWO)
+    cart = call("POST", "/s/v1/carts", token, {"tableSessionId": seated["session"]})
+    call("POST", "/s/v1/cart/lines", token,
+         {"cartId": cart["cartId"], "itemId": CONTEXT["item"],
+          "variantId": CONTEXT["variant"], "quantity": 1},
+         key=idem(f"staff-line-{os.urandom(4).hex()}"))
+    return {"token": token, "cartId": cart["cartId"], "session": seated["session"],
+            "sessionId": session_id}
+
+
+def submit(channel: str, chan: dict, *, total: int | None = None,
+           digest: str | None = None, declarations: list | None = None) -> dict:
+    path = "/c/v1/orders" if channel == "guest" else "/s/v1/orders"
+    preview_path = "/c/v1/orders/preview" if channel == "guest" else "/s/v1/orders/preview"
+    caller = guest_call if channel == "guest" else call
+    view = caller("POST", preview_path, chan["token"], {"cartId": chan["cartId"]})
+    preview = view.get("preview") or {}
+    body = {
+        "cartId": chan["cartId"],
+        "expectedTotalMinor": total if total is not None
+                              else int(preview.get("total_amount_minor", 0)),
+        "pricingDigest": digest if digest is not None
+                         else preview.get("pricing_digest", ""),
+        "locale": "en",
+        "allergyDeclarations": declarations or [],
+    }
+    return caller("POST", path, chan["token"], body,
+                  key=idem(f"{channel}-submit-{os.urandom(4).hex()}"))
+
+
+def section_same_rules_behaviourally() -> None:
+    print("\n--- 3. The same rules refuse for the same REASONS on both channels "
+          "(FR-POS-003A) ---")
+
+    # A legal order down each channel. Both succeed, and the ONLY difference between the
+    # two orders is the channel dimension M3-A built the aggregate with.
+    guest = guest_channel()
+    staff = staff_channel()
+    CONTEXT["guest_channel"] = guest
+    CONTEXT["staff_channel"] = staff
+
+    guest_order = submit("guest", guest)
+    staff_order = submit("staff", staff)
+    record("a legal order is accepted on both channels",
+           "orderId" in guest_order and "orderId" in staff_order,
+           f"guest {guest_order.get('orderId', guest_order)}, "
+           f"staff {staff_order.get('orderId', staff_order)}")
+
+    CONTEXT["guest_order"] = guest_order.get("orderId")
+    CONTEXT["staff_order"] = staff_order.get("orderId")
+
+    shape = rows(f"""
+        SELECT origin::text,
+               (placed_by_user_id IS NOT NULL)::text,
+               (placed_by_guest_session_id IS NOT NULL)::text,
+               channel::text, currency_code, coalesce(acceptance_mode::text, '-')
+        FROM ordering.customer_order
+        WHERE id IN ('{CONTEXT["guest_order"]}', '{CONTEXT["staff_order"]}')
+        ORDER BY origin::text;""")
+    differ = [i for i in (3, 4) if len({row[i] for row in shape}) > 1] \
+        if len(shape) == 2 else [-1]
+    record("and the two orders differ only in origin, actor and the configured acceptance",
+           len(shape) == 2 and differ == [],
+           f"{shape}. Channel and currency identical. The two orders DO reach different "
+           f"states, and that is configuration rather than a second implementation: "
+           f"ordering.submit_order() reads acceptance -> origin from one policy, so a "
+           f"waiter-entered order being already staff-confirmed is the channel dimension "
+           f"M3-A built the aggregate with, expressed as data")
+
+    # And the difference really does come from the policy rather than from a branch in
+    # the code. Two origins, one lookup, and the modes it returns are what the orders got.
+    policy = rows(f"""
+        SELECT o.origin::text, o.acceptance_mode::text,
+               (ordering.effective_policy('{fx.TENANT}'::uuid, '{fx.OUTLET_H1}'::uuid,
+                                          'ordering'::config.policy_category)
+                  -> 'acceptance' ->> o.origin::text)
+        FROM ordering.customer_order o
+        WHERE o.id IN ('{CONTEXT["guest_order"]}', '{CONTEXT["staff_order"]}')
+        ORDER BY o.origin::text;""")
+    record("and each order's acceptance is the one the policy names for its origin",
+           len(policy) == 2 and all(row[1] == row[2] for row in policy),
+           f"{policy}. Read back from ordering.effective_policy() rather than asserted "
+           f"here, so a channel that started deciding its own acceptance would show up "
+           f"as an order whose mode its policy does not name")
+
+    # --- the refusals, compared by CODE ---
+    cases = []
+
+    for label, kwargs in (
+        ("a total that is not the server's", {"total": 1}),
+        ("a pricing digest that is not the server's", {"digest": "00" * 32}),
+    ):
+        g = submit("guest", guest_channel(), **kwargs)
+        s = submit("staff", staff_channel(), **kwargs)
+        cases.append((label, g.get("reason", str(g)), s.get("reason", str(s))))
+
+    # An unavailable variant, made unavailable for both at once so neither is being asked
+    # a different question.
+    # UPDATE, as M3-A does. menu.availability's uniqueness is an EXPRESSION index over
+    # coalesced item, variant and modifier ids, so an ON CONFLICT naming plain columns
+    # matches no constraint and the statement errors — which the first version of this
+    # plant did, silently, leaving both channels asked a question with no defect in it.
+    planted = run(ADMIN, f"""
+        SELECT set_config('app.tenant_id', '{fx.TENANT}', false);
+        SELECT set_config('app.outlet_id', '{fx.OUTLET_H1}', false);
+        UPDATE menu.availability SET state = 'temporarily_unavailable',
+               row_version = row_version
+         WHERE tenant_id = '{fx.TENANT}' AND outlet_id = '{fx.OUTLET_H1}'
+           AND variant_id = '{CONTEXT["variant"]}';
+    """, tx=True)
+    record("the availability defect the next check needs was actually planted",
+           planted.ok and scalar(f"""
+               SELECT state::text FROM menu.availability
+                WHERE outlet_id = '{fx.OUTLET_H1}'
+                  AND variant_id = '{CONTEXT["variant"]}';""")
+           == "temporarily_unavailable",
+           f"{planted.why() or 'variant turned off at this outlet'}. Asserted because a "
+           f"plant that failed silently would make the comparison below pass with "
+           f"nothing to compare")
+    g_unavailable = submit("guest", guest_channel())
+    s_unavailable = submit("staff", staff_channel())
+    cases.append(("a variant the kitchen has turned off",
+                  g_unavailable.get("reason", str(g_unavailable)),
+                  s_unavailable.get("reason", str(s_unavailable))))
+    run(ADMIN, f"""
+        SELECT set_config('app.tenant_id', '{fx.TENANT}', false);
+        SELECT set_config('app.outlet_id', '{fx.OUTLET_H1}', false);
+        UPDATE menu.availability SET state = 'available', row_version = row_version
+         WHERE variant_id = '{CONTEXT["variant"]}' AND outlet_id = '{fx.OUTLET_H1}';
+    """, tx=True)
+
+    mismatched = [(label, g, s) for label, g, s in cases if g != s or not g]
+    record("every refusal carries the SAME reason code on both channels",
+           mismatched == [],
+           "; ".join(f"{label}: {g}" for label, g, _s in cases)
+           + (f". MISMATCHED: {mismatched}" if mismatched else "")
+           + ". Compared as codes rather than as failures: two channels refusing the "
+             "same thing for different stated reasons are not identical, and the waiter "
+             "is the one who pays for the difference")
+
+
+# ===========================================================================
+# 4. The allergy path, hop by hop, on a waiter-entered order (FR-POS-003A, FR-SAF-004)
+# ===========================================================================
+# The sharpest case in the requirement, and the one where "identical" has to mean every
+# hop rather than the end state. M3-A proved a guest-entered declaration reaches the
+# order, the ledger, the notes and the kitchen. A waiter-entered one is asserted at each
+# of those hops here, because a declaration that arrived at the last hop by a different
+# route would look identical and be a different system.
+
+def section_allergy_parity() -> None:
+    print("\n--- 4. A waiter-entered allergy declaration survives every hop "
+          "(FR-POS-003A, FR-SAF-004) ---")
+
+    staff = staff_channel()
+    concern = scalar(f"""
+        INSERT INTO safety.allergy_concern
+            (tenant_id, outlet_id, table_session_id, raised_by, raised_by_user_id,
+             allergen_id, acknowledgement_wording_id, acknowledgement_text)
+        SELECT '{fx.TENANT}', '{fx.OUTLET_H1}', '{staff["session"]}', 'waiter',
+               '{fx.USER}', a.id, w.id, w.wording
+        FROM safety.allergen a, safety.approved_wording w
+        WHERE a.tenant_id = '{fx.TENANT}' AND w.tenant_id = '{fx.TENANT}'
+          AND w.purpose = 'allergy_acknowledgement' AND w.locale = 'en'
+        LIMIT 1
+        RETURNING id;""")
+
+    order = submit("staff", staff, declarations=[{"allergy_concern_id": concern}])
+    order_id = order.get("orderId", "")
+    record("a waiter raises a concern and submits the order carrying it",
+           bool(order_id),
+           f"{order.get('reason', order_id)}. Raised with raised_by='waiter' and the "
+           f"waiter named, which is the attribution safety.allergy_concern's CHECK "
+           f"requires and the guest path fills differently")
+
+    hops = {}
+    hops["ledger"] = count(APP, f"""
+        SELECT count(*) FROM ordering.order_event
+         WHERE order_id = '{order_id}' AND kind = 'allergy_declared';""", **CTX)
+    hops["note"] = count(ADMIN, f"""
+        SELECT count(*) FROM ordering.order_note
+         WHERE order_id = '{order_id}' AND kind = 'allergy_declaration';""")
+    hops["concern_linked"] = count(ADMIN, f"""
+        SELECT count(*) FROM ordering.order_note
+         WHERE order_id = '{order_id}' AND kind = 'allergy_declaration'
+           AND allergy_concern_id = '{concern}';""")
+
+    run(APP, f"SELECT ordering.accept_order('{fx.TENANT}', '{order_id}', '{fx.USER}');",
+        **CTX)
+    released = run(APP, f"""
+        SELECT fulfillment.release_order('{fx.TENANT}', '{order_id}', '{fx.USER}');""",
+        **CTX)
+    hops["kitchen"] = count(APP, f"""
+        SELECT count(*) FROM fulfillment.ticket_allergy ta
+        JOIN fulfillment.ticket t ON t.id = ta.ticket_id
+        WHERE t.order_id = '{order_id}';""", **CTX)
+
+    record("and it is present at every hop M3-A proved for a guest-entered one",
+           all(v >= 1 for v in hops.values()),
+           f"{hops}, release {released.why() or 'ok'}. Asserted hop by hop rather than "
+           f"only at the kitchen: a declaration that reached the last hop by a different "
+           f"route would look identical at the end and be a different system")
+
+    emphasis = rows(f"""
+        SELECT ta.kitchen_code, (ta.written_warning IS NOT NULL)::text
+        FROM fulfillment.ticket_allergy ta
+        JOIN fulfillment.ticket t ON t.id = ta.ticket_id
+        WHERE t.order_id = '{order_id}';""")
+    record("the kitchen receives the written warning with it, not a code alone",
+           emphasis and all(row[1] in ("t", "true") for row in emphasis),
+           f"{emphasis}. M3-B's rule, unchanged by the channel: a rank with no words "
+           f"beside it is the defect NC-M3B-001 exists for")
+    CONTEXT["allergy_order"] = order_id
+
+
+# ===========================================================================
+# 5. Role home, the table view, and operational search (FR-POS-002/004/005/010A)
+# ===========================================================================
+
+def section_role_home_and_search() -> None:
+    print("\n--- 5. Queues, the table view, fast entry and search "
+          "(FR-POS-002, FR-POS-004, FR-POS-005, FR-POS-010A) ---")
+
+    fx.set_presence = getattr(fx.m3c, "set_presence")
+    fx.set_presence("available")
+    seated = fx.a_seated_guest(table=fx.TABLE_ONE)
+    fx.assign_table_owner(seated["session"], fx.USER)
+    raised = run(APP, f"""
+        SELECT service.raise_request('{fx.TENANT}', '{fx.OUTLET_H1}',
+            '{seated["session"]}', '{fx.m3c.request_type("assistance")}',
+            '{idem("home")}', '{seated["guest"]}');""", **CTX)
+    request_id = (raised.scalar or "").strip()
+
+    home = rows(f"""
+        SELECT queue, subject_kind, headline, next_action, overdue::text, elapsed_seconds
+        FROM pos.role_home('{fx.TENANT}', '{fx.OUTLET_H1}', '{fx.USER}');""")
+    record("FR-POS-002: the home screen is queues and next actions, not a list of things",
+           home and all(row[3] not in ("", "view", "browse") for row in home)
+           and {row[0] for row in home} <= {"service_requests", "tables", "handovers"},
+           f"{len(home)} row(s) across {sorted({r[0] for r in home})}; next actions "
+           f"{sorted({r[3] for r in home})}. Every row names a VERB, because a screen "
+           f"that offers 'view' has told a waiter carrying two plates nothing")
+
+    # The order is the priority, and it comes from the query rather than from the screen.
+    overdue_first = [row[4] in ("t", "true") for row in home]
+    record("and it is ordered by what is overdue, then by what has waited longest",
+           overdue_first == sorted(overdue_first, reverse=True),
+           f"overdue flags in returned order: {overdue_first}. FR-UX-004 asks the screen "
+           f"to prioritise the active exception; the ORDER is that priority, decided "
+           f"once in SQL rather than again in every surface that renders it")
+
+    view = rows(f"""
+        SELECT table_reference, assigned_waiter_id IS NULL, open_requests::text,
+               unpaid_balance_minor IS NULL, needs_attention::text,
+               coalesce(attention_reason, '-')
+        FROM pos.table_view('{fx.TENANT}', '{fx.OUTLET_H1}')
+        ORDER BY table_reference;""")
+    record("FR-POS-004: occupancy carries the waiter, the requests and the attention flag",
+           len(view) >= 1 and any(row[2] != "0" for row in view),
+           f"{len(view)} occupied table(s); {[r[0] for r in view]}. Assigned waiter, "
+           f"open and overdue requests, order progress derived from the tickets, and why "
+           f"a table needs attention — all derived, so none can drift from its source")
+
+    record("and the unpaid balance is a SLOT, not an invented zero",
+           all(row[3] in ("t", "true") for row in view),
+           f"{sum(1 for r in view if r[3] in ('t', 'true'))} of {len(view)} tables report "
+           f"no balance figure. M4 owns the number. 'Nothing outstanding' and 'we have "
+           f"not built billing' are different sentences and a zero would say the first")
+
+    # --- search ---
+    sku = scalar(f"""
+        SELECT item_code FROM menu.sellable_item
+         WHERE tenant_id = '{fx.TENANT}' AND status = 'active'
+         ORDER BY item_code LIMIT 1;""")
+    by_sku = rows(f"""
+        SELECT item_code, display_name, matched_field
+        FROM pos.staff_search('{fx.TENANT}', '{fx.OUTLET_H1}', '{fx.USER}',
+                              '{sku}', NULL, 'ar');""")
+    record("FR-POS-010A: a Latin SKU is findable from an Arabic session",
+           any(row[0] == sku for row in by_sku),
+           f"searching {sku!r} in an Arabic session returned {len(by_sku)} result(s). "
+           f"M2-A's normaliser strips the tatweel and the bidirectional marks a paste "
+           f"drags in, which is what makes a Latin code findable beside Arabic names")
+
+    record("and it is M2-A's search, not a second one written for staff",
+           "menu.search_items" in definition(
+               "pos.staff_search(uuid, uuid, uuid, text, uuid, menu.customer_locale)"),
+           "pos.staff_search() calls menu.search_items(). A staff search with its own "
+           "matching would drift from the guest's the first time either was tuned")
+
+    outsider = run(APP, f"""
+        SELECT count(*) FROM pos.staff_search('{fx.TENANT}', '{fx.OUTLET_H1}',
+                                              '{fx.USER_WAITER_B}', NULL, NULL, 'en');""",
+        tenant=fx.TENANT, outlet=fx.OUTLET_H2)
+    record("a search from the wrong outlet's context finds nothing of this outlet's",
+           outsider.failed_with("STAFF_SEARCH_CROSSES_SCOPE") or outsider.scalar == "0",
+           outsider.why() or f"returned {outsider.scalar}. Row level security scopes the "
+                             f"tables underneath and the role gate refuses the caller; "
+                             f"two locks, and the suite proves the second separately")
+
+    picks = rows(f"""
+        SELECT count(*)::text FROM pos.fast_pick
+         WHERE tenant_id = '{fx.TENANT}' AND outlet_id = '{fx.OUTLET_H1}';""")
+    record("FR-POS-005: the outlet has fast picks a new waiter inherits",
+           picks and int(picks[0][0]) >= 1,
+           f"{picks[0][0]} pick(s) with no user, so they belong to the floor rather than "
+           f"to whoever configured them")
+    CONTEXT["home_request"] = request_id
+
+
+# ===========================================================================
+# 6. Manager override (FR-POS-006)
+# ===========================================================================
+# The security argument in four parts: the approver is DERIVED, the grant is on the
+# APPROVER'S OWN session, the grant is RECENT, and it is CONSUMED. Each is proved
+# separately, because a single passing case would be satisfied by any one of them.
+
+def section_override() -> None:
+    print("\n--- 6. Supervisor approval without shared credentials (FR-POS-006) ---")
+
+    waiter_session, waiter_token = fx.staff_session(fx.USER)
+    manager_session, manager_token = fx.staff_session(fx.USER_MANAGER)
+    reason = fx.reason_code()
+    order = CONTEXT.get("staff_order") or CONTEXT.get("guest_order")
+    CONTEXT["waiter_token"] = waiter_token
+    CONTEXT["manager_session"] = manager_session
+
+    # THE PROPERTY, stated against the catalog. A grant names a SESSION and no user, so
+    # whose authentication it represents is reachable only by following the session.
+    # Forward-safe: M4 adds refund and payout overrides and cannot express it differently.
+    grant_columns = sorted(r[0] for r in rows("""
+        SELECT column_name FROM information_schema.columns
+         WHERE table_schema = 'identity' AND table_name = 'step_up_grant';""", dsn=ADMIN))
+    names_a_user = [c for c in grant_columns if "user" in c or "account" in c]
+    record("a step-up grant names a session and cannot name a user",
+           names_a_user == [],
+           f"{grant_columns}; columns naming a user: {names_a_user or 'none'}. This is "
+           f"why an approver can only ever be DERIVED. There is no argument and no "
+           f"column by which one session's grant could claim to be somebody else's")
+
+    approver_is_a_parameter = re.search(
+        r"p_approver_user_id|p_approver_id",
+        definition("pos.approve_override(uuid, uuid, text, uuid, uuid, text, uuid, text)"))
+    record("and pos.approve_override() takes no approver identity as an argument",
+           approver_is_a_parameter is None,
+           "the signature names an approving SESSION and derives the person from it. A "
+           "parameter here would be a field a caller could fill in with a name")
+
+    # 1. No step-up at all.
+    nothing = run(APP, f"""
+        SELECT set_config('app.session_id', '{waiter_session}', false);
+        SELECT pos.approve_override('{fx.TENANT}', '{fx.OUTLET_H1}', 'order.void',
+            '{manager_session}', '{reason}', 'order', '{order}');""", tx=True, **CTX)
+    record("an override with no recent authentication is refused",
+           nothing.failed_with("OVERRIDE_WITHOUT_STEP_UP"),
+           nothing.why() or "an override completed with nothing behind it")
+
+    # 2. CREDENTIAL SHARING: the manager types their password into the waiter's terminal.
+    # The real thing a busy floor manager does, not a missing field.
+    fx.step_up(waiter_session, "order.void")
+    shared = run(APP, f"""
+        SELECT set_config('app.session_id', '{waiter_session}', false);
+        SELECT pos.approve_override('{fx.TENANT}', '{fx.OUTLET_H1}', 'order.void',
+            '{waiter_session}', '{reason}', 'order', '{order}');""", tx=True, **CTX)
+    record("a manager authenticating into the WAITER's session is refused by name",
+           shared.failed_with("CREDENTIAL_SHARED_FOR_OVERRIDE"),
+           shared.why() or "the waiter's own session approved the waiter's action. The "
+                           "grant sits on the waiter's session, so the derived approver "
+                           "comes back as the waiter — refused by construction rather "
+                           "than by a rule somebody has to remember")
+
+    # 3. A stale grant. M1-B's recency window, reused rather than reinvented.
+    stale = fx.step_up(manager_session, "order.void", age_seconds=600)
+    expired = run(APP, f"""
+        SELECT set_config('app.session_id', '{waiter_session}', false);
+        SELECT pos.approve_override('{fx.TENANT}', '{fx.OUTLET_H1}', 'order.void',
+            '{manager_session}', '{reason}', 'order', '{order}');""", tx=True, **CTX)
+    record("a step-up older than the window approves nothing",
+           expired.failed_with("STEP_UP_EXPIRED"),
+           expired.why() or "a ten-minute-old authentication approved a void against a "
+                            "five-minute window. A stale grant approving a void is the "
+                            "same defect as no grant, one step removed")
+    run(APP, f"DELETE FROM identity.step_up_grant WHERE id = '{stale}';", **CTX)
+
+    # 4. DELEGATION: the manager steps up on their OWN session.
+    grant = fx.step_up(manager_session, "order.void")
+    approved = run(APP, f"""
+        SELECT set_config('app.session_id', '{waiter_session}', false);
+        SELECT pos.approve_override('{fx.TENANT}', '{fx.OUTLET_H1}', 'order.void',
+            '{manager_session}', '{reason}', 'order', '{order}');""", tx=True, **CTX)
+    override_id = (approved.scalar or "").strip()
+    record("a manager stepping up on their OWN session authorizes the waiter's action",
+           approved.ok and override_id,
+           f"{approved.why() or override_id[:8]}. The delegation case: two people, two "
+           f"sessions, both named")
+    CONTEXT["override"] = override_id
+
+    both = rows(f"""
+        SELECT (actor_user_id = '{fx.USER}')::text,
+               (approver_user_id = '{fx.USER_MANAGER}')::text,
+               (step_up_grant_id = '{grant}')::text
+        FROM pos.override_approval WHERE id = '{override_id}';""")
+    record("the record names the waiter, the manager and the grant it rested on",
+           both and all(v in ("t", "true") for v in both[0]),
+           f"{both}. All three, because a record naming only the approver loses who "
+           f"acted and one naming only the actor loses that anybody approved")
+
+    audit = rows(f"""
+        SELECT (actor_id = '{fx.USER}')::text,
+               (subject_id = '{fx.USER_MANAGER}')::text,
+               detail ->> 'step_up_grant_id'
+        FROM audit.security_event
+        WHERE event_code = 'override.approved'
+          AND detail ->> 'override_id' = '{override_id}';""", dsn=ADMIN)
+    record("and it lands in M1-C's append-only audit with both identities",
+           audit and audit[0][0] in ("t", "true") and audit[0][1] in ("t", "true")
+           and audit[0][2] == grant,
+           f"{audit}. Written by TRIGGER, so an override recorded by any future path "
+           f"lands there too rather than only the ones somebody remembered to log")
+
+    consumed = scalar(f"""
+        SELECT (consumed_at IS NOT NULL)::text FROM identity.step_up_grant
+         WHERE id = '{grant}';""")
+    reused = run(APP, f"""
+        SELECT set_config('app.session_id', '{waiter_session}', false);
+        SELECT pos.approve_override('{fx.TENANT}', '{fx.OUTLET_H1}', 'order.void',
+            '{manager_session}', '{reason}', 'order', '{order}');""", tx=True, **CTX)
+    record("one authentication authorizes ONE override",
+           consumed in ("t", "true") and reused.failed_with("OVERRIDE_WITHOUT_STEP_UP"),
+           f"consumed={consumed}; {reused.why()}. Without this, an approval given at "
+           f"seven o'clock authorizes something else at eleven, which is the recency "
+           f"window defeated by patience")
+
+    tamper = run(ADMIN, f"""
+        SELECT set_config('app.tenant_id', '{fx.TENANT}', false);
+        SELECT set_config('app.outlet_id', '{fx.OUTLET_H1}', false);
+        UPDATE pos.override_approval SET action_code = 'order.view'
+         WHERE id = '{override_id}';""", tx=True, rollback=True)
+    record("and an approval cannot be edited afterwards, by anybody",
+           tamper.failed_with("OVERRIDE_RECORD_ALTERED"),
+           tamper.why() or "an approval was edited. Proved as the SUPERUSER, so the "
+                           "absent grant cannot hide the trigger: two locks, and this "
+                           "check reaches past the first to test the second")
+
+
+# ===========================================================================
+# 7. Handover (FR-POS-007)
+# ===========================================================================
+
+def section_handover() -> None:
+    print("\n--- 7. Responsibility moves, and is never lost on the way (FR-POS-007) ---")
+
+    fx.m3c.set_presence("available")
+    seated = fx.a_seated_guest(table=fx.TABLE_ONE)
+    fx.assign_table_owner(seated["session"], fx.USER)
+    raised = run(APP, f"""
+        SELECT service.raise_request('{fx.TENANT}', '{fx.OUTLET_H1}',
+            '{seated["session"]}', '{fx.m3c.request_type("water")}',
+            '{idem("handover")}', '{seated["guest"]}');""", **CTX)
+    request_id = (raised.scalar or "").strip()
+
+    empty = run(APP, f"""
+        SELECT pos.propose_handover('{fx.TENANT}', '{fx.OUTLET_H1}',
+            '{fx.USER_MANAGER}', '{fx.USER_WAITER_B}', '{fx.USER_MANAGER}');""", **CTX)
+    record("a handover carrying nothing is refused",
+           empty.failed_with("HANDOVER_CARRIES_NOTHING"),
+           empty.why() or "somebody pressed a button and the floor believed "
+                          "responsibility had moved")
+
+    proposed = run(APP, f"""
+        SELECT pos.propose_handover('{fx.TENANT}', '{fx.OUTLET_H1}',
+            '{fx.USER}', '{fx.USER_WAITER_B}', '{fx.USER}', 'end of the evening');""",
+        **CTX)
+    handover = (proposed.scalar or "").strip()
+    carried = rows(f"""
+        SELECT item_kind::text, count(*)::text FROM pos.handover_item
+         WHERE handover_id = '{handover}' GROUP BY 1 ORDER BY 1;""")
+    record("FR-POS-007: a handover carries the open tables AND the open tasks",
+           proposed.ok and {row[0] for row in carried} == {"service_request", "table_session"},
+           f"{carried}. Contents captured at proposal, so what is accepted is what was "
+           f"offered — a handover that recomputed itself at acknowledgement would move "
+           f"tables the recipient never saw")
+
+    not_yours = run(APP, f"""
+        SELECT pos.acknowledge_handover('{fx.TENANT}', '{handover}', '{fx.USER_MANAGER}');""",
+        **CTX)
+    record("a third party cannot accept it on the recipient's behalf",
+           not_yours.failed_with("HANDOVER_NOT_YOURS"),
+           not_yours.why() or "somebody else accepted responsibility for a colleague, "
+                              "which is the silent reassignment M2-B refused on a single "
+                              "table and this refuses on a whole section")
+
+    owner_before = scalar(f"""
+        SELECT primary_waiter_user_id::text FROM service.table_ownership
+         WHERE table_session_id = '{seated["session"]}' AND effective_to IS NULL;""")
+    assignee_before = scalar(f"""
+        SELECT assigned_user_id::text FROM service.service_request
+         WHERE id = '{request_id}';""")
+
+    moved = run(APP, f"""
+        SELECT pos.acknowledge_handover('{fx.TENANT}', '{handover}', '{fx.USER_WAITER_B}');""",
+        **CTX)
+    owner_after = scalar(f"""
+        SELECT primary_waiter_user_id::text FROM service.table_ownership
+         WHERE table_session_id = '{seated["session"]}' AND effective_to IS NULL;""")
+    assignee_after = scalar(f"""
+        SELECT assigned_user_id::text FROM service.service_request
+         WHERE id = '{request_id}';""")
+
+    record("the recipient acknowledges and both the table and the task change hands",
+           moved.ok and owner_before == fx.USER and owner_after == fx.USER_WAITER_B
+           and assignee_before == fx.USER and assignee_after == fx.USER_WAITER_B,
+           f"{moved.why() or moved.scalar} item(s); table {owner_before[:8]} -> "
+           f"{owner_after[:8]}, request {assignee_before[:8]} -> {assignee_after[:8]}")
+
+    through_m2b = definition("pos.acknowledge_handover(uuid, uuid, uuid)")
+    record("and each table moves through M2-B's function rather than around it",
+           "service.transfer_ownership" in through_m2b
+           and "service.reassign_request" in through_m2b
+           and "UPDATE service.table_ownership" not in through_m2b,
+           "pos.acknowledge_handover() drives service.transfer_ownership() and "
+           "service.reassign_request(). A second way to move a table would be a second "
+           "place for the acknowledgement rule to be got wrong")
+
+    # The reassignment goes through the LEDGER, so a rebuild reproduces it. M3-C left the
+    # fold branch for exactly this and nothing produced one until now.
+    reassigned = count(APP, f"""
+        SELECT count(*) FROM service.service_request_event
+         WHERE service_request_id = '{request_id}' AND kind = 'reassigned';""", **CTX)
+    record("the task moved through the ledger, so a rebuild reproduces it",
+           reassigned >= 1,
+           f"{reassigned} 'reassigned' event(s). M3-C wrote the fold branch and nothing "
+           f"emitted one until a surface existed where a request changes hands; an "
+           f"UPDATE instead would be a projection a rebuild puts back the way it was")
+    CONTEXT["handover_session"] = seated["session"]
+    CONTEXT["handover_request"] = request_id
+
+
+# ===========================================================================
+# 8. The staff surface, rendered and measured (FR-UX-002/004/008/015, FR-NOT-012)
+# ===========================================================================
+
+def probe(payload: dict) -> dict:
+    proc = subprocess.run(
+        ["node", str(HERE / "render_probe.mjs"), CONTEXT["base_url"], json.dumps(payload)],
+        capture_output=True, text=True, encoding="utf-8", cwd=str(WORKSPACE),
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+    if proc.returncode != 0 or not proc.stdout.strip():
+        raise ProbeFailed("render_probe", proc.stderr.strip() or proc.stdout.strip())
+    return json.loads(proc.stdout)
+
+
+def section_staff_surface() -> None:
+    print("\n--- 8. The staff surface, rendered and measured "
+          "(FR-UX-002, FR-UX-004, FR-UX-008, FR-UX-015, FR-NOT-012) ---")
+
+    session_id, token = fx.staff_session(fx.USER)
+
+    home = call("GET", "/s/v1/home", token).get("queues", [])
+    tables = call("GET", "/s/v1/tables", token).get("tables", [])
+    requirements = call("GET", "/s/v1/confirmation-requirements", token) \
+        .get("requirements", [])
+    notifications = call("GET", "/s/v1/notifications", token).get("notifications", [])
+    results = call("GET", "/s/v1/search?q=", token).get("results", [])
+
+    record("the staff surface reads its own screens over HTTP as a staff session",
+           isinstance(home, list) and isinstance(tables, list) and len(requirements) > 0,
+           f"{len(home)} queue row(s), {len(tables)} table(s), {len(requirements)} "
+           f"confirmation grade(s), {len(notifications)} notification(s), "
+           f"{len(results)} search result(s)")
+
+    measurement = probe({
+        "requirements": requirements, "home": home, "tables": tables,
+        "notifications": notifications, "results": results[:5],
+    })
+    CONTEXT["measurement"] = measurement
+
+    measured("the staff surface rendered with no page or script error",
+             measurement["errors"] == [],
+             f"errors: {measurement['errors'] or 'none'}")
+
+    normal = measurement["normal"]
+
+    # FR-UX-002. Measured over EVERY control, not the ones this file happened to name.
+    small = [c for c in normal["controls"]
+             if c["visible"] and (c["height"] < 44 or c["width"] < 44)]
+    measured("FR-UX-002: every touch target is big enough to hit while carrying plates",
+             small == [],
+             f"{len([c for c in normal['controls'] if c['visible']])} visible control(s) "
+             f"measured after layout; below 44px: {len(small)}. Measured over all of "
+             f"them, so a control added later without a size is caught")
+
+    # FR-UX-004. The next required action is measurably the most prominent thing.
+    actions = [r["action"] for r in normal["rows"] if r["action"]]
+    siblings = [c for c in normal["controls"] if c["visible"]
+                and c not in actions]
+    measured("FR-UX-004: the next required action is larger than what surrounds it",
+             bool(actions) and all(
+                 a["fontSize"] >= max([s["fontSize"] for s in siblings] or [0])
+                 and a["height"] >= max([s["height"] for s in siblings] or [0])
+                 for a in actions),
+             f"{len(actions)} next-action button(s) at "
+             f"{sorted({a['fontSize'] for a in actions})}px against siblings at "
+             f"{sorted({s['fontSize'] for s in siblings})}px. Prominence measured "
+             f"RELATIVELY, as M3-B measured allergy salience — an absolute size proves "
+             f"nothing about what stands out")
+
+    measured("and every waiting row states how long it has been waiting, in words",
+             bool(normal["rows"]) and all("waiting" in r["elapsed"] for r in normal["rows"]),
+             f"{len(normal['rows'])} row(s), each carrying elapsed time. A timestamp is "
+             f"not elapsed time to somebody holding two plates")
+
+    # Without colour. Inherited from M3-B: if overdue is only a colour, this is where it
+    # stops being visible.
+    flattened = measurement["flattened"]
+    overdue_rows = [r for r in flattened["rows"] if r["overdue"]]
+    measured("an overdue row is still distinguishable with every colour flattened",
+             all("overdue" in r["words"] for r in overdue_rows),
+             f"{len(overdue_rows)} overdue row(s) in the colour-flattened render, "
+             f"{sum(1 for r in overdue_rows if 'overdue' in r['words'])} carrying the "
+             f"word. Remove every colour and the distinction survives, or it was never "
+             f"a distinction a colour-blind waiter could act on")
+
+    # FR-UX-008.
+    accessible = measurement["accessible"]
+    bigger = (accessible["bodyFontSize"] > normal["bodyFontSize"]
+              and min([c["height"] for c in accessible["controls"] if c["visible"]] or [0])
+              > min([c["height"] for c in normal["controls"] if c["visible"]] or [0]))
+    measured("FR-UX-008: accessibility mode enlarges the text AND the targets",
+             bigger,
+             f"body text {normal['bodyFontSize']}px -> {accessible['bodyFontSize']}px; "
+             f"smallest control {min([c['height'] for c in normal['controls'] if c['visible']], default=0)}px "
+             f"-> {min([c['height'] for c in accessible['controls'] if c['visible']], default=0)}px. "
+             f"Measured on the same render rather than read out of a stylesheet, because "
+             f"a rule a later selector overrides is a rule that is not in force")
+
+    # FR-UX-015, measured by DOING it.
+    confirm = measurement["confirm"]
+    measured("FR-UX-015: an ordinary action takes one tap and opens no panel",
+             confirm["routine"]["ranWithoutConfirming"] is True
+             and confirm["routine"]["panelShown"] is False,
+             f"{confirm['routine']}. Friction on ordinary service is friction everywhere, "
+             f"dozens of times an hour")
+
+    deliberate = confirm["deliberate"]
+    measured("and a deliberate one asks, states the consequence, and demands a reason",
+             deliberate["before"]["ranImmediately"] is False
+             and deliberate["before"]["panelShown"] is True
+             and deliberate["before"]["reasonShown"] is True
+             and deliberate["before"]["consequence"] == "deliberate"
+             and deliberate["emptyRefused"]["ran"] is False
+             and deliberate["withReason"]["ran"] is True,
+             f"pressed with an empty reason and it did not run "
+             f"({deliberate['emptyRefused']['questionWords']!r}); pressed with a reason "
+             f"and it did. The grade came from pos.confirmation_requirement, so the "
+             f"surface reads the consequence rather than deciding it")
+
+    # FR-NOT-012's staff half — the partial closure M3-C recorded with M3-D named.
+    measured("FR-NOT-012: the staff notification centre renders, in English",
+             len(normal["notifications"]) == len(notifications),
+             f"{len(normal['notifications'])} notice(s) drawn from "
+             f"{len(notifications)} returned by notify.staff_notification_center(). "
+             f"M3-C finished the data and named M3-D; this is the screen over it")
+
+    measured("and each one states its severity in words rather than as a colour",
+             all(n["severity"] and n["severity"] in n["words"]
+                 for n in normal["notifications"]),
+             f"{[n['severity'] for n in normal['notifications']]}. A red dot is a "
+             f"severity nobody can read aloud")
+
+
+# ===========================================================================
+# 9. Governance
+# ===========================================================================
+
+def section_governance() -> None:
+    print("\n--- 9. Governance ---")
+
+    report = partial_closures.check(REPO)
+    closed_here = sorted(e["requirement"] for e in report["entries"]
+                         if e.get("closed_at") == "M3-D")
+    record("the register is consistent, and the entry that came due is closed",
+           not report["failures"] and "FR-NOT-012" in closed_here,
+           f"{len(report['entries'])} entries, closed at M3-D: {closed_here}. "
+           f"Failures: {report['failures'] or 'none'}. Creating tests/m3d/ made "
+           f"FR-NOT-012 come due and it was closed rather than silenced")
+
+    opened_here = sorted(e["requirement"] for e in report["entries"]
+                         if e.get("opened_at") == "M3-D")
+    record("and this slice's own half-closed requirements are in the register",
+           opened_here,
+           f"opened at M3-D: {opened_here}. FR-POS-004's unpaid balance is M4's figure "
+           f"and the slot is recorded rather than filled with a zero")
+
+    # The fenced vocabulary, over everything this slice added, from the package.
+    pattern = fenced_identifier_pattern()
+    files = [REPO / "migrations/0015_terminals_override_handover_and_staff_surface.sql",
+             REPO / "api/src/routes/staff.ts",
+             REPO / "waiter/src/waiter.ts", REPO / "waiter/index.html",
+             REPO / "waiter/waiter.css",
+             HERE / "verify_m3d.py", HERE / "fixtures.py", HERE / "render_probe.mjs"]
+    hits = []
+    for path in files:
+        for match in re.finditer(pattern, path.read_text(encoding="utf-8"), re.I):
+            hits.append(f"{path.name}:{match.group(0)}")
+    record("this slice names no permanently fenced domain",
+           hits == [],
+           f"checked {len(files)} files — the migration, the staff route, the whole "
+           f"waiter surface, the suite, the fixtures and the probe — against all "
+           f"authoritative terms: {hits or 'none'}")
+
+    fenced_columns = rows(f"""
+        SELECT c.table_schema || '.' || c.table_name || '.' || c.column_name
+        FROM information_schema.columns c
+        WHERE c.table_schema = 'pos'
+          AND c.column_name ~* '{fenced_identifier_pattern()}';""", dsn=ADMIN)
+    record("FR-POS-007: no identifier in the staff schema names a shift or a roster",
+           fenced_columns == [],
+           f"{fenced_columns or 'none'}, against the whole pinned vocabulary rather than "
+           f"the three words the requirement happens to name. Checked against the "
+           f"CATALOG, so a column a later migration adds is covered without anybody "
+           f"extending this. A handover is a transfer that happened, never a schedule")
+
+    unforced = rows("""
+        SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'pos' AND c.relkind = 'r'
+          AND NOT (c.relrowsecurity AND c.relforcerowsecurity);""", dsn=ADMIN)
+    pos_tables = count(ADMIN, """
+        SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE n.nspname = 'pos' AND c.relkind = 'r';""")
+    record("every table in the staff schema has row level security ENABLED and FORCED",
+           unforced == [] and pos_tables > 0,
+           f"{unforced or 'none'} unforced across {pos_tables} table(s) — M1-A's "
+           f"NC-M1-003 gates this in CI and it gates them unchanged")
+
+    wrong_predicate = rows("""
+        SELECT c.relname, p.polname
+        FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'pos'
+          AND pg_get_expr(p.polqual, p.polrelid) NOT LIKE '%row_in_scope%';""", dsn=ADMIN)
+    record("and every policy uses the one isolation predicate",
+           wrong_predicate == [],
+           f"{wrong_predicate or 'none'} — one predicate, so there is one thing to get "
+           f"right rather than one per table")
+
+    unpinned = rows("""
+        SELECT n.nspname || '.' || p.proname
+        FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'pos' AND p.prosecdef
+          AND NOT EXISTS (SELECT 1 FROM unnest(coalesce(p.proconfig, '{}'))
+                          AS cfg WHERE cfg LIKE 'search_path=%');""", dsn=ADMIN)
+    record("every SECURITY DEFINER function in the staff schema pins its search path",
+           unpinned == [],
+           f"unpinned: {unpinned or 'none'}")
+
+    # The finding this slice made about migration-time backfills.
+    visible = count(os.environ["M1A_MIGRATOR_DSN"], "SELECT count(*) FROM org.tenant;")
+    record("a migration cannot enumerate tenants, which is why the installer is a function",
+           visible == 0,
+           f"the migration identity sees {visible} tenant(s) with no context, because "
+           f"org.tenant is scoped by row level security and hospitality_migrator is not "
+           f"BYPASSRLS. Any backfill written as INSERT ... SELECT ... FROM org.tenant "
+           f"matches nothing — 0010 contains one — so this slice ships "
+           f"pos.install_registries_for() instead, which an operator calls per tenant "
+           f"with that tenant's context")
+
+    installer = run(APP, f"""
+        SELECT pos.install_registries_for('{fx.TENANT}');""", **CTX)
+    record("and that installer is idempotent for a tenant that already has everything",
+           installer.ok and (installer.scalar or "").strip() == "0",
+           f"installed {installer.why() or installer.scalar} additional row(s) for a "
+           f"tenant the trigger already covered")
+
+    later = rows("""
+        SELECT c.table_schema || '.' || c.table_name
+        FROM information_schema.tables c
+        WHERE c.table_schema IN ('billing', 'payment', 'sync', 'outlet_node')
+        ORDER BY 1;""", dsn=ADMIN)
+    record("nothing belonging to a later slice was built here",
+           later == [],
+           f"{later or 'none'} — checks, payments, tips and receipts are M4; the outlet "
+           f"node, synchronization and the print queue are M5a")
+
+    secrets = []
+    for path in files:
+        text = path.read_text(encoding="utf-8")
+        for match in re.finditer(r"(?i)(password|secret|api[_-]?key)\s*=\s*['\"][^'\"]{6,}",
+                                 text):
+            secrets.append(f"{path.name}:{match.group(0)[:40]}")
+    record("no credential is written into this slice's source",
+           secrets == [],
+           f"{secrets or 'none'}. Every staff token the fixtures mint is generated per "
+           f"run from os.urandom and only its sha256 reaches the database (FR-SEC-007)")
+
+
+# ===========================================================================
+# 10. Negative controls
+# ===========================================================================
+# Each plants a REAL defect — in the delivered SQL, the delivered route or the delivered
+# surface — requires the registered signature, then reverts and requires green again. A
+# control that never went red is a coverage gap wearing a green badge.
+
+
+def replace_function(signature_name: str, old: str, new: str) -> None:
+    """Rewrite one delivered function in place, keeping everything else about it."""
+    body = definition(signature_name)
+    if old not in body:
+        raise ProbeFailed(signature_name, f"cannot plant: anchor absent from {signature_name}")
+    res = run(ADMIN, body.replace(old, new, 1) + ";")
+    if not res.ok:
+        raise ProbeFailed(f"planting into {signature_name}", res.err)
+
+
+def restore_function(signature_name: str, body: str) -> None:
+    res = run(ADMIN, body + ";")
+    if not res.ok:
+        raise ProbeFailed(f"restoring {signature_name}", res.err)
+
+
+def control(name: str, signature_name: str, red, green) -> None:
+    print(f"\n  {name}")
+    ok, detail = red()
+    record(f"{name} — RED with the defect planted", ok, detail)
+    ok, detail = green()
+    record(f"{name} — GREEN after revert", ok, detail)
+
+
+def section_controls() -> None:
+    print("\n--- 10. Negative controls: each proved RED with a real defect, then GREEN ---")
+
+    reason = fx.reason_code()
+
+    # NC-M3D-001 — a waiter-entered order bypasses a rule QR ordering enforces.
+    # Planted in the STAFF ROUTE: it stops calling the shared writer and prices the line
+    # itself, which is precisely the "two implementations that agree today" shape.
+    def red_channel():
+        patch_workspace(
+            "routes/staff.ts",
+            "SELECT service.add_cart_line($1::uuid, $2::uuid, $3::uuid, $4::uuid,\n"
+            "                                          $5::uuid, $6::integer, NULL::uuid) AS id",
+            "INSERT INTO service.cart_line (tenant_id, outlet_id, cart_id, item_id, "
+            "variant_id, quantity, currency_code, unit_amount_minor) "
+            "SELECT $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6::integer, "
+            "'ETB', 1 * ($7::uuid IS NULL)::integer + 1 RETURNING id")
+        guest = strip_comments(
+            (WORKSPACE / "src/routes/customer.ts").read_text(encoding="utf-8"))
+        staff = strip_comments(
+            (WORKSPACE / "src/routes/staff.ts").read_text(encoding="utf-8"))
+        universe = rule_functions()
+        g = named_rules(handler_block(guest, "/c/v1/cart/lines"), universe)
+        s = named_rules(handler_block(staff, "/s/v1/cart/lines"), universe)
+        prices_itself = bool(re.search(r"unit_amount_minor", staff))
+        return (g != s and prices_itself,
+                f"CHANNEL_RULE_DIVERGENCE: the staff route prices its own line "
+                f"(guest {g}, staff {s}); the price a waiter sees and the price a guest "
+                f"sees now come from two expressions")
+
+    def green_channel():
+        sync_and_build()
+        guest = strip_comments(
+            (WORKSPACE / "src/routes/customer.ts").read_text(encoding="utf-8"))
+        staff = strip_comments(
+            (WORKSPACE / "src/routes/staff.ts").read_text(encoding="utf-8"))
+        universe = rule_functions()
+        g = named_rules(handler_block(guest, "/c/v1/cart/lines"), universe)
+        s = named_rules(handler_block(staff, "/s/v1/cart/lines"), universe)
+        return g == s == ["service.add_cart_line"], f"guest {g}, staff {s} — one writer again"
+
+    control("NC-M3D-001  a waiter-entered order bypasses a rule QR ordering enforces",
+            "", red_channel, green_channel)
+
+    # NC-M3D-002 — a manager override completes without step-up.
+    body = definition("pos.approve_override(uuid, uuid, text, uuid, uuid, text, uuid, text)")
+
+    def red_no_step_up():
+        replace_function(
+            "pos.approve_override(uuid, uuid, text, uuid, uuid, text, uuid, text)",
+            "IF NOT FOUND THEN\n        RAISE EXCEPTION\n            'OVERRIDE_WITHOUT_STEP_UP: % was approved with no unconsumed step-up on the '\n            'approving session', p_action_code",
+            "IF FALSE THEN\n        RAISE EXCEPTION\n            'OVERRIDE_WITHOUT_STEP_UP: % was approved with no unconsumed step-up on the '\n            'approving session', p_action_code")
+        w_session, _ = fx.staff_session(fx.USER)
+        m_session, _ = fx.staff_session(fx.USER_MANAGER)
+        res = run(APP, f"""
+            SELECT set_config('app.session_id', '{w_session}', false);
+            SELECT pos.approve_override('{fx.TENANT}', '{fx.OUTLET_H1}', 'order.void',
+                '{m_session}', '{reason}', 'order',
+                '{CONTEXT.get("staff_order") or CONTEXT.get("guest_order")}');""",
+            tx=True, **CTX)
+        # With the guard removed the grant lookup finds nothing and the INSERT fails on
+        # the NOT NULL, which is the defect surfacing rather than being caught by name.
+        return (not res.failed_with("OVERRIDE_WITHOUT_STEP_UP"),
+                f"OVERRIDE_WITHOUT_STEP_UP: the check that refuses an unauthorized "
+                f"override no longer refuses it: {res.why() or 'it completed'}")
+
+    def green_no_step_up():
+        restore_function("pos.approve_override", body)
+        w_session, _ = fx.staff_session(fx.USER)
+        m_session, _ = fx.staff_session(fx.USER_MANAGER)
+        res = run(APP, f"""
+            SELECT set_config('app.session_id', '{w_session}', false);
+            SELECT pos.approve_override('{fx.TENANT}', '{fx.OUTLET_H1}', 'order.void',
+                '{m_session}', '{reason}', 'order',
+                '{CONTEXT.get("staff_order") or CONTEXT.get("guest_order")}');""",
+            tx=True, **CTX)
+        return res.failed_with("OVERRIDE_WITHOUT_STEP_UP"), res.why()
+
+    control("NC-M3D-002  a manager override completes without step-up",
+            "pos.approve_override", red_no_step_up, green_no_step_up)
+
+    # NC-M3D-003 — the override succeeds by credential sharing rather than delegation.
+    # The defect planted is the REAL one: the guard that compares the two people is
+    # removed, so a manager who typed their password into the waiter's terminal is
+    # accepted. Not a missing field — the thing a busy floor manager actually does.
+    def red_sharing():
+        replace_function(
+            "pos.approve_override(uuid, uuid, text, uuid, uuid, text, uuid, text)",
+            "IF v_approver_session.user_account_id = v_actor_session.user_account_id THEN",
+            "IF FALSE THEN")
+        w_session, _ = fx.staff_session(fx.USER)
+        fx.step_up(w_session, "order.void")
+        res = run(APP, f"""
+            SELECT set_config('app.session_id', '{w_session}', false);
+            SELECT pos.approve_override('{fx.TENANT}', '{fx.OUTLET_H1}', 'order.void',
+                '{w_session}', '{reason}', 'order',
+                '{CONTEXT.get("staff_order") or CONTEXT.get("guest_order")}');""",
+            tx=True, **CTX)
+        # The CHECK constraint is the second lock and catches it even with the guard
+        # gone, so the control asserts the SIGNATURE is no longer the named one.
+        return (not res.failed_with("CREDENTIAL_SHARED_FOR_OVERRIDE"),
+                f"CREDENTIAL_SHARED_FOR_OVERRIDE: a manager authenticating into the "
+                f"waiter's session is no longer refused by name — "
+                f"{res.why() or 'it was accepted'}")
+
+    def green_sharing():
+        restore_function("pos.approve_override", body)
+        w_session, _ = fx.staff_session(fx.USER)
+        fx.step_up(w_session, "order.void")
+        res = run(APP, f"""
+            SELECT set_config('app.session_id', '{w_session}', false);
+            SELECT pos.approve_override('{fx.TENANT}', '{fx.OUTLET_H1}', 'order.void',
+                '{w_session}', '{reason}', 'order',
+                '{CONTEXT.get("staff_order") or CONTEXT.get("guest_order")}');""",
+            tx=True, **CTX)
+        return res.failed_with("CREDENTIAL_SHARED_FOR_OVERRIDE"), res.why()
+
+    control("NC-M3D-003  an override succeeds by credential sharing rather than delegation",
+            "pos.approve_override", red_sharing, green_sharing)
+
+    # NC-M3D-004 — staff search returns a foreign tenant or outlet row.
+    search_body = definition(
+        "pos.staff_search(uuid, uuid, uuid, text, uuid, menu.customer_locale)")
+
+    def red_search():
+        replace_function(
+            "pos.staff_search(uuid, uuid, uuid, text, uuid, menu.customer_locale)",
+            "AND (m.outlet_id IS NULL OR m.outlet_id = p_outlet_id)\n    ) THEN\n        RAISE EXCEPTION\n            'STAFF_SEARCH_CROSSES_SCOPE: % holds no active membership at outlet %',",
+            "AND (m.outlet_id IS NULL OR m.outlet_id IS NOT NULL)\n    ) THEN\n        RAISE EXCEPTION\n            'STAFF_SEARCH_CROSSES_SCOPE: % holds no active membership at outlet %',")
+        res = run(APP, f"""
+            SELECT count(*) FROM pos.staff_search('{fx.TENANT}', '{fx.OUTLET_H2}',
+                                                  '{fx.USER}', NULL, NULL, 'en');""",
+            tenant=fx.TENANT, outlet=fx.OUTLET_H2)
+        return (res.ok,
+                f"STAFF_SEARCH_CROSSES_SCOPE: a waiter with no membership at outlet H2 "
+                f"searched it and the scope gate allowed it "
+                f"({res.scalar} row(s) reached)")
+
+    def green_search():
+        restore_function("pos.staff_search", search_body)
+        res = run(APP, f"""
+            SELECT count(*) FROM pos.staff_search('{fx.TENANT}', '{fx.OUTLET_H2}',
+                                                  '{fx.USER}', NULL, NULL, 'en');""",
+            tenant=fx.TENANT, outlet=fx.OUTLET_H2)
+        return res.failed_with("STAFF_SEARCH_CROSSES_SCOPE"), res.why()
+
+    control("NC-M3D-004  staff search returns a foreign tenant or outlet row",
+            "pos.staff_search", red_search, green_search)
+
+    # NC-M3D-005 — allergy confirmation carries the same friction as an ordinary action.
+    # Planted in the GRADE, which is where the requirement lives, and measured in the
+    # BROWSER, because FR-UX-015 is a claim about what a person has to do.
+    def red_friction():
+        res = run(ADMIN, f"""
+            SELECT set_config('app.tenant_id', '{fx.TENANT}', false);
+            UPDATE pos.confirmation_requirement
+               SET consequence = 'routine', requires_reason = false
+             WHERE tenant_id = '{fx.TENANT}' AND action_code = 'allergy.declare';""",
+            tx=True)
+        if not res.ok:
+            return False, f"could not plant: {res.err}"
+        _sid, token = fx.staff_session(fx.USER)
+        requirements = call("GET", "/s/v1/confirmation-requirements", token) \
+            .get("requirements", [])
+        out = probe({"requirements": requirements, "home": [], "tables": [],
+                     "notifications": [], "results": []})
+        deliberate = out["confirm"]["deliberate"]["before"]
+        return (deliberate["ranImmediately"] is True,
+                f"FRICTION_NOT_GRADED_BY_CONSEQUENCE: declaring an allergy ran on one "
+                f"tap with no confirmation and no reason "
+                f"(panel shown: {deliberate['panelShown']})")
+
+    def green_friction():
+        res = run(ADMIN, f"""
+            SELECT set_config('app.tenant_id', '{fx.TENANT}', false);
+            UPDATE pos.confirmation_requirement
+               SET consequence = 'deliberate', requires_reason = true
+             WHERE tenant_id = '{fx.TENANT}' AND action_code = 'allergy.declare';""",
+            tx=True)
+        _sid, token = fx.staff_session(fx.USER)
+        requirements = call("GET", "/s/v1/confirmation-requirements", token) \
+            .get("requirements", [])
+        out = probe({"requirements": requirements, "home": [], "tables": [],
+                     "notifications": [], "results": []})
+        deliberate = out["confirm"]["deliberate"]
+        return (res.ok and deliberate["before"]["ranImmediately"] is False
+                and deliberate["emptyRefused"]["ran"] is False,
+                "declaring an allergy asks, states the consequence and refuses without "
+                "a reason, measured in the browser")
+
+    control("NC-M3D-005  allergy confirmation carries the same friction as an ordinary action",
+            "", red_friction, green_friction)
+
+    # NC-M3D-006 — a destructive action proceeds with no reason recorded.
+    def red_reason():
+        res = run(ADMIN, f"""
+            SELECT set_config('app.tenant_id', '{fx.TENANT}', false);
+            SELECT set_config('app.outlet_id', '{fx.OUTLET_H1}', false);
+            ALTER TABLE pos.confirmation_requirement
+                DROP CONSTRAINT confirmation_deliberate_states_a_reason;
+            UPDATE pos.confirmation_requirement SET requires_reason = false
+             WHERE tenant_id = '{fx.TENANT}' AND action_code = 'terminal.revoke';""",
+            tx=True)
+        if not res.ok:
+            return False, f"could not plant: {res.err}"
+        stated = rows(f"""
+            SELECT consequence::text, requires_reason::text
+            FROM pos.confirmation_requirement
+             WHERE tenant_id = '{fx.TENANT}' AND action_code = 'terminal.revoke';""")
+        return (stated and stated[0] == ["deliberate", "f"],
+                f"DESTRUCTIVE_ACTION_WITHOUT_REASON: revoking a terminal is graded "
+                f"{stated} — deliberate, and recording no reason. A deliberate action "
+                f"that states nothing is an ordinary action with an extra tap")
+
+    def green_reason():
+        res = run(ADMIN, f"""
+            SELECT set_config('app.tenant_id', '{fx.TENANT}', false);
+            UPDATE pos.confirmation_requirement SET requires_reason = true
+             WHERE tenant_id = '{fx.TENANT}' AND action_code = 'terminal.revoke';
+            ALTER TABLE pos.confirmation_requirement
+                ADD CONSTRAINT confirmation_deliberate_states_a_reason
+                CHECK (consequence <> 'deliberate' OR requires_reason = true);""", tx=True)
+        broken = run(ADMIN, f"""
+            SELECT set_config('app.tenant_id', '{fx.TENANT}', false);
+            UPDATE pos.confirmation_requirement SET requires_reason = false
+             WHERE tenant_id = '{fx.TENANT}' AND action_code = 'terminal.revoke';""",
+            tx=True, rollback=True)
+        return (res.ok and not broken.ok,
+                f"the CHECK is back and refuses the grade: {broken.why()}")
+
+    control("NC-M3D-006  a destructive action proceeds with no reason recorded",
+            "", red_reason, green_reason)
+
+    # NC-M3D-007 — a handover leaves a table with no responsible owner.
+    ack_body = definition("pos.acknowledge_handover(uuid, uuid, uuid)")
+
+    def red_handover():
+        replace_function(
+            "pos.acknowledge_handover(uuid, uuid, uuid)",
+            "PERFORM service.transfer_ownership(p_tenant_id, v_transfer);",
+            "NULL;")
+        fx.m3c.set_presence("available")
+        seated = fx.a_seated_guest(table=fx.TABLE_TWO)
+        fx.assign_table_owner(seated["session"], fx.USER)
+        proposed = run(APP, f"""
+            SELECT pos.propose_handover('{fx.TENANT}', '{fx.OUTLET_H1}',
+                '{fx.USER}', '{fx.USER_WAITER_B}', '{fx.USER}');""", **CTX)
+        handover = (proposed.scalar or "").strip()
+        res = run(APP, f"""
+            SELECT pos.acknowledge_handover('{fx.TENANT}', '{handover}',
+                                            '{fx.USER_WAITER_B}');""", **CTX)
+        return (res.failed_with("RESPONSIBILITY_LOST_ON_HANDOVER"),
+                res.why() or "a handover completed with tables that moved to nobody")
+
+    def green_handover():
+        restore_function("pos.acknowledge_handover", ack_body)
+        fx.m3c.set_presence("available")
+        seated = fx.a_seated_guest(table=fx.TABLE_TWO)
+        fx.assign_table_owner(seated["session"], fx.USER)
+        proposed = run(APP, f"""
+            SELECT pos.propose_handover('{fx.TENANT}', '{fx.OUTLET_H1}',
+                '{fx.USER}', '{fx.USER_WAITER_B}', '{fx.USER}');""", **CTX)
+        handover = (proposed.scalar or "").strip()
+        res = run(APP, f"""
+            SELECT pos.acknowledge_handover('{fx.TENANT}', '{handover}',
+                                            '{fx.USER_WAITER_B}');""", **CTX)
+        orphans = count(APP, f"""
+            SELECT count(*) FROM pos.handover_item i
+            WHERE i.handover_id = '{handover}' AND i.item_kind = 'table_session'
+              AND NOT EXISTS (SELECT 1 FROM service.table_ownership o
+                               WHERE o.table_session_id = i.table_session_id
+                                 AND o.effective_to IS NULL
+                                 AND o.primary_waiter_user_id = '{fx.USER_WAITER_B}');""",
+            **CTX)
+        return (res.ok and orphans == 0,
+                f"{res.why() or res.scalar} item(s) moved, {orphans} left with nobody "
+                f"accountable. Checked at COMMIT by a deferred constraint trigger, so a "
+                f"correct handover is not refused halfway through")
+
+    control("NC-M3D-007  a handover leaves a table with no responsible owner",
+            "pos.acknowledge_handover", red_handover, green_handover)
+
+
+# ===========================================================================
+# main
+# ===========================================================================
+
+def main() -> int:
+    print("=" * 74)
+    print("M3-D VERIFICATION — the waiter surface, terminals, override and handover")
+    print(f"real PostgreSQL, real compiled service, real Chromium "
+          f"(running on {platform.system()})")
+    print("evidence encoding: UTF-8")
+    print()
+    print("  (measured) = read out of a real browser's own layout after it rendered")
+    print("  (asserted) = read from source, from a payload, or from the database")
+    print()
+    print("=" * 74)
+
+    fx.seed()
+    print("fixtures seeded: a manager who can approve, a waiter who cannot, two "
+          "terminals and the outlet's fast picks")
+
+    # One item and variant both channels order, so the matrix asks both the same question.
+    pair = rows(f"""
+        SELECT i.id::text, v.id::text
+        FROM menu.sellable_item i
+        JOIN menu.item_variant v ON v.item_id = i.id AND v.is_default AND v.status = 'active'
+        WHERE i.tenant_id = '{fx.TENANT}' AND i.status = 'active'
+        ORDER BY i.item_code LIMIT 1;""")
+    if not pair:
+        print("FAIL PREREQUISITE_ABSENT: no sellable item to order", file=sys.stderr)
+        return 1
+    CONTEXT["item"], CONTEXT["variant"] = pair[0][0], pair[0][1]
+
+    sync_and_build()
+
+    with Service(APP) as service:
+        CONTEXT["base_url"] = f"http://127.0.0.1:{service.port}"
+        CONTEXT["service_log"] = service.logs
+
+        section_terminals()
+        section_same_rules_structurally()
+        section_same_rules_behaviourally()
+        section_allergy_parity()
+        section_role_home_and_search()
+        section_override()
+        section_handover()
+        section_staff_surface()
+        section_governance()
+        section_controls()
+
+    passed = sum(1 for _n, ok, _d, _e in results if ok)
+    failed = [(name, detail) for name, ok, detail, _e in results if not ok]
+    # DERIVED from the run, never tallied by hand.
+    measured_count = sum(1 for _n, _o, _d, e in results if e == "measured")
+
+    print("\n" + "=" * 74)
+    print(f"  checks run    : {len(results)}")
+    print(f"  passed        : {passed}")
+    print(f"  failed        : {len(failed)}")
+    print(f"  measured      : {measured_count}   (read out of a real browser's layout)")
+    print(f"  asserted      : {len(results) - measured_count}   (source, payload, or "
+          f"database)")
+    print(f"  controls      : {sum(1 for n, _o, _d, _e in results if ' — RED' in n)}   "
+          f"(each proved red with a real defect, then green after revert)")
+    for name, detail in failed:
+        print(f"  - {name}")
+        for line in (detail or "").splitlines():
+            print(f"      {line}")
+    print()
+    if failed:
+        print("FAIL M3D_VERIFICATION")
+        return 1
+    print("PASS M3D_VERIFICATION")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

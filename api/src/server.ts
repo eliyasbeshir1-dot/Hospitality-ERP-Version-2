@@ -18,6 +18,7 @@ import { InMemoryObservability, type ObservabilityProvider } from './observabili
 import { registerApiRoutes } from './routes/api';
 import { guestContext, registerCustomerRoutes } from './routes/customer';
 import { registerServiceRoutes } from './routes/service';
+import { registerStaffRoutes } from './routes/staff';
 import { registerStationRoutes } from './routes/station';
 import { registerSurfaceRoutes } from './routes/surface';
 import { registerHealthRoutes } from './routes/health';
@@ -105,6 +106,7 @@ export async function start(): Promise<{ close(): Promise<void>; port: number }>
   registerApiRoutes(app, { db, logger });
   registerCustomerRoutes(app, { db, logger });
   registerStationRoutes(app, { db, logger });
+  registerStaffRoutes(app, { db, logger });
   registerServiceRoutes(app, { db, logger, asGuest: guestContext({ db, logger }) });
   // The compiled surface sits beside the compiled server, so one build produces both and
   // there is no second artefact to deploy or forget.

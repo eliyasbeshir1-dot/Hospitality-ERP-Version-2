@@ -4,7 +4,7 @@
 Do not edit by hand: the verification suite regenerates this file and fails on any
 difference, so a hand edit is reported as drift (FR-DAT-015).
 
-Schemas covered: `app`, `audit`, `config`, `fulfillment`, `identity`, `integration`, `menu`, `money`, `notify`, `ordering`, `org`, `safety`, `service`, discovered from the database rather than listed here.
+Schemas covered: `app`, `audit`, `config`, `fulfillment`, `identity`, `integration`, `menu`, `money`, `notify`, `ordering`, `org`, `pos`, `safety`, `service`, discovered from the database rather than listed here.
 
 ---
 
@@ -65,6 +65,10 @@ Schemas covered: `app`, `audit`, `config`, `fulfillment`, `identity`, `integrati
 | `ordering.order_state` | submitted, accepted, rejected, cancelled, voided |
 | `org.lifecycle_status` | active, inactive, archived |
 | `org.node_kind` | brand, legal_entity, outlet, service_area, preparation_station, dining_table, device |
+| `pos.consequence` | routine, elevated, deliberate |
+| `pos.handover_item_kind` | table_session, service_request |
+| `pos.handover_state` | proposed, acknowledged, cancelled |
+| `pos.terminal_profile` | point_of_sale, waiter_handheld, kitchen_display |
 | `safety.declaration_class` | contains, may_contain, cross_contact |
 | `safety.reference_context` | publication_snapshot, cart_line |
 | `safety.review_state` | draft, in_review, approved |
@@ -176,6 +180,13 @@ graph LR
   org_device_registration["org.device_registration"]
   org_org_closure["org.org_closure"]
   org_outlet_profile["org.outlet_profile"]
+  pos_confirmation_requirement["pos.confirmation_requirement"]
+  pos_fast_pick["pos.fast_pick"]
+  pos_handover["pos.handover"]
+  pos_handover_item["pos.handover_item"]
+  service_service_request["service.service_request"]
+  pos_override_approval["pos.override_approval"]
+  pos_terminal["pos.terminal"]
   safety_jurisdiction["safety.jurisdiction"]
   safety_declaration["safety.declaration"]
   safety_declaration_reference["safety.declaration_reference"]
@@ -192,7 +203,6 @@ graph LR
   service_table_qr_token["service.table_qr_token"]
   service_qr_scan["service.qr_scan"]
   service_request_escalation["service.request_escalation"]
-  service_service_request["service.service_request"]
   service_request_routing_decision["service.request_routing_decision"]
   service_request_type["service.request_type"]
   service_service_request_event["service.service_request_event"]
@@ -455,6 +465,28 @@ graph LR
   org_org_node --> org_org_node
   org_org_node --> org_tenant
   org_outlet_profile --> org_org_node
+  pos_confirmation_requirement --> org_tenant
+  pos_fast_pick --> identity_user_account
+  pos_fast_pick --> menu_sellable_item
+  pos_fast_pick --> org_org_node
+  pos_fast_pick --> org_tenant
+  pos_handover --> identity_user_account
+  pos_handover --> org_org_node
+  pos_handover --> org_tenant
+  pos_handover_item --> pos_handover
+  pos_handover_item --> service_service_request
+  pos_handover_item --> service_table_session
+  pos_override_approval --> config_reason_code
+  pos_override_approval --> identity_session
+  pos_override_approval --> identity_step_up_grant
+  pos_override_approval --> identity_user_account
+  pos_override_approval --> org_org_node
+  pos_override_approval --> org_tenant
+  pos_terminal --> config_reason_code
+  pos_terminal --> identity_user_account
+  pos_terminal --> org_device_registration
+  pos_terminal --> org_org_node
+  pos_terminal --> org_tenant
   safety_allergen --> org_org_node
   safety_allergen --> org_tenant
   safety_allergen --> safety_jurisdiction
@@ -3347,6 +3379,214 @@ Constraints:
 Policies:
 
 - `tenant_isolation` — `((app.current_tenant_id() IS NOT NULL) AND (id = app.current_tenant_id()))`
+
+### `pos`
+
+The staff surface: terminals, role home, table view, operational search, manager override and handover. Ordering is NOT here — a waiter-entered order goes through ordering.submit_order() exactly as a guest-entered one does (FR-POS-003A).
+
+#### `pos.confirmation_requirement`
+
+FR-UX-015, FR-POS-009. How much friction an action carries, graded by its consequence. Read by the staff surface; never decided by it.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `action_code` | `text` | NOT NULL |  |  |
+| `consequence` | `pos.consequence` | NOT NULL |  |  |
+| `requires_reason` | `boolean` | NOT NULL |  |  |
+| `graded_from_gate` | `text` | NOT NULL |  |  |
+
+Constraints:
+
+- `confirmation_action_not_blank` — `CHECK ((btrim(action_code) <> ''::text))`
+- `confirmation_deliberate_states_a_reason` — `CHECK (((consequence <> 'deliberate'::pos.consequence) OR (requires_reason = true)))`
+- `confirmation_requirement_pkey` — `PRIMARY KEY (tenant_id, action_code)`
+- `confirmation_routine_asks_for_nothing` — `CHECK (((consequence <> 'routine'::pos.consequence) OR (requires_reason = false)))`
+- `confirmation_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE CASCADE`
+
+Policies:
+
+- `confirmation_requirement_isolation` — `app.row_in_scope(tenant_id, NULL::uuid)`
+
+#### `pos.fast_pick`
+
+FR-POS-005. Favourites for fast entry. A row with no user is the outlet's shared set; a row with one is personal.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `user_account_id` | `uuid` |  |  |  |
+| `item_id` | `uuid` | NOT NULL |  |  |
+| `position` | `integer` | NOT NULL |  |  |
+
+Constraints:
+
+- `fast_pick_item_fk` — `FOREIGN KEY (item_id) REFERENCES menu.sellable_item(id) ON DELETE CASCADE`
+- `fast_pick_once` — `UNIQUE (tenant_id, outlet_id, user_account_id, item_id)`
+- `fast_pick_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `fast_pick_pkey` — `PRIMARY KEY (id)`
+- `fast_pick_position_positive` — `CHECK (("position" > 0))`
+- `fast_pick_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `fast_pick_user_fk` — `FOREIGN KEY (tenant_id, user_account_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE CASCADE`
+
+Policies:
+
+- `fast_pick_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `pos.handover`
+
+FR-POS-007. Responsibility for open tables and tasks moving between two named people, acknowledged by the recipient. Not a shift and not a schedule: it records a transfer that happened, never when anybody is due to work.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `from_user_id` | `uuid` | NOT NULL |  |  |
+| `to_user_id` | `uuid` | NOT NULL |  |  |
+| `state` | `pos.handover_state` | NOT NULL | `'proposed'::pos.handover_state` |  |
+| `proposed_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `proposed_by_user_id` | `uuid` | NOT NULL |  |  |
+| `acknowledged_at` | `timestamp with time zone` |  |  |  |
+| `acknowledged_by_user_id` | `uuid` |  |  |  |
+| `cancelled_at` | `timestamp with time zone` |  |  |  |
+| `note` | `text` |  |  |  |
+
+Constraints:
+
+- `handover_acknowledged_is_stated` — `CHECK (((state = 'acknowledged'::pos.handover_state) = ((acknowledged_at IS NOT NULL) AND (acknowledged_by_user_id IS NOT NULL))))`
+- `handover_acknowledger_fk` — `FOREIGN KEY (tenant_id, acknowledged_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `handover_acknowledger_is_recipient` — `CHECK (((acknowledged_by_user_id IS NULL) OR (acknowledged_by_user_id = to_user_id)))`
+- `handover_cancelled_is_stated` — `CHECK (((state = 'cancelled'::pos.handover_state) = (cancelled_at IS NOT NULL)))`
+- `handover_from_fk` — `FOREIGN KEY (tenant_id, from_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `handover_moves_between_people` — `CHECK ((from_user_id <> to_user_id))`
+- `handover_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `handover_pkey` — `PRIMARY KEY (id)`
+- `handover_proposer_fk` — `FOREIGN KEY (tenant_id, proposed_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `handover_responsibility_survives` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
+- `handover_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `handover_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `handover_to_fk` — `FOREIGN KEY (tenant_id, to_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `handover_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `pos.handover_item`
+
+What a handover carries: the open tables and the open service requests. Captured when the handover is proposed, so what was accepted is what was offered.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `handover_id` | `uuid` | NOT NULL |  |  |
+| `item_kind` | `pos.handover_item_kind` | NOT NULL |  |  |
+| `table_session_id` | `uuid` |  |  |  |
+| `service_request_id` | `uuid` |  |  |  |
+
+Constraints:
+
+- `handover_item_handover_fk` — `FOREIGN KEY (tenant_id, handover_id) REFERENCES pos.handover(tenant_id, id) ON DELETE CASCADE`
+- `handover_item_names_its_subject` — `CHECK ((((item_kind = 'table_session'::pos.handover_item_kind) AND (table_session_id IS NOT NULL) AND (service_request_id IS NULL)) OR ((item_kind = 'service_request'::pos.handover_item_kind) AND (service_request_id IS NOT NULL) AND (table_session_id IS NULL))))`
+- `handover_item_once` — `UNIQUE (handover_id, item_kind, table_session_id, service_request_id)`
+- `handover_item_pkey` — `PRIMARY KEY (id)`
+- `handover_item_request_fk` — `FOREIGN KEY (tenant_id, service_request_id) REFERENCES service.service_request(tenant_id, id) ON DELETE RESTRICT`
+- `handover_item_session_fk` — `FOREIGN KEY (tenant_id, table_session_id) REFERENCES service.table_session(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `handover_item_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `pos.override_approval`
+
+FR-POS-006. Supervisor approval with both identities and the step-up grant it rested on. approver_user_id is DERIVED from the grant's session and is never a parameter, so a manager authenticating into the waiter's session produces an approver equal to the actor and is refused by constraint rather than by policy.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `action_code` | `text` | NOT NULL |  |  |
+| `actor_user_id` | `uuid` | NOT NULL |  |  |
+| `actor_session_id` | `uuid` | NOT NULL |  |  |
+| `approver_user_id` | `uuid` | NOT NULL |  |  |
+| `approver_session_id` | `uuid` | NOT NULL |  |  |
+| `step_up_grant_id` | `uuid` | NOT NULL |  |  |
+| `reason_code_id` | `uuid` | NOT NULL |  |  |
+| `reason_text` | `text` |  |  |  |
+| `subject_kind` | `text` | NOT NULL |  |  |
+| `subject_id` | `uuid` | NOT NULL |  |  |
+| `approved_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `override_action_not_blank` — `CHECK ((btrim(action_code) <> ''::text))`
+- `override_actor_fk` — `FOREIGN KEY (tenant_id, actor_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `override_actor_session_fk` — `FOREIGN KEY (tenant_id, actor_session_id) REFERENCES identity.session(tenant_id, id) ON DELETE RESTRICT`
+- `override_approval_pkey` — `PRIMARY KEY (id)`
+- `override_approver_fk` — `FOREIGN KEY (tenant_id, approver_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `override_approver_is_not_the_actor` — `CHECK ((approver_user_id <> actor_user_id))`
+- `override_approver_session_fk` — `FOREIGN KEY (tenant_id, approver_session_id) REFERENCES identity.session(tenant_id, id) ON DELETE RESTRICT`
+- `override_grant_fk` — `FOREIGN KEY (step_up_grant_id) REFERENCES identity.step_up_grant(id) ON DELETE RESTRICT`
+- `override_grant_used_once` — `UNIQUE (step_up_grant_id)`
+- `override_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `override_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `override_sessions_are_not_the_same` — `CHECK ((approver_session_id <> actor_session_id))`
+- `override_subject_kind_not_blank` — `CHECK ((btrim(subject_kind) <> ''::text))`
+- `override_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `override_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `override_approval_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `pos.terminal`
+
+FR-POS-001. A registered device bound to a tenant, an outlet and a profile, and the record of its revocation. Revoking is not a flag: pos.revoke_terminal() also ends every live session on the device and withdraws its terminal trust, because a compromised terminal whose sessions keep working has not been revoked.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `device_id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `profile` | `pos.terminal_profile` | NOT NULL |  |  |
+| `registered_by_user_id` | `uuid` | NOT NULL |  |  |
+| `registered_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `revoked_at` | `timestamp with time zone` |  |  |  |
+| `revoked_by_user_id` | `uuid` |  |  |  |
+| `revocation_reason_code_id` | `uuid` |  |  |  |
+
+Constraints:
+
+- `terminal_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `terminal_pkey` — `PRIMARY KEY (device_id)`
+- `terminal_registrar_fk` — `FOREIGN KEY (tenant_id, registered_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `terminal_registration_fk` — `FOREIGN KEY (device_id) REFERENCES org.device_registration(device_id) ON DELETE RESTRICT`
+- `terminal_revocation_is_explained` — `CHECK ((((revoked_at IS NULL) = (revoked_by_user_id IS NULL)) AND ((revoked_at IS NULL) = (revocation_reason_code_id IS NULL))))`
+- `terminal_revocation_reason_fk` — `FOREIGN KEY (tenant_id, revocation_reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `terminal_revoker_fk` — `FOREIGN KEY (tenant_id, revoked_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `terminal_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `terminal_tenant_id_unique` — `UNIQUE (tenant_id, device_id)`
+
+Policies:
+
+- `terminal_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
 ### `safety`
 

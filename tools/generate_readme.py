@@ -65,6 +65,9 @@ SLICE_DELIVERS = {
             "the database, the KDS, expo and non-colour-only allergy salience",
     "M3-C": "service requests, ephemeral presence, in-app notifications, deep links, "
             "the dead-letter queue and customer status in the session's language",
+    "M3-D": "the waiter surface: terminals, role home and table view, waiter-entered "
+            "ordering on the one order aggregate, operational search, manager override "
+            "without shared credentials, and handover",
 }
 
 # The gates in order, and what each one brings that does not exist yet. Rows are emitted
@@ -94,6 +97,32 @@ DIRECTORY_PURPOSE = {
     "tools": "migration and seed runners, generators, and the forbidden-surface verifier",
 }
 
+# A suite is not necessarily a slice, and until M3-D this generator could not say so.
+#
+# It derived the slice list from tests/*/verify_*.py and demanded a SLICE_DELIVERS entry
+# for anything matching m<digit><letter>. Everything else — tests/fenced_gate/ — fell
+# through the regex and was described only by SUITE_PURPOSE, which made "this suite is
+# not a slice" an accident of a pattern rather than a fact the generator modelled. The
+# five golden journeys are the second such suite and would have inherited that accident.
+#
+# So the distinction is now explicit. A CROSS-CUTTING suite must declare which gates it
+# exercises, and a suite that declares nothing stops the build exactly as an undescribed
+# slice does. The point is not to make room for tests/journeys/: it is that a reviewer
+# reading the README can see the journeys span gates rather than assuming they repeat
+# whichever slice happens to sit beside them.
+#
+# A span naming a gate the repository has not landed also fails, so this cannot become a
+# wish list.
+SUITE_SPANS = {
+    "fenced_gate": ["M1", "M2", "M3"],
+    "journeys": ["M1", "M2", "M3"],
+}
+
+
+class SuiteSpanUndeclared(RuntimeError):
+    """A suite that is not a slice exists and has not said what it cuts across."""
+
+
 SUITE_PURPOSE = {
     "m1a": "database, organizational model, row level security, production roles",
     "m1b": "identity, memberships, sessions, step-up authentication",
@@ -115,7 +144,16 @@ SUITE_PURPOSE = {
            "repeat, presence proved discarded rather than marked, notifications with "
            "nothing sensitive in a payload or a log, deep links that respect session "
            "scope, and a dead-letter queue whose replay cannot duplicate",
+    "m3d": "the waiter surface rendered in a real browser: terminals and their "
+           "revocation, role home ordered by what is overdue, waiter-entered ordering "
+           "proved to be the same code path as QR ordering rather than a second one "
+           "that agrees, manager override that cannot be obtained by sharing a "
+           "credential, handover that cannot lose a table, and confirmation friction "
+           "graded by consequence and measured by pressing the buttons",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
+    "journeys": "the five golden journeys end to end in a browser against real "
+                "persistence, plus the duplicate-submit race: what a guest and a waiter "
+                "actually walk through, across every gate that has landed",
 }
 
 
@@ -287,11 +325,37 @@ def build() -> str:
         # reads like a description and is not one. M2-A landed and said exactly that for
         # a gate, unnoticed, because a default filled the hole. Missing text is a fault
         # in this generator, not a row.
-        if path.parent.name not in SUITE_PURPOSE:
+        name = path.parent.name
+        if name not in SUITE_PURPOSE:
             raise SystemExit(
                 f"FAIL SUITE_UNDESCRIBED: {relative} has no entry in SUITE_PURPOSE. Add "
                 f"one; the README must say what a suite covers, not that it verifies.")
-        suite_table.append(f"| `{relative}` | {SUITE_PURPOSE[path.parent.name]} |")
+
+        # A suite is either a SLICE suite or a CROSS-CUTTING one, and the second kind has
+        # to say what it cuts across. Before M3-D this was decided by whether the
+        # directory name happened to match a regex, which made "not a slice" an accident
+        # rather than a fact — and a cross-cutting suite could be added describing
+        # nothing about its reach.
+        is_slice = re.fullmatch(r"m(\d)([a-z])", name) is not None
+        if not is_slice:
+            if name not in SUITE_SPANS:
+                raise SystemExit(
+                    f"FAIL SUITE_SPAN_UNDECLARED: {relative} is not a slice suite and "
+                    f"does not say which gates it exercises. Add an entry to "
+                    f"SUITE_SPANS; a suite that crosses gates must say so, or a reader "
+                    f"will file it under whichever slice it sits beside.")
+            landed_gates = {tag.split("-")[0] for tag in tags}
+            unlanded = [g for g in SUITE_SPANS[name] if g not in landed_gates]
+            if unlanded:
+                raise SystemExit(
+                    f"FAIL SUITE_SPAN_UNDECLARED: {relative} claims to exercise "
+                    f"{unlanded}, which the repository has not landed. A span is a "
+                    f"statement about what runs, not a wish list.")
+            span = " · ".join(SUITE_SPANS[name])
+            suite_table.append(f"| `{relative}` | {SUITE_PURPOSE[name]} "
+                               f"(spans {span}) |")
+        else:
+            suite_table.append(f"| `{relative}` | {SUITE_PURPOSE[name]} |")
 
     substitutions = {
         # The milestone is read from the last slice that landed, not written here. It said

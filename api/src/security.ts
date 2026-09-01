@@ -61,7 +61,12 @@ export function registerCustomerSurfaceHeaders(app: FastifyInstance): void {
     // '/station' joins the list for the same reason '/' is on it: it serves a DOCUMENT
     // that loads its own stylesheet and script, and the API's deny-everything policy
     // would refuse both. Its assets come from /app/ like the customer surface's.
-    if (path === '/' || path === '/station' || path.startsWith('/app/')) {
+    // '/waiter' joins them at M3-D. Three documents, one policy: a surface that had to
+    // be listed somewhere and was not would be served the API's deny-everything policy
+    // and would render as a blank page with two console errors, which is how this was
+    // found the first time.
+    if (path === '/' || path === '/station' || path === '/waiter'
+        || path.startsWith('/app/')) {
       reply.header('content-security-policy', SURFACE_CSP);
     }
     return payload;

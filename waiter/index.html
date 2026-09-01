@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Floor</title>
+<link rel="stylesheet" href="/app/waiter.css">
+</head>
+<body>
+<a class="skip" href="#next">Skip to what needs doing</a>
+<header>
+  <h1>Floor</h1>
+  <button id="accessibility" type="button" aria-pressed="false">Accessibility mode</button>
+</header>
+<main id="next" tabindex="-1" aria-label="What needs doing next"></main>
+<section id="tables" aria-label="Tables"></section>
+<section id="notifications" aria-label="Notifications"></section>
+<section id="search-panel" aria-label="Find an item">
+  <label for="search">Find an item</label>
+  <input id="search" type="search" autocomplete="off" enterkeyhint="search">
+  <ul id="search-results"></ul>
+</section>
+<section id="confirm-panel" aria-label="Confirm" hidden>
+  <p id="confirm-question"></p>
+  <label id="confirm-reason-label" for="confirm-reason" hidden>Why?</label>
+  <input id="confirm-reason" type="text" hidden>
+  <button id="confirm-yes" type="button"></button>
+  <button id="confirm-no" type="button">Go back</button>
+</section>
+<script src="/app/waiter.js" type="module"></script>
+</body>
+</html>

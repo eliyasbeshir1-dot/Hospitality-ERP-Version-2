@@ -54,6 +54,16 @@ cp "$WORKSPACE/station/station.css" "$WORKSPACE/dist/public/station.css"
 # app.js into the same directory.
 ./node_modules/.bin/tsc -p "$WORKSPACE/station/tsconfig.json" --outDir "$WORKSPACE/dist/public"
 
+# The WAITER surface (M3-D), the same way again. A third surface rather than a mode of
+# either existing one: a guest, a kitchen and a waiter share no audience, no
+# authentication and no fate, and the negative controls plant their defects in this
+# workspace copy so reverting one is a rebuild rather than an edit.
+rm -rf "$WORKSPACE/waiter"
+cp -r "$REPO/waiter" "$WORKSPACE/waiter"
+cp "$WORKSPACE/waiter/index.html" "$WORKSPACE/dist/public/waiter.html"
+cp "$WORKSPACE/waiter/waiter.css" "$WORKSPACE/dist/public/waiter.css"
+./node_modules/.bin/tsc -p "$WORKSPACE/waiter/tsconfig.json" --outDir "$WORKSPACE/dist/public"
+
 echo "built into $WORKSPACE/dist"
 
 if [ "${1:-}" = "--run" ]; then

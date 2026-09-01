@@ -417,19 +417,122 @@ export function registerCustomerRoutes(app: FastifyInstance, deps: CustomerDepen
     async (request, reply) =>
       asGuest(request, reply, async (client, tenantId, outletId, guestId) =>
         idempotent(request, reply, client, tenantId, outletId, 'cart_line', async () => {
+          // Through service.add_cart_line(), not an INSERT that prices the line here.
+          // This route used to call menu.effective_price() inline; the staff route added
+          // at M3-D would then have been a second call site for the same rule, and
+          // FR-POS-003A rejects two implementations that agree today. One writer, two
+          // callers, and neither of them names a pricing function.
           const { rows } = await client.query(
-            `INSERT INTO service.cart_line
-               (tenant_id, outlet_id, cart_id, item_id, variant_id, quantity,
-                currency_code, unit_amount_minor, added_by_guest_session_id)
-             SELECT $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid, $6::integer,
-                    'ETB', menu.effective_price($1::uuid, $2::uuid, $5::uuid, NULL, 'ETB', now()),
-                    $7::uuid
-             RETURNING id`,
+            `SELECT service.add_cart_line($1::uuid, $2::uuid, $3::uuid, $4::uuid,
+                                          $5::uuid, $6::integer, $7::uuid) AS id`,
             [tenantId, outletId, request.body.cartId, request.body.itemId,
              request.body.variantId, request.body.quantity ?? 1, guestId],
           );
           return { id: rows[0].id as string };
         })),
+  );
+
+  /**
+   * FR-ORD-002. The server-calculated preview a guest is shown before committing.
+   *
+   * Added at M3-D, and the reason is worth recording. M3-A built ordering.preview_cart()
+   * and ordering.submit_order() and proved both against the database; no HTTP route ever
+   * called them, because M3-A had no surface and M3-C's surface stopped at the basket.
+   * That was invisible until the golden journeys tried to walk "browse, choose, submit"
+   * as a guest actually does it and found there was nothing to submit THROUGH. A
+   * requirement can be met in SQL and unreachable by the person it is written for.
+   *
+   * It calls exactly what the staff route calls. That is not a coincidence to be
+   * maintained by hand: tests/m3d asserts the two sets of rule functions against each
+   * other, and asserts from the catalog that no second implementation of any of them can
+   * exist.
+   */
+  app.post<{ Body: { cartId: string; locale?: string } }>(
+    '/c/v1/orders/preview',
+    {
+      schema: {
+        body: {
+          type: 'object', required: ['cartId'],
+          properties: {
+            cartId: { type: 'string', format: 'uuid' },
+            locale: { type: 'string' },
+          },
+        },
+      },
+    },
+    async (request, reply) =>
+      asGuest(request, reply, async (client, tenantId, outletId) => {
+        try {
+          const { rows } = await client.query(
+            `SELECT ordering.preview_cart($1::uuid, $2::uuid, $3::uuid,
+                                          $4::menu.customer_locale) AS preview`,
+            [tenantId, outletId, request.body.cartId, request.body.locale ?? 'en'],
+          );
+          return { preview: rows[0]?.preview ?? null };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '';
+          const matched = /\b([A-Z][A-Z_]{4,})\b/.exec(message);
+          reply.code(422);
+          return { error: 'refused', reason: matched && matched[1] ? matched[1] : 'REFUSED' };
+        }
+      }),
+  );
+
+  /** FR-ORD-001A. The guest half of the one submission path, with origin 'guest_qr'. */
+  app.post<{
+    Body: {
+      cartId: string; expectedTotalMinor: number; pricingDigest: string;
+      locale?: string; allergyDeclarations?: unknown[]; notes?: unknown[];
+      repeatIntent?: boolean;
+    };
+  }>(
+    '/c/v1/orders',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['cartId', 'expectedTotalMinor', 'pricingDigest'],
+          properties: {
+            cartId: { type: 'string', format: 'uuid' },
+            expectedTotalMinor: { type: 'integer' },
+            pricingDigest: { type: 'string' },
+            locale: { type: 'string' },
+            allergyDeclarations: { type: 'array' },
+            notes: { type: 'array' },
+            repeatIntent: { type: 'boolean' },
+          },
+        },
+      },
+    },
+    async (request, reply) =>
+      asGuest(request, reply, async (client, tenantId, outletId, guestId) => {
+        const key = idempotencyKey(request);
+        if (!key) {
+          reply.code(400);
+          return { error: 'Idempotency-Key is required', reason: 'IDEMPOTENCY_KEY_ABSENT' };
+        }
+        try {
+          const { rows } = await client.query(
+            `SELECT ordering.submit_order(
+                      $1::uuid, $2::uuid, $3::uuid, $4, decode($5, 'hex'), $6::bigint,
+                      $7::menu.customer_locale, gen_random_uuid(), gen_random_uuid(),
+                      'guest_qr'::ordering.order_origin,
+                      NULL::uuid, $8::uuid, $9::boolean,
+                      $10::jsonb, $11::jsonb) AS id`,
+            [tenantId, outletId, request.body.cartId, key, request.body.pricingDigest,
+             request.body.expectedTotalMinor, request.body.locale ?? 'en', guestId,
+             request.body.repeatIntent ?? false,
+             JSON.stringify(request.body.allergyDeclarations ?? []),
+             JSON.stringify(request.body.notes ?? [])],
+          );
+          return { orderId: rows[0].id as string };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '';
+          const matched = /\b([A-Z][A-Z_]{4,})\b/.exec(message);
+          reply.code(409);
+          return { error: 'refused', reason: matched && matched[1] ? matched[1] : 'REFUSED' };
+        }
+      }),
   );
 
   app.post<{ Body: { tableSessionId: string; allergenId?: string; note?: string } }>(

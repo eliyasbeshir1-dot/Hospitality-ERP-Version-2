@@ -251,9 +251,11 @@
       "aspect": "staff notification centre render",
       "opened_at": "M3-C",
       "completing_gate": "M3-D",
-      "state": "open",
+      "state": "closed",
       "completed_by": "FR-UX-001",
-      "why": "The staff half of FR-NOT-012 says the notification centre RENDERS in English, and rendering a staff screen is staff UX, which M3-D owns. Building one here would hand M3-D a shape from the slice that does not own it — the objection raised at M2-A, M3-A and M3-B. The DATA surface is complete: notify.staff_notification_center() returns each person's own notices with their kind, class, severity, subject, body and read state, refusing anyone without an active membership at the outlet. M3-D adds a screen over finished data rather than finishing the data."
+      "why": "The staff half of FR-NOT-012 says the notification centre RENDERS in English, and rendering a staff screen is staff UX, which M3-D owns. Building one here would hand M3-D a shape from the slice that does not own it — the objection raised at M2-A, M3-A and M3-B. The DATA surface is complete: notify.staff_notification_center() returns each person's own notices with their kind, class, severity, subject, body and read state, refusing anyone without an active membership at the outlet. M3-D adds a screen over finished data rather than finishing the data.",
+      "closed_at": "M3-D",
+      "closed_by_evidence": "M3-C finished the DATA and named M3-D: notify.staff_notification_center() already returned each person's own notices with their kind, class, severity, subject, body and read state, refusing anyone without an active membership at the outlet. M3-D adds the screen over it and nothing else — the waiter surface renders the centre in English, and tests/m3d MEASURES it in Chromium: every notice the query returned is drawn, and each states its severity in words rather than as a colour, because a red dot is a severity nobody can read aloud. No query, payload or column changed to make the screen possible, which is what 'a screen over finished data' was supposed to mean."
     },
     {
       "requirement": "FR-NOT-001",
@@ -299,6 +301,15 @@
       "state": "open",
       "completed_by": "FR-BIL-010",
       "why": "Status and service communications render in the language snapshotted on the table session, with English as the approved fallback, and tests/m3c measures that in a browser. Receipts are the third thing this clause names and they arrive at M4."
+    },
+    {
+      "requirement": "FR-POS-004",
+      "aspect": "unpaid balance on the table view",
+      "opened_at": "M3-D",
+      "completing_gate": "M4",
+      "state": "open",
+      "completed_by": "FR-BIL-001",
+      "why": "FR-POS-004 names an unpaid balance among the things a table view shows, and billing is M4. pos.table_view() carries the COLUMN and returns NULL in it, and the waiter surface draws nothing where a figure would go. A zero would be a number a waiter could act on, and 'nothing outstanding' and 'we have not built billing' are different sentences — the same decision M3-A made when it refused to write a zero fee component. M4 fills a column rather than changing a shape, and tests/m3d asserts the slot is NULL today so the day it stops being NULL is the day somebody meant it to."
     }
   ]
 }

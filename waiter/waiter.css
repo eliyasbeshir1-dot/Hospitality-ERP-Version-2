@@ -1,0 +1,163 @@
+/*
+ * The waiter surface's styles.
+ *
+ * Touch-first (FR-UX-002), readable at arm's length in a room that is darker than an
+ * office (FR-UX-004), and graded by consequence (FR-UX-015).
+ *
+ * THREE rules govern everything below.
+ *
+ * 1. TARGETS ARE BIG ENOUGH TO HIT WHILE CARRYING PLATES. Every control is at least
+ *    48 CSS pixels tall and wide. The suite measures the rendered boxes rather than
+ *    reading this file, because a rule here that a later selector overrides is a rule
+ *    that is not in force.
+ *
+ * 2. NOTHING IS CARRIED BY COLOUR ALONE. Inherited from M3-B, and for the same reason:
+ *    an overdue table and a calm one differ in WORDS and WEIGHT first. Colour is
+ *    reinforcement, never the signal.
+ *
+ * 3. FRICTION IS VISIBLE. A deliberate action does not look like a routine one. The
+ *    difference is not decoration: the confirm panel for a deliberate action shows a
+ *    reason field and refuses to proceed without it, and the suite measures that
+ *    difference rather than trusting this comment.
+ *
+ * Accessibility mode (FR-UX-008) enlarges targets and text, raises contrast and removes
+ * motion. It is a CLASS on the document rather than a separate stylesheet, so nothing
+ * can be styled for one mode and forgotten in the other.
+ */
+:root {
+  --ink: #12161a;
+  --paper: #ffffff;
+  --rule: #6d757d;
+  --target: 48px;
+  --text: 17px;
+  --heading: 22px;
+  color-scheme: light;
+}
+
+html.accessible {
+  --target: 60px;
+  --text: 21px;
+  --heading: 27px;
+  --ink: #000000;
+  --paper: #ffffff;
+  --rule: #000000;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0 0 2rem;
+  background: var(--paper);
+  color: var(--ink);
+  font: var(--text)/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.skip {
+  position: absolute;
+  left: -9999px;
+}
+.skip:focus {
+  left: 0.5rem;
+  top: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  z-index: 10;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid var(--rule);
+}
+
+h1 { font-size: var(--heading); margin: 0; }
+
+h2 {
+  font-size: var(--heading);
+  margin: 1.25rem 1rem 0.5rem;
+}
+
+button {
+  min-height: var(--target);
+  min-width: var(--target);
+  padding: 0.5rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* The next required action on each row is the primary control, and it is heavier and
+ * larger than everything around it. FR-UX-004 asks the screen to prioritise the next
+ * required action; prioritising it means it is measurably bigger, not merely first. */
+button.primary {
+  min-height: calc(var(--target) + 8px);
+  font-size: calc(var(--text) + 2px);
+  border-width: 3px;
+}
+
+/* A deliberate action is drawn differently from a routine one before it is ever
+ * pressed, so nobody discovers the consequence only in the confirmation. */
+button[data-consequence="deliberate"] {
+  border-width: 4px;
+  border-style: double;
+  font-weight: 800;
+}
+
+ul { list-style: none; margin: 0; padding: 0; }
+
+li.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--rule);
+  min-height: var(--target);
+}
+
+/* Overdue is a WORD and a WEIGHT before it is anything else. */
+li.row[data-overdue="true"] .headline { font-weight: 800; }
+li.row[data-overdue="true"] .elapsed::after { content: " — overdue"; font-weight: 800; }
+
+.headline { font-weight: 600; }
+.elapsed { font-variant-numeric: tabular-nums; }
+.meta { color: var(--ink); }
+
+#confirm-panel {
+  position: fixed;
+  inset: auto 0 0 0;
+  padding: 1rem;
+  background: var(--paper);
+  border-top: 4px solid var(--ink);
+}
+
+#confirm-panel[data-consequence="deliberate"] { border-top-width: 8px; }
+
+#confirm-reason { min-height: var(--target); width: 100%; font: inherit; padding: 0.5rem; }
+
+input[type="search"] {
+  min-height: var(--target);
+  width: calc(100% - 2rem);
+  margin: 0 1rem;
+  padding: 0.5rem;
+  font: inherit;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+}
+
+label { display: block; margin: 0.5rem 1rem 0.25rem; font-weight: 600; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+html.accessible * { transition: none !important; animation: none !important; }
