@@ -123,18 +123,26 @@ def section_qr() -> None:
         WHERE n.nspname IN ('safety', 'service') AND c.relkind = 'r'
           AND c.relrowsecurity AND c.relforcerowsecurity;
     """)
+    # The exemptions, named one by one. Reference data and pinned machines carry no
+    # tenant column for a policy to test; everything else in these schemas is tenant
+    # data and is forced. service.transition joined the list when M3-C landed
+    # SM-SERVICE-REQUEST — it is the package's machine, immutable at runtime by trigger,
+    # and readable by the application role and no more.
     reference = count(ADMIN, """
         SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE n.nspname = 'safety' AND c.relkind = 'r'
-          AND c.relname IN ('jurisdiction', 'jurisdiction_requirement');
+        WHERE c.relkind = 'r'
+          AND ((n.nspname = 'safety'
+                AND c.relname IN ('jurisdiction', 'jurisdiction_requirement'))
+            OR (n.nspname = 'service' AND c.relname = 'transition'));
     """)
     record("every tenant-scoped table in safety and service has RLS ENABLEd and FORCEd",
            tables > 0 and forced == tables - reference,
            f"{tables} table(s) across safety and service, {forced} with row level security "
-           f"enabled and forced; the {reference} exception(s) are safety.jurisdiction and "
-           f"safety.jurisdiction_requirement, which are reference data — what a regulator "
-           f"requires is the same fact for every tenant, so there is no tenant column for "
-           f"a policy to test and the application role holds SELECT only")
+           f"enabled and forced; the {reference} exception(s) are safety.jurisdiction, "
+           f"safety.jurisdiction_requirement and service.transition — reference data and "
+           f"a pinned state machine. What a regulator requires, and what edges a service "
+           f"request may take, are the same facts for every tenant, so there is no tenant "
+           f"column for a policy to test and the application role holds SELECT only")
 
     weakened = count(ADMIN, """
         SELECT count(*) FROM pg_policies
@@ -1288,16 +1296,30 @@ def section_allergy_input() -> None:
     # word 'cart' when it built one. "No ticket exists anywhere" was true at M2-B and is
     # now false by design; what M2-B still owns is that NOTHING IT OWNS routes to a
     # station. A station stays configuration as far as this gate is concerned.
+    # Narrowed when M3-C landed, not deleted. 'routing' left this pattern the way
+    # 'cart' left M2-A's and 'order' left M1-C's: M3-C routes a service request to a
+    # WAITER, which is this schema's business and is not a preparation station. What
+    # M2-B still owns is that nothing it owns reaches a STATION — no kitchen ticket, no
+    # KDS, no queue of things to make, and no column naming a station.
     routing = count(ADMIN, """
         SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE c.relkind = 'r' AND n.nspname IN ('menu', 'safety', 'service', 'org')
-          AND c.relname ~* '(^|_)(ticket|kds|routing|prep_queue|fire|course)($|_)';
+          AND c.relname ~* '(^|_)(ticket|kds|prep_queue|station)($|_)';
+    """)
+    station_columns = count(ADMIN, """
+        SELECT count(*) FROM pg_attribute a
+        JOIN pg_class c ON c.oid = a.attrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'r' AND n.nspname IN ('menu', 'safety', 'service')
+          AND a.attnum > 0 AND NOT a.attisdropped
+          AND a.attname ~* '(^|_)station($|_)';
     """)
     record("nothing this slice owns sends anything to a preparation station",
-           routing == 0,
-           f"{routing} such table(s) across menu, safety, service and org. A preparation "
-           f"station is configuration here; routing to one is fulfillment's, and it "
-           f"lives in its own schema (M3-B)")
+           routing == 0 and station_columns == 0,
+           f"{routing} such table(s) and {station_columns} column(s) naming a station "
+           f"across menu, safety and service. A preparation station is configuration "
+           f"here; sending work to one is fulfillment's and lives in its own schema "
+           f"(M3-B). Routing a service request to a waiter is M3-C's and is not that")
 
     # ===== FR-MNU-012, completed =====
     vegan = run(APP, f"""
@@ -1386,13 +1408,15 @@ def section_boundary() -> None:
         SELECT coalesce(string_agg(n.nspname || '.' || c.relname, ', '), '')
         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND c.relname ~* '(^|_)(service_request|check|bill|payment|tip|receipt)($|_)';
+          AND c.relname ~* '(^|_)(check|bill|payment|tip|receipt)($|_)';
     """)
-    record("no service-request or billing surface exists",
+    record("no billing surface exists",
            m3_m4.ok and not (m3_m4.scalar or "").strip(),
            f"{(m3_m4.scalar or '').strip() or 'none'}. A basket before submission is "
            f"FR-TAB-005 and lives here; the order it becomes is M3-A and polices its own "
-           f"boundary; tickets are M3-B, service requests M3-C, billing M4")
+           f"boundary; tickets are M3-B and service requests M3-C, both of which landed "
+           f"and left this pattern the way 'cart' left M2-A's. Billing is M4 and has "
+           f"not")
 
     # Submission itself now exists, in the ordering schema, and M3-A proves it. What this
     # slice must still be able to say is that ITS OWN schemas contain no path across the

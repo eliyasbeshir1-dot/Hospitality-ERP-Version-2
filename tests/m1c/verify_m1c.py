@@ -406,11 +406,27 @@ def section_audit() -> None:
            f"refused by SECURITY_EVENT_UNATTRIBUTED: {unattributed.why()}")
 
     # And a real membership withdrawal — the trigger path, not a direct call — lands a
-    # row. M1-A's ACME fixtures are the only ones carrying an active membership, so the
-    # probe runs under ACME's context. Rolled back, so the membership survives intact.
+    # row. The active membership this needs comes from M1-B's identity fixtures, which
+    # this suite's driver seeds before it runs, and it lives under ACME, so the probe
+    # runs in ACME's context. Rolled back, so the membership survives intact.
+    #
+    # The precondition is asserted rather than assumed. Run this suite against a database
+    # where those fixtures are absent and the UPDATE below matches nothing, the count does
+    # not move, and the failure reads as though the TRIGGER were broken — a diagnostic
+    # naming a cause it never verified. Reading the row first makes the two distinguishable.
     ACME, A1 = "11111111-1111-1111-1111-111111111111", "aaaa0001-0000-4000-8000-000000000001"
     MEMBERSHIP_BOB = "eeee0002-0000-4000-8000-000000000002"
     acme_ctx = dict(tenant=ACME, outlet=A1)
+    precondition = run(APP, f"""
+        SELECT status FROM identity.membership WHERE id = '{MEMBERSHIP_BOB}';
+    """, **acme_ctx)
+    membership_status = (precondition.scalar or "").strip() if precondition.ok else ""
+    record("the membership this probe withdraws is present and active before it runs",
+           membership_status == "active",
+           f"identity.membership {MEMBERSHIP_BOB[:8]} reads "
+           f"{membership_status or 'absent'!r}. Asserted so that a missing fixture cannot "
+           f"be reported below as a broken trigger")
+
     withdrawal_before = count(APP, """
         SELECT count(*) FROM audit.security_event WHERE event_code = 'membership.withdrawn';
     """, **acme_ctx)
@@ -422,12 +438,23 @@ def section_audit() -> None:
         SELECT count(*)::text FROM audit.security_event WHERE event_code = 'membership.withdrawn';
     """, rollback=True, **acme_ctx)
     withdrawal_after = int(withdrawn.rows[-1][0]) if withdrawn.ok and withdrawn.rows else -1
+    if not withdrawn.ok:
+        why_withdrawn = f"the withdrawal did not run: {withdrawn.why()}"
+    elif membership_status != "active":
+        why_withdrawn = (
+            f"there was no active membership to withdraw — the row reads "
+            f"{membership_status or 'absent'!r} — so the UPDATE matched nothing and the "
+            f"count stayed at {withdrawal_before}. Nothing is claimed here about the "
+            f"trigger: this run never gave it anything to fire on")
+    else:
+        why_withdrawn = (
+            f"withdrawing a membership raised the stored count from {withdrawal_before} "
+            f"to {withdrawal_after} with no INSERT by this test; the emitter was reached "
+            f"through identity.revoke_sessions_on_membership_change. Rolled back afterwards.")
     record("a real membership withdrawal lands a security event through the trigger",
-           withdrawn.ok and withdrawal_after == withdrawal_before + 1,
-           f"withdrawing a membership raised the stored count from {withdrawal_before} to "
-           f"{withdrawal_after} with no INSERT by this test; the emitter was reached through "
-           f"identity.revoke_sessions_on_membership_change. Rolled back afterwards."
-           if withdrawn.ok else f"the withdrawal did not run: {withdrawn.why()}")
+           withdrawn.ok and membership_status == "active"
+           and withdrawal_after == withdrawal_before + 1,
+           why_withdrawn)
 
 
 # ===========================================================================

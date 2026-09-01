@@ -99,6 +99,25 @@ def definition(signature: str) -> str:
 
 CONTEXT: dict = {}
 
+# An idempotency key is a claim that two calls are the same call. A key written as a
+# literal here would be the same claim in every run of this suite, so a second run
+# against a database the first one touched is refused by service.claim_idempotency() —
+# correctly, because it IS a reused key. The suite is what is wrong in that case, not
+# the refusal, so every key it sends carries a nonce minted once per run. Readable
+# within a run, distinct across runs, and never the reason a re-run fails.
+RUN_NONCE = os.urandom(6).hex()
+
+
+def idem(label: str) -> str:
+    """A run-unique idempotency key that still says what it was for."""
+    return f"m3c-{label}-{RUN_NONCE}"
+
+
+# The same reasoning for the deep-link token: notify.deep_link indexes the DIGEST of a
+# token uniquely, so a literal token here would be the same link in every run and the
+# second run would collide with the first run's row.
+STAFF_LINK_TOKEN = f"m3c-token-staff-{RUN_NONCE}"
+
 
 # ===========================================================================
 # The pinned package, loaded the way the fenced vocabulary is
@@ -549,7 +568,7 @@ def raise_request(seated: dict, code: str, *, key: str | None = None,
     return run(APP, f"""
         SELECT service.raise_request('{fx.TENANT}', '{fx.OUTLET_H1}',
             '{seated["session"]}', '{fx.request_type(code)}',
-            '{key or f"m3c-{os.urandom(6).hex()}"}',
+            '{key or idem(os.urandom(6).hex())}',
             {"NULL" if user else f"'{seated['guest']}'"},
             {f"'{user}'" if user else "NULL"}, NULL,
             {f"$n${note}$n$" if note else "NULL"}, {str(deliberate).lower()});""", **CTX)
@@ -607,7 +626,7 @@ def section_catalog_and_lifecycle() -> None:
     CONTEXT["seated"] = seated
     fx.set_presence("available")
 
-    raised = raise_request(seated, "water", key="m3c-route-1")
+    raised = raise_request(seated, "water", key=idem("route-1"))
     record("FR-SRV-002: a request raised by a seated guest routes to somebody",
            raised.ok,
            raised.why() or "raised and routed in one call: a request with nobody "
@@ -633,7 +652,7 @@ def section_catalog_and_lifecycle() -> None:
     # Availability is a real input, not a decoration: with nobody available the same
     # request routes on a different basis.
     fx.clear_presence()
-    away = raise_request(seated, "cutlery", key="m3c-route-2")
+    away = raise_request(seated, "cutlery", key=idem("route-2"))
     basis = scalar(f"""
         SELECT d.basis FROM service.request_routing_decision d
         JOIN service.service_request sr ON sr.id = d.service_request_id
@@ -697,7 +716,7 @@ def section_catalog_and_lifecycle() -> None:
            f"acknowledgement and completion timestamps to be retained, and they are")
 
     # --- FR-SRV-008, staff-raised tasks ---
-    task = raise_request(seated, "missing_item", key="m3c-task-1", user=fx.USER,
+    task = raise_request(seated, "missing_item", key=idem("task-1"), user=fx.USER,
                          note="table asked about a missing side")
     task_row = rows(f"""
         SELECT origin::text, coalesce(raised_by_user_id::text, '-'),
@@ -729,14 +748,14 @@ def section_deduplication() -> None:
     seated = fx.a_seated_guest(table=fx.TABLE_TWO)
     CONTEXT["dedup_seated"] = seated
 
-    first = raise_request(seated, "water", key="dedup-1")
+    first = raise_request(seated, "water", key=idem("dedup-1"))
     one = (first.scalar or "").strip()
     record("a first ask raises a request",
            first.ok and live_requests(seated["session"], "water") == 1,
            f"{first.why() or one[:8]}, 1 request on the session")
 
     # --- the accidental side ---
-    second = raise_request(seated, "water", key="dedup-2")
+    second = raise_request(seated, "water", key=idem("dedup-2"))
     record("a second tap inside the window collapses into the one already open",
            second.ok and (second.scalar or "").strip() == one
            and live_requests(seated["session"], "water") == 1,
@@ -757,7 +776,7 @@ def section_deduplication() -> None:
            f"avoided")
 
     # --- the deliberate side, inside the same window ---
-    deliberate = raise_request(seated, "water", key="dedup-3", deliberate=True)
+    deliberate = raise_request(seated, "water", key=idem("dedup-3"), deliberate=True)
     after = live_requests(seated["session"], "water")
     ordinals = [r[0] for r in rows(f"""
         SELECT repeat_ordinal::text FROM service.service_request
@@ -786,7 +805,7 @@ def section_deduplication() -> None:
            SET raised_at = raised_at - interval '10 minutes'
          WHERE table_session_id = '{seated["session"]}'
            AND request_type_id = '{fx.request_type("water")}';""", tx=True)
-    later = raise_request(seated, "water", key="dedup-4")
+    later = raise_request(seated, "water", key=idem("dedup-4"))
     record("an ordinary ask long after the window is a new request too",
            later.ok and live_requests(seated["session"], "water") == 3,
            f"{live_requests(seated['session'], 'water')} requests. 'Rapid repeated taps' "
@@ -794,8 +813,9 @@ def section_deduplication() -> None:
            f"person asking again")
 
     # --- and a retry is neither ---
-    retry = raise_request(seated, "cutlery", key="dedup-retry")
-    same = raise_request(seated, "cutlery", key="dedup-retry")
+    retry_key = idem("dedup-retry")
+    retry = raise_request(seated, "cutlery", key=retry_key)
+    same = raise_request(seated, "cutlery", key=retry_key)
     record("FR-INT-005: the SAME command arriving twice returns the original outcome",
            retry.ok and same.ok
            and (retry.scalar or "").strip() == (same.scalar or "").strip()
@@ -807,7 +827,7 @@ def section_deduplication() -> None:
 
     reused = run(APP, f"""
         SELECT service.raise_request('{fx.TENANT}', '{fx.OUTLET_H1}',
-            '{seated["session"]}', '{fx.request_type("packaging")}', 'dedup-retry',
+            '{seated["session"]}', '{fx.request_type("packaging")}', '{retry_key}',
             '{seated["guest"]}');""", **CTX)
     record("and a key reused for a different command is refused rather than answered",
            reused.failed_with("IDEMPOTENCY_KEY_REUSED"),
@@ -928,7 +948,7 @@ def section_sla_and_escalation() -> None:
 
     fx.set_presence("available")
     seated = fx.a_seated_guest()
-    raised = raise_request(seated, "assistance", key="sla-1")
+    raised = raise_request(seated, "assistance", key=idem("sla-1"))
     request = (raised.scalar or "").strip()
 
     deadline = rows(f"""
@@ -1015,7 +1035,7 @@ def section_sla_and_escalation() -> None:
     # --- expiry ---
     expiring = fx.a_seated_guest(table=fx.TABLE_TWO)
     fx.set_presence("available")
-    raise_request(expiring, "cutlery", key="expire-1")
+    raise_request(expiring, "cutlery", key=idem("expire-1"))
     expired = run(APP, f"""
         SELECT service.expire_requests_for_session('{fx.TENANT}',
                                                    '{expiring["session"]}');""", **CTX)
@@ -1051,7 +1071,7 @@ def section_no_sensitive_leakage() -> None:
     run(APP, f"""
         UPDATE service.guest_session SET display_nickname = '{CANARIES["guest nickname"]}'
          WHERE id = '{seated["guest"]}';""", **CTX)
-    raised = raise_request(seated, "assistance", key="leak-1",
+    raised = raise_request(seated, "assistance", key=idem("leak-1"),
                            note=CANARIES["customer note"])
     request = (raised.scalar or "").strip()
     run(APP, f"""
@@ -1173,11 +1193,11 @@ def section_templates_and_links() -> None:
         SELECT dl.id::text FROM notify.notice dl
         WHERE dl.tenant_id = '{fx.TENANT}' AND dl.audience = 'staff' LIMIT 1;""")
     issued = run(APP, f"""
-        SELECT notify.issue_deep_link('{fx.TENANT}', '{notice}', 'm3c-token-staff',
+        SELECT notify.issue_deep_link('{fx.TENANT}', '{notice}', '{STAFF_LINK_TOKEN}',
             'service_request', '{CONTEXT["request"]}', NULL);""", **CTX)
     resolved = rows(f"""
         SELECT target_kind::text, target_id::text
-        FROM notify.resolve_deep_link('{fx.TENANT}', 'm3c-token-staff', NULL,
+        FROM notify.resolve_deep_link('{fx.TENANT}', '{STAFF_LINK_TOKEN}', NULL,
                                       '{fx.USER}');""")
     record("FR-NOT-009: a link resolves for somebody authorized at its outlet",
            issued.ok and resolved and resolved[0][0] == "service_request",
@@ -1186,7 +1206,7 @@ def section_templates_and_links() -> None:
            f"scope asks")
 
     outsider = run(APP, f"""
-        SELECT * FROM notify.resolve_deep_link('{fx.TENANT}', 'm3c-token-staff', NULL,
+        SELECT * FROM notify.resolve_deep_link('{fx.TENANT}', '{STAFF_LINK_TOKEN}', NULL,
                                                '{fx.USER_WAITER_B}');""", **CTX)
     record("and refuses somebody who is not a member of that outlet",
            outsider.failed_with("DEEP_LINK_OUT_OF_SCOPE"),
@@ -1199,7 +1219,7 @@ def section_templates_and_links() -> None:
     plaintext = count(APP, f"""
         SELECT count(*) FROM notify.deep_link
         WHERE tenant_id = '{fx.TENANT}'
-          AND encode(token_digest, 'escape') LIKE '%m3c-token%';""", **CTX)
+          AND encode(token_digest, 'escape') LIKE '%{STAFF_LINK_TOKEN}%';""", **CTX)
     record("the token is stored as a digest and never in the clear",
            stored and stored[0][1] == "32" and plaintext == 0,
            f"sha256, {stored[0][1]} bytes, {plaintext} row(s) holding the plaintext. "
@@ -1211,7 +1231,7 @@ def section_templates_and_links() -> None:
         SELECT set_config('app.outlet_id', '{fx.OUTLET_H1}', false);
         UPDATE notify.deep_link SET expires_at = now() - interval '1 minute'
          WHERE tenant_id = '{fx.TENANT}';
-        SELECT * FROM notify.resolve_deep_link('{fx.TENANT}', 'm3c-token-staff', NULL,
+        SELECT * FROM notify.resolve_deep_link('{fx.TENANT}', '{STAFF_LINK_TOKEN}', NULL,
                                                '{fx.USER}');""", rollback=True)
     record("an expired link is refused by name, not merely 'not found'",
            expired.failed_with("DEEP_LINK_EXPIRED"),
@@ -1223,7 +1243,7 @@ def section_templates_and_links() -> None:
     # The outlet boundary has TWO locks and they are proved separately, because under
     # ordinary row level security the second can never fire.
     cross = run(APP, f"""
-        SELECT * FROM notify.resolve_deep_link('{fx.TENANT}', 'm3c-token-staff', NULL,
+        SELECT * FROM notify.resolve_deep_link('{fx.TENANT}', '{STAFF_LINK_TOKEN}', NULL,
                                                '{fx.USER}');""",
         tenant=fx.TENANT, outlet=fx.OUTLET_H2)
     record("lock one: from another outlet the link is not even visible",
@@ -1305,7 +1325,7 @@ def section_dead_letter() -> None:
 
     fx.set_presence("available")
     seated = fx.a_seated_guest()
-    raised = raise_request(seated, "packaging", key="dl-1")
+    raised = raise_request(seated, "packaging", key=idem("dl-1"))
     request = (raised.scalar or "").strip()
 
     # FAILURE ONE: the recipient's authorization was withdrawn between the event
@@ -1362,7 +1382,7 @@ def section_dead_letter() -> None:
 
     # FAILURE THREE: the guest is no longer live on the session.
     gone_seated = fx.a_seated_guest(table=fx.TABLE_TWO)
-    raise_request(gone_seated, "water", key="dl-3")
+    raise_request(gone_seated, "water", key=idem("dl-3"))
     run(APP, f"""
         UPDATE service.session_participant SET left_at = now()
          WHERE table_session_id = '{gone_seated["session"]}';""", **CTX)
@@ -1494,13 +1514,13 @@ def section_customer_surface() -> None:
            f"request type an outlet invented is translated too")
 
     raised = guest_post("/c/v1/service/requests", token,
-                        {"requestTypeId": fx.request_type("water")}, "surface-1")
+                        {"requestTypeId": fx.request_type("water")}, idem("surface-1"))
     record("a guest raises a request from their own device",
            raised.get("collapsed") is False and "serviceRequestId" in raised,
            f"{raised}")
 
     collapsed = guest_post("/c/v1/service/requests", token,
-                           {"requestTypeId": fx.request_type("water")}, "surface-2")
+                           {"requestTypeId": fx.request_type("water")}, idem("surface-2"))
     record("and a second tap is reported as collapsed rather than as an error",
            collapsed.get("collapsed") is True
            and collapsed.get("serviceRequestId") == raised.get("serviceRequestId"),
