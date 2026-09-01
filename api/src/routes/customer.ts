@@ -334,10 +334,22 @@ export function registerCustomerRoutes(app: FastifyInstance, deps: CustomerDepen
       const tableSessionId = sessions[0].id as string;
 
       const { rows } = await client.query(
+        // "Open" is not the same as "usable". service.cart_state has no 'submitted'
+        // label on purpose — submission is a fact about an ORDER that references the
+        // cart, and service.refuse_change_to_submitted_cart() reads exactly that. This
+        // CTE did not, so a guest who had ordered was handed the same frozen basket
+        // forever and every later line was refused. GJ-02's second order and GJ-04's
+        // later add-on both walked into it; no slice check did, because none of them
+        // asks for a basket twice with a submission in between. The condition here is
+        // the trigger's own, so the route and the trigger cannot come to disagree about
+        // what "already ordered" means.
         `WITH existing AS (
-           SELECT id FROM service.cart
-            WHERE table_session_id = $3::uuid AND owner_guest_session_id = $4::uuid
-              AND state = 'open'
+           SELECT c.id FROM service.cart c
+            WHERE c.table_session_id = $3::uuid AND c.owner_guest_session_id = $4::uuid
+              AND c.state = 'open'
+              AND NOT EXISTS (SELECT 1 FROM ordering.customer_order o
+                               WHERE o.tenant_id = c.tenant_id AND o.cart_id = c.id
+                                 AND o.state <> 'rejected')
          ), created AS (
            INSERT INTO service.cart
              (tenant_id, outlet_id, table_session_id, kind, owner_guest_session_id)
@@ -415,21 +427,41 @@ export function registerCustomerRoutes(app: FastifyInstance, deps: CustomerDepen
       },
     },
     async (request, reply) =>
-      asGuest(request, reply, async (client, tenantId, outletId, guestId) =>
-        idempotent(request, reply, client, tenantId, outletId, 'cart_line', async () => {
-          // Through service.add_cart_line(), not an INSERT that prices the line here.
-          // This route used to call menu.effective_price() inline; the staff route added
-          // at M3-D would then have been a second call site for the same rule, and
-          // FR-POS-003A rejects two implementations that agree today. One writer, two
-          // callers, and neither of them names a pricing function.
-          const { rows } = await client.query(
-            `SELECT service.add_cart_line($1::uuid, $2::uuid, $3::uuid, $4::uuid,
-                                          $5::uuid, $6::integer, $7::uuid) AS id`,
-            [tenantId, outletId, request.body.cartId, request.body.itemId,
-             request.body.variantId, request.body.quantity ?? 1, guestId],
-          );
-          return { id: rows[0].id as string };
-        })),
+      asGuest(request, reply, async (client, tenantId, outletId, guestId) => {
+        try {
+          return await idempotent(
+            request, reply, client, tenantId, outletId, 'cart_line', async () => {
+              // Through service.add_cart_line(), not an INSERT that prices the line
+              // here. This route used to call menu.effective_price() inline; the staff
+              // route added at M3-D would then have been a second call site for the same
+              // rule, and FR-POS-003A rejects two implementations that agree today. One
+              // writer, two callers, and neither of them names a pricing function.
+              const { rows } = await client.query(
+                `SELECT service.add_cart_line($1::uuid, $2::uuid, $3::uuid, $4::uuid,
+                                              $5::uuid, $6::integer, $7::uuid) AS id`,
+                [tenantId, outletId, request.body.cartId, request.body.itemId,
+                 request.body.variantId, request.body.quantity ?? 1, guestId],
+              );
+              return { id: rows[0].id as string };
+            });
+        } catch (error) {
+          // A named domain refusal is not a server fault, and until M3-D this route
+          // reported one as a 500. GJ-04 walked into it: a guest who orders and then
+          // adds a later round hits CART_ALREADY_SUBMITTED, which is the basket
+          // correctly refusing to change what somebody agreed to — and the guest was
+          // shown a broken server instead of a reason. No slice check saw it, because
+          // none of them adds a line to a cart it has already submitted.
+          //
+          // Outside idempotent() rather than inside: a refusal is not a RESULT, and
+          // recording one against the idempotency key would answer the guest's retry
+          // with the refusal instead of letting them try again.
+          const message = error instanceof Error ? error.message : '';
+          const matched = /\b([A-Z][A-Z_]{4,})\b/.exec(message);
+          if (!matched) throw error;
+          reply.code(409);
+          return { error: 'refused', reason: matched[1] };
+        }
+      }),
   );
 
   /**

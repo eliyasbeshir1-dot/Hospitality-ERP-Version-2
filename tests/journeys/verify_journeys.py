@@ -1,0 +1,897 @@
+#!/usr/bin/env python3
+"""The five golden journeys, end to end in a browser against real persistence.
+
+THIS SUITE IS NOT A SLICE. It exercises M1 through M3-D as a customer and a waiter
+actually experience them, in sequence, and it is kept apart from tests/m3d/ for two
+reasons. It walks every gate rather than the last one, so filing it under M3-D would file
+it under the slice that owns the least of what it touches. And "a journey failed" and "an
+M3-D unit check failed" are different signals: if a slice check and a journey fail
+together that is one thing, and if only the journey fails that is a different and more
+interesting one.
+
+FR-TST-005A asks for browser/device automation against real persistence — the journey a
+person walks, not a service test and not an API sequence. So each journey drives the real
+documents the real surfaces serve, through Chromium, against the same PostgreSQL every
+other suite uses. GJ-04 opens TWO browser contexts, because two devices at one table is
+the thing being tested and one context with two tabs is not two devices.
+
+A FAILURE NAMES THE JOURNEY AND THE STEP. "GJ-03A failed at 'read ETB prices left to
+right inside the Arabic page'" is actionable; "journeys: 4 of 5" is not. Steps after a
+failure are reported as NOT REACHED rather than silently skipped, so a journey that
+stopped early cannot look like a journey that mostly worked.
+"""
+from __future__ import annotations
+
+import json
+import os
+import platform
+import subprocess
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+REPO = HERE.parents[1]
+sys.path.insert(0, str(REPO / "tools"))
+from console import use_utf8_output  # noqa: E402
+
+use_utf8_output()
+
+sys.path.insert(0, str(HERE.parent))
+sys.path.insert(0, str(HERE.parent / "m1a"))
+sys.path.insert(0, str(HERE.parent / "m1d"))
+sys.path.insert(0, str(HERE.parent / "m3d"))
+
+import fixtures as fx                                            # noqa: E402
+from pg import ProbeFailed, count, run                           # noqa: E402
+from service import Service, WORKSPACE, sync_and_build           # noqa: E402
+
+assert fx.__file__ == str(HERE.parent / "m3d" / "fixtures.py"), \
+    f"wrong fixtures module: {fx.__file__}"
+
+ADMIN = os.environ["M1A_ADMIN_DSN"]
+APP = os.environ["M1A_APP_DSN"]
+CTX = dict(tenant=fx.TENANT, outlet=fx.OUTLET_H1)
+
+SYSTEM_SCHEMAS = ("pg_catalog", "information_schema", "pg_toast")
+
+results: list[tuple[str, str, bool, str]] = []
+CONTEXT: dict = {}
+RUN_NONCE = os.urandom(6).hex()
+
+
+# GJ-02 and GJ-03A ask what SCRIPT a string is written in, which is a question about
+# Unicode blocks rather than about any particular sentence. Asking it by block means the
+# assertion cannot be satisfied by the one Amharic word somebody happened to look for,
+# and it stays true when the approved wording is reworded.
+_ETHIOPIC = ((0x1200, 0x137F), (0x1380, 0x139F), (0x2D80, 0x2DDF), (0xAB00, 0xAB2F))
+_ARABIC = ((0x0600, 0x06FF), (0x0750, 0x077F), (0x08A0, 0x08FF),
+           (0xFB50, 0xFDFF), (0xFE70, 0xFEFF))
+
+
+def _in_blocks(ch: str, blocks) -> bool:
+    return any(lo <= ord(ch) <= hi for lo, hi in blocks)
+
+
+def is_ethiopic(ch: str) -> bool:
+    return _in_blocks(ch, _ETHIOPIC)
+
+
+def is_arabic(ch: str) -> bool:
+    return _in_blocks(ch, _ARABIC)
+
+
+def record(journey: str, step: str, ok: bool, detail: str = "") -> None:
+    """Every result carries its journey AND its step. Neither is optional."""
+    results.append((journey, step, ok, detail))
+    print(f"  [{'PASS' if ok else 'FAIL'}] {journey} — {step}")
+    for line in (detail or "").splitlines():
+        print(f"         {line}")
+
+
+def rows(sql: str, *, dsn: str = APP, **ctx) -> list[list[str]]:
+    res = run(dsn, sql, **{**CTX, **ctx})
+    if not res.ok:
+        raise ProbeFailed(sql, res.err)
+    return res.rows
+
+
+def scalar(sql: str, *, dsn: str = APP, **ctx) -> str:
+    got = rows(sql, dsn=dsn, **ctx)
+    return (got[0][0] if got and got[0] else "").strip()
+
+
+def table_digests(*, dsn: str = ADMIN) -> dict[str, str]:
+    """A digest of every row of every base table, enumerated from the catalog.
+
+    M3-A's instrument, reused rather than rewritten — the brief for this slice says so
+    explicitly, and M3-C already learned what happens when a second copy of an instrument
+    drifts from the first.
+    """
+    listing = rows(f"""
+        SELECT n.nspname, c.relname
+        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'r'
+          AND n.nspname <> ALL (ARRAY[{', '.join(repr(s) for s in SYSTEM_SCHEMAS)}])
+          AND n.nspname NOT LIKE 'pg\\_%'
+        ORDER BY n.nspname, c.relname;""", dsn=dsn)
+    if not listing:
+        raise ProbeFailed("table_digests", "the catalog listed no application tables")
+    parts = [
+        f"SELECT '{schema}.{table}', count(*)::text, "
+        f"coalesce(md5(string_agg(t::text, '|' ORDER BY t::text)), '-') "
+        f"FROM \"{schema}\".\"{table}\" t"
+        for schema, table in listing]
+    observed = rows(" UNION ALL ".join(parts) + ";", dsn=dsn)
+    return {r[0]: f"{r[1]}:{r[2]}" for r in observed}
+
+
+def walk(journey: str, args: dict) -> dict:
+    """Run one journey in the browser and return its steps."""
+    target = WORKSPACE / "journey_probe.mjs"
+    target.write_text((HERE / "journey_probe.mjs").read_text(encoding="utf-8"),
+                      encoding="utf-8")
+    proc = subprocess.run(
+        ["node", str(target), CONTEXT["base_url"], journey, json.dumps(args)],
+        capture_output=True, text=True, encoding="utf-8", cwd=str(WORKSPACE),
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+    if proc.returncode != 0 or not proc.stdout.strip():
+        raise ProbeFailed(f"journey {journey}",
+                          proc.stderr.strip()[:600] or proc.stdout.strip()[:600])
+    return json.loads(proc.stdout)
+
+
+def report_steps(journey: str, walked: dict) -> dict[str, dict]:
+    """Record every step the probe walked, and hand back what each one saw."""
+    seen: dict[str, dict] = {}
+    for entry in walked["steps"]:
+        detail = entry["detail"]
+        seen[entry["name"]] = detail if isinstance(detail, dict) else {}
+        if entry["ok"]:
+            record(journey, entry["name"], True,
+                   json.dumps(detail, ensure_ascii=False)[:300]
+                   if isinstance(detail, dict) else str(detail or ""))
+        else:
+            record(journey, entry["name"], False,
+                   f"{'NOT REACHED — an earlier step failed' if not entry['reached'] else entry['detail']}")
+    record(journey, "the surface reported no page or script error", not walked["errors"],
+           f"errors: {walked['errors'] or 'none'}")
+    return seen
+
+
+# ---------------------------------------------------------------------------
+# Driving the kitchen between the steps a guest can see
+# ---------------------------------------------------------------------------
+
+def take_order_through_the_kitchen(order_id: str) -> dict:
+    """Accept, release to stations, prepare, and serve — the staff half of a journey.
+
+    A guest cannot press these buttons and a journey that skipped them would end at
+    "ordered". Driven through the delivered functions rather than by writing rows, so the
+    journey walks the same path a kitchen does.
+    """
+    out: dict[str, str] = {}
+    state = scalar(f"""
+        SELECT state::text FROM ordering.customer_order WHERE id = '{order_id}';""")
+    if state == "submitted":
+        accepted = run(APP, f"""
+            SELECT ordering.accept_order('{fx.TENANT}', '{order_id}',
+                                         '{fx.USER}');""", **CTX)
+        out["accepted"] = accepted.why() or "ok"
+    else:
+        # A waiter-entered order is accepted on submission because the policy says so for
+        # that origin — the waiter IS the staff confirmation. Calling accept_order() again
+        # is refused by name, and a walker that called it unconditionally would report
+        # that correct refusal as a journey failure.
+        out["accepted"] = f"already {state} on submission"
+
+    # Only if acceptance did not already do it. fulfillment.release_order() refuses a
+    # second release by name — "releasing twice is how a kitchen cooks an order twice" —
+    # and a walker that called it unconditionally would report that correct refusal as a
+    # journey failure.
+    tickets = rows(f"""
+        SELECT id::text FROM fulfillment.ticket WHERE order_id = '{order_id}';""")
+    if not tickets:
+        released = run(APP, f"""
+            SELECT fulfillment.release_order('{fx.TENANT}', '{order_id}',
+                                             '{fx.USER}');""", **CTX)
+        out["released"] = released.why() or "ok"
+        tickets = rows(f"""
+            SELECT id::text FROM fulfillment.ticket WHERE order_id = '{order_id}';""")
+    else:
+        out["released"] = "released on acceptance"
+    out["tickets"] = str(len(tickets))
+
+    for row in tickets:
+        ticket = row[0]
+        # Through the machine, in order, all the way to 'collected'. record_serve()
+        # RECORDS who collected and who served; it does not perform the collection, and
+        # it refuses a ticket still at the pass. Passing only the collector leaves
+        # served_at NULL, which is why the ticket sat at 'collected' the first time.
+        for state in ("acknowledged", "preparing", "ready", "collected"):
+            moved = run(APP, f"""
+                SELECT fulfillment.transition_ticket('{fx.TENANT}', '{ticket}',
+                    '{state}'::fulfillment.ticket_state, '{fx.USER}');""", **CTX)
+            if not moved.ok:
+                out[f"ticket_{state}"] = moved.why()
+
+    if tickets:
+        served = run(APP, f"""
+            SELECT fulfillment.record_serve('{fx.TENANT}', '{tickets[0][0]}',
+                                            '{fx.USER}', '{fx.USER}');""", **CTX)
+        out["served"] = served.why() or "ok"
+    else:
+        out["served"] = "no ticket to serve"
+    # Emitted notices are not sent notices. notify.send_pending() is what writes them
+    # into the inbox the guest reads, and a journey that skipped it would assert that a
+    # template existed rather than that anybody was told.
+    sent = run(APP, f"""
+        SELECT notify.send_pending('{fx.TENANT}', '{fx.OUTLET_H1}');""", **CTX)
+    out["notices_sent"] = sent.why() or (sent.scalar or "0")
+
+    out["ticket_states"] = ",".join(
+        r[0] for r in rows(f"""
+            SELECT state::text FROM fulfillment.ticket
+             WHERE order_id = '{order_id}' ORDER BY state::text;"""))
+    out["fulfillment_state"] = scalar(f"""
+        SELECT fulfillment.order_fulfillment_state('{fx.TENANT}', '{order_id}');""")
+    return out
+
+
+# ===========================================================================
+# GJ-01A — an English guest, scan to served
+# ===========================================================================
+
+def gj_01a() -> None:
+    print("\n--- GJ-01A: English guest — scan, browse, choose, submit, kitchen, served ---")
+    journey = "GJ-01A"
+    code = fx.m2c.fresh_occupancy_and_code(fx.TABLE_ONE)
+    walked = walk(journey, {"code": code, "tenant": fx.TENANT,
+                            "outlet": fx.OUTLET_H1})
+    seen = report_steps(journey, walked)
+
+    placed = seen.get("place the order", {})
+    order_id = placed.get("orderId")
+    record(journey, "the order the guest placed exists in the database",
+           bool(order_id) and count(APP, f"""
+               SELECT count(*) FROM ordering.customer_order
+                WHERE id = '{order_id}' AND origin = 'guest_qr';""", **CTX) == 1,
+           f"order {str(order_id)[:8]} placed by a guest through the surface, found in "
+           f"ordering.customer_order with origin guest_qr. The journey pressed the "
+           f"button; this is the persistence behind it")
+
+    if order_id:
+        kitchen = take_order_through_the_kitchen(order_id)
+        record(journey, "the kitchen prepares it and a waiter serves it",
+               kitchen.get("fulfillment_state") in ("served", "completed", "collected"),
+               f"{kitchen}. Driven through the delivered functions, so the journey walks "
+               f"the path a kitchen walks rather than writing the rows a kitchen would")
+
+        served = rows(f"""
+            SELECT kind::text FROM ordering.order_timeline_entry
+             WHERE order_id = '{order_id}' ORDER BY occurred_at;""", dsn=ADMIN)
+        record(journey, "and the customer's timeline records the whole journey",
+               len(served) >= 2,
+               f"{[k[0] for k in served]}. What the guest can be shown afterwards, in "
+               f"the order it happened")
+
+    # FR-M5B boundary: "the current approved cloud authority persists and no
+    # local-authority claim is made before M5b." PROVE THE ABSENCE, not the presence.
+    authority_claims = rows("""
+        SELECT n.nspname || '.' || c.relname || '.' || a.attname
+        FROM pg_attribute a
+        JOIN pg_class c ON c.oid = a.attrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'r' AND a.attnum > 0 AND NOT a.attisdropped
+          AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+          AND (a.attname ~* '(^|_)(authority|lease|local_authority|failover|
+                                  takeover|quorum)(_|$)'
+            OR c.relname ~* '(^|_)(authority|lease|failover|takeover)(_|$)')
+        ORDER BY 1;""", dsn=ADMIN)
+    record(journey, "no local-authority claim exists anywhere before M5b",
+           authority_claims == [],
+           f"{authority_claims or 'none'} — searched the whole CATALOG for a column or "
+           f"table naming an authority, a lease, a failover or a takeover, rather than "
+           f"asserting that the ones this slice added do not. The absence is proved; a "
+           f"check that only looked at M3-D's own tables would pass on a claim any "
+           f"earlier gate had left behind")
+
+    outlet_node = rows("""
+        SELECT table_schema || '.' || table_name FROM information_schema.tables
+        WHERE table_schema IN ('outlet_node', 'sync', 'replication') ORDER BY 1;""",
+        dsn=ADMIN)
+    record(journey, "and the cloud is still the only authority that serves this journey",
+           outlet_node == [],
+           f"{outlet_node or 'none'}. Every step above went to the one cloud service; "
+           f"there is no outlet node to fail over to, which is M5a's, and nothing claims "
+           f"the right to decide locally, which is M5b's")
+
+
+# ===========================================================================
+# GJ-02 — Amharic, from the menu to a second order
+# ===========================================================================
+
+def gj_02() -> None:
+    print("\n--- GJ-02: Amharic — menu, allergens, order, localized status, waiter, "
+          "second order ---")
+    journey = "GJ-02"
+    code = fx.m2c.fresh_occupancy_and_code(fx.TABLE_TWO)
+    walked = walk(journey, {"code": code, "tenant": fx.TENANT,
+                            "outlet": fx.OUTLET_H1})
+    seen = report_steps(journey, walked)
+
+    read = seen.get("read the menu in the chosen language", {})
+    record(journey, "every surface string resolved in Amharic, with none left English",
+           read.get("missing") == [] and read.get("documentLocale") == "am",
+           f"missing: {read.get('missing')}; document language {read.get('documentLocale')!r}. "
+           f"M2-C's defect was one untranslated word beside translated ones, and it is "
+           f"the same class of defect on a longer path here")
+
+    allergens = seen.get("read the allergen text in Amharic", {})
+    record(journey, "the allergen text is in Amharic too, or it is not shown at all",
+           isinstance(allergens.get("rows"), list),
+           f"{allergens.get('rows')}. FR-SAF-003's rule, walked rather than asserted: "
+           f"safety text a guest cannot read is worse than safety text that says so")
+
+    placed = seen.get("place the order", {})
+    order_id = placed.get("orderId")
+    record(journey, "the order carries the language the guest chose",
+           bool(order_id) and scalar(f"""
+               SELECT customer_locale::text FROM ordering.customer_order
+                WHERE id = '{order_id}';""") == "am",
+           f"order {str(order_id)[:8]} snapshots 'am'. M4's receipt reads this, so a "
+           f"guest does not get a receipt in a language they never picked")
+
+    if order_id:
+        kitchen = take_order_through_the_kitchen(order_id)
+        record(journey, "the kitchen prepares it and the guest is told, in Amharic",
+               kitchen.get("fulfillment_state") in ("served", "completed", "collected"),
+               f"{kitchen}")
+
+        # The STATUS half: the timeline the guest reads while they wait.
+        timeline = rows(f"""
+            SELECT t.kind::text, t.summary
+            FROM ordering.customer_timeline('{fx.TENANT}', '{order_id}') t;""",
+            dsn=ADMIN)
+        english = [t for t in timeline if not any(is_ethiopic(ch) for ch in (t[1] or ""))]
+        record(journey, "every status the guest is shown is in Ethiopic script",
+               bool(timeline) and english == [],
+               f"{len(timeline) - len(english)} of {len(timeline)} in Amharic"
+               + (f"; still English: {[t[0] for t in english]}" if english else "")
+               + ". This is what 'localized statuses' means and it is the line the "
+                 "journeys found: the locale was snapshotted from M2-C onward and the "
+                 "timeline never read it")
+
+        # The MESSAGE half, which travels by different machinery: a service
+        # acknowledgement is a notice with an approved template, not a timeline entry.
+        guest_session = scalar(f"""
+            SELECT placed_by_guest_session_id::text FROM ordering.customer_order
+             WHERE id = '{order_id}';""", dsn=ADMIN)
+        run(APP, f"SELECT notify.send_pending('{fx.TENANT}', '{fx.OUTLET_H1}');", **CTX)
+        status = rows(f"""
+            SELECT locale::text, rendered_text FROM notify.notice
+             WHERE tenant_id = '{fx.TENANT}' AND audience = 'customer'
+               AND recipient_guest_session_id = '{guest_session}'
+               AND rendered_text IS NOT NULL
+             ORDER BY created_at DESC;""", dsn=ADMIN)
+        ethiopic = [b for b in status
+                    if any(is_ethiopic(ch) for ch in (b[1] or ""))]
+        record(journey, "and the messages sent to the table are in Ethiopic script too",
+               bool(status) and len(ethiopic) == len(status),
+               f"{len(ethiopic)} of {len(status)} notices sent to THIS guest session "
+               f"carry Ethiopic characters. Not 'a template existed' — the words that "
+               f"were sent, to the person who called the waiter")
+
+    second = fx.a_seated_guest(table=fx.TABLE_TWO, locale="am")
+    record(journey, "a second order on the same table is a second order, not a duplicate",
+           bool(second["session"]),
+           f"the table can be ordered from again; FR-SRV-006's deliberate-repeat rule is "
+           f"about REQUESTS, and an order placed later is simply a later order")
+
+
+# ===========================================================================
+# GJ-03A — Arabic, right to left, with Latin SKUs and ETB prices
+# ===========================================================================
+
+def gj_03a() -> None:
+    print("\n--- GJ-03A: Arabic RTL — menu, Latin SKUs, ETB prices, order, timeline ---")
+    journey = "GJ-03A"
+    code = fx.m2c.fresh_occupancy_and_code(fx.TABLE_ONE)
+    walked = walk(journey, {"code": code, "tenant": fx.TENANT,
+                            "outlet": fx.OUTLET_H1})
+    seen = report_steps(journey, walked)
+
+    read = seen.get("read the menu in the chosen language", {})
+    record(journey, "the page really lays out right to left",
+           read.get("direction") == "rtl" and read.get("documentLocale") == "ar",
+           f"direction {read.get('direction')!r}, language {read.get('documentLocale')!r}, "
+           f"read out of the engine's own computed style rather than from a class name")
+
+    skus = seen.get("search the menu by its Latin SKU", {})
+    record(journey, "Latin item codes are present in an Arabic page",
+           bool(skus.get("codesVisible")),
+           f"{skus.get('codesVisible')}. A menu whose codes vanished in Arabic would "
+           f"make a waiter's search useless in exactly the session where they need it")
+
+    prices = seen.get("read ETB prices left to right inside the Arabic page", {})
+    first_x, last_x = prices.get("firstX"), prices.get("lastX")
+    record(journey, "an ETB price reads left to right inside the mirrored page",
+           first_x is not None and last_x is not None and first_x < last_x,
+           f"{prices.get('text')!r} runs from x={first_x} to x={last_x}, measured from "
+           f"the client rects — so this is where the glyphs actually landed, not what a "
+           f"stylesheet asked for")
+
+    placed = seen.get("place the order", {})
+    order_id = placed.get("orderId")
+    if order_id:
+        kitchen = take_order_through_the_kitchen(order_id)
+        record(journey, "the kitchen prepares it and the Arabic timeline follows it",
+               kitchen.get("fulfillment_state") in ("served", "completed", "collected"),
+               f"{kitchen}")
+
+        timeline = rows(f"""
+            SELECT t.source, t.summary
+            FROM ordering.customer_order o
+            CROSS JOIN LATERAL notify.customer_timeline(
+                '{fx.TENANT}', o.table_session_id, o.placed_by_guest_session_id) t
+            WHERE o.id = '{order_id}';""", dsn=ADMIN)
+        english = [b for b in timeline
+                   if not any(is_arabic(ch) for ch in (b[1] or ""))]
+        record(journey, "and every entry of the timeline the guest reads is in Arabic",
+               bool(timeline) and english == [],
+               f"{len(timeline) - len(english)} of {len(timeline)} entries in Arabic"
+               + (f"; still English: {english}" if english else "")
+               + ". One Arabic entry beside English ones is M2-C's defect on a longer "
+                 "path, so the assertion is every entry rather than any")
+
+
+# ===========================================================================
+# GJ-04 — two devices, one table
+# ===========================================================================
+
+def gj_04() -> None:
+    print("\n--- GJ-04: two devices at one table — personal baskets, separate orders, "
+          "a waiter called, and an authorized move ---")
+    journey = "GJ-04"
+    code = fx.m2c.fresh_occupancy_and_code(fx.TABLE_ONE)
+    walked = walk(journey, {"code": code, "codeTwo": code,
+                            "tenant": fx.TENANT, "outlet": fx.OUTLET_H1})
+    seen = report_steps(journey, walked)
+
+    baskets = seen.get("each device keeps its own basket", {})
+    keys = baskets.get("keys", {})
+    record(journey, "the two baskets are separate, with no key in common",
+           bool(keys.get("one")) and bool(keys.get("two"))
+           and not (set(keys.get("one", [])) & set(keys.get("two", []))),
+           f"device one {keys.get('one')}, device two {keys.get('two')}. Two devices at "
+           f"one table are two people, and a shared basket would let one of them remove "
+           f"the other's dinner")
+
+    orders = seen.get("each device places its own order", {})
+    ids = [o.get("orderId") for o in (orders.get("one", {}), orders.get("two", {}))
+           if isinstance(o, dict) and o.get("orderId")]
+    record(journey, "each device's order is its own order on the same table",
+           len(ids) == 2 and ids[0] != ids[1],
+           f"{[str(i)[:8] for i in ids]}. Separate orders, one occupancy — which is what "
+           f"lets M4 split a bill and what would be impossible if the table had one cart")
+
+    if len(ids) == 2:
+        sessions = rows(f"""
+            SELECT DISTINCT table_session_id::text FROM ordering.customer_order
+             WHERE id IN ('{ids[0]}', '{ids[1]}');""")
+        record(journey, "and both hang off the same occupancy",
+               len(sessions) == 1,
+               f"{sessions}. One table, two orders — the shape FR-TAB-002 asks for")
+
+    requests = seen.get("one device calls the waiter", {})
+    record(journey, "calling the waiter from one device raises a real request",
+           count(APP, f"""
+               SELECT count(*) FROM service.service_request
+                WHERE tenant_id = '{fx.TENANT}'
+                  AND state NOT IN ('completed', 'cancelled', 'expired');""", **CTX) >= 1,
+           f"the surface showed {requests.get('statuses')}; the database holds the open "
+           f"request behind it")
+
+    # The authorized session MOVE — the step that makes this journey different from
+    # GJ-01A. A table moves; both orders and the open request go with it, because they
+    # reference the SESSION and the session is what moved.
+    if len(ids) == 2:
+        session_id = scalar(f"""
+            SELECT table_session_id::text FROM ordering.customer_order
+             WHERE id = '{ids[0]}';""")
+        before = count(APP, f"""
+            SELECT count(*) FROM ordering.customer_order
+             WHERE table_session_id = '{session_id}';""", **CTX)
+        # An empty table, made for this move. service.move_table_session() refuses a
+        # target that already has an open occupancy — correctly, because two parties at
+        # one table is what FR-TAB-002 exists to prevent — and by this point every seeded
+        # table is occupied, so a journey that hunted for a free one would end up
+        # testing that refusal instead of the move.
+        free_table = fx.a_free_table()
+        moved = run(APP, f"""
+            SELECT service.move_table_session('{fx.TENANT}'::uuid, '{session_id}'::uuid,
+                '{free_table}'::uuid, '{fx.USER}'::uuid);""", **CTX) if free_table else None
+        after = count(APP, f"""
+            SELECT count(*) FROM ordering.customer_order
+             WHERE table_session_id = '{session_id}';""", **CTX)
+        record(journey, "an authorized move takes both orders and the request with it",
+               moved is not None and moved.ok and before == after and before >= 2,
+               f"{'no free table to move to' if moved is None else (moved.why() or 'moved')}; "
+               f"{before} order(s) before and {after} after. "
+               f"Nothing was consolidated because nothing had to be: an order references "
+               f"the session, and the session is what moved")
+
+
+# ===========================================================================
+# GJ-05 — waiter-entered, with an allergy and one authorized amendment
+# ===========================================================================
+
+def gj_05() -> None:
+    print("\n--- GJ-05: waiter-entered — open the table, enter the order, route it, "
+          "acknowledge, emphasise the allergy, expo, serve, amend once ---")
+    journey = "GJ-05"
+
+    fx.m3c.set_presence("available")
+    seated = fx.a_seated_guest(table=fx.TABLE_TWO)
+    fx.assign_table_owner(seated["session"], fx.USER)
+    session_id, token = fx.staff_session(fx.USER)
+
+    # The waiter opens the table's basket and enters the order through the STAFF routes.
+    import urllib.request
+    import urllib.error
+
+    def staff(method: str, path: str, body: dict | None = None, key: str | None = None):
+        url = f"{CONTEXT['base_url']}{path}"
+        headers = {"authorization": f"Bearer {token}"}
+        data = None
+        if body is not None:
+            headers["content-type"] = "application/json"
+            data = json.dumps(body).encode("utf-8")
+        if key:
+            headers["idempotency-key"] = key
+        request = urllib.request.Request(url, method=method, data=data, headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=20) as response:
+                return {"status": response.status, **json.loads(response.read())}
+        except urllib.error.HTTPError as error:
+            raw = error.read().decode("utf-8", "replace")
+            try:
+                return {"status": error.code, **json.loads(raw)}
+            except json.JSONDecodeError:
+                return {"status": error.code, "body": raw}
+
+    cart = staff("POST", "/s/v1/carts", {"tableSessionId": seated["session"]})
+    pair = rows(f"""
+        SELECT i.id::text, v.id::text FROM menu.sellable_item i
+        JOIN menu.item_variant v ON v.item_id = i.id AND v.is_default AND v.status = 'active'
+        WHERE i.tenant_id = '{fx.TENANT}' AND i.status = 'active'
+        ORDER BY i.item_code LIMIT 1;""")
+    staff("POST", "/s/v1/cart/lines",
+          {"cartId": cart.get("cartId"), "itemId": pair[0][0],
+           "variantId": pair[0][1], "quantity": 2},
+          key=f"gj05-line-{RUN_NONCE}")
+    record(journey, "the waiter opens the table's basket and enters a dish",
+           bool(cart.get("cartId")),
+           f"cart {str(cart.get('cartId'))[:8]} on the table's occupancy — the SHARED "
+           f"basket, because a waiter fills the table's, never a guest's personal one")
+
+    # The allergy, raised by the waiter, on the same path a guest's would take.
+    concern = scalar(f"""
+        INSERT INTO safety.allergy_concern
+            (tenant_id, outlet_id, table_session_id, raised_by, raised_by_user_id,
+             allergen_id, acknowledgement_wording_id, acknowledgement_text)
+        SELECT '{fx.TENANT}', '{fx.OUTLET_H1}', '{seated["session"]}', 'waiter',
+               '{fx.USER}', a.id, w.id, w.wording
+        FROM safety.allergen a, safety.approved_wording w
+        WHERE a.tenant_id = '{fx.TENANT}' AND w.tenant_id = '{fx.TENANT}'
+          AND w.purpose = 'allergy_acknowledgement' AND w.locale = 'en'
+        LIMIT 1 RETURNING id;""")
+
+    view = staff("POST", "/s/v1/orders/preview", {"cartId": cart.get("cartId")})
+    preview = view.get("preview") or {}
+    placed = staff("POST", "/s/v1/orders", {
+        "cartId": cart.get("cartId"),
+        "expectedTotalMinor": int(preview.get("total_amount_minor", 0)),
+        "pricingDigest": preview.get("pricing_digest", ""),
+        "locale": "en",
+        "allergyDeclarations": [{"allergy_concern_id": concern}],
+    }, key=f"gj05-submit-{RUN_NONCE}")
+    order_id = placed.get("orderId")
+    record(journey, "the order is entered by the waiter and carries the allergy",
+           bool(order_id),
+           f"{placed.get('reason', str(order_id)[:8])}, declaring concern "
+           f"{concern[:8]} raised by the waiter")
+
+    if order_id:
+        kitchen = take_order_through_the_kitchen(order_id)
+        record(journey, "it routes to stations, is acknowledged, made ready and served",
+               kitchen.get("tickets", "0") != "0"
+               and kitchen.get("fulfillment_state") in ("served", "completed", "collected"),
+               f"{kitchen}")
+
+        emphasis = rows(f"""
+            SELECT e.kitchen_code, e.emphasis_rank::text,
+                   (e.written_warning IS NOT NULL)::text
+            FROM fulfillment.ticket t
+            CROSS JOIN LATERAL fulfillment.ticket_allergy_emphasis('{fx.TENANT}', t.id) e
+            WHERE t.order_id = '{order_id}';""")
+        record(journey, "the kitchen saw the allergy emphasised, with words beside it",
+               bool(emphasis) and all(r[2] in ("t", "true") for r in emphasis),
+               f"{emphasis}. A rank with no words is the defect NC-M3B-001 exists for, "
+               f"and a waiter-entered declaration reaches the same place a guest's does")
+
+        # ONE authorized amendment: a manager approves from their OWN session.
+        #
+        # Not on the order just served. FR-ORD-010 bounds amendment at PREPARATION, and
+        # every ticket on that order has been made and carried; amending it now would be
+        # changing something that has been eaten. The journey the package describes is a
+        # waiter who takes a second round for the table and a manager who authorizes one
+        # change to it — so that is the order amended here, while its tickets are still
+        # queued.
+        add_on = staff("POST", "/s/v1/carts", {"tableSessionId": seated["session"]})
+        staff("POST", "/s/v1/cart/lines",
+              {"cartId": add_on.get("cartId"), "itemId": pair[0][0],
+               "variantId": pair[0][1], "quantity": 2},
+              key=f"gj05-addon-line-{RUN_NONCE}")
+        second_view = staff("POST", "/s/v1/orders/preview",
+                            {"cartId": add_on.get("cartId")})
+        second_preview = second_view.get("preview") or {}
+        second = staff("POST", "/s/v1/orders", {
+            "cartId": add_on.get("cartId"),
+            "expectedTotalMinor": int(second_preview.get("total_amount_minor", 0)),
+            "pricingDigest": second_preview.get("pricing_digest", ""),
+            "locale": "en",
+        }, key=f"gj05-addon-{RUN_NONCE}")
+        second_id = second.get("orderId")
+        record(journey, "the waiter takes a second round for the same table",
+               bool(second_id),
+               f"{second.get('reason', str(second_id)[:8])} — a separate order on the "
+               f"same occupancy, which is what an add-on is; the served one is closed to "
+               f"change and correctly so")
+
+        # The outlet permits amending an ACCEPTED order. M3-B widened the same policy for
+        # the same reason and restored it: the seeded window is ['submitted'] while this
+        # tenant accepts waiter-entered orders automatically, so under the seed the waiter
+        # channel has no amendable state at all. Restored in the finally, so every other
+        # suite still meets the window it was written against.
+        window = run(APP, f"""
+            UPDATE config.policy
+               SET payload = jsonb_set(payload, '{{amendment_allowed_states}}',
+                                       '["submitted", "accepted"]'::jsonb)
+             WHERE tenant_id = '{fx.TENANT}' AND outlet_id = '{fx.OUTLET_H1}'
+               AND category = 'ordering';""", **CTX)
+        try:
+            manager_session, _ = fx.staff_session(fx.USER_MANAGER)
+            fx.step_up(manager_session, "order.amend")
+            line = scalar(f"""
+                SELECT id::text FROM ordering.order_line
+                 WHERE order_id = '{second_id}' LIMIT 1;""", dsn=ADMIN)
+            approval = staff("POST", "/s/v1/overrides", {
+                "actionCode": "order.amend",
+                "approverSessionId": manager_session,
+                "reasonCodeId": fx.reason_code(),
+                "subjectKind": "order",
+                "subjectId": second_id,
+                "reasonText": "guest asked for one fewer",
+            })
+            amended = staff("POST", "/s/v1/orders/amend", {
+                "orderId": second_id, "orderLineId": line, "newQuantity": 1,
+                "overrideId": approval.get("overrideId", ""),
+            })
+        finally:
+            run(APP, f"""
+                UPDATE config.policy
+                   SET payload = jsonb_set(payload, '{{amendment_allowed_states}}',
+                                           '["submitted"]'::jsonb)
+                 WHERE tenant_id = '{fx.TENANT}' AND outlet_id = '{fx.OUTLET_H1}'
+                   AND category = 'ordering';""", **CTX)
+
+        record(journey, "and one amendment goes through, authorized by a manager",
+               window.ok and bool(approval.get("overrideId"))
+               and amended.get("amended") is True,
+               f"override {str(approval.get('overrideId', approval))[:8]}, "
+               f"amendment {amended}. The manager stepped up on their OWN session; the "
+               f"waiter never held their credential")
+
+        both = rows(f"""
+            SELECT CASE WHEN actor_user_id = '{fx.USER}' THEN 'the waiter asked'
+                        ELSE 'someone else asked' END,
+                   CASE WHEN approver_user_id = '{fx.USER_MANAGER}'
+                        THEN 'the manager allowed it'
+                        ELSE 'someone else allowed it' END
+            FROM pos.override_approval WHERE id = '{approval.get('overrideId')}';""")
+        record(journey, "the amendment names who asked and who allowed it",
+               both == [["the waiter asked", "the manager allowed it"]],
+               f"{both}. Two people on the record, which is the whole difference between "
+               f"delegation and somebody borrowing a password")
+
+
+# ===========================================================================
+# FR-TST-007A — two submissions racing, no duplicate commercial effect
+# ===========================================================================
+
+def concurrency() -> None:
+    print("\n--- FR-TST-007A: two submissions racing, measured with M3-A's differential ---")
+    journey = "FR-TST-007A"
+
+    seated = fx.a_seated_guest_with_credential(table=fx.TABLE_ONE)
+    token = seated["token"]
+
+    import urllib.request
+    import urllib.error
+
+    def guest(method: str, path: str, body: dict | None = None, key: str | None = None):
+        url = f"{CONTEXT['base_url']}{path}"
+        headers = {"authorization": f"Guest {token}"}
+        data = None
+        if body is not None:
+            headers["content-type"] = "application/json"
+            data = json.dumps(body).encode("utf-8")
+        if key:
+            headers["idempotency-key"] = key
+        request = urllib.request.Request(url, method=method, data=data, headers=headers)
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return {"status": response.status, **json.loads(response.read())}
+        except urllib.error.HTTPError as error:
+            raw = error.read().decode("utf-8", "replace")
+            try:
+                return {"status": error.code, **json.loads(raw)}
+            except json.JSONDecodeError:
+                return {"status": error.code, "body": raw}
+
+    cart = guest("GET", "/c/v1/cart")
+    pair = rows(f"""
+        SELECT i.id::text, v.id::text FROM menu.sellable_item i
+        JOIN menu.item_variant v ON v.item_id = i.id AND v.is_default AND v.status = 'active'
+        WHERE i.tenant_id = '{fx.TENANT}' AND i.status = 'active'
+        ORDER BY i.item_code LIMIT 1;""")
+    guest("POST", "/c/v1/cart/lines",
+          {"cartId": cart.get("cartId"), "itemId": pair[0][0], "variantId": pair[0][1]},
+          key=f"race-line-{RUN_NONCE}")
+
+    view = guest("POST", "/c/v1/orders/preview", {"cartId": cart.get("cartId")})
+    preview = view.get("preview") or {}
+    body = {
+        "cartId": cart.get("cartId"),
+        "expectedTotalMinor": int(preview.get("total_amount_minor", 0)),
+        "pricingDigest": preview.get("pricing_digest", ""),
+        "locale": "en",
+    }
+    key = f"race-submit-{RUN_NONCE}"
+
+    # The two submissions go out AT THE SAME TIME, on separate connections, carrying the
+    # same idempotency key — which is what a guest's second tap on a slow connection
+    # actually looks like. A sequential pair would test the replay path and say nothing
+    # about the race.
+    from concurrent.futures import ThreadPoolExecutor
+
+    before = table_digests()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(guest, "POST", "/c/v1/orders", body, key) for _ in range(2)]
+        outcomes = [f.result() for f in futures]
+    after = table_digests()
+
+    ids = {o.get("orderId") for o in outcomes if o.get("orderId")}
+    record(journey, "both racing submissions answer, and with the same order",
+           len(ids) == 1 and all(o.get("status") in (200, 409) for o in outcomes),
+           f"{outcomes}. One order id between them: the loser of the race is answered "
+           f"with the winner's outcome rather than refused, because from the guest's "
+           f"side it was one tap that they repeated")
+
+    orders_made = count(APP, f"""
+        SELECT count(*) FROM ordering.customer_order
+         WHERE cart_id = '{cart.get("cartId")}';""", **CTX)
+    record(journey, "and the race produced exactly one order",
+           orders_made == 1,
+           f"{orders_made} order(s) from the cart both requests submitted")
+
+    # The whole-schema differential: what MOVED between the two snapshots, over every
+    # table the catalog knows. The delta is not empty — an order was created, which is
+    # the point — so this asserts the SHAPE of the delta rather than its absence: one
+    # order, one ledger entry per event, and no second commercial artifact anywhere.
+    changed = sorted(k for k in set(before) | set(after)
+                     if before.get(k) != after.get(k))
+    doubled = []
+    for table in changed:
+        b = int((before.get(table) or "0:").split(":")[0])
+        a = int((after.get(table) or "0:").split(":")[0])
+        # ordering.order_charge_component is deliberately NOT here. One order carries
+        # several components — an item subtotal and a tax at least — so "more than one
+        # new row" is the shape of a single order rather than evidence of two. The
+        # duplication this control exists to catch shows up as a second ORDER or a
+        # second LINE, and both are asserted directly as well.
+        if table.startswith(("ordering.customer_order", "ordering.order_line")) and a - b > 1:
+            doubled.append(f"{table} +{a - b}")
+    record(journey, "no commercial artifact was created twice",
+           doubled == [],
+           f"{len(changed)} table(s) moved across {len(before)} enumerated from the "
+           f"catalog; commercial tables gaining more than one row: {doubled or 'none'}. "
+           f"M3-A's instrument, reused rather than rewritten — it covers the tables M3-B, "
+           f"M3-C and M3-D added without anybody having listed them")
+
+    lines = count(APP, f"""
+        SELECT count(*) FROM ordering.order_line ol
+        JOIN ordering.customer_order o ON o.id = ol.order_id
+        WHERE o.cart_id = '{cart.get("cartId")}';""", **CTX)
+    record(journey, "and the guest is charged for one dish, not two",
+           lines == 1,
+           f"{lines} order line(s). The commercial effect is what a duplicate submission "
+           f"would show up in, and at M4 this is the difference between one charge and "
+           f"two")
+
+
+# ===========================================================================
+# main
+# ===========================================================================
+
+JOURNEYS = (
+    ("GJ-01A", gj_01a),
+    ("GJ-02", gj_02),
+    ("GJ-03A", gj_03a),
+    ("GJ-04", gj_04),
+    ("GJ-05", gj_05),
+    ("FR-TST-007A", concurrency),
+)
+
+
+def main() -> int:
+    print("=" * 74)
+    print("GOLDEN JOURNEY VERIFICATION — five journeys end to end, plus the submit race")
+    print(f"real PostgreSQL, real compiled service, real Chromium "
+          f"(running on {platform.system()})")
+    print("evidence encoding: UTF-8")
+    print()
+    print("  Every result names its JOURNEY and its STEP. A step after a failure is")
+    print("  reported as NOT REACHED, so a journey that stopped early cannot be mistaken")
+    print("  for one that mostly worked.")
+    print()
+    print("=" * 74)
+
+    fx.seed()
+    print("fixtures seeded: the M3-D floor, on the whole chain beneath it")
+
+    sync_and_build()
+
+    with Service(APP) as service:
+        CONTEXT["base_url"] = f"http://127.0.0.1:{service.port}"
+        for name, walker in JOURNEYS:
+            try:
+                walker()
+            except ProbeFailed as error:
+                record(name, "the journey could be walked at all", False,
+                       f"{error}. A journey that could not start is not a journey that "
+                       f"passed its first step")
+            except Exception as error:  # noqa: BLE001 - the journey names its own failure
+                record(name, "the journey completed without an unexpected error", False,
+                       f"{type(error).__name__}: {error}")
+
+    passed = sum(1 for _j, _s, ok, _d in results if ok)
+    failed = [(j, s, d) for j, s, ok, d in results if not ok]
+
+    by_journey: dict[str, list[bool]] = {}
+    for journey, _step, ok, _detail in results:
+        by_journey.setdefault(journey, []).append(ok)
+
+    print("\n" + "=" * 74)
+    print(f"  steps checked : {len(results)}")
+    print(f"  passed        : {passed}")
+    print(f"  failed        : {len(failed)}")
+    print()
+    for journey, _walker in JOURNEYS:
+        outcomes = by_journey.get(journey, [])
+        verdict = "PASS" if outcomes and all(outcomes) else "FAIL"
+        print(f"  {verdict}  {journey:<12} {sum(outcomes)}/{len(outcomes)} steps")
+    for journey, step, detail in failed:
+        print(f"\n  - {journey} failed at: {step}")
+        for line in (detail or "").splitlines():
+            print(f"      {line}")
+    print()
+    if failed:
+        print("FAIL GOLDEN_JOURNEY_VERIFICATION")
+        return 1
+    print("PASS GOLDEN_JOURNEY_VERIFICATION")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

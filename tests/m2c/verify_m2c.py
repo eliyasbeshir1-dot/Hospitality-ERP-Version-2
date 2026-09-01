@@ -450,6 +450,19 @@ def section_accessibility(probe: dict) -> None:
 # 8. Empty states, no fabricated data, and the slice boundary
 # ===========================================================================
 
+def _strip_ts_comments(text: str) -> str:
+    """TypeScript source with its comments removed, so a scan reads code only.
+
+    Deliberately simple and deliberately conservative: it does not try to understand
+    strings containing // or /*, so at worst it removes slightly more than a comment and
+    a forbidden identifier hiding inside a string literal would still be caught by the
+    scan of the rendered document beside it.
+    """
+    import re as _re
+    text = _re.sub(r"/\*[\s\S]*?\*/", " ", text)
+    return "\n".join(_re.sub(r"//.*$", " ", line) for line in text.splitlines())
+
+
 def section_boundary(probe: dict) -> None:
     print("\n--- 8. Empty states, honest data, and what M2-C did NOT build ---")
 
@@ -484,22 +497,54 @@ def section_boundary(probe: dict) -> None:
              f"{english[:2]}. Real fixture content, which is what FR-UX-013 asks to be "
              f"measured against")
 
-    submission = [word for word in ("submitOrder", "placeOrder", "checkout", "payment",
-                                    "kitchenTicket", "tip")
-                  if word.lower() in source.lower()]
-    record("the surface cannot submit an order, pay, or open a check",
-           not submission,
-           f"submission or payment terms in the surface: {submission or 'none'}. Orders "
-           f"are M3 and payments are M4; the basket exists here and has nowhere to go")
+    # THIS CHECK WAS RE-TARGETED AT M3-D, AND THE ONE BELOW WAS BROKEN.
+    #
+    # It read "the surface cannot submit an order, pay, or open a check", and it named
+    # three gates at once: orders are M3, payments and checks are M4. M3-A built ordering
+    # and M3-D put a submit button on this surface, so the ORDER half is now asserting
+    # the absence of something a later gate delivered on purpose. A gate-local boundary
+    # that outlives its gate stops being a boundary and becomes a check that fails when
+    # the plan is followed.
+    #
+    # The MONEY half has not moved and is not softened: checkout, payment, tip, check and
+    # receipt are M4's, and a customer surface that named any of them at M3 would be the
+    # scope creep this check exists to catch. kitchenTicket stays too — the KDS is M3-B's
+    # own surface and a guest's phone must never render one.
+    # Scanned over the CODE, with comments removed. The first version of this edit put
+    # 'receipt' on the list and it went red on a comment that says M4 will have receipts
+    # — prose about a later gate, which is the opposite of scope creep. A check that
+    # cannot tell a payment button from a sentence about payments is a check that
+    # punishes people for writing down why something is absent.
+    code = _strip_ts_comments(source)
+    settlement = [word for word in ("checkout", "payment", "tip", "receipt",
+                                    "kitchenTicket", "openCheck")
+                  if word.lower() in code.lower()]
+    record("the surface still cannot pay, tip, or open a check",
+           not settlement,
+           f"settlement terms in the surface: {settlement or 'none'}. Ordering arrived at "
+           f"M3 and this surface submits one; money is M4's and none of it is here")
 
+    # The route check below asserted the same boundary and could not fail. It read the
+    # file line by line and kept the lines containing `app.post` — but every route in
+    # customer.ts declares its generic type parameters on that line and its PATH on the
+    # next one, so the strings it searched never contained a path at all. It passed on
+    # M3-A's ordering routes, which are exactly what it was written to catch, and it
+    # would have passed on a payment route on the day it was written. An assertion that
+    # cannot fail is a defect; this one is repaired and re-targeted in the same edit, so
+    # the repair is visible rather than hidden inside a boundary change.
+    import re as _re
     routes = (REPO / "api" / "src" / "routes" / "customer.ts").read_text(encoding="utf-8")
-    forbidden_routes = [line.strip() for line in routes.splitlines()
-                        if "app.post" in line or "app.put" in line or "app.get" in line]
-    record("the customer API adds no order, check or payment route",
-           not any(word in " ".join(forbidden_routes).lower()
-                   for word in ("order", "check", "payment", "receipt", "tip")),
-           f"customer routes: {len(forbidden_routes)} — entry, join, locale, menu, cart "
-           f"and allergy concern. Nothing that commits an order")
+    declared = sorted({m.group(1) for m in _re.finditer(
+        r"app\.(?:post|put|get|delete|patch)\s*(?:<[\s\S]*?>)?\s*\(\s*'([^']+)'",
+        routes)})
+    money = [path for path in declared
+             if any(word in path.lower()
+                    for word in ("check", "payment", "receipt", "tip", "settle"))]
+    record("the customer API still adds no check, payment or receipt route",
+           bool(declared) and not money,
+           f"customer routes read out of the source: {declared}. Money routes among "
+           f"them: {money or 'none'}. The list is non-empty by assertion, because a "
+           f"regex that matched nothing would make this pass for the second time")
 
     sync = [word for word in ("serviceWorker", "backgroundSync", "syncQueue", "flushQueue")
             if word.lower() in source.lower()]

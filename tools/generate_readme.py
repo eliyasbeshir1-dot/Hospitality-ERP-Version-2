@@ -119,10 +119,6 @@ SUITE_SPANS = {
 }
 
 
-class SuiteSpanUndeclared(RuntimeError):
-    """A suite that is not a slice exists and has not said what it cuts across."""
-
-
 SUITE_PURPOSE = {
     "m1a": "database, organizational model, row level security, production roles",
     "m1b": "identity, memberships, sessions, step-up authentication",

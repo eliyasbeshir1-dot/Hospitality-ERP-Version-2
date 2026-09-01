@@ -88,13 +88,71 @@ def suite_result(logs: Path, name: str) -> tuple[str, str, str]:
             f"{path.name} is absent from {logs}. Every suite must be represented; if it "
             f"ran in a different job, hand its log to this one rather than omitting it")
     text = path.read_text(encoding="utf-8", errors="ignore")
-    tag = "FENCED_GATE" if name == "fenced_gate" else name.upper()
+    tag = {"fenced_gate": "FENCED_GATE",
+           "journeys": "GOLDEN_JOURNEY"}.get(name, name.upper())
     verdict = "PASS" if re.search(rf"^PASS {tag}_VERIFICATION", text, re.M) else "FAIL"
-    blocks = re.findall(r"checks run\s+:\s+(\d+)\s*\n\s*passed\s+:\s+(\d+)\s*\n\s*failed\s+:\s+(\d+)", text)
+    # "steps checked" is the golden-journey suite's own counter. It is a different word
+    # because a journey step is a different thing from a slice check — one is a person
+    # walking, the other is a property being asserted — and the report says so rather
+    # than flattening both into "checks" and inviting a reader to add them up.
+    blocks = re.findall(
+        r"(?:checks run|steps checked)\s+:\s+(\d+)\s*\n\s*passed\s+:\s+(\d+)"
+        r"\s*\n\s*failed\s+:\s+(\d+)", text)
     if not blocks:
         return (verdict, "-", "-")
     ran, _passed, failed = blocks[-1]
     return (verdict, ran, failed)
+
+
+# WHAT EACH JOURNEY COVERS, and which gates it reaches.
+#
+# Here because a reviewer looking at "journeys: 6 suites passed" has no way to tell
+# whether the journeys exercise the whole chain or repeat whichever slice they were
+# committed beside. They walk M1 through M3-D — a QR code from M2-B, a menu from M2-A
+# rendered by M2-C, an order from M3-A, a kitchen from M3-B, a service request from M3-C
+# and a waiter from M3-D — and the row says so per journey rather than as one sentence
+# about the suite.
+#
+# The verdict is READ FROM THE RUN. This table declares coverage, never outcome.
+JOURNEYS = [
+    ("GJ-01A", "An English guest: scan, browse, choose modifiers, submit, the kitchen "
+               "prepares, a waiter serves, the guest sees served — and no local-authority "
+               "claim exists anywhere in the catalog",
+               "M2-B · M2-C · M3-A · M3-B"),
+    ("GJ-02", "Amharic: menu and allergen text, an order carrying the chosen language, "
+              "statuses and messages in Ethiopic script, the waiter called, a second order",
+              "M2-A · M2-C · M3-A · M3-B · M3-C"),
+    ("GJ-03A", "Arabic right to left: true RTL layout, Latin SKUs inside an Arabic page, "
+               "ETB prices measured left to right, an order, an Arabic status timeline",
+               "M2-A · M2-C · M3-A · M3-B"),
+    ("GJ-04", "Two devices at one table: personal baskets, separate orders, the waiter "
+              "called and acknowledged, a later add-on, an authorized session move",
+              "M2-B · M3-A · M3-C"),
+    ("GJ-05", "Waiter-entered: the table opened, an order entered through the staff "
+              "routes, routed to stations, the allergy emphasised, served, and one "
+              "amendment authorized by a manager on their own session",
+              "M3-A · M3-B · M3-D"),
+    ("FR-TST-007A", "Two submissions racing, measured with M3-A's catalog-derived "
+                    "whole-schema differential: one order, one line, no duplicate "
+                    "commercial effect",
+                    "M3-A · M3-D"),
+]
+
+
+def journey_result(logs: Path, journey: str) -> tuple[str, str]:
+    """One journey's verdict and step count, read out of the run's own summary."""
+    path = logs / "journeys.log"
+    if not path.exists():
+        raise SuiteLogMissing(
+            f"journeys.log is absent from {logs}. The five golden journeys are part of "
+            f"the evidence, not an optional extra; hand the log to this job rather than "
+            f"omitting the rows")
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    matched = re.search(rf"^\s*(PASS|FAIL)\s+{re.escape(journey)}\s+(\S+) steps",
+                        text, re.M)
+    if not matched:
+        return ("FAIL", "-")
+    return (matched.group(1), matched.group(2))
 
 
 CONTROLS = [
@@ -164,6 +222,16 @@ CONTROLS = [
     ("NC-M3C-005", "Sensitive data reaches a notification payload", "SENSITIVE_DATA_IN_NOTIFICATION", "m3c"),
     ("NC-M3C-006", "A deep link resolves for an unauthorized session", "DEEP_LINK_CROSSES_SESSION_SCOPE", "m3c"),
     ("NC-M3C-007", "A dead-letter replay causes a duplicate effect", "DUPLICATE_EFFECT_ON_REPLAY", "m3c"),
+    ("NC-M3D-001", "Waiter-entered order bypasses a rule QR ordering enforces", "CHANNEL_RULE_DIVERGENCE", "m3d"),
+    ("NC-M3D-002", "Manager override completes without step-up", "OVERRIDE_WITHOUT_STEP_UP", "m3d"),
+    ("NC-M3D-003", "Override succeeds by credential sharing, not delegation", "CREDENTIAL_SHARED_FOR_OVERRIDE", "m3d"),
+    ("NC-M3D-004", "Staff search returns a row outside the searcher's scope", "STAFF_SEARCH_CROSSES_SCOPE", "m3d"),
+    ("NC-M3D-005", "Allergy confirmation carries ordinary friction", "FRICTION_NOT_GRADED_BY_CONSEQUENCE", "m3d"),
+    ("NC-M3D-006", "A destructive action proceeds with no reason", "DESTRUCTIVE_ACTION_WITHOUT_REASON", "m3d"),
+    ("NC-M3D-007", "Handover leaves a table with no responsible owner", "RESPONSIBILITY_LOST_ON_HANDOVER", "m3d"),
+    ("NC-M3D-008", "A landed slice the README describes nowhere", "SLICE_UNDESCRIBED", "m3d"),
+    ("NC-M3D-009", "A suite exists and nothing says what it covers", "SUITE_UNDESCRIBED", "m3d"),
+    ("NC-M3D-010", "A cross-cutting suite that declares no span", "SUITE_SPAN_UNDECLARED", "m3d"),
 ]
 
 
@@ -172,10 +240,18 @@ def control_state(logs: Path, control: str, suite: str) -> str:
     if not path.exists():
         return "not run"
     text = path.read_text(encoding="utf-8", errors="ignore")
+    # Two things sit between "[PASS]" and the marker and neither is optional to allow for.
     # M2-C prefixes each result with whether its evidence was measured in a browser or
-    # asserted from source, so the marker is no longer directly after "[PASS] ".
-    red = re.search(rf"\[PASS\] (?:\([a-z]+\) )?{re.escape(control)} — RED", text) is not None
-    green = re.search(rf"\[PASS\] (?:\([a-z]+\) )?{re.escape(control)} — GREEN", text) is not None
+    # asserted from source. M3-D writes the control's DESCRIPTION after its identifier —
+    # "NC-M3D-001  a waiter-entered order bypasses a rule QR ordering enforces — RED" —
+    # so a log line says what was broken rather than only which number it was. An anchor
+    # that demanded the marker immediately after the identifier reported all ten M3-D
+    # controls as "not proven" while every one of them had gone red and green in the run
+    # it was reading. The identifier is the identity; what follows it is prose.
+    red = re.search(rf"\[PASS\] (?:\([a-z]+\) )?{re.escape(control)}\b[^\n]*? — RED",
+                    text) is not None
+    green = re.search(rf"\[PASS\] (?:\([a-z]+\) )?{re.escape(control)}\b[^\n]*? — GREEN",
+                      text) is not None
     if red and green:
         return "red, then green"
     if green:
@@ -311,12 +387,32 @@ def build(dsn: str, logs: Path) -> str:
                         ("m3a", "M3-A orders, snapshots, session lifecycle"),
                         ("m3b", "M3-B fulfillment, tickets, stations, the KDS"),
                         ("m3c", "M3-C service requests, notifications, integration"),
-                        ("fenced_gate", "Fenced-domain gate, vocabulary and mutations")):
+                        ("m3d", "M3-D terminals, override, handover, the waiter surface"),
+                        ("fenced_gate", "Fenced-domain gate, vocabulary and mutations"),
+                        ("journeys", "The five golden journeys, end to end")):
         verdict, ran, failed = suite_result(logs, name)
         if ran.isdigit():
             total += int(ran)
         w(f"| {label} | **{verdict}** | {ran} | {failed} |")
     w(f"| **Total** | | **{total}** | |")
+    w("")
+
+    w("## The five golden journeys (FR-TST-005A)")
+    w("")
+    w("Browser automation against real persistence — the journey a person walks, not an API")
+    w("sequence. Each journey names the gates it reaches, because these are not M3-D's tests:")
+    w("they exercise everything M1 through M3-D built, and a reader who filed them under the")
+    w("slice they were committed beside would be reading them as a repeat of it.")
+    w("")
+    w("A failure names the JOURNEY and the STEP. Steps after a failure are reported as not")
+    w("reached rather than skipped silently, so a journey that stopped early cannot be")
+    w("mistaken for one that mostly worked.")
+    w("")
+    w("| Journey | Covers | Gates reached | Verdict | Steps |")
+    w("|---|---|---|---|---:|")
+    for journey, covers, gates in JOURNEYS:
+        verdict, steps = journey_result(logs, journey)
+        w(f"| `{journey}` | {covers} | {gates} | **{verdict}** | {steps} |")
     w("")
 
     w("## Negative controls")

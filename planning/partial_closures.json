@@ -300,7 +300,7 @@
       "completing_gate": "M4",
       "state": "open",
       "completed_by": "FR-BIL-010",
-      "why": "Status and service communications render in the language snapshotted on the table session, with English as the approved fallback, and tests/m3c measures that in a browser. Receipts are the third thing this clause names and they arrive at M4."
+      "why": "Receipts are the third thing this clause names and they arrive at M4. The other two were recorded here at M3-C as done, and only one of them was: SERVICE communications render in the language snapshotted on the table session, through notify.render_for() and an approved template, and tests/m3c measures that in a browser. ORDER STATUS did not. Every customer summary in ordering.order_timeline_entry was an English literal written by the fold, and ordering.customer_order.customer_locale — the snapshot FR-I18N-005 requires — was never read by the thing a guest reads. The golden journeys found it at M3-D and 0016/0017 fixed it; this entry is corrected rather than left overstating, because a register that claims more than was proved is worse than no register."
     },
     {
       "requirement": "FR-POS-004",
@@ -310,6 +310,17 @@
       "state": "open",
       "completed_by": "FR-BIL-001",
       "why": "FR-POS-004 names an unpaid balance among the things a table view shows, and billing is M4. pos.table_view() carries the COLUMN and returns NULL in it, and the waiter surface draws nothing where a figure would go. A zero would be a number a waiter could act on, and 'nothing outstanding' and 'we have not built billing' are different sentences — the same decision M3-A made when it refused to write a zero fee component. M4 fills a column rather than changing a shape, and tests/m3d asserts the slot is NULL today so the day it stops being NULL is the day somebody meant it to."
+    },
+    {
+      "requirement": "FR-NOT-012",
+      "aspect": "the customer status timeline in the session language",
+      "opened_at": "M3-D",
+      "completing_gate": "M3-D",
+      "state": "closed",
+      "completed_by": "FR-I18N-001B",
+      "why": "Recorded and closed in the same gate, which is unusual and is the point. FR-NOT-012's gate-local behaviour for M3 has two halves — an English staff notification centre and a customer status timeline in the session language — and the register carried only the first, because nobody had noticed the second was unmet. ordering.write_timeline_entry() wrote 'Your order was received.' as an English literal at M3-A and fulfillment's fold wrote 'Your order is being prepared.' the same way at M3-B; the locale was snapshotted on the order from M2-C onward and never read.",
+      "closed_at": "M3-D",
+      "closed_by_evidence": "Found by GJ-02 and GJ-03A on their first run, and by nothing else: every slice check read its own timeline in English and asked whether it said the right thing, never what language it said it in. 0016 registers order_status_wording as a translatable entity and 0017 adds notify.status_wording — identity and an English source only, with the Amharic and Arabic bodies in menu.translation where M2-A's approval workflow governs them and menu.enforce_translation_review() refuses an approval nobody reviewed — and replaces ordering.customer_timeline() so it resolves against the locale the ORDER snapshotted, falling back to the projection's English exactly as FR-I18N-008's approved fallback rules permit. No migration installs the wording: an approved translation asserts that a person read it. The journeys now assert that EVERY entry a guest is shown carries the right script, not that one of them does."
     }
   ]
 }

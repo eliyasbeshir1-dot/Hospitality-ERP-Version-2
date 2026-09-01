@@ -84,6 +84,11 @@ try {
   await page.goto(`${baseUrl}/?t=${tenantId}&o=${outletId}&c=${code}`,
                   { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => Boolean(window.surface));
+  // Wait for the surface's OWN load before drawing into it. M3-D wired the service panel
+  // to fetch its own data, which it never did at M3-C, so a payload drawn before that
+  // load finished was overwritten by it a moment later — and the measurement then read
+  // an empty panel and reported it as a missing status word.
+  await page.evaluate(() => window.surface.ready());
   if (locale) {
     await page.evaluate(async (l) => { await window.surface.chooseLocale(l); }, locale);
   }

@@ -13,11 +13,11 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `4f4d3b4d6f9b3980a07962780767411bb096a5d9` |
-| Short | `4f4d3b4` |
+| Commit | `40f86cae5c03d8dbfb2ecbbe0eb0e94f501ff139` |
+| Short | `40f86ca` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
-| Working tree | clean at generation |
+| Working tree | NOT CLEAN — regenerate from a clean tree |
 
 ## Versions
 
@@ -53,6 +53,9 @@ Ordered, forward-only and checksum-locked. An edited applied migration fails pre
 | `0012` | `0012_fulfillment_tickets_stations_and_service.sql` | `3e863b2bac70766e…` | applied |
 | `0013` | `0013_translatable_service_and_notification_entities.sql` | `749029e9e7bec573…` | applied |
 | `0014` | `0014_service_requests_notifications_and_integration_runtime.sql` | `069cd2692cec7406…` | applied |
+| `0015` | `0015_terminals_override_handover_and_staff_surface.sql` | `35342bead8fa5fc5…` | applied |
+| `0016` | `0016_translatable_order_status_wording.sql` | `330343affebf3743…` | applied |
+| `0017` | `0017_localized_customer_status_timeline.sql` | `c529f24f453ebbf3…` | applied |
 
 ## Seeds applied
 
@@ -93,8 +96,30 @@ Money is stored as integer minor units beside an explicit currency.
 | M3-A orders, snapshots, session lifecycle | **PASS** | 136 | 0 |
 | M3-B fulfillment, tickets, stations, the KDS | **PASS** | 127 | 0 |
 | M3-C service requests, notifications, integration | **PASS** | 125 | 0 |
+| M3-D terminals, override, handover, the waiter surface | **PASS** | 89 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
-| **Total** | | **858** | |
+| The five golden journeys, end to end | **PASS** | 61 | 0 |
+| **Total** | | **1008** | |
+
+## The five golden journeys (FR-TST-005A)
+
+Browser automation against real persistence — the journey a person walks, not an API
+sequence. Each journey names the gates it reaches, because these are not M3-D's tests:
+they exercise everything M1 through M3-D built, and a reader who filed them under the
+slice they were committed beside would be reading them as a repeat of it.
+
+A failure names the JOURNEY and the STEP. Steps after a failure are reported as not
+reached rather than skipped silently, so a journey that stopped early cannot be
+mistaken for one that mostly worked.
+
+| Journey | Covers | Gates reached | Verdict | Steps |
+|---|---|---|---|---:|
+| `GJ-01A` | An English guest: scan, browse, choose modifiers, submit, the kitchen prepares, a waiter serves, the guest sees served — and no local-authority claim exists anywhere in the catalog | M2-B · M2-C · M3-A · M3-B | **PASS** | 11/11 |
+| `GJ-02` | Amharic: menu and allergen text, an order carrying the chosen language, statuses and messages in Ethiopic script, the waiter called, a second order | M2-A · M2-C · M3-A · M3-B · M3-C | **PASS** | 15/15 |
+| `GJ-03A` | Arabic right to left: true RTL layout, Latin SKUs inside an Arabic page, ETB prices measured left to right, an order, an Arabic status timeline | M2-A · M2-C · M3-A · M3-B | **PASS** | 13/13 |
+| `GJ-04` | Two devices at one table: personal baskets, separate orders, the waiter called and acknowledged, a later add-on, an authorized session move | M2-B · M3-A · M3-C | **PASS** | 11/11 |
+| `GJ-05` | Waiter-entered: the table opened, an order entered through the staff routes, routed to stations, the allergy emphasised, served, and one amendment authorized by a manager on their own session | M3-A · M3-B · M3-D | **PASS** | 7/7 |
+| `FR-TST-007A` | Two submissions racing, measured with M3-A's catalog-derived whole-schema differential: one order, one line, no duplicate commercial effect | M3-A · M3-D | **PASS** | 4/4 |
 
 ## Negative controls
 
@@ -170,6 +195,16 @@ a coverage gap wearing a green badge, and CI fails the build when one is missing
 | `NC-M3C-005` | Sensitive data reaches a notification payload | `SENSITIVE_DATA_IN_NOTIFICATION` | red, then green |
 | `NC-M3C-006` | A deep link resolves for an unauthorized session | `DEEP_LINK_CROSSES_SESSION_SCOPE` | red, then green |
 | `NC-M3C-007` | A dead-letter replay causes a duplicate effect | `DUPLICATE_EFFECT_ON_REPLAY` | red, then green |
+| `NC-M3D-001` | Waiter-entered order bypasses a rule QR ordering enforces | `CHANNEL_RULE_DIVERGENCE` | red, then green |
+| `NC-M3D-002` | Manager override completes without step-up | `OVERRIDE_WITHOUT_STEP_UP` | red, then green |
+| `NC-M3D-003` | Override succeeds by credential sharing, not delegation | `CREDENTIAL_SHARED_FOR_OVERRIDE` | red, then green |
+| `NC-M3D-004` | Staff search returns a row outside the searcher's scope | `STAFF_SEARCH_CROSSES_SCOPE` | red, then green |
+| `NC-M3D-005` | Allergy confirmation carries ordinary friction | `FRICTION_NOT_GRADED_BY_CONSEQUENCE` | red, then green |
+| `NC-M3D-006` | A destructive action proceeds with no reason | `DESTRUCTIVE_ACTION_WITHOUT_REASON` | red, then green |
+| `NC-M3D-007` | Handover leaves a table with no responsible owner | `RESPONSIBILITY_LOST_ON_HANDOVER` | red, then green |
+| `NC-M3D-008` | A landed slice the README describes nowhere | `SLICE_UNDESCRIBED` | red, then green |
+| `NC-M3D-009` | A suite exists and nothing says what it covers | `SUITE_UNDESCRIBED` | red, then green |
+| `NC-M3D-010` | A cross-cutting suite that declares no span | `SUITE_SPAN_UNDECLARED` | red, then green |
 
 ## Design decision: the ledger is the record, everything else is a projection (M3-A)
 

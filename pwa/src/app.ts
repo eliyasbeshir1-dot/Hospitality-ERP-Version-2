@@ -35,7 +35,9 @@ type StringKey =
   // M3-C. Service requests, their statuses and the table's timeline.
   | 'serviceHeading' | 'statusHeading' | 'timelineHeading' | 'serviceEmpty'
   | 'askAgain' | 'alreadyAsked' | 'askedTimes'
-  | 'received' | 'being_handled' | 'completed' | 'withdrawn' | 'closed';
+  | 'received' | 'being_handled' | 'completed' | 'withdrawn' | 'closed'
+  // M3-D. Placing the order — the step the golden journeys found had no surface at all.
+  | 'placeOrder' | 'orderPlaced' | 'orderRefused';
 
 const STRINGS: Record<Locale, Record<StringKey, string>> = {
   en: {
@@ -54,6 +56,9 @@ const STRINGS: Record<Locale, Record<StringKey, string>> = {
     askAgain: 'Ask again', alreadyAsked: 'You have already asked for this. It is on its way.',
     askedTimes: 'asked', received: 'Received', being_handled: 'Being handled',
     completed: 'Done', withdrawn: 'Withdrawn', closed: 'Closed',
+    placeOrder: 'Place the order',
+    orderPlaced: 'Your order is with the kitchen.',
+    orderRefused: 'That could not be sent. Please ask a member of staff.',
   },
   am: {
     title: 'ዝርዝር', menuHeading: 'ዛሬ', cartHeading: 'ቅርጫትዎ',
@@ -71,6 +76,9 @@ const STRINGS: Record<Locale, Record<StringKey, string>> = {
     askAgain: 'እንደገና ይጠይቁ', alreadyAsked: 'ይህን አስቀድመው ጠይቀዋል። በመንገድ ላይ ነው።',
     askedTimes: 'ተጠይቋል', received: 'ደርሷል', being_handled: 'እየተስተናገደ ነው',
     completed: 'ተጠናቋል', withdrawn: 'ተሰርዟል', closed: 'ተዘግቷል',
+    placeOrder: 'ትዕዛዙን ያስገቡ',
+    orderPlaced: 'ትዕዛዝዎ ወደ ማብሰያው ደርሷል።',
+    orderRefused: 'መላክ አልተቻለም። እባክዎ ሰራተኛ ይጠይቁ።',
   },
   ar: {
     title: 'قائمة الطعام', menuHeading: 'اليوم', cartHeading: 'سلتك',
@@ -88,6 +96,9 @@ const STRINGS: Record<Locale, Record<StringKey, string>> = {
     askAgain: 'اطلب مرة أخرى', alreadyAsked: 'لقد طلبت هذا بالفعل. إنه في الطريق.',
     askedTimes: 'طُلب', received: 'تم الاستلام', being_handled: 'قيد المعالجة',
     completed: 'تم', withdrawn: 'تم السحب', closed: 'مغلق',
+    placeOrder: 'أرسل الطلب',
+    orderPlaced: 'طلبك في المطبخ الآن.',
+    orderRefused: 'تعذّر الإرسال. من فضلك اسأل أحد الموظفين.',
   },
 };
 
@@ -405,6 +416,13 @@ function renderCart(): void {
   const totalNode = $('cart-total');
   totalNode.hidden = app.cart.length === 0;
   totalNode.textContent = `${strings.total} ${formatMoney(total, currency, app.locale)}`;
+
+  // The order can be placed once there is something to place. Hidden rather than
+  // disabled when the basket is empty: a control a guest can see and cannot use is a
+  // question the screen has asked and refused to answer.
+  const place = $('place-order') as HTMLButtonElement;
+  place.hidden = app.cart.length === 0;
+  place.textContent = strings.placeOrder;
 }
 
 function render(): void {
@@ -616,6 +634,15 @@ async function start(): Promise<void> {
     });
   }
   $('retry').addEventListener('click', () => { void retry(); });
+  $('place-order').addEventListener('click', () => { void placeOrder(); });
+  // Delegated from the panel, so a redraw does not leave the new buttons inert — which
+  // is exactly what per-button listeners would do, silently.
+  $('service-types').addEventListener('click', (event) => {
+    const target = (event.target as HTMLElement).closest('[data-request-type]');
+    if (!(target instanceof HTMLElement)) return;
+    void ask(target.getAttribute('data-request-type') ?? '',
+             target.getAttribute('data-deliberate') === 'true');
+  });
 
   render();
 
@@ -655,22 +682,94 @@ async function start(): Promise<void> {
     const seated = await joined.json() as { tableSessionId: string };
     credentials.tableSessionId = seated.tableSessionId;
 
-    const cart = await fetch('/c/v1/cart', {
-      headers: { authorization: `Guest ${session.guestToken}` },
-    });
-    if (cart.ok) {
-      const info = await cart.json() as { cartId: string; customerLocale: Locale | null };
-      CART_ID = info.cartId;
-      // A locale already snapshotted on this occupancy is a choice somebody made, so it
-      // is honoured rather than asked for again.
-      if (info.customerLocale) { app.locale = info.customerLocale; render(); }
-    }
+    const locale = await refreshCart();
+    // A locale already snapshotted on this occupancy is a choice somebody made, so it
+    // is honoured rather than asked for again.
+    if (locale) { app.locale = locale; render(); }
   } catch {
     setState('blocked');
     return;
   }
 
   await loadMenu();
+  await loadService();
+}
+
+
+/**
+ * Ask the server which basket this guest holds now, and remember it.
+ *
+ * Called on entry and again after an order, because the cart that was ordered from is
+ * frozen and the next round needs the one the server hands back instead.
+ */
+async function refreshCart(): Promise<Locale | null> {
+  const token = credentials?.guestToken ?? '';
+  if (!token) return null;
+  const cart = await fetch('/c/v1/cart', { headers: { authorization: `Guest ${token}` } });
+  if (!cart.ok) return null;
+  const info = await cart.json() as { cartId: string; customerLocale: Locale | null };
+  CART_ID = info.cartId;
+  return info.customerLocale ?? null;
+}
+
+
+/**
+ * Fetch and draw the service panel (M3-C's data, M3-D's wiring).
+ *
+ * renderService() has existed since M3-C and nothing in this surface ever called it: the
+ * panel was drawn only when a test handed it a payload. So a guest could not ask for
+ * anything, and no unit check noticed, because every check that exercised the panel
+ * supplied the payload itself. The golden journeys found it by trying to call a waiter
+ * the way a guest does — which is the whole reason FR-TST-005A asks for the journey a
+ * person walks rather than an API sequence.
+ */
+async function loadService(): Promise<void> {
+  const token = credentials?.guestToken ?? '';
+  if (!token) return;
+  const headers = { authorization: `Guest ${token}` };
+  // Which draw this is. Two fetches can be in flight at once — the one the entry path
+  // starts and the one a tap starts — and network order is not tap order, so the older
+  // one can answer last and repaint the panel with the state from BEFORE the tap. A
+  // guest would see their request appear and then vanish. Only the newest draw is
+  // allowed to write, so a stale answer is discarded rather than displayed.
+  const generation = ++servicePanelDraw;
+  try {
+    const [typesResponse, statusResponse, timelineResponse] = await Promise.all([
+      fetch(`/c/v1/service/types?locale=${app.locale}`, { headers }),
+      fetch('/c/v1/service/status', { headers }),
+      fetch('/c/v1/service/timeline', { headers }),
+    ]);
+    if (!typesResponse.ok) return;
+    const types = await typesResponse.json();
+    const status = statusResponse.ok ? await statusResponse.json() : { statuses: [] };
+    const timeline = timelineResponse.ok ? await timelineResponse.json() : { entries: [] };
+    if (generation !== servicePanelDraw) return;
+    renderService({
+      types: types.types ?? [],
+      status: status.statuses ?? [],
+      timeline: timeline.entries ?? [],
+    });
+  } catch {
+    // A service panel that could not be fetched is simply not drawn. The menu and the
+    // basket are unaffected, because asking for water is not a precondition for eating.
+  }
+}
+
+
+/** Raise a request, or a deliberate repeat, and redraw from what the server says. */
+async function ask(requestTypeId: string, deliberate: boolean): Promise<void> {
+  const token = credentials?.guestToken ?? '';
+  if (!token) return;
+  await fetch('/c/v1/service/requests', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Guest ${token}`,
+      'idempotency-key': newIdempotencyKey(),
+    },
+    body: JSON.stringify({ requestTypeId, deliberate }),
+  });
+  await loadService();
 }
 
 
@@ -802,10 +901,19 @@ function renderCollapsed(collapsed: boolean): void {
   node.hidden = !collapsed;
 }
 
+/**
+ * The panel's draw counter. Incremented by every draw, whoever starts it, so an
+ * in-flight fetch can tell whether the panel has been repainted since it left.
+ */
+let servicePanelDraw = 0;
+
 export function renderService(payload: {
   types?: ServiceType[]; status?: ServiceStatusRow[]; timeline?: TimelineEntry[];
   collapsed?: boolean;
 }): void {
+  // A direct draw is the newest state there is, so it supersedes anything still in
+  // flight. Without this an entry-path fetch could land afterwards and undo it.
+  servicePanelDraw += 1;
   const status = payload.status ?? [];
   const open = new Set(
     status.filter((r) => r.status_code === 'received' || r.status_code === 'being_handled')
@@ -832,6 +940,7 @@ declare global {
   interface Window {
     surface: {
       setState(next: SurfaceState): void;
+      placeOrder(): Promise<void>;
       renderAs(state: SurfaceState): void;
       states: readonly SurfaceState[];
       transitions: Record<SurfaceState, readonly SurfaceState[]>;
@@ -839,14 +948,100 @@ declare global {
       chooseLocale(locale: Locale): Promise<void>;
       cart(): CartLine[];
       renderService: typeof renderService;
+      ready(): Promise<void>;
       pendingKey(): string | null;
       formatMoney: typeof formatMoney;
     };
   }
 }
 
+/**
+ * Place the order (FR-ORD-002, FR-ORD-001A).
+ *
+ * Two round trips and no arithmetic. The server prices the basket and returns the total
+ * and the digest it computed; this sends BOTH back untouched. A surface that computed
+ * its own total would be a second opinion about money, and the submission would be
+ * refused by the server comparing the two — which is the point of FR-ORD-002 and the
+ * reason nothing here adds anything up.
+ *
+ * The idempotency key is generated once per attempt and kept, so a retry finishes the
+ * first submission rather than starting a second — the same rule the cart lines follow,
+ * and the one that becomes a double charge at M4 if it is got wrong.
+ */
+async function placeOrder(): Promise<void> {
+  const strings = STRINGS[app.locale];
+  const outcome = $('order-outcome');
+  const cartId = CART_ID;
+  if (!cartId) return;
+
+  const key = newIdempotencyKey();
+  const headers = {
+    'content-type': 'application/json',
+    authorization: `Guest ${credentials?.guestToken ?? ''}`,
+    'idempotency-key': key,
+  };
+
+  try {
+    const previewed = await fetch('/c/v1/orders/preview', {
+      method: 'POST', headers, body: JSON.stringify({ cartId, locale: app.locale }),
+    });
+    const preview = await previewed.json();
+    if (!preview.preview) {
+      outcome.hidden = false;
+      outcome.textContent = strings.orderRefused;
+      outcome.dataset.reason = String(preview.reason ?? 'NO_PREVIEW');
+      return;
+    }
+
+    const placed = await fetch('/c/v1/orders', {
+      method: 'POST', headers,
+      body: JSON.stringify({
+        cartId,
+        expectedTotalMinor: preview.preview.total_amount_minor,
+        pricingDigest: preview.preview.pricing_digest,
+        locale: app.locale,
+      }),
+    });
+    const result = await placed.json();
+    outcome.hidden = false;
+    if (result.orderId) {
+      outcome.textContent = strings.orderPlaced;
+      outcome.dataset.orderId = String(result.orderId);
+      delete outcome.dataset.reason;
+      // The basket that was ordered from is frozen — changing it would change what
+      // somebody agreed to — so the next round needs a new one. Asked for rather than
+      // assumed: the server decides which cart this guest holds, and a client that
+      // invented one would be the second opinion this surface never has.
+      app.cart = [];
+      persist();
+      await refreshCart();
+      render();
+    } else {
+      outcome.textContent = strings.orderRefused;
+      outcome.dataset.reason = String(result.reason ?? 'REFUSED');
+    }
+  } catch {
+    outcome.hidden = false;
+    outcome.textContent = strings.orderRefused;
+    outcome.dataset.reason = 'NETWORK';
+  }
+}
+
+// Kicked off BEFORE window.surface is published so the promise can be handed out with
+// it. Nothing in start()'s synchronous prologue reads window.surface.
+const startup = start();
+
 window.surface = {
   setState,
+  placeOrder,
+  // When the surface has finished loading its own data — the menu, the basket and the
+  // service panel. Automation needs it because M3-D gave this surface an initial load it
+  // did not have before: a probe that drew the panel itself and measured immediately
+  // could have its draw overwritten by the load that was still on its way. That race is
+  // real for a guest too, and the draw counter inside renderService() handles the half
+  // that is (a stale answer arriving after a newer draw). This handles the other half,
+  // which only automation can hit: a draw that happens before the first load has begun.
+  ready: () => startup,
   // Draws a state without walking to it. The seven have to be MEASURED as rendered —
   // glyph, word, time, computed colour — and no sequence of legal transitions visits all
   // seven, so a measurement pass that used setState() would be testing the transition
@@ -867,4 +1062,4 @@ window.surface = {
   formatMoney,
 };
 
-void start();
+void startup;

@@ -43,7 +43,7 @@ Schemas covered: `app`, `audit`, `config`, `fulfillment`, `identity`, `integrati
 | `menu.availability_state` | available, limited, temporarily_unavailable, scheduled_later, hidden |
 | `menu.customer_locale` | en, am, ar |
 | `menu.image_format` | webp, avif, jpeg, png |
-| `menu.menu_entity` | menu, category, item_group, item, variant, modifier_group, modifier, image, allergen, dietary_claim, service_request_type, notification_template |
+| `menu.menu_entity` | menu, category, item_group, item, variant, modifier_group, modifier, image, allergen, dietary_claim, service_request_type, notification_template, order_status_wording |
 | `menu.publication_state` | draft, review, scheduled, published, paused, archived |
 | `menu.sales_channel` | dine_in, counter, room_service, kiosk |
 | `menu.translation_provenance` | human, machine_assisted |
@@ -164,6 +164,7 @@ graph LR
   notify_notification["notify.notification"]
   service_guest_session["service.guest_session"]
   notify_catalog_event["notify.catalog_event"]
+  notify_status_wording["notify.status_wording"]
   notify_template["notify.template"]
   ordering_charge_rule["ordering.charge_rule"]
   ordering_correlation_link["ordering.correlation_link"]
@@ -184,7 +185,6 @@ graph LR
   pos_fast_pick["pos.fast_pick"]
   pos_handover["pos.handover"]
   pos_handover_item["pos.handover_item"]
-  service_service_request["service.service_request"]
   pos_override_approval["pos.override_approval"]
   pos_terminal["pos.terminal"]
   safety_jurisdiction["safety.jurisdiction"]
@@ -203,6 +203,7 @@ graph LR
   service_table_qr_token["service.table_qr_token"]
   service_qr_scan["service.qr_scan"]
   service_request_escalation["service.request_escalation"]
+  service_service_request["service.service_request"]
   service_request_routing_decision["service.request_routing_decision"]
   service_request_type["service.request_type"]
   service_service_request_event["service.service_request_event"]
@@ -404,6 +405,8 @@ graph LR
   notify_notification --> notify_catalog_event
   notify_notification --> org_org_node
   notify_notification --> org_tenant
+  notify_status_wording --> org_org_node
+  notify_status_wording --> org_tenant
   notify_template --> notify_catalog_event
   notify_template --> org_tenant
   ordering_charge_rule --> config_configuration_version
@@ -474,7 +477,6 @@ graph LR
   pos_handover --> org_org_node
   pos_handover --> org_tenant
   pos_handover_item --> pos_handover
-  pos_handover_item --> service_service_request
   pos_handover_item --> service_table_session
   pos_override_approval --> config_reason_code
   pos_override_approval --> identity_session
@@ -2789,6 +2791,38 @@ Policies:
 
 - `notification_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
+#### `notify.status_wording`
+
+FR-NOT-012, FR-I18N-001B, FR-I18N-008. What a guest is told when their order reaches a state, in the language they chose. Identity and the English source only: the Amharic and Arabic bodies live in menu.translation under entity order_status_wording, where a human has to review and approve them and menu.enforce_translation_review() refuses an approval nobody reviewed. That is also why no migration installs the wording: an approved translation asserts that a person read it, and a migration writing one would be forging that assertion.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `event_kind` | `ordering.event_kind` | NOT NULL |  |  |
+| `source_text` | `text` | NOT NULL |  |  |
+| `status` | `org.lifecycle_status` | NOT NULL | `'active'::org.lifecycle_status` |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `status_wording_one_per_kind` — `UNIQUE (tenant_id, event_kind)`
+- `status_wording_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `status_wording_pkey` — `PRIMARY KEY (id)`
+- `status_wording_row_version_positive` — `CHECK ((row_version > 0))`
+- `status_wording_source_not_blank` — `CHECK ((btrim(source_text) <> ''::text))`
+- `status_wording_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `status_wording_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `status_wording_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
 #### `notify.template`
 
 FR-NOT-003. Identity only: the approved BODY in each customer language lives in menu.translation under entity notification_template, so M2-A's human approval workflow governs it unchanged rather than being written a second time.
@@ -3502,7 +3536,6 @@ Constraints:
 - `handover_item_names_its_subject` — `CHECK ((((item_kind = 'table_session'::pos.handover_item_kind) AND (table_session_id IS NOT NULL) AND (service_request_id IS NULL)) OR ((item_kind = 'service_request'::pos.handover_item_kind) AND (service_request_id IS NOT NULL) AND (table_session_id IS NULL))))`
 - `handover_item_once` — `UNIQUE (handover_id, item_kind, table_session_id, service_request_id)`
 - `handover_item_pkey` — `PRIMARY KEY (id)`
-- `handover_item_request_fk` — `FOREIGN KEY (tenant_id, service_request_id) REFERENCES service.service_request(tenant_id, id) ON DELETE RESTRICT`
 - `handover_item_session_fk` — `FOREIGN KEY (tenant_id, table_session_id) REFERENCES service.table_session(tenant_id, id) ON DELETE RESTRICT`
 
 Policies:

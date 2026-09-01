@@ -241,3 +241,29 @@ body {
 .service-status .repeat { font-variant-numeric: tabular-nums; }
 .service-collapsed { font-style: italic; }
 .ask-again { font: inherit; margin-inline-start: 0.5rem; }
+
+/*
+ * Placing the order (M3-D). The primary action on this screen once anything is in the
+ * basket, so it is larger and heavier than the controls around it — the same rule the
+ * staff surface follows for the next required action, for the same reason.
+ */
+.place-order {
+  display: block;
+  width: 100%;
+  min-height: 52px;
+  margin: 0.75rem 0 0;
+  padding: 0.75rem 1rem;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.order-outcome {
+  margin: 0.5rem 0 0;
+  font-weight: 600;
+}

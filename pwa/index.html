@@ -70,6 +70,12 @@
         carried, so pressing it twice cannot commit twice (FR-UX-007).
       -->
       <button type="button" class="retry" id="retry" hidden data-i18n="retry">Try again</button>
+      <!-- M3-D. The step every golden journey needs and no surface had: placing the
+           order. M3-A built preview_cart() and submit_order() and proved both against
+           the database; nothing a guest could press ever reached them. -->
+      <button type="button" class="place-order" id="place-order" hidden
+              data-i18n="placeOrder">Place the order</button>
+      <p class="order-outcome" id="order-outcome" role="status" aria-live="polite" hidden></p>
     </section>
 
     <!--

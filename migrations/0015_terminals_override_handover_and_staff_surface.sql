@@ -856,8 +856,27 @@ CREATE TABLE pos.handover_item (
         REFERENCES pos.handover (tenant_id, id) ON DELETE CASCADE,
     CONSTRAINT handover_item_session_fk FOREIGN KEY (tenant_id, table_session_id)
         REFERENCES service.table_session (tenant_id, id) ON DELETE RESTRICT,
-    CONSTRAINT handover_item_request_fk FOREIGN KEY (tenant_id, service_request_id)
-        REFERENCES service.service_request (tenant_id, id) ON DELETE RESTRICT,
+
+    -- NO FOREIGN KEY ON service_request_id, AND THAT IS THE POINT.
+    --
+    -- service.service_request is a PROJECTION. FR-DAT-010 requires that projections
+    -- rebuild from their ledger, and service.drop_projections_for_rebuild() does exactly
+    -- what its name says: it deletes every row and folds them back. A foreign key from a
+    -- durable table onto a projection makes that DELETE fail, so the first handover in a
+    -- tenant's life would have permanently broken the rebuild. It did: the reversed run
+    -- that FR-TST-020 requires found it, because the only order in which the defect is
+    -- reachable is a handover before a rebuild, and the forward order never produces one.
+    --
+    -- Referential integrity is not lost, it is placed where the model can keep it:
+    -- pos.propose_handover() SELECTS the open requests out of the projection itself, so
+    -- an item can only ever name a request that existed at proposal, and no caller
+    -- supplies an identifier. The rebuild reproduces the same primary keys from the same
+    -- ledger — that is the property M3-A built the derived-identity rule for — so the
+    -- reference still resolves afterwards.
+    --
+    -- The table_session reference above KEEPS its foreign key: service.table_session is
+    -- an ordinary table, not a projection, and nothing rebuilds it.
+
     -- Exactly one subject, matching the kind. A row that named both would be two items.
     CONSTRAINT handover_item_names_its_subject CHECK (
         (item_kind = 'table_session'

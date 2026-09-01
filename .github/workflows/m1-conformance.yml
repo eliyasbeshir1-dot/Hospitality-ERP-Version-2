@@ -251,17 +251,31 @@ jobs:
           # themselves, and the fallback is tested on this runner by the fact that
           # check_prerequisites.py ran under the documented name above.
           export PYTHON=python
-          bash tests/m3c/run_verification.sh 2>&1 | tee "$LOG_DIR/windows-suites.log"
-          for verdict in M1A M1B M1C M1D M2A M2B M2C M3A; do
+          # The journeys driver, which runs the M3-D driver — and therefore the whole
+          # chain beneath it — and then walks the five journeys. One entry point, so this
+          # runner cannot fall behind the Linux one by a slice.
+          bash tests/journeys/run_verification.sh 2>&1 | tee "$LOG_DIR/windows-suites.log"
+          # Enumerated from the drivers that actually ran, not from a list that stops
+          # being updated: this loop said M1A..M3A while the driver beneath it had been
+          # running through M3-C for a gate, so two suites were passing on Windows
+          # without anybody requiring them to.
+          for verdict in M1A M1B M1C M1D M2A M2B M2C M3A M3B M3C M3D; do
             grep -q "^PASS ${verdict}_VERIFICATION" "$LOG_DIR/windows-suites.log" || {
               echo "::error::${verdict} did not report PASS on Windows"; exit 1; }
           done
-          total="$(grep -oP 'checks run\s+:\s+\K[0-9]+' "$LOG_DIR/windows-suites.log" \
-                   | awk '{s+=$1} END {print s}')"
+          grep -q '^PASS GOLDEN_JOURNEY_VERIFICATION' "$LOG_DIR/windows-suites.log" || {
+            echo "::error::the golden journeys did not report PASS on Windows"; exit 1; }
+          for journey in GJ-01A GJ-02 GJ-03A GJ-04 GJ-05 FR-TST-007A; do
+            grep -qE "^\s+PASS\s+$journey\s" "$LOG_DIR/windows-suites.log" || {
+              echo "::error::$journey did not pass on Windows, or did not run"; exit 1; }
+          done
+          total="$(grep -oP '(?:checks run|steps checked)\s+:\s+\K[0-9]+' \
+                   "$LOG_DIR/windows-suites.log" | awk '{s+=$1} END {print s}')"
+          suites="$(grep -cE '^(PASS|FAIL) [A-Z0-9_]+_VERIFICATION' "$LOG_DIR/windows-suites.log")"
           failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/windows-suites.log" \
                     | awk '{s+=$1} END {print s}')"
           test "${failed:-1}" -eq 0 || { echo "::error::${failed} check(s) failed on Windows"; exit 1; }
-          echo "Windows: $total checks across five suites, 0 failures"
+          echo "Windows: $total checks and journey steps across $suites suites, 0 failures"
 
       - name: The generators must produce identical output on Windows
         shell: bash
@@ -603,6 +617,60 @@ jobs:
             echo "::error::only ${measured:-0} M3-C checks were browser-measured"; exit 1; }
           echo "M3-C: $checks checks, 0 failures, $pairs state pairs, $measured measured"
 
+      - name: M3-D — terminals, override, handover, the waiter surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Chains from the M3-C driver. A waiter surface is every earlier gate arriving
+          # on one screen: a menu from M2-A, a table from M2-B, an order from M3-A, a
+          # kitchen from M3-B and a service request from M3-C.
+          bash tests/m3d/run_verification.sh 2>&1 | tee "$LOG_DIR/m3d.log"
+          grep -q '^PASS M3D_VERIFICATION' "$LOG_DIR/m3d.log" || {
+            echo "::error::M3-D suite did not report PASS"; exit 1; }
+          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' "$LOG_DIR/m3d.log" | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/m3d.log" | tail -1)"
+          test "${checks:-0}" -ge 75 || { echo "::error::only ${checks:-0} M3-D checks ran"; exit 1; }
+          test "${failed:-1}" -eq 0 || { echo "::error::${failed} M3-D check(s) failed"; exit 1; }
+          # FR-POS-003A is the claim that waiter and QR ordering are ONE implementation,
+          # and it is asserted from the function catalog rather than from a list. A run
+          # whose catalog query stopped matching would compare two empty sets and pass,
+          # so the figure the suite prints itself is guarded.
+          rules="$(grep -oP '[0-9]+(?= rule function\(s\) enumerated)' "$LOG_DIR/m3d.log" | tail -1)"
+          test "${rules:-0}" -ge 20 || {
+            echo "::error::the channel differential enumerated only ${rules:-0} rule functions"; exit 1; }
+          # Touch targets, contrast and the graded confirmation are claims about a screen.
+          measured="$(grep -oP 'measured\s+:\s+\K[0-9]+' "$LOG_DIR/m3d.log" | tail -1)"
+          test "${measured:-0}" -ge 8 || {
+            echo "::error::only ${measured:-0} M3-D checks were browser-measured"; exit 1; }
+          echo "M3-D: $checks checks, 0 failures, $rules rule functions, $measured measured"
+
+      - name: The five golden journeys — end to end, in a browser (FR-TST-005A)
+        shell: bash
+        # `if: always()` on purpose. The journeys run AFTER the slice suites and report
+        # their own outcome whether or not one of them failed: if a slice check and a
+        # journey fail together that is one signal, and if only the journey fails that is
+        # a different and more interesting one. A step that stopped at the first slice
+        # failure would hide the second case entirely, which is the case the journeys
+        # exist for.
+        if: always()
+        run: |
+          set -euo pipefail
+          "${PYTHON:-python3}" tests/journeys/verify_journeys.py 2>&1 | tee "$LOG_DIR/journeys.log"
+          grep -q '^PASS GOLDEN_JOURNEY_VERIFICATION' "$LOG_DIR/journeys.log" || {
+            echo "::error::the golden journeys did not report PASS"; exit 1; }
+          steps="$(grep -oP 'steps checked\s+:\s+\K[0-9]+' "$LOG_DIR/journeys.log" | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/journeys.log" | tail -1)"
+          test "${steps:-0}" -ge 50 || { echo "::error::only ${steps:-0} journey steps ran"; exit 1; }
+          test "${failed:-1}" -eq 0 || { echo "::error::${failed} journey step(s) failed"; exit 1; }
+          # Every journey the brief names must have RUN. A suite that quietly walked four
+          # of five would still report PASS on the four, and "journeys: 4/5" is exactly
+          # the report that is not actionable.
+          for journey in GJ-01A GJ-02 GJ-03A GJ-04 GJ-05 FR-TST-007A; do
+            grep -qE "^\s+PASS\s+$journey\s" "$LOG_DIR/journeys.log" || {
+              echo "::error::$journey did not pass, or did not run at all"; exit 1; }
+          done
+          echo "the five golden journeys and the submit race: $steps steps, 0 failures"
+
       - name: The partial-closure register must agree with the repository
         shell: bash
         run: |
@@ -624,11 +692,11 @@ jobs:
           mkdir -p "$LOG_DIR/reorder"
           # Reverse order, same database, no rebuild. A suite that only passes when it runs
           # first is depending on state another suite left behind.
-          for suite in m3c m3b m3a m2c m2b m2a m1d m1c m1b m1a; do
+          for suite in m3d m3c m3b m3a m2c m2b m2a m1d m1c m1b m1a; do
             python3 "tests/$suite/verify_${suite}.py" > "$LOG_DIR/reorder/$suite.log" 2>&1 || true
           done
           fail=0
-          for suite in m1a m1b m1c m1d m2a m2b m2c m3a m3b m3c; do
+          for suite in m1a m1b m1c m1d m2a m2b m2c m3a m3b m3c m3d; do
             tag="$(echo "$suite" | tr '[:lower:]' '[:upper:]')"
             declared="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/$suite.log" | tail -1)"
             reordered="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/reorder/$suite.log" | tail -1)"
@@ -656,6 +724,7 @@ jobs:
           cp "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log \
              "$LOG_DIR"/m2a.log "$LOG_DIR"/m2b.log "$LOG_DIR"/m2c.log \
              "$LOG_DIR"/m3a.log "$LOG_DIR"/m3b.log "$LOG_DIR"/m3c.log \
+             "$LOG_DIR"/m3d.log "$LOG_DIR"/journeys.log \
              "$LOG_DIR/evidence-logs/"
           # No "|| true" here. A missing suite log must stop the report, not silently
           # become a "not run" row with a wrong total.
@@ -707,9 +776,13 @@ jobs:
                          NC-M3-004 NC-M3B-001 NC-M3B-002 NC-M3B-003 \
                          NC-M3B-004 NC-M3B-005 NC-M3B-006 \
                          NC-M3C-001 NC-M3C-002 NC-M3C-003 NC-M3C-004 \
-                         NC-M3C-005 NC-M3C-006 NC-M3C-007; do
-            red="$(grep -cE "\[PASS\] (\([a-z]+\) )?$control — RED" "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log "$LOG_DIR"/m2a.log "$LOG_DIR"/m2b.log "$LOG_DIR"/m2c.log "$LOG_DIR"/m3a.log "$LOG_DIR"/m3b.log "$LOG_DIR"/m3c.log | awk -F: '{s+=$2} END {print s}')"
-            green="$(grep -cE "\[PASS\] (\([a-z]+\) )?$control — GREEN" "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log "$LOG_DIR"/m2a.log "$LOG_DIR"/m2b.log "$LOG_DIR"/m2c.log "$LOG_DIR"/m3a.log "$LOG_DIR"/m3b.log "$LOG_DIR"/m3c.log | awk -F: '{s+=$2} END {print s}')"
+                         NC-M3C-005 NC-M3C-006 NC-M3C-007 \
+                         NC-M3D-001 NC-M3D-002 NC-M3D-003 NC-M3D-004 NC-M3D-005 \
+                         NC-M3D-006 NC-M3D-007 NC-M3D-008 NC-M3D-009 NC-M3D-010; do
+            # $control.* rather than "$control — ": M3-D writes the control's description
+            # between its identifier and the marker, so the log line says what was broken.
+            red="$(grep -cE "\[PASS\] (\([a-z]+\) )?$control.* — RED" "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log "$LOG_DIR"/m2a.log "$LOG_DIR"/m2b.log "$LOG_DIR"/m2c.log "$LOG_DIR"/m3a.log "$LOG_DIR"/m3b.log "$LOG_DIR"/m3c.log "$LOG_DIR"/m3d.log | awk -F: '{s+=$2} END {print s}')"
+            green="$(grep -cE "\[PASS\] (\([a-z]+\) )?$control.* — GREEN" "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log "$LOG_DIR"/m2a.log "$LOG_DIR"/m2b.log "$LOG_DIR"/m2c.log "$LOG_DIR"/m3a.log "$LOG_DIR"/m3b.log "$LOG_DIR"/m3c.log "$LOG_DIR"/m3d.log | awk -F: '{s+=$2} END {print s}')"
             if [ "${red:-0}" -lt 1 ] || [ "${green:-0}" -lt 1 ]; then
               echo "::error::$control was not shown both red and green (red=$red green=$green)"
               exit 1
@@ -732,6 +805,8 @@ jobs:
             ${{ runner.temp }}/m1-logs/m3a.log
             ${{ runner.temp }}/m1-logs/m3b.log
             ${{ runner.temp }}/m1-logs/m3c.log
+            ${{ runner.temp }}/m1-logs/m3d.log
+            ${{ runner.temp }}/m1-logs/journeys.log
             ${{ runner.temp }}/m1-logs/reorder/
             evidence/M1_EVIDENCE_REPORT.md
           if-no-files-found: error
