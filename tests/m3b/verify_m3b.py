@@ -84,6 +84,23 @@ def scalar(sql: str, *, dsn: str = APP, **ctx) -> str:
     return (res.scalar or "").strip()
 
 
+
+def replayed_ledgers() -> list[str]:
+    """The ledger tables ordering.rebuild_projections() actually loops over.
+
+    Read out of the function's own definition rather than listed here. The rebuild grew
+    from one ledger at M3-A to two at M3-B to three at M3-C, and a suite that named them
+    would silently be counting the wrong thing the first time a later gate added one —
+    the same defect as M3-A's hardcoded schema list, one level down.
+    """
+    found = re.findall(r"SELECT id FROM ([a-z_]+\.[a-z_]+)",
+                       definition("ordering.rebuild_projections(uuid)"))
+    if not found:
+        raise ProbeFailed("ordering.rebuild_projections(uuid)",
+                          "no ledger loop found in the rebuild's definition; a count "
+                          "derived from nothing is not a guard")
+    return sorted(dict.fromkeys(found))
+
 def rows(sql: str, *, dsn: str = APP, **ctx) -> list[list[str]]:
     res = run(dsn, sql, **{**CTX, **ctx})
     if not res.ok:
@@ -1716,8 +1733,30 @@ def section_governance(states: list[str]) -> None:
     # own, and only the reversed run found it.
     ordering_before = scalar(f"""
         SELECT encode(ordering.projection_digest('{fx.TENANT}'), 'hex');""", dsn=ADMIN)
-    rebuilt = run(ADMIN, f"""
-        SELECT ordering.rebuild_projections('{fx.TENANT}');""")
+    # UNDER CONTEXT, and the replay count asserted. ordering.rebuild_projections() is
+    # SECURITY DEFINER over tables with FORCE row level security, so its body is filtered
+    # by app.row_in_scope() no matter who calls it — a superuser included. Called with no
+    # tenant and outlet it is not an error: every ledger row is simply out of scope, so it
+    # drops nothing, replays nothing and returns 0, and both digests below then match
+    # trivially. That is how this check passed while proving nothing, and it is the same
+    # class of defect as the M2-C assertion that could not fail. The count is the guard.
+    ledgers = replayed_ledgers()
+    record("the ledgers a rebuild replays are read out of the rebuild itself",
+           len(ledgers) >= 2,
+           f"{ledgers}. Named here instead, this count would be wrong the moment a later "
+           f"gate added a ledger to ordering.rebuild_projections() — which is how M3-A's "
+           f"schema list went stale — and the guard below would fail on a correct system")
+    ledger_events = count(APP, "SELECT " + " + ".join(
+        f"(SELECT count(*) FROM {table} WHERE tenant_id = '{fx.TENANT}')"
+        for table in ledgers) + ";", **CTX)
+    rebuilt = run(APP, f"""
+        SELECT ordering.rebuild_projections('{fx.TENANT}');""", **CTX)
+    replayed = int((rebuilt.scalar or "-1").strip()) if rebuilt.ok else -1
+    record("the rebuild actually replayed both ledgers rather than nothing",
+           replayed == ledger_events and replayed > 0,
+           f"{replayed} event(s) replayed against {ledger_events} in the two ledgers. "
+           f"A rebuild that dropped nothing and replayed nothing reproduces every digest "
+           f"exactly, which is a pass that means nothing")
     after = scalar(f"""
         SELECT encode(fulfillment.projection_digest('{fx.TENANT}'), 'hex');""", dsn=ADMIN)
     ordering_after = scalar(f"""
@@ -1725,7 +1764,7 @@ def section_governance(states: list[str]) -> None:
     record("dropping every projection and replaying both ledgers reproduces them exactly",
            rebuilt.ok and before == after and len(before) == 64,
            f"{rebuilt.why() or ''}digest {before[:16]}… before, {after[:16]}… after "
-           f"({rebuilt.scalar} events replayed). M3-A's rebuild replayed one ledger; a "
+           f"({replayed} events replayed). M3-A's rebuild replayed one ledger; a "
            f"rebuild that replayed only the order ledger would have deleted every "
            f"station timeline entry and left NC-M3-009 red for a correct system")
 

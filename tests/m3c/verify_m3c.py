@@ -83,6 +83,23 @@ def scalar(sql: str, *, dsn: str = APP, **ctx) -> str:
     return (res.scalar or "").strip()
 
 
+
+def replayed_ledgers() -> list[str]:
+    """The ledger tables ordering.rebuild_projections() actually loops over.
+
+    Read out of the function's own definition rather than listed here. The rebuild grew
+    from one ledger at M3-A to two at M3-B to three at M3-C, and a suite that named them
+    would silently be counting the wrong thing the first time a later gate added one —
+    the same defect as M3-A's hardcoded schema list, one level down.
+    """
+    found = re.findall(r"SELECT id FROM ([a-z_]+\.[a-z_]+)",
+                       definition("ordering.rebuild_projections(uuid)"))
+    if not found:
+        raise ProbeFailed("ordering.rebuild_projections(uuid)",
+                          "no ledger loop found in the rebuild's definition; a count "
+                          "derived from nothing is not a guard")
+    return sorted(dict.fromkeys(found))
+
 def rows(sql: str, *, dsn: str = APP, **ctx) -> list[list[str]]:
     res = run(dsn, sql, **{**CTX, **ctx})
     if not res.ok:
@@ -964,10 +981,21 @@ def section_sla_and_escalation() -> None:
     early = run(APP, f"""
         SELECT service.escalate_overdue_requests('{fx.TENANT}', '{fx.OUTLET_H1}');""",
         **CTX)
+    # About THIS request, not about the sweep's total. escalate_overdue_requests() sweeps
+    # the whole outlet, so on a database this suite has already run against the total also
+    # counts requests an earlier run left open and long overdue — a number that says
+    # nothing about selectivity and makes the check fail for the wrong reason. A sweep
+    # that escalated everything would escalate this one too, which is the property.
+    early_state = rows(f"""
+        SELECT sr.state::text, count(e.id)::text
+        FROM service.service_request sr
+        LEFT JOIN service.request_escalation e ON e.service_request_id = sr.id
+        WHERE sr.id = '{request}' GROUP BY 1;""")
     record("a request inside its deadline is not escalated",
-           early.ok and (early.scalar or "").strip() == "0",
-           f"{early.why() or early.scalar} escalated. A sweep that escalated everything "
-           f"would pass the check below and mean nothing")
+           early.ok and early_state and early_state[0] == ["routed", "0"],
+           f"{early.why() or early_state}, {early.scalar} escalated across the outlet. "
+           f"A sweep that escalated everything would have taken this one with it, and "
+           f"would then pass the check below and mean nothing")
 
     run(ADMIN, f"""
         SELECT set_config('service.applying_event', 'yes', true);
@@ -1658,31 +1686,102 @@ def section_correlation_and_rebuild() -> None:
            f"be worse than none, because it would look complete")
 
     # --- the rebuild, over all three ledgers ---
-    service_before = scalar(f"""
-        SELECT encode(service.projection_digest('{fx.TENANT}'), 'hex');""")
-    ordering_before = scalar(f"""
-        SELECT encode(ordering.projection_digest('{fx.TENANT}'), 'hex');""", dsn=ADMIN)
-    fulfil_before = scalar(f"""
-        SELECT encode(fulfillment.projection_digest('{fx.TENANT}'), 'hex');""", dsn=ADMIN)
+    # Three things had to be got right here, and the first two were got wrong first.
+    #
+    #   * ONE IDENTITY, ONE SCOPE. Reading one digest through the application role and
+    #     its pair through the superuser compares an OUTLET's projections against a
+    #     TENANT's. They differ for a correct system, which is a failure nobody can act on.
+    #   * THE REBUILD MUST ACTUALLY RUN. ordering.rebuild_projections() is SECURITY
+    #     DEFINER over tables with FORCE row level security, so its body is filtered by
+    #     app.row_in_scope() whoever calls it — a superuser included. Called with no
+    #     tenant and outlet it is not an error: every ledger row is out of scope, so it
+    #     drops nothing, replays nothing and returns 0, and every digest then matches
+    #     trivially. That is an assertion that cannot fail, which is a defect, and it is
+    #     how this check first passed. The replay count is the guard.
+    #   * THE COMPARISON MUST BE AGAINST THE LEDGER, NOT AGAINST THIS SUITE'S EDITS. Two
+    #     earlier sections move a deadline into the past to make a deduplication window
+    #     and an overdue request testable without waiting ten minutes for either. Those
+    #     are writes to the PROJECTION; the ledger, which is the truth, does not carry
+    #     them. A rebuild therefore restores the recorded time and SHOULD differ from the
+    #     live row — comparing the two would report a correct rebuild as a defect.
+    #
+    # So the first rebuild is measured by what it must not lose, and determinism is
+    # asserted over the second. Both halves are needed: an identity comparison alone
+    # passes for a rebuild that dropped a projection nothing replays, which is the defect
+    # M3-B found, and an identity check alone says nothing about the values in the rows.
+    def artifact_ids() -> list[str]:
+        return sorted(r[0] for r in rows(f"""
+            SELECT 'request:'  || id::text FROM service.service_request
+             WHERE tenant_id = '{fx.TENANT}'
+            UNION ALL
+            SELECT 'routing:'  || id::text FROM service.request_routing_decision
+             WHERE tenant_id = '{fx.TENANT}'
+            UNION ALL
+            SELECT 'escal:'    || id::text FROM service.request_escalation
+             WHERE tenant_id = '{fx.TENANT}'
+            UNION ALL
+            SELECT 'order:'    || id::text FROM ordering.customer_order
+             WHERE tenant_id = '{fx.TENANT}'
+            UNION ALL
+            SELECT 'link:'     || artifact_kind::text || ':' || artifact_id::text
+              FROM ordering.correlation_link WHERE tenant_id = '{fx.TENANT}'
+            UNION ALL
+            SELECT 'ticket:'   || id::text FROM fulfillment.ticket
+             WHERE tenant_id = '{fx.TENANT}';"""))
 
-    rebuilt = run(APP, f"SELECT ordering.rebuild_projections('{fx.TENANT}');")
+    def digests() -> tuple[str, str, str]:
+        return (scalar(f"SELECT encode(service.projection_digest('{fx.TENANT}'), 'hex');"),
+                scalar(f"SELECT encode(ordering.projection_digest('{fx.TENANT}'), 'hex');"),
+                scalar(f"SELECT encode(fulfillment.projection_digest('{fx.TENANT}'), 'hex');"))
 
-    service_after = scalar(f"""
-        SELECT encode(service.projection_digest('{fx.TENANT}'), 'hex');""", dsn=ADMIN)
-    ordering_after = scalar(f"""
-        SELECT encode(ordering.projection_digest('{fx.TENANT}'), 'hex');""", dsn=ADMIN)
-    fulfil_after = scalar(f"""
-        SELECT encode(fulfillment.projection_digest('{fx.TENANT}'), 'hex');""", dsn=ADMIN)
+    ids_before = artifact_ids()
+    ledgers = replayed_ledgers()
+    record("the three ledgers a rebuild replays are read out of the rebuild itself",
+           len(ledgers) == 3 and "service.service_request_event" in ledgers,
+           f"{ledgers}. Named here instead, this count would be wrong the moment M3-D "
+           f"added a fourth — the same defect as M3-A's hardcoded schema list, one level "
+           f"down — and the guard below would fail on a correct system")
+    ledger_events = count(APP, "SELECT " + " + ".join(
+        f"(SELECT count(*) FROM {table} WHERE tenant_id = '{fx.TENANT}')"
+        for table in ledgers) + ";", **CTX)
+    rebuilt = run(APP, f"SELECT ordering.rebuild_projections('{fx.TENANT}');", **CTX)
+    replayed = int((rebuilt.scalar or "-1").strip()) if rebuilt.ok else -1
+    record("the rebuild actually replayed all three ledgers rather than nothing",
+           replayed == ledger_events and replayed > 0,
+           f"{replayed} event(s) replayed against {ledger_events} in the three ledgers. "
+           f"Without this the comparisons below would pass on a rebuild that dropped "
+           f"nothing and replayed nothing, which is what a rebuild called with no tenant "
+           f"context does")
 
-    record("dropping every projection and replaying THREE ledgers reproduces them exactly",
-           rebuilt.ok and service_before == service_after
-           and ordering_before == ordering_after and fulfil_before == fulfil_after,
-           f"{rebuilt.why() or ''}service {service_before[:12]}…, ordering "
-           f"{ordering_before[:12]}…, fulfillment {fulfil_before[:12]}… — all three "
-           f"unchanged over {rebuilt.scalar} events replayed. M3-B extended this from one "
-           f"ledger to two after the reversed run found the ticket's correlation link "
-           f"could not be restored; the service link is the same shape and is written by "
-           f"the FOLD for the same reason")
+    ids_after = artifact_ids()
+    lost = [i for i in ids_before if i not in set(ids_after)]
+    invented = [i for i in ids_after if i not in set(ids_before)]
+    record("dropping every projection and replaying THREE ledgers loses nothing and "
+           "invents nothing",
+           rebuilt.ok and not lost and not invented and len(ids_before) > 0,
+           f"{len(ids_before)} artifact(s) across three schemas; lost "
+           f"{lost[:3] or 'none'}, invented {invented[:3] or 'none'}. Requests, routing "
+           f"decisions, escalations, orders, tickets and every correlation link, by id. "
+           f"A projection the LIVE path writes and the fold does not comes back missing "
+           f"here — which is the defect M3-B found in ordering.correlation_link")
+
+    service_first, ordering_first, fulfil_first = digests()
+    second = run(APP, f"SELECT ordering.rebuild_projections('{fx.TENANT}');", **CTX)
+    replayed_again = int((second.scalar or "-1").strip()) if second.ok else -1
+    service_second, ordering_second, fulfil_second = digests()
+    drifted = [name for name, (one, two) in {
+        "service": (service_first, service_second),
+        "ordering": (ordering_first, ordering_second),
+        "fulfillment": (fulfil_first, fulfil_second)}.items() if one != two]
+    record("and replaying them a second time reproduces every column exactly",
+           second.ok and replayed_again == replayed and not drifted
+           and len(service_first) == 64,
+           f"service {service_first[:12]}…, ordering {ordering_first[:12]}…, "
+           f"fulfillment {fulfil_first[:12]}… — "
+           f"{'all three unchanged' if not drifted else 'DRIFTED: ' + ', '.join(drifted)} "
+           f"over {replayed_again} events replayed again. The digest renders every column "
+           f"of every projection in an explicit order, so a value the fold computes from "
+           f"the clock rather than from the event changes it")
 
     restored = count(APP, f"""
         SELECT count(*) FROM ordering.correlation_link
