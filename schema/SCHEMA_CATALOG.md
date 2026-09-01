@@ -4,7 +4,7 @@
 Do not edit by hand: the verification suite regenerates this file and fails on any
 difference, so a hand edit is reported as drift (FR-DAT-015).
 
-Schemas covered: `app`, `audit`, `config`, `fulfillment`, `identity`, `menu`, `money`, `ordering`, `org`, `safety`, `service`, discovered from the database rather than listed here.
+Schemas covered: `app`, `audit`, `config`, `fulfillment`, `identity`, `integration`, `menu`, `money`, `notify`, `ordering`, `org`, `safety`, `service`, discovered from the database rather than listed here.
 
 ---
 
@@ -38,16 +38,22 @@ Schemas covered: `app`, `audit`, `config`, `fulfillment`, `identity`, `menu`, `m
 | `identity.principal_class` | worker, integration, edge_node, print_agent |
 | `identity.revocation_reason` | signed_out, expired, membership_withdrawn, security_event, rotated, administrator_revoked, recovery |
 | `identity.transmission_mode` | simulated, live |
+| `integration.dead_letter_state` | open, replayed, abandoned |
+| `integration.job_kind` | notification_notice |
 | `menu.availability_state` | available, limited, temporarily_unavailable, scheduled_later, hidden |
 | `menu.customer_locale` | en, am, ar |
 | `menu.image_format` | webp, avif, jpeg, png |
-| `menu.menu_entity` | menu, category, item_group, item, variant, modifier_group, modifier, image, allergen, dietary_claim |
+| `menu.menu_entity` | menu, category, item_group, item, variant, modifier_group, modifier, image, allergen, dietary_claim, service_request_type, notification_template |
 | `menu.publication_state` | draft, review, scheduled, published, paused, archived |
 | `menu.sales_channel` | dine_in, counter, room_service, kiosk |
 | `menu.translation_provenance` | human, machine_assisted |
 | `menu.translation_state` | draft, in_review, approved, rejected |
 | `menu.variant_axis` | size, portion, temperature, preparation_style |
 | `money.rounding_mode` | half_up, half_even, floor, ceiling |
+| `notify.audience` | customer, staff |
+| `notify.event_class` | order, kitchen, service_request, bill, payment, tip, outage, sync |
+| `notify.failure_reason` | recipient_not_authorized, recipient_out_of_scope, template_missing |
+| `notify.notice_state` | pending, sent, read, failed, dead_lettered |
 | `ordering.acceptance_mode` | automatic, staff_confirmed |
 | `ordering.actor_kind` | guest, staff, system |
 | `ordering.artifact_kind` | request, cart, table_session, order, fulfillment_ticket, service_request |
@@ -64,9 +70,14 @@ Schemas covered: `app`, `audit`, `config`, `fulfillment`, `identity`, `menu`, `m
 | `safety.review_state` | draft, in_review, approved |
 | `service.cart_kind` | personal, shared |
 | `service.cart_state` | open, abandoned, expired |
+| `service.completion_status` | done, partially_done, not_possible |
 | `service.concern_source` | guest, waiter |
 | `service.occupancy_state` | open, closed |
 | `service.opening_source` | qr_scan, staff, host_stand |
+| `service.presence_state` | available, temporarily_unavailable, offline |
+| `service.request_event_kind` | raised, routed, acknowledged, started, completed, cancelled, expired, escalated, unresolved, reassigned, session_changed |
+| `service.request_origin` | guest, staff |
+| `service.request_state` | new, routed, acknowledged, in_progress, completed, cancelled, expired, escalated, unresolved |
 | `service.transfer_state` | proposed, acknowledged, supervisor_reassigned, declined |
 | `service.verification_method` | staff_confirmation, table_code, host_approval |
 
@@ -123,6 +134,7 @@ graph LR
   identity_session["identity.session"]
   identity_step_up_grant["identity.step_up_grant"]
   identity_terminal_trust["identity.terminal_trust"]
+  integration_dead_letter["integration.dead_letter"]
   menu_assignment["menu.assignment"]
   menu_daypart["menu.daypart"]
   menu_menu["menu.menu"]
@@ -142,11 +154,16 @@ graph LR
   menu_publication_snapshot_line["menu.publication_snapshot_line"]
   menu_translation["menu.translation"]
   menu_translatable_field["menu.translatable_field"]
+  notify_deep_link["notify.deep_link"]
+  notify_notice["notify.notice"]
+  service_table_session["service.table_session"]
+  notify_notification["notify.notification"]
+  service_guest_session["service.guest_session"]
+  notify_catalog_event["notify.catalog_event"]
+  notify_template["notify.template"]
   ordering_charge_rule["ordering.charge_rule"]
   ordering_correlation_link["ordering.correlation_link"]
   service_cart["service.cart"]
-  service_guest_session["service.guest_session"]
-  service_table_session["service.table_session"]
   ordering_duplicate_signal["ordering.duplicate_signal"]
   ordering_order_charge_component["ordering.order_charge_component"]
   ordering_order_event["ordering.order_event"]
@@ -174,11 +191,17 @@ graph LR
   service_qr_placard["service.qr_placard"]
   service_table_qr_token["service.table_qr_token"]
   service_qr_scan["service.qr_scan"]
+  service_request_escalation["service.request_escalation"]
+  service_service_request["service.service_request"]
+  service_request_routing_decision["service.request_routing_decision"]
+  service_request_type["service.request_type"]
+  service_service_request_event["service.service_request_event"]
   service_session_closure_exception["service.session_closure_exception"]
   service_session_merge["service.session_merge"]
   service_session_move["service.session_move"]
   service_table_profile["service.table_profile"]
   service_session_participant["service.session_participant"]
+  service_staff_presence["service.staff_presence"]
   service_table_ownership["service.table_ownership"]
   service_verification_policy["service.verification_policy"]
   audit_operational_event --> org_org_node
@@ -286,6 +309,9 @@ graph LR
   identity_step_up_grant --> org_org_node
   identity_terminal_trust --> org_org_node
   identity_user_account --> org_tenant
+  integration_dead_letter --> identity_user_account
+  integration_dead_letter --> org_org_node
+  integration_dead_letter --> org_tenant
   menu_assignment --> menu_daypart
   menu_assignment --> menu_menu
   menu_assignment --> org_org_node
@@ -356,6 +382,20 @@ graph LR
   menu_translation --> menu_translatable_field
   menu_translation --> org_org_node
   menu_translation --> org_tenant
+  notify_deep_link --> notify_notice
+  notify_deep_link --> org_org_node
+  notify_deep_link --> org_tenant
+  notify_deep_link --> service_table_session
+  notify_notice --> identity_user_account
+  notify_notice --> notify_notification
+  notify_notice --> org_org_node
+  notify_notice --> org_tenant
+  notify_notice --> service_guest_session
+  notify_notification --> notify_catalog_event
+  notify_notification --> org_org_node
+  notify_notification --> org_tenant
+  notify_template --> notify_catalog_event
+  notify_template --> org_tenant
   ordering_charge_rule --> config_configuration_version
   ordering_charge_rule --> config_policy
   ordering_charge_rule --> money_currency
@@ -481,6 +521,29 @@ graph LR
   service_qr_scan --> org_tenant
   service_qr_scan --> service_guest_session
   service_qr_scan --> service_table_qr_token
+  service_request_escalation --> identity_user_account
+  service_request_escalation --> org_org_node
+  service_request_escalation --> org_tenant
+  service_request_escalation --> service_service_request
+  service_request_routing_decision --> identity_role
+  service_request_routing_decision --> identity_user_account
+  service_request_routing_decision --> org_org_node
+  service_request_routing_decision --> org_tenant
+  service_request_routing_decision --> service_service_request
+  service_request_type --> identity_role
+  service_request_type --> org_org_node
+  service_request_type --> org_tenant
+  service_service_request --> config_reason_code
+  service_service_request --> identity_role
+  service_service_request --> identity_user_account
+  service_service_request --> ordering_customer_order
+  service_service_request --> org_org_node
+  service_service_request --> org_tenant
+  service_service_request --> service_request_type
+  service_service_request --> service_table_session
+  service_service_request_event --> config_reason_code
+  service_service_request_event --> org_org_node
+  service_service_request_event --> org_tenant
   service_session_closure_exception --> config_reason_code
   service_session_closure_exception --> identity_user_account
   service_session_closure_exception --> org_org_node
@@ -500,6 +563,10 @@ graph LR
   service_session_participant --> org_tenant
   service_session_participant --> service_guest_session
   service_session_participant --> service_table_session
+  service_staff_presence --> identity_session
+  service_staff_presence --> identity_user_account
+  service_staff_presence --> org_org_node
+  service_staff_presence --> org_tenant
   service_table_ownership --> identity_user_account
   service_table_ownership --> org_org_node
   service_table_ownership --> org_tenant
@@ -1818,6 +1885,49 @@ Policies:
 
 - `user_account_isolation` — `app.row_in_scope(tenant_id, NULL::uuid)`
 
+### `integration`
+
+FR-INT-005, FR-INT-007, FR-INT-014. Idempotency, the dead-letter queue and the correlation chain's newest link. Its own schema because M4's payment adapters and M5a's synchronization use the same queue, and a queue inside notify would have to move before they could.
+
+#### `integration.dead_letter`
+
+FR-INT-007. Operator-visible, with the reason and the attempt count that got it here. It holds the work by REFERENCE: a copy would let a replay act on a stale version of something that has since moved on. M4 and M5a extend job_kind; the queue, the door and the replay control are these.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `job_kind` | `integration.job_kind` | NOT NULL |  |  |
+| `subject_id` | `uuid` | NOT NULL |  |  |
+| `failure_reason` | `text` | NOT NULL |  |  |
+| `attempts` | `integer` | NOT NULL |  |  |
+| `first_failed_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `last_failed_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `state` | `integration.dead_letter_state` | NOT NULL | `'open'::integration.dead_letter_state` |  |
+| `resolved_at` | `timestamp with time zone` |  |  |  |
+| `resolved_by_user_id` | `uuid` |  |  |  |
+| `resolution_note` | `text` |  |  |  |
+| `correlation_id` | `uuid` | NOT NULL |  |  |
+
+Constraints:
+
+- `dead_letter_attempts_positive` — `CHECK ((attempts > 0))`
+- `dead_letter_one_per_subject` — `UNIQUE (tenant_id, job_kind, subject_id)`
+- `dead_letter_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `dead_letter_pkey` — `PRIMARY KEY (id)`
+- `dead_letter_reason_not_blank` — `CHECK ((btrim(failure_reason) <> ''::text))`
+- `dead_letter_resolution_is_attributed` — `CHECK ((((state = 'open'::integration.dead_letter_state) = (resolved_at IS NULL)) AND ((state = 'open'::integration.dead_letter_state) = (resolved_by_user_id IS NULL))))`
+- `dead_letter_resolver_fk` — `FOREIGN KEY (tenant_id, resolved_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `dead_letter_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `dead_letter_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `dead_letter_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
 ### `menu`
 
 Menu structure, pricing, availability and translation storage (M2-A). Independent of recipe and inventory identities: no column here references either, and the verification suite proves it against the pinned fenced vocabulary rather than a list written by hand.
@@ -2511,6 +2621,173 @@ Constraints:
 - `currency_code_is_uppercase_alpha` — `CHECK ((code ~ '^[A-Z]{3}$'::text))`
 - `currency_minor_unit_digits_sane` — `CHECK (((minor_unit_digits >= 0) AND (minor_unit_digits <= 4)))`
 - `currency_pkey` — `PRIMARY KEY (code)`
+
+### `notify`
+
+FR-NOT-001 … FR-NOT-012. What happened, who should be told, in which language, and whether they were told. The CHANNEL is not here: outlet-local notice is M5a, and this gate sends in-app only.
+
+#### `notify.catalog_event`
+
+The package's event catalog, for the classes FR-NOT-001 names. has_producer = false marks a kind whose domain is a later gate: the kind is real and nothing emits it. tests/m3c requires this table to equal events.json and fails closed if it cannot read the package.
+
+Row level security: **DISABLED**, **not forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `event_id` | `text` | NOT NULL |  |  |
+| `event_class` | `notify.event_class` | NOT NULL |  |  |
+| `milestone` | `text` | NOT NULL |  |  |
+| `severity` | `text` | NOT NULL | `'informational'::text` |  |
+| `has_producer` | `boolean` | NOT NULL |  |  |
+
+Constraints:
+
+- `catalog_event_id_shape` — `CHECK ((event_id ~ '^EVT-[A-Z0-9-]+$'::text))`
+- `catalog_event_milestone_shape` — `CHECK ((milestone ~ '^M[0-9][A-Za-z]?$'::text))`
+- `catalog_event_pkey` — `PRIMARY KEY (event_id)`
+- `catalog_event_producer_only_when_landed` — `CHECK (((NOT has_producer) OR (milestone = ANY (ARRAY['M1'::text, 'M2'::text, 'M3'::text]))))`
+- `catalog_event_severity_known` — `CHECK ((severity = ANY (ARRAY['informational'::text, 'critical'::text])))`
+
+#### `notify.deep_link`
+
+FR-NOT-009. An opaque token, a target and the scope a caller must be inside to follow it. The token is stored as sha256 and never in the clear, and the target is not derivable from it — a link that could be edited into another table's request would fail no authorization check because it would never reach one.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `notice_id` | `uuid` | NOT NULL |  |  |
+| `token_digest` | `bytea` | NOT NULL |  |  |
+| `target_kind` | `ordering.artifact_kind` | NOT NULL |  |  |
+| `target_id` | `uuid` | NOT NULL |  |  |
+| `scope_table_session_id` | `uuid` |  |  |  |
+| `expires_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `deep_link_digest_is_sha256` — `CHECK ((octet_length(token_digest) = 32))`
+- `deep_link_digest_unique` — `UNIQUE (token_digest)`
+- `deep_link_notice_fk` — `FOREIGN KEY (tenant_id, notice_id) REFERENCES notify.notice(tenant_id, id) ON DELETE RESTRICT`
+- `deep_link_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `deep_link_pkey` — `PRIMARY KEY (id)`
+- `deep_link_session_fk` — `FOREIGN KEY (tenant_id, scope_table_session_id) REFERENCES service.table_session(tenant_id, id) ON DELETE RESTRICT`
+- `deep_link_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `deep_link_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `deep_link_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `notify.notice`
+
+One person being told one thing. FR-NOT-007's deduplication is a UNIQUE index over (notification, recipient) rather than a check the emitter performs, because an emitter that forgot would produce exactly the duplicate alert the requirement forbids.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `notification_id` | `uuid` | NOT NULL |  |  |
+| `audience` | `notify.audience` | NOT NULL |  |  |
+| `recipient_user_id` | `uuid` |  |  |  |
+| `recipient_guest_session_id` | `uuid` |  |  |  |
+| `locale` | `menu.customer_locale` | NOT NULL |  |  |
+| `rendered_text` | `text` |  |  |  |
+| `state` | `notify.notice_state` | NOT NULL | `'pending'::notify.notice_state` |  |
+| `attempts` | `integer` | NOT NULL | `0` |  |
+| `last_failure` | `notify.failure_reason` |  |  |  |
+| `last_failed_at` | `timestamp with time zone` |  |  |  |
+| `sent_at` | `timestamp with time zone` |  |  |  |
+| `read_at` | `timestamp with time zone` |  |  |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `notice_attempts_not_negative` — `CHECK ((attempts >= 0))`
+- `notice_audience_names_its_recipient` — `CHECK ((((audience = 'staff'::notify.audience) AND (recipient_user_id IS NOT NULL) AND (recipient_guest_session_id IS NULL)) OR ((audience = 'customer'::notify.audience) AND (recipient_guest_session_id IS NOT NULL) AND (recipient_user_id IS NULL))))`
+- `notice_failure_is_explained` — `CHECK (((state = ANY (ARRAY['failed'::notify.notice_state, 'dead_lettered'::notify.notice_state])) = (last_failure IS NOT NULL)))`
+- `notice_guest_fk` — `FOREIGN KEY (tenant_id, recipient_guest_session_id) REFERENCES service.guest_session(tenant_id, id) ON DELETE RESTRICT`
+- `notice_notification_fk` — `FOREIGN KEY (tenant_id, notification_id) REFERENCES notify.notification(tenant_id, id) ON DELETE RESTRICT`
+- `notice_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `notice_pkey` — `PRIMARY KEY (id)`
+- `notice_read_after_sent` — `CHECK (((read_at IS NULL) OR (sent_at IS NOT NULL)))`
+- `notice_sent_has_text` — `CHECK (((state <> ALL (ARRAY['sent'::notify.notice_state, 'read'::notify.notice_state])) OR (rendered_text IS NOT NULL)))`
+- `notice_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `notice_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `notice_user_fk` — `FOREIGN KEY (tenant_id, recipient_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `notice_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `notify.notification`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `event_id` | `text` | NOT NULL |  |  |
+| `subject_kind` | `ordering.artifact_kind` | NOT NULL |  |  |
+| `subject_id` | `uuid` | NOT NULL |  |  |
+| `correlation_id` | `uuid` | NOT NULL |  |  |
+| `dedup_key` | `text` | NOT NULL |  |  |
+| `payload` | `jsonb` | NOT NULL | `'{}'::jsonb` |  |
+| `emitted_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `notification_dedup_key_not_blank` — `CHECK ((btrim(dedup_key) <> ''::text))`
+- `notification_event_fk` — `FOREIGN KEY (event_id) REFERENCES notify.catalog_event(event_id) ON DELETE RESTRICT`
+- `notification_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `notification_payload_within_bounds` — `CHECK (notify.payload_within_bounds(payload))`
+- `notification_pkey` — `PRIMARY KEY (id)`
+- `notification_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `notification_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `notification_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `notify.template`
+
+FR-NOT-003. Identity only: the approved BODY in each customer language lives in menu.translation under entity notification_template, so M2-A's human approval workflow governs it unchanged rather than being written a second time.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `event_id` | `text` | NOT NULL |  |  |
+| `audience` | `notify.audience` | NOT NULL |  |  |
+| `source_text` | `text` | NOT NULL |  |  |
+| `status` | `org.lifecycle_status` | NOT NULL | `'active'::org.lifecycle_status` |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `template_event_fk` — `FOREIGN KEY (event_id) REFERENCES notify.catalog_event(event_id) ON DELETE RESTRICT`
+- `template_one_per_event_audience` — `UNIQUE (tenant_id, event_id, audience)`
+- `template_pkey` — `PRIMARY KEY (id)`
+- `template_source_not_blank` — `CHECK ((btrim(source_text) <> ''::text))`
+- `template_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `template_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `template_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
 ### `ordering`
 
@@ -3650,6 +3927,206 @@ Policies:
 
 - `qr_scan_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
+#### `service.request_escalation`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `service_request_id` | `uuid` | NOT NULL |  |  |
+| `from_user_id` | `uuid` |  |  |  |
+| `to_user_id` | `uuid` | NOT NULL |  |  |
+| `sla_due_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `escalated_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `overdue_seconds` | `integer` | NOT NULL |  |  |
+| `basis` | `text` | NOT NULL |  |  |
+
+Constraints:
+
+- `request_escalation_basis_not_blank` — `CHECK ((btrim(basis) <> ''::text))`
+- `request_escalation_from_fk` — `FOREIGN KEY (tenant_id, from_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `request_escalation_moves_it` — `CHECK ((from_user_id IS DISTINCT FROM to_user_id))`
+- `request_escalation_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `request_escalation_pkey` — `PRIMARY KEY (id)`
+- `request_escalation_request_fk` — `FOREIGN KEY (tenant_id, service_request_id) REFERENCES service.service_request(tenant_id, id) ON DELETE RESTRICT`
+- `request_escalation_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `request_escalation_to_fk` — `FOREIGN KEY (tenant_id, to_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `request_escalation_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.request_routing_decision`
+
+FR-SRV-002. The table assignment, service area, role and candidate count that produced an assignment, kept beside the assignment. Without them a routing defect and a staffing gap look identical afterwards.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `service_request_id` | `uuid` | NOT NULL |  |  |
+| `table_node_id` | `uuid` | NOT NULL |  |  |
+| `service_area_id` | `uuid` |  |  |  |
+| `required_role_id` | `uuid` | NOT NULL |  |  |
+| `considered_count` | `integer` | NOT NULL |  |  |
+| `chosen_user_id` | `uuid` |  |  |  |
+| `basis` | `text` | NOT NULL |  |  |
+| `decided_at` | `timestamp with time zone` | NOT NULL |  |  |
+
+Constraints:
+
+- `request_routing_decision_pkey` — `PRIMARY KEY (id)`
+- `routing_decision_basis_not_blank` — `CHECK ((btrim(basis) <> ''::text))`
+- `routing_decision_considered_not_negative` — `CHECK ((considered_count >= 0))`
+- `routing_decision_one_per_request` — `UNIQUE (tenant_id, service_request_id)`
+- `routing_decision_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `routing_decision_request_fk` — `FOREIGN KEY (tenant_id, service_request_id) REFERENCES service.service_request(tenant_id, id) ON DELETE RESTRICT`
+- `routing_decision_role_fk` — `FOREIGN KEY (tenant_id, required_role_id) REFERENCES identity.role(tenant_id, id) ON DELETE RESTRICT`
+- `routing_decision_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `routing_decision_user_fk` — `FOREIGN KEY (tenant_id, chosen_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `request_routing_decision_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.request_type`
+
+FR-SRV-001. The seven request types the requirement names are seeded rows, not enum labels: an outlet configures its own. Nothing downstream branches on the code, so an eighth type needs no code change — which is the test of whether this is really configuration.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `code` | `text` | NOT NULL |  |  |
+| `canonical_name` | `text` | NOT NULL |  |  |
+| `sla_seconds` | `integer` | NOT NULL |  |  |
+| `dedup_window_seconds` | `integer` | NOT NULL |  |  |
+| `handled_by_role_id` | `uuid` | NOT NULL |  |  |
+| `status` | `org.lifecycle_status` | NOT NULL | `'active'::org.lifecycle_status` |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `request_type_code_not_blank` — `CHECK ((btrim(code) <> ''::text))`
+- `request_type_code_unique` — `UNIQUE (tenant_id, outlet_id, code)`
+- `request_type_dedup_window_not_negative` — `CHECK ((dedup_window_seconds >= 0))`
+- `request_type_name_not_blank` — `CHECK ((btrim(canonical_name) <> ''::text))`
+- `request_type_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `request_type_pkey` — `PRIMARY KEY (id)`
+- `request_type_role_fk` — `FOREIGN KEY (tenant_id, handled_by_role_id) REFERENCES identity.role(tenant_id, id) ON DELETE RESTRICT`
+- `request_type_sla_positive` — `CHECK ((sla_seconds > 0))`
+- `request_type_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `request_type_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `request_type_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.service_request`
+
+FR-SRV-001 … FR-SRV-009 and FR-SRV-008's staff tasks, which are the same aggregate with origin = staff. Bound to the TABLE SESSION rather than the order, because a guest who has ordered nothing can still need something.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `table_session_id` | `uuid` | NOT NULL |  |  |
+| `order_id` | `uuid` |  |  |  |
+| `request_type_id` | `uuid` | NOT NULL |  |  |
+| `origin` | `service.request_origin` | NOT NULL |  |  |
+| `state` | `service.request_state` | NOT NULL |  |  |
+| `raised_by_guest_session_id` | `uuid` |  |  |  |
+| `raised_by_user_id` | `uuid` |  |  |  |
+| `note` | `text` |  |  |  |
+| `assigned_user_id` | `uuid` |  |  |  |
+| `assigned_role_id` | `uuid` |  |  |  |
+| `customer_locale` | `menu.customer_locale` | NOT NULL |  |  |
+| `dedup_group` | `uuid` | NOT NULL |  |  |
+| `repeat_ordinal` | `integer` | NOT NULL | `1` |  |
+| `raised_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `sla_due_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `acknowledged_at` | `timestamp with time zone` |  |  |  |
+| `started_at` | `timestamp with time zone` |  |  |  |
+| `completed_at` | `timestamp with time zone` |  |  |  |
+| `escalated_at` | `timestamp with time zone` |  |  |  |
+| `completion_status` | `service.completion_status` |  |  |  |
+| `completion_reason_code_id` | `uuid` |  |  |  |
+| `completion_note` | `text` |  |  |  |
+| `correlation_id` | `uuid` | NOT NULL |  |  |
+| `ledger_sequence` | `integer` | NOT NULL |  |  |
+
+Constraints:
+
+- `service_request_active_has_an_assignee` — `CHECK (((state = ANY (ARRAY['new'::service.request_state, 'cancelled'::service.request_state, 'expired'::service.request_state])) OR (assigned_user_id IS NOT NULL)))`
+- `service_request_assignee_fk` — `FOREIGN KEY (tenant_id, assigned_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `service_request_completion_is_stated` — `CHECK (((state = ANY (ARRAY['completed'::service.request_state, 'unresolved'::service.request_state])) = (completion_status IS NOT NULL)))`
+- `service_request_completion_reason_fk` — `FOREIGN KEY (tenant_id, completion_reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `service_request_impossible_is_explained` — `CHECK (((completion_status IS DISTINCT FROM 'not_possible'::service.completion_status) OR (completion_reason_code_id IS NOT NULL)))`
+- `service_request_note_not_blank` — `CHECK (((note IS NULL) OR (btrim(note) <> ''::text)))`
+- `service_request_order_fk` — `FOREIGN KEY (tenant_id, order_id) REFERENCES ordering.customer_order(tenant_id, id) ON DELETE RESTRICT`
+- `service_request_origin_names_its_actor` — `CHECK ((((origin = 'guest'::service.request_origin) AND (raised_by_guest_session_id IS NOT NULL) AND (raised_by_user_id IS NULL)) OR ((origin = 'staff'::service.request_origin) AND (raised_by_user_id IS NOT NULL) AND (raised_by_guest_session_id IS NULL))))`
+- `service_request_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `service_request_pkey` — `PRIMARY KEY (id)`
+- `service_request_repeat_ordinal_positive` — `CHECK ((repeat_ordinal > 0))`
+- `service_request_role_fk` — `FOREIGN KEY (tenant_id, assigned_role_id) REFERENCES identity.role(tenant_id, id) ON DELETE RESTRICT`
+- `service_request_session_fk` — `FOREIGN KEY (tenant_id, table_session_id) REFERENCES service.table_session(tenant_id, id) ON DELETE RESTRICT`
+- `service_request_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `service_request_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `service_request_type_fk` — `FOREIGN KEY (tenant_id, request_type_id) REFERENCES service.request_type(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `service_request_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.service_request_event`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `bigint` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `service_request_id` | `uuid` | NOT NULL |  |  |
+| `sequence_number` | `integer` | NOT NULL |  |  |
+| `kind` | `service.request_event_kind` | NOT NULL |  |  |
+| `actor_kind` | `ordering.actor_kind` | NOT NULL |  |  |
+| `actor_user_id` | `uuid` |  |  |  |
+| `actor_guest_session_id` | `uuid` |  |  |  |
+| `correlation_id` | `uuid` | NOT NULL |  |  |
+| `reason_code_id` | `uuid` |  |  |  |
+| `before` | `jsonb` |  |  |  |
+| `after` | `jsonb` | NOT NULL |  |  |
+| `occurred_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `service_request_event_actor_matches_kind` — `CHECK ((((actor_kind = 'guest'::ordering.actor_kind) AND (actor_guest_session_id IS NOT NULL) AND (actor_user_id IS NULL)) OR ((actor_kind = 'staff'::ordering.actor_kind) AND (actor_user_id IS NOT NULL) AND (actor_guest_session_id IS NULL)) OR ((actor_kind = 'system'::ordering.actor_kind) AND (actor_user_id IS NULL) AND (actor_guest_session_id IS NULL))))`
+- `service_request_event_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `service_request_event_pkey` — `PRIMARY KEY (id)`
+- `service_request_event_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `service_request_event_sequence_positive` — `CHECK ((sequence_number > 0))`
+- `service_request_event_sequence_unique` — `UNIQUE (tenant_id, service_request_id, sequence_number)`
+- `service_request_event_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `service_request_event_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
 #### `service.session_closure_exception`
 
 Row level security: **enabled**, **forced**.
@@ -3710,6 +4187,7 @@ Constraints:
 - `session_merge_pkey` — `PRIMARY KEY (id)`
 - `session_merge_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
 - `session_merge_surviving_fk` — `FOREIGN KEY (tenant_id, surviving_session_id) REFERENCES service.table_session(tenant_id, id) ON DELETE RESTRICT`
+- `session_merge_takes_the_requests` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
 - `session_merge_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
 
 Policies:
@@ -3777,6 +4255,33 @@ Constraints:
 Policies:
 
 - `session_participant_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.staff_presence`
+
+FR-SRV-007A. Three states, current only. The primary key is the PERSON, so a second row for the same person cannot exist and a history cannot accumulate: there is no previous state, no ended_at and no closed row, because FR-SRV-007B's fence is about what EXISTS rather than how long it lasts. A retained record of when staff were available would be no less an attendance record for having a window on it.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `user_account_id` | `uuid` | NOT NULL |  |  |
+| `state` | `service.presence_state` | NOT NULL |  |  |
+| `observed_at` | `timestamp with time zone` | NOT NULL | `now()` | When this state became true — overwritten in place, never appended to. It is the age column config.retention_policy sweeps, which is what gives FR-SRV-007B its retention bound. |
+| `asserted_by_session_id` | `uuid` |  |  |  |
+
+Constraints:
+
+- `staff_presence_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `staff_presence_pkey` — `PRIMARY KEY (tenant_id, outlet_id, user_account_id)`
+- `staff_presence_session_fk` — `FOREIGN KEY (asserted_by_session_id) REFERENCES identity.session(id) ON DELETE SET NULL`
+- `staff_presence_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `staff_presence_user_fk` — `FOREIGN KEY (tenant_id, user_account_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `staff_presence_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
 #### `service.table_ownership`
 
@@ -3917,6 +4422,24 @@ Constraints:
 Policies:
 
 - `table_session_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `service.transition`
+
+SM-SERVICE-REQUEST's nine edges, and the only definition of them in this system. Not tenant data: no tenant column, no row level security, and immutable at runtime by the trigger below. tests/m3c derives the same nine from the pinned package and requires this table to equal them.
+
+Row level security: **DISABLED**, **not forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `from_state` | `service.request_state` | NOT NULL |  |  |
+| `to_state` | `service.request_state` | NOT NULL |  |  |
+| `reason` | `text` | NOT NULL |  |  |
+
+Constraints:
+
+- `service_transition_is_a_move` — `CHECK ((from_state <> to_state))`
+- `service_transition_reason_not_blank` — `CHECK ((btrim(reason) <> ''::text))`
+- `transition_pkey` — `PRIMARY KEY (from_state, to_state)`
 
 #### `service.verification_policy`
 
