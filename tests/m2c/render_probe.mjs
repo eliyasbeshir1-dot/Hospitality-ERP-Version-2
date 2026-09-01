@@ -399,9 +399,22 @@ async function main() {
     () => [...document.querySelectorAll('.cart-line')].some((n) => n.dataset.state === 'failed'),
     null, { timeout: 15000 }).catch(() => undefined);
 
+  // Bounded, and its outcome recorded rather than assumed. #retry is shown and hidden by
+  // the surface as writes settle, so a visibility sample can already be stale by the time
+  // the click runs. An unbounded click then waits the full default timeout on an element
+  // that is no longer actionable, throws, and takes the WHOLE probe down with it — and
+  // because every control in this suite shares one probe, the next control to ask for it
+  // reports a retry timeout under its own signature. That is a diagnostic naming a cause
+  // it never verified: CI reported it as an allergen icon drawn without a written warning.
+  // A retry the guest was shown and could not take is not a retry they were offered, so
+  // the two are recorded apart and the retry gate fails as itself.
   const retryVisible = await page.locator('#retry').isVisible().catch(() => false);
+  let retryClicked = false;
   if (retryVisible) {
-    await page.locator('#retry').click();
+    retryClicked = await page.locator('#retry').click({ timeout: 10000 })
+      .then(() => true, () => false);
+  }
+  if (retryClicked) {
     await page.waitForFunction(
       () => [...document.querySelectorAll('.cart-line')]
         .some((n) => n.dataset.state === 'synchronized'),
@@ -413,7 +426,8 @@ async function main() {
     keysSeen,
     sameKeyOnRetry: keysSeen.length >= 2 && keysSeen[0] !== null
       && keysSeen.every((k) => k === keysSeen[0]),
-    retryOffered: retryVisible,
+    retryOffered: retryVisible && retryClicked,
+    retryShown: retryVisible,
     lineStates: await page.evaluate(() =>
       [...document.querySelectorAll('.cart-line')].map((n) => n.dataset.state)),
     cartKeys: await page.evaluate(() => window.surface.cart().map((l) => l.key)),

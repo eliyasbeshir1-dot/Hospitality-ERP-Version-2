@@ -754,7 +754,11 @@ def duplicate_commitment_gate() -> tuple[bool, str, str]:
     leaks: list[str] = []
 
     if not journey.get("retryOffered"):
-        leaks.append("a failed write offered the guest no way to try again")
+        leaks.append(
+            "a failed write left the guest a retry they could not take — the control was "
+            "drawn and then withdrawn before it could be used"
+            if journey.get("retryShown")
+            else "a failed write offered the guest no way to try again")
     if len(journey.get("keysSeen", [])) < 2:
         leaks.append(f"only {len(journey.get('keysSeen', []))} attempt(s) were made, so a "
                      f"retry was never exercised")
