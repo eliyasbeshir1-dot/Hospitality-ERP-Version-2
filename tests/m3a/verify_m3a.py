@@ -52,8 +52,17 @@ CTX = dict(tenant=fx.TENANT, outlet=fx.OUTLET_H1)
 # The schemas an order can touch. Read from the catalog at run time within these, rather
 # than a list of tables: a table added by a later slice is covered without anybody
 # remembering to add it.
-APPLICATION_SCHEMAS = ("org", "identity", "config", "audit", "money", "menu", "safety",
-                       "service", "ordering")
+# Enumerated from the catalog, not listed. It WAS a list — and the list was written at
+# M3-A naming the nine schemas that existed then, with a comment underneath explaining
+# that a fixed list of TABLES would go stale as later gates added them. The list of
+# SCHEMAS had exactly the same defect one level up, and it went stale immediately:
+# M3-B added `fulfillment` and this differential silently stopped covering it, so a
+# retry that duplicated a kitchen ticket would have passed. M3-C found it while reusing
+# the instrument and widened it rather than adding two more names.
+#
+# Everything with base tables except the system schemas. Bookkeeping schemas are
+# deliberately INCLUDED: a retry must not write a migration record either.
+SYSTEM_SCHEMAS = ("pg_catalog", "information_schema", "pg_toast")
 
 # Tables a safe retry is permitted to change. EMPTY, and asserted to be empty below.
 #
@@ -499,7 +508,8 @@ def table_digests(*, dsn: str = ADMIN) -> dict[str, str]:
         SELECT n.nspname, c.relname
         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE c.relkind = 'r'
-          AND n.nspname = ANY (ARRAY[{', '.join(repr(s) for s in APPLICATION_SCHEMAS)}])
+          AND n.nspname <> ALL (ARRAY[{', '.join(repr(s) for s in SYSTEM_SCHEMAS)}])
+          AND n.nspname NOT LIKE 'pg\\_%'
         ORDER BY n.nspname, c.relname;""", dsn=dsn)
 
     if not listing:
@@ -562,7 +572,7 @@ def section_idempotency() -> None:
     record("the retry changed NOTHING, anywhere in the database",
            not unexpected,
            f"compared {len(before)} tables enumerated from the catalog across "
-           f"{len(APPLICATION_SCHEMAS)} schemas, whole rows rather than named columns. "
+           f"every non-system schema, whole rows rather than named columns. "
            f"Changed: {sorted(unexpected) or 'nothing'}")
 
     # --- the named artifacts, so a failure is legible ---

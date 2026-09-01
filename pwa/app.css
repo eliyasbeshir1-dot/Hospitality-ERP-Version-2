@@ -224,3 +224,20 @@ body {
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+
+/*
+ * M3-C. The service panel. Same rule the rest of this surface follows: nothing is told
+ * by colour. A request's status is a WORD the server rendered in the session's language,
+ * and the repeat marker is a number, not a shade.
+ */
+.service { margin-top: 1.5rem; }
+.service-types { list-style: none; padding: 0; margin: 0 0 1rem 0; display: flex;
+                 flex-wrap: wrap; gap: 0.5rem; }
+.service-types button { font: inherit; padding: 0.6rem 0.9rem; }
+.service-status, .service-timeline { list-style: none; padding: 0; margin: 0; }
+.service-status li, .service-timeline li { padding: 0.4rem 0; }
+.service-status .status-word { font-weight: 700; }
+.service-status .repeat { font-variant-numeric: tabular-nums; }
+.service-collapsed { font-style: italic; }
+.ask-again { font: inherit; margin-inline-start: 0.5rem; }

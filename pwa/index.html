@@ -71,6 +71,26 @@
       -->
       <button type="button" class="retry" id="retry" hidden data-i18n="retry">Try again</button>
     </section>
+
+    <!--
+      M3-C. Asking for something, what came of it, and what has happened at this table.
+      Every string here is in the session's language: the chrome from the surface's own
+      table, the statuses from the approved templates the server rendered. M2-C's defect
+      was one untranslated word beside a translated one, and this is the same exposure on
+      a different path.
+    -->
+    <section class="service" aria-labelledby="service-heading">
+      <h2 id="service-heading" data-i18n="serviceHeading">Ask for something</h2>
+      <ul class="service-types" id="service-types"></ul>
+      <p class="service-collapsed" id="service-collapsed" hidden></p>
+
+      <h3 id="service-status-heading" data-i18n="statusHeading">Your requests</h3>
+      <p class="empty" id="service-empty" data-i18n="serviceEmpty">You have not asked for anything yet.</p>
+      <ul class="service-status" id="service-status"></ul>
+
+      <h3 id="service-timeline-heading" data-i18n="timelineHeading">What has happened</h3>
+      <ol class="service-timeline" id="service-timeline"></ol>
+    </section>
   </main>
 
   <script type="module" src="/app/app.js"></script>

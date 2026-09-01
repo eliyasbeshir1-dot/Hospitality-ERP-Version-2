@@ -63,6 +63,8 @@ SLICE_DELIVERS = {
             "session merge, move and close",
     "M3-B": "fulfillment: routing, station tickets, the eleven-state machine enforced in "
             "the database, the KDS, expo and non-colour-only allergy salience",
+    "M3-C": "service requests, ephemeral presence, in-app notifications, deep links, "
+            "the dead-letter queue and customer status in the session's language",
 }
 
 # The gates in order, and what each one brings that does not exist yet. Rows are emitted
@@ -108,6 +110,11 @@ SUITE_PURPOSE = {
            "commercial order, every ordered pair of SM-FULFILLMENT-TICKET's eleven "
            "states walked against the database, expo blocking, printer-fallback "
            "deduplication, and allergy salience measured in a colour-flattened render",
+    "m3c": "service requests: a translated catalog, routing by table, area, role and "
+           "presence, deduplication that collapses an accident and keeps a deliberate "
+           "repeat, presence proved discarded rather than marked, notifications with "
+           "nothing sensitive in a payload or a log, deep links that respect session "
+           "scope, and a dead-letter queue whose replay cannot duplicate",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
 }
 

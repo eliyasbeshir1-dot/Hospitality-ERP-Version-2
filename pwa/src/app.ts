@@ -31,7 +31,11 @@ type StringKey =
   | 'title' | 'menuHeading' | 'cartHeading' | 'cartEmpty' | 'retry' | 'skipToMenu'
   | 'add' | 'allergenHeading' | 'noMenu' | 'localeHint' | 'total' | 'warningUnavailable'
   | 'contains' | 'may_contain' | 'cross_contact'
-  | 'loading' | 'saved_locally' | 'queued' | 'synchronized' | 'stale' | 'failed' | 'blocked';
+  | 'loading' | 'saved_locally' | 'queued' | 'synchronized' | 'stale' | 'failed' | 'blocked'
+  // M3-C. Service requests, their statuses and the table's timeline.
+  | 'serviceHeading' | 'statusHeading' | 'timelineHeading' | 'serviceEmpty'
+  | 'askAgain' | 'alreadyAsked' | 'askedTimes'
+  | 'received' | 'being_handled' | 'completed' | 'withdrawn' | 'closed';
 
 const STRINGS: Record<Locale, Record<StringKey, string>> = {
   en: {
@@ -44,6 +48,12 @@ const STRINGS: Record<Locale, Record<StringKey, string>> = {
     contains: 'Contains', may_contain: 'May contain', cross_contact: 'Prepared near',
     loading: 'Loading', saved_locally: 'Saved on this device', queued: 'Waiting to send',
     synchronized: 'Sent', stale: 'Out of date', failed: 'Did not send', blocked: 'Cannot send',
+    serviceHeading: 'Ask for something', statusHeading: 'Your requests',
+    timelineHeading: 'What has happened',
+    serviceEmpty: 'You have not asked for anything yet.',
+    askAgain: 'Ask again', alreadyAsked: 'You have already asked for this. It is on its way.',
+    askedTimes: 'asked', received: 'Received', being_handled: 'Being handled',
+    completed: 'Done', withdrawn: 'Withdrawn', closed: 'Closed',
   },
   am: {
     title: 'ዝርዝር', menuHeading: 'ዛሬ', cartHeading: 'ቅርጫትዎ',
@@ -55,6 +65,12 @@ const STRINGS: Record<Locale, Record<StringKey, string>> = {
     contains: 'ይዟል', may_contain: 'ሊይዝ ይችላል', cross_contact: 'በአጠገቡ የተዘጋጀ',
     loading: 'በመጫን ላይ', saved_locally: 'በዚህ መሣሪያ ተቀምጧል', queued: 'ለመላክ በመጠባበቅ ላይ',
     synchronized: 'ተልኳል', stale: 'ጊዜው ያለፈበት', failed: 'አልተላከም', blocked: 'መላክ አይቻልም',
+    serviceHeading: 'እርዳታ ይጠይቁ', statusHeading: 'ጥያቄዎችዎ',
+    timelineHeading: 'የሆነው ነገር',
+    serviceEmpty: 'እስካሁን ምንም አልጠየቁም።',
+    askAgain: 'እንደገና ይጠይቁ', alreadyAsked: 'ይህን አስቀድመው ጠይቀዋል። በመንገድ ላይ ነው።',
+    askedTimes: 'ተጠይቋል', received: 'ደርሷል', being_handled: 'እየተስተናገደ ነው',
+    completed: 'ተጠናቋል', withdrawn: 'ተሰርዟል', closed: 'ተዘግቷል',
   },
   ar: {
     title: 'قائمة الطعام', menuHeading: 'اليوم', cartHeading: 'سلتك',
@@ -66,6 +82,12 @@ const STRINGS: Record<Locale, Record<StringKey, string>> = {
     contains: 'يحتوي على', may_contain: 'قد يحتوي على', cross_contact: 'حُضّر بالقرب من',
     loading: 'جارٍ التحميل', saved_locally: 'محفوظ على هذا الجهاز', queued: 'في انتظار الإرسال',
     synchronized: 'تم الإرسال', stale: 'قديم', failed: 'لم يتم الإرسال', blocked: 'تعذر الإرسال',
+    serviceHeading: 'اطلب شيئًا', statusHeading: 'طلباتك',
+    timelineHeading: 'ما الذي حدث',
+    serviceEmpty: 'لم تطلب أي شيء بعد.',
+    askAgain: 'اطلب مرة أخرى', alreadyAsked: 'لقد طلبت هذا بالفعل. إنه في الطريق.',
+    askedTimes: 'طُلب', received: 'تم الاستلام', being_handled: 'قيد المعالجة',
+    completed: 'تم', withdrawn: 'تم السحب', closed: 'مغلق',
   },
 };
 
@@ -207,6 +229,11 @@ function $(id: string): HTMLElement {
 // ---------------------------------------------------------------------------
 // Rendering
 // ---------------------------------------------------------------------------
+
+/** One string in the session's language. Never a key, never English by default. */
+function t(key: StringKey): string {
+  return STRINGS[app.locale][key];
+}
 
 function setState(next: SurfaceState): void {
   const allowed = TRANSITIONS[app.state];
@@ -646,6 +673,159 @@ async function start(): Promise<void> {
   await loadMenu();
 }
 
+
+// ===========================================================================
+// M3-C. Service requests: asking, what came of it, and the table's timeline
+// ===========================================================================
+// Every fact here is a WORD, in the session's language, and none of it is a colour or a
+// position. Two things are load-bearing and both are about what is NOT here:
+//
+//   * no staff name is ever constructed. The status row renders handledBy only when the
+//     server sent one, and the server sends one only where the outlet configured
+//     disclosure (FR-SRV-009). The surface has no branch that could add a name the
+//     server withheld, which is the same arrangement M3-B used for allergy salience.
+//
+//   * no status text is invented. status_text is what the server rendered from the
+//     approved template in the session's language; when it is absent the surface falls
+//     back to its own translated word for the status CODE, never to English.
+
+export interface ServiceType { id: string; code: string; label: string; }
+
+export interface ServiceStatusRow {
+  service_request_id: string;
+  request_label: string;
+  status_code: 'received' | 'being_handled' | 'completed' | 'withdrawn' | 'closed';
+  status_text: string | null;
+  raised_at: string;
+  repeat_ordinal: number;
+  handled_by: string | null;
+}
+
+export interface TimelineEntry {
+  occurred_at: string; source: string; summary: string | null; locale: string;
+}
+
+function renderServiceTypes(types: ServiceType[], alreadyOpen: Set<string>): void {
+  const root = document.getElementById('service-types');
+  if (!root) return;
+  root.textContent = '';
+  for (const type of types) {
+    const li = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'service-ask';
+    button.setAttribute('data-request-type', type.id);
+    // The label the SERVER resolved from the approved translation, not a key looked up
+    // here: a request type an outlet invented has no entry in this file's string table
+    // and must still render in the guest's language.
+    button.textContent = type.label;
+    li.appendChild(button);
+
+    // FR-SRV-006 on the surface. A second tap on something already open is offered as a
+    // DELIBERATE repeat, in words, rather than silently becoming one or silently being
+    // swallowed. The guest decides which of the two it is.
+    if (alreadyOpen.has(type.id)) {
+      const again = document.createElement('button');
+      again.type = 'button';
+      again.className = 'ask-again';
+      again.setAttribute('data-request-type', type.id);
+      again.setAttribute('data-deliberate', 'true');
+      again.textContent = t('askAgain');
+      li.appendChild(again);
+    }
+    root.appendChild(li);
+  }
+}
+
+function renderServiceStatus(rows: ServiceStatusRow[]): void {
+  const root = document.getElementById('service-status');
+  const empty = document.getElementById('service-empty');
+  if (!root) return;
+  root.textContent = '';
+  if (empty) empty.hidden = rows.length > 0;
+
+  for (const row of rows) {
+    const li = document.createElement('li');
+    li.setAttribute('data-request', row.service_request_id);
+    li.setAttribute('data-status', row.status_code);
+
+    const label = document.createElement('span');
+    label.className = 'request-label';
+    label.textContent = row.request_label;
+    li.appendChild(label);
+
+    // The status as a WORD. The server's rendered sentence where there is one, this
+    // surface's translated word for the code where there is not — never the code itself,
+    // which is English and is not for reading.
+    const word = document.createElement('span');
+    word.className = 'status-word';
+    word.textContent = row.status_text ?? t(row.status_code);
+    li.appendChild(word);
+
+    if (row.repeat_ordinal > 1) {
+      const repeat = document.createElement('span');
+      repeat.className = 'repeat';
+      repeat.textContent = `${t('askedTimes')} ${row.repeat_ordinal}×`;
+      li.appendChild(repeat);
+    }
+
+    // Only what the server sent. There is no else-branch that supplies a name.
+    if (row.handled_by) {
+      const who = document.createElement('span');
+      who.className = 'handled-by';
+      who.textContent = row.handled_by;
+      li.appendChild(who);
+    }
+    root.appendChild(li);
+  }
+}
+
+function renderTimeline(entries: TimelineEntry[]): void {
+  const root = document.getElementById('service-timeline');
+  if (!root) return;
+  root.textContent = '';
+  for (const entry of entries) {
+    if (!entry.summary) continue;
+    const li = document.createElement('li');
+    li.setAttribute('data-source', entry.source);
+    li.setAttribute('data-locale', entry.locale);
+    li.textContent = entry.summary;
+    root.appendChild(li);
+  }
+}
+
+/** Told plainly when a tap collapsed, because that is not an error. */
+function renderCollapsed(collapsed: boolean): void {
+  const node = document.getElementById('service-collapsed');
+  if (!node) return;
+  node.textContent = collapsed ? t('alreadyAsked') : '';
+  node.hidden = !collapsed;
+}
+
+export function renderService(payload: {
+  types?: ServiceType[]; status?: ServiceStatusRow[]; timeline?: TimelineEntry[];
+  collapsed?: boolean;
+}): void {
+  const status = payload.status ?? [];
+  const open = new Set(
+    status.filter((r) => r.status_code === 'received' || r.status_code === 'being_handled')
+          .map((r) => r.service_request_id));
+  // Keyed by TYPE for the ask-again affordance, which needs the type rather than the
+  // request: a guest asks again for water, not for request 8f3c.
+  const openTypes = new Set<string>();
+  for (const type of payload.types ?? []) {
+    if (status.some((r) => r.request_label && open.size > 0
+                           && (r.status_code === 'received' || r.status_code === 'being_handled')
+                           && r.request_label === type.label)) {
+      openTypes.add(type.id);
+    }
+  }
+  renderServiceTypes(payload.types ?? [], openTypes);
+  renderServiceStatus(status);
+  renderTimeline(payload.timeline ?? []);
+  renderCollapsed(payload.collapsed === true);
+}
+
 // Exposed so the verification suite can drive transitions and read the tables it is
 // asserting about, rather than reimplementing them and testing its own copy.
 declare global {
@@ -658,6 +838,7 @@ declare global {
       missingStrings(locale: Locale): string[];
       chooseLocale(locale: Locale): Promise<void>;
       cart(): CartLine[];
+      renderService: typeof renderService;
       pendingKey(): string | null;
       formatMoney: typeof formatMoney;
     };
@@ -681,6 +862,7 @@ window.surface = {
   missingStrings,
   chooseLocale,
   cart: () => app.cart,
+  renderService,
   pendingKey: () => pending?.key ?? null,
   formatMoney,
 };

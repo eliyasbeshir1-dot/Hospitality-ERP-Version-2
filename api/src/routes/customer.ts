@@ -53,14 +53,18 @@ function idempotencyKey(request: FastifyRequest): string | null {
   return trimmed.length > 0 && trimmed.length <= 200 ? trimmed : null;
 }
 
-export function registerCustomerRoutes(app: FastifyInstance, deps: CustomerDependencies): void {
-  /**
-   * Run inside an authenticated GUEST context, or answer 401.
-   *
-   * A guest context carries no app.session_id and no auth_strength, so nothing that
-   * requires staff authentication can run under it even by accident.
-   */
-  async function asGuest<T>(
+/**
+ * Run inside an authenticated GUEST context, or answer 401.
+ *
+ * A guest context carries no app.session_id and no auth_strength, so nothing that
+ * requires staff authentication can run under it even by accident.
+ *
+ * Exported as a factory because M3-C's service routes need the identical context and a
+ * second copy of it would be a second chance to get the digest scope wrong — which is
+ * the one detail in it that matters.
+ */
+export function guestContext(deps: CustomerDependencies) {
+  return async function asGuest<T>(
     request: FastifyRequest,
     reply: FastifyReply,
     work: (client: PoolClient, tenantId: string, outletId: string, guestId: string) => Promise<T>,
@@ -101,7 +105,11 @@ export function registerCustomerRoutes(app: FastifyInstance, deps: CustomerDepen
         throw error;
       }
     });
-  }
+  };
+}
+
+export function registerCustomerRoutes(app: FastifyInstance, deps: CustomerDependencies): void {
+  const asGuest = guestContext(deps);
 
   // -------------------------------------------------------------------------
   // Entry: a code becomes a session

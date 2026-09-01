@@ -104,9 +104,11 @@
       "aspect": "service events on the timeline",
       "opened_at": "M3-A",
       "completing_gate": "M3-C",
-      "state": "open",
+      "state": "closed",
       "why": "Service-request events belong on the same timeline and do not exist until M3-C.",
-      "completed_by": "FR-SRV-001"
+      "completed_by": "FR-SRV-001",
+      "closed_at": "M3-C",
+      "closed_by_evidence": "A service request keeps its own append-only ledger and its customer-visible messages are notices in notify.notice, which notify.customer_timeline() merges with the order timeline at READ time for one table session. Merged rather than written into ordering.order_timeline_entry a second time: a request for water belongs to no order, and forcing one into the order ledger would have needed an order to exist before a guest could ask for anything. tests/m3c renders that merged timeline in a browser and requires both sources in it."
     },
     {
       "requirement": "FR-ORD-019A",
@@ -114,7 +116,7 @@
       "opened_at": "M3-A",
       "completing_gate": "M3-B",
       "state": "closed",
-      "why": "The chain links four of the six artifacts the requirement names \u2014 request, cart, table session and order \u2014 and survives projection rebuild. 'fulfillment_ticket' is a label of ordering.artifact_kind with no rows until M3-B, so the later slice extends the chain rather than reshaping it.",
+      "why": "The chain links four of the six artifacts the requirement names — request, cart, table session and order — and survives projection rebuild. 'fulfillment_ticket' is a label of ordering.artifact_kind with no rows until M3-B, so the later slice extends the chain rather than reshaping it.",
       "completed_by": "FR-FUL-002",
       "closed_at": "M3-B",
       "closed_by_evidence": "fulfillment.release_order() links each ticket into the chain through ordering.link_correlation_artifact(), so the 'fulfillment_ticket' label M3-A declared with no rows now has them. tests/m3b requires the link to survive a projection rebuild."
@@ -124,27 +126,33 @@
       "aspect": "service request in the chain",
       "opened_at": "M3-A",
       "completing_gate": "M3-C",
-      "state": "open",
+      "state": "closed",
       "why": "'service_request' is likewise a label with no rows until M3-C.",
-      "completed_by": "FR-SRV-001"
+      "completed_by": "FR-SRV-001",
+      "closed_at": "M3-C",
+      "closed_by_evidence": "ordering.artifact_kind has carried the service_request label since M3-A with no rows; service.apply_request_event() now writes the link, from the FOLD rather than from the caller, so a rebuild restores it — the repair M3-B made after the reversed run found the ticket link could not be. tests/m3c proves every request is in the chain and that all three ledgers rebuild to identical digests."
     },
     {
       "requirement": "FR-TAB-007A",
       "aspect": "service requests consolidated by a merge",
       "opened_at": "M3-A",
       "completing_gate": "M3-C",
-      "state": "open",
+      "state": "closed",
       "why": "A merge consolidates orders, participants, carts and allergy concerns, each move audited and counted. Service requests are the other thing the requirement says must be consolidated and they do not exist until M3-C.",
-      "completed_by": "FR-SRV-001"
+      "completed_by": "FR-SRV-001",
+      "closed_at": "M3-C",
+      "closed_by_evidence": "Service requests are bound to a table session, so a merge moves them with everything else that session owns and no separate consolidation step exists to get wrong. tests/m3c raises requests on two occupancies, merges them and requires the union with nothing lost and nothing duplicated, reusing M3-A's session census."
     },
     {
       "requirement": "FR-TAB-008",
       "aspect": "service requests preserved by a move",
       "opened_at": "M3-A",
       "completing_gate": "M3-C",
-      "state": "open",
+      "state": "closed",
       "why": "A move preserves session identity and every order, which is proved by inventory. Service requests are named by the requirement and do not exist until M3-C.",
-      "completed_by": "FR-SRV-001"
+      "completed_by": "FR-SRV-001",
+      "closed_at": "M3-C",
+      "closed_by_evidence": "The same property under a move: the requests travel with the session because they reference it, and tests/m3c proves the set is unchanged either side of the move."
     },
     {
       "requirement": "FR-TAB-009",
@@ -196,9 +204,11 @@
       "aspect": "notification delivery",
       "opened_at": "M3-B",
       "completing_gate": "M3-C",
-      "state": "open",
+      "state": "closed",
       "completed_by": "FR-NOT-001",
-      "why": "A ready notice is emitted naming the ticket and the assigned waiter, and uncollected notices escalate on the configured window. Delivery is a channel and channels are FR-NOT-001 at M3-C; there is no transport, template or delivery-status column here for one to be mistaken for."
+      "why": "A ready notice is emitted naming the ticket and the assigned waiter, and uncollected notices escalate on the configured window. Delivery is a channel and channels are FR-NOT-001 at M3-C; there is no transport, template or delivery-status column here for one to be mistaken for.",
+      "closed_at": "M3-C",
+      "closed_by_evidence": "M3-B emitted the ready event and left the transport open, recording it here. M3-C tells the recipient: notify.emit() resolves who should know and notify.send_pending() writes it to their in-app inbox in the language the session chose. The CHANNEL is still not built — outlet-local notices are M5a — and this gate's honest scope is the in-app one, which is what FR-NOT-001 asks for at M3."
     },
     {
       "requirement": "FR-FUL-012",
@@ -234,7 +244,61 @@
       "completing_gate": "M4",
       "state": "open",
       "completed_by": "FR-BIL-005",
-      "why": "A LITERAL DIVERGENCE from the pinned SM-ORDER, recorded as a decision rather than an omission. That machine lists in_fulfillment, partially_ready, ready, partially_served and served as ORDER states; migration 0010 recorded at M3-A that no fulfillment label appears on the commercial order, and M3-B keeps that. fulfillment.order_fulfillment_state() computes every one of those labels from the order's tickets, so the machine's SEMANTICS are preserved while the same fact is refused a second home that could contradict the first. tests/m3b proves each label reachable and correct and asserts against the catalog that no column in ordering could hold one. SM-ORDER's last edge \u2014 served -> completed on operational AND FINANCIAL conditions \u2014 needs checks, so this is revisited at M4."
+      "why": "A LITERAL DIVERGENCE from the pinned SM-ORDER, recorded as a decision rather than an omission. That machine lists in_fulfillment, partially_ready, ready, partially_served and served as ORDER states; migration 0010 recorded at M3-A that no fulfillment label appears on the commercial order, and M3-B keeps that. fulfillment.order_fulfillment_state() computes every one of those labels from the order's tickets, so the machine's SEMANTICS are preserved while the same fact is refused a second home that could contradict the first. tests/m3b proves each label reachable and correct and asserts against the catalog that no column in ordering could hold one. SM-ORDER's last edge — served -> completed on operational AND FINANCIAL conditions — needs checks, so this is revisited at M4."
+    },
+    {
+      "requirement": "FR-NOT-012",
+      "aspect": "staff notification centre render",
+      "opened_at": "M3-C",
+      "completing_gate": "M3-D",
+      "state": "open",
+      "completed_by": "FR-UX-001",
+      "why": "The staff half of FR-NOT-012 says the notification centre RENDERS in English, and rendering a staff screen is staff UX, which M3-D owns. Building one here would hand M3-D a shape from the slice that does not own it — the objection raised at M2-A, M3-A and M3-B. The DATA surface is complete: notify.staff_notification_center() returns each person's own notices with their kind, class, severity, subject, body and read state, refusing anyone without an active membership at the outlet. M3-D adds a screen over finished data rather than finishing the data."
+    },
+    {
+      "requirement": "FR-NOT-001",
+      "aspect": "bill, payment, tip, outage and sync producers",
+      "opened_at": "M3-C",
+      "completing_gate": "M4",
+      "state": "open",
+      "completed_by": "FR-BIL-001",
+      "why": "FR-NOT-001 names eight classes of event. Order, kitchen and service request have producers at this gate. The other five are in notify.catalog_event with has_producer = false and notify.emit() refuses them by name, so the kinds are real and nothing pretends to raise one. Bill, payment and tip arrive at M4; outage and sync at M5a, which is recorded separately."
+    },
+    {
+      "requirement": "FR-NOT-005",
+      "aspect": "operational alert producers",
+      "opened_at": "M3-C",
+      "completing_gate": "M5a",
+      "state": "open",
+      "completed_by": "FR-OPS-005",
+      "why": "The routing and accountability model is complete: a critical kind reaches notify.accountable_staff(), which reads the outlet's configured role and refuses rather than guessing when none is set. The producers FR-NOT-005 names — payment mismatch at M4, printer failure, local-node failure and sync conflict at M5a — do not exist yet. The escalation of a service request is the one critical producer that does, and it is proved end to end."
+    },
+    {
+      "requirement": "FR-INT-007",
+      "aspect": "transport failures in the dead-letter queue",
+      "opened_at": "M3-C",
+      "completing_gate": "M5a",
+      "state": "open",
+      "completed_by": "FR-INT-003",
+      "why": "The queue, its reasons, its attempt counting and its safe replay are complete and exercised by three real in-app failures. There is no transport adapter to fail, because outlet-local notices are M5a's, and an adapter seam built here would be an abstraction with one implementation and no second case to prove it right. When a transport exists its failures reach this queue through integration.dead_letter_job(), which is the same door."
+    },
+    {
+      "requirement": "FR-INT-014",
+      "aspect": "bill, payment, tip and sync in the chain",
+      "opened_at": "M3-C",
+      "completing_gate": "M4",
+      "state": "open",
+      "completed_by": "FR-BIL-005",
+      "why": "The chain now carries request, cart, table session, order, fulfillment ticket and service request — six of the artifacts FR-INT-014 names, each written by the fold that creates it so a rebuild restores them. Bill, payment and tip are M4's; outlet persistence and sync records are M5a's, recorded separately."
+    },
+    {
+      "requirement": "FR-I18N-008",
+      "aspect": "receipt communications",
+      "opened_at": "M3-C",
+      "completing_gate": "M4",
+      "state": "open",
+      "completed_by": "FR-BIL-010",
+      "why": "Status and service communications render in the language snapshotted on the table session, with English as the approved fallback, and tests/m3c measures that in a browser. Receipts are the third thing this clause names and they arrive at M4."
     }
   ]
 }
