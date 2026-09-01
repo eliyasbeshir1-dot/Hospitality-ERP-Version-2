@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `49470ac8adb5c7b2bc468a340086e6bb82761a4a` |
-| Short | `49470ac` |
+| Commit | `14d14da5d36cffc442f50ba7fd44f07a56192382` |
+| Short | `14d14da` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation |
@@ -49,6 +49,8 @@ Ordered, forward-only and checksum-locked. An edited applied migration fails pre
 | `0008` | `0008_tables_qr_guest_sessions_and_allergen_safety.sql` | `94896d1c525e8ffb…` | applied |
 | `0009` | `0009_customer_surface_locale_snapshot_and_idempotency.sql` | `65ff4b5ab1e5d9da…` | applied |
 | `0010` | `0010_orders_submission_snapshots_and_session_lifecycle.sql` | `ee909c9d7363d52a…` | applied |
+| `0011` | `0011_fulfillment_timeline_event_kinds.sql` | `9f9ecdfe97bcbe10…` | applied |
+| `0012` | `0012_fulfillment_tickets_stations_and_service.sql` | `3e863b2bac70766e…` | applied |
 
 ## Seeds applied
 
@@ -87,8 +89,9 @@ Money is stored as integer minor units beside an explicit currency.
 | M2-B tables, QR, guests, allergen safety | **PASS** | 107 | 0 |
 | M2-C customer surface, rendered | **PASS** | 63 | 0 |
 | M3-A orders, snapshots, session lifecycle | **PASS** | 136 | 0 |
+| M3-B fulfillment, tickets, stations, the KDS | **PASS** | 125 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
-| **Total** | | **605** | |
+| **Total** | | **730** | |
 
 ## Negative controls
 
@@ -150,6 +153,13 @@ a coverage gap wearing a green badge, and CI fails the build when one is missing
 | `NC-M3-007` | Merge or move loses an order | `ORDER_LOST_ON_SESSION_CHANGE` | red, then green |
 | `NC-M3-008` | Private staff note reaches a customer | `PRIVATE_NOTE_DISCLOSED` | red, then green |
 | `NC-M3-009` | Rebuild diverges from the ledger | `REBUILD_NOT_DETERMINISTIC` | red, then green |
+| `NC-M3-004` | Illegal ticket transition accepted | `ILLEGAL_TRANSITION_ACCEPTED` | red, then green |
+| `NC-M3B-001` | Allergy emphasis lost at a station | `ALLERGY_EMPHASIS_LOST_AT_STATION` | red, then green |
+| `NC-M3B-002` | A recall duplicates completed work | `DUPLICATED_WORK_ON_RECALL` | red, then green |
+| `NC-M3B-003` | A transfer duplicates a ticket | `DUPLICATED_WORK_ON_TRANSFER` | red, then green |
+| `NC-M3B-004` | Printer fallback emits a second ticket | `DUPLICATE_STATION_TICKET` | red, then green |
+| `NC-M3B-005` | Expo releases an incomplete set | `INCOMPLETE_SET_SERVED` | red, then green |
+| `NC-M3B-006` | Priority applied with no attributed actor | `PRIORITY_WITHOUT_ATTRIBUTION` | red, then green |
 
 ## Design decision: the ledger is the record, everything else is a projection (M3-A)
 
@@ -494,6 +504,89 @@ or BYPASSRLS credential the service refuses to start, exits `78`, and prints
 `STARTUP REFUSED — PRIVILEGED_RUNTIME_CREDENTIAL_ACCEPTED` without echoing the credential.
 
 Windows equivalents are in `docs-local/CROSS_PLATFORM_COMMANDS.md`.
+
+## Governance rule: where a brief and the pinned package disagree, the package wins (M3-B)
+
+Recorded as a rule rather than as an incident, because it will happen again.
+
+The M3-B execution brief asked for **seven** ticket states. `SM-FULFILLMENT-TICKET` in the
+pinned package defines **eleven**. The seven came from FR-FUL-003's list of what a kitchen
+display shows; the eleven are the machine the system must enforce. The brief was the
+defect, and the standing rule the founder set on discovering it is now project policy:
+
+> When a brief and the pinned package disagree, the package is authoritative and the brief
+> is the defect.
+
+The reconciliation is a function rather than a paragraph. `fulfillment.kds_bucket()` maps
+the package's eleven states onto FR-FUL-003's seven display buckets — `partially_completed`
+and `rework` both show as *preparing*, `collected` and `cancelled` both show as *completed*,
+and the display's *new* is the package's `queued`. It is a `CASE` with no `ELSE`, so a
+twelfth state added to the package raises instead of falling into a column nobody chose,
+and `tests/m3b` asserts the mapping covers exactly the states the package declares.
+
+The machine itself is never written down twice. `tests/m3b/verify_m3b.py` reads
+`state_machines.json` at run time and FAILS CLOSED if it cannot — a suite that fell back
+to a transition table of its own would be checking the schema against itself, and a state
+machine that silently defaults to permissive is worse than none. The schema is then
+required to equal the package in both directions, counts included.
+
+## Design decision: the order's fulfillment state is derived, never stored (M3-B)
+
+A literal divergence from `SM-ORDER`, recorded in the partial-closure register as a
+decision rather than an omission.
+
+`SM-ORDER` lists `in_fulfillment`, `partially_ready`, `ready`, `partially_served` and
+`served` among the ORDER's states. Migration 0010 recorded at M3-A that no fulfillment
+label appears on the commercial order, and M3-B keeps that.
+`fulfillment.order_fulfillment_state()` computes every one of those labels from the order's
+tickets, so the machine's SEMANTICS are preserved while the same fact is refused a second
+home that could contradict the first — which is `SM-ORDER`'s own second invariant: *order,
+fulfillment, check, payment and tip states are separate*.
+
+The suite proves each label reachable and correct on a real order, and asserts against the
+CATALOG — not against a list of tables — that no column anywhere in `ordering` could hold
+one. `SM-ORDER`'s last edge, `served -> completed` on operational AND FINANCIAL conditions,
+needs checks, so the entry stays open with M4 named.
+
+## Design decision: duplicated work is one constraint, not three rules (M3-B)
+
+Recall (FR-FUL-005), station transfer (FR-FUL-015) and the printer fallback (FR-FUL-014)
+fail the same way: by leaving the same work on two tickets instead of moving it. A recall
+that reissued, a transfer that copied and a reprint that regenerated would each be a
+separate bug with a separate fix, and the fix for one would say nothing about the others.
+
+So the invariant is enforced once, in the place that can see all three.
+`fulfillment.assert_units_within_order()` is a DEFERRED constraint trigger that compares,
+for every order line, the units the customer ordered against the units on EVERY live
+ticket. It is `SM-FULFILLMENT-TICKET`'s first invariant, held across the whole order rather
+than one ticket at a time. Above it sit the operations themselves: a recall is a state
+change on the ticket that already exists, a transfer changes that ticket's station, and a
+station document is deduplicated on `(ticket, revision)` by a unique index as well as by
+the function that writes it.
+
+Three negative controls plant the three duplications independently — a recall that
+reissues, a transfer that raises a second ticket, a document keyed on a ledger position
+that generating a document itself moves — and each must produce its own signature.
+
+## Evidence standard: what is measured and what is asserted (M3-B)
+
+FR-SAF-004 and FR-FUL-008 are claims about what a KITCHEN SEES, and M2-C established that
+such a claim can only be proved by rendering: it found a translated warning beside an
+untranslated name that every SQL query agreed was absent. The same class of miss on a
+station screen is a hospital visit, so the evidence standard rises rather than falls.
+
+`tests/m3b` renders the station surface in Chromium twice — once normally, and once with
+every colour in the document flattened to a single ink, appended to the surface's own
+stylesheet by intercepting the response because the page's `style-src 'self'` correctly
+refuses an injected one. Prominence is measured RELATIVELY, against the ordinary text
+beside it, so a later restyle that lifted everything cannot satisfy the check by accident.
+`NC-M3B-001` plants an emphasis carried only by colour and requires the flattened render to
+catch it.
+
+Every check in the suite records whether its evidence is `(measured)` — read out of the
+browser's own layout — or `(asserted)` — read from source, a payload or the database. The
+split printed at the end is DERIVED from the run rather than tallied by hand, because the
+one time M2-C counted by hand it drifted.
 
 ## What M1 does not contain
 
