@@ -314,12 +314,45 @@ async function main() {
   });
   await session.send('Emulation.setCPUThrottlingRate', { rate: DEVICE.cpuThrottlingRate });
 
+  // ---- The reference operation, measured in the same run under the same throttle ----
+  //
+  // A budget in milliseconds is a statement about what a guest on a mid-range phone
+  // experiences, and this runner is the proxy for that phone. When the proxy is starved
+  // the measurement is not evidence about the surface at all — first contentful paint
+  // has been recorded at 1332ms and at 21432ms on Windows for a BYTE-IDENTICAL bundle,
+  // an eleven-fold spread that says nothing about the artifact.
+  //
+  // So the same run also measures something whose cost depends on the machine and not on
+  // this surface: a fixed, deterministic arithmetic loop, run in the page under the same
+  // CPU throttle, median of five. It touches no network, no DOM and none of the bundle,
+  // so a slow SURFACE cannot slow it — which is what lets the suite tell "everything is
+  // ten times slower" from "only the surface is".
+  await page.goto('about:blank', { waitUntil: 'domcontentloaded' });
+  out.performance = {
+    referenceMs: await page.evaluate(() => {
+      const once = () => {
+        const started = performance.now();
+        let accumulator = 0;
+        for (let i = 1; i <= 12_000_000; i += 1) {
+          accumulator += Math.sqrt(i) / (i % 97 + 1);
+        }
+        // Returned so no engine can prove the loop dead and remove it.
+        return { ms: performance.now() - started, accumulator };
+      };
+      const runs = [];
+      for (let attempt = 0; attempt < 5; attempt += 1) runs.push(once().ms);
+      runs.sort((a, b) => a - b);
+      return Math.round(runs[2]);
+    }),
+  };
+
   const startedAt = Date.now();
   await page.goto(entryUrl(), { waitUntil: 'domcontentloaded' });
   const menuArrived = await waitForMenu(page);
   const loadedAt = Date.now();
 
   out.performance = {
+    ...out.performance,
     throttled: true,
     menuArrived,
     firstContentfulPaintMs: await page.evaluate(() => {

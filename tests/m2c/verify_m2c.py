@@ -34,7 +34,9 @@ sys.path.insert(0, str(HERE))
 
 import fixtures as fx                                   # noqa: E402
 from fenced import fenced_identifier_pattern            # noqa: E402
-from pg import CommandUnreadable, count, count_or, run, run_command   # noqa: E402
+from pg import (  # noqa: E402
+    CommandUnreadable, ProbeFailed, count, count_or, run, run_command,
+)
 from service import Service, TSC, WORKSPACE             # noqa: E402
 
 assert fx.__file__ == str(HERE / "fixtures.py"), f"wrong fixtures module: {fx.__file__}"
@@ -53,6 +55,35 @@ DOWNLOAD_KBPS = "1600"
 LATENCY_MS = "300"
 
 # Budgets, chosen before the first measurement rather than fitted to it.
+# THE REFERENCE OPERATION, AND WHY THE BUDGETS ARE NOT LOOSENED.
+#
+# FR-UX-012's budgets are statements about what a guest on a mid-range phone experiences.
+# The CI runner is the proxy for that phone, and on Windows the proxy has been observed at
+# 1332, 1912, 2188, 5448 and 21432ms of first contentful paint for a BYTE-IDENTICAL
+# bundle. An eleven-fold spread on identical bytes is not a fact about the artifact, and
+# reporting it as a budget breach is a diagnostic naming a cause it did not verify.
+#
+# So the probe measures a reference operation in the same run under the same CPU throttle:
+# a fixed arithmetic loop that touches no network, no DOM and none of the bundle. A slow
+# surface cannot slow it. The ratio between what it cost and what it costs on a healthy
+# machine is the machine's factor, and it separates the two failures that used to look
+# identical:
+#
+#   the surface is slow          factor near one, budget exceeded  -> a regression
+#   the machine is starved       factor large                      -> not measurable
+#
+# NOT MEASURABLE IS STILL A FAILURE. It is a different failure with a different name, and
+# that is the whole gain: the one permitted CI re-run is then justified by evidence in the
+# log rather than by somebody's judgement that it "looked like a flake". The absolute
+# numbers below have not moved and must not: a budget adjusted to accommodate a flake
+# stops being a budget and devalues every red it reports afterwards.
+#
+# The baseline is a RECORD, so it is anchored the way tools/check_dated_records.py
+# requires of one: measured at 04d0c62 on 2 September 2026, on the Linux development
+# machine this project builds on, under the same 4x CPU throttle the probe applies.
+REFERENCE_BASELINE_MS = 195
+REFERENCE_TOLERANCE = 4.0          # a healthy runner varies; eleven-fold is not variance
+
 BUDGET_FIRST_CONTENTFUL_PAINT_MS = 2500
 BUDGET_MENU_VISIBLE_MS = 5000
 BUDGET_INTERACTION_MS = 500
@@ -965,19 +996,56 @@ def section_performance(probe: dict) -> None:
           f"throttled {device['cpuThrottlingRate']}x, network {device['downloadKbps']} "
           f"kbps down with {device['latencyMs']}ms latency")
 
-    measured("first contentful paint is within budget",
-             perf["firstContentfulPaintMs"] is not None
-             and perf["firstContentfulPaintMs"] <= BUDGET_FIRST_CONTENTFUL_PAINT_MS,
-             f"{perf['firstContentfulPaintMs']}ms against a "
-             f"{BUDGET_FIRST_CONTENTFUL_PAINT_MS}ms budget, from the browser's own "
-             f"paint timing under the throttle above")
+    reference = perf.get("referenceMs")
+    if not reference:
+        raise ProbeFailed(
+            "the reference operation",
+            "the probe reported no reference measurement, so a budget breach could not "
+            "be told from a starved runner. Refusing rather than reporting an absolute "
+            "number whose meaning is unknown")
+    factor = reference / REFERENCE_BASELINE_MS
+    print(f"         reference: {reference}ms for a fixed arithmetic loop under the same "
+          f"throttle, against a {REFERENCE_BASELINE_MS}ms baseline — this machine is "
+          f"{factor:.2f}x")
+    measurable = factor <= REFERENCE_TOLERANCE
 
-    measured("the menu is on screen within budget",
-             perf["menuArrived"] and perf["menuVisibleMs"] <= BUDGET_MENU_VISIBLE_MS,
-             f"{perf['menuVisibleMs']}ms from navigation to the first item drawn, against "
-             f"a {BUDGET_MENU_VISIBLE_MS}ms budget. This is the whole journey: entry, QR "
-             f"exchange, join, basket and menu read, four round trips at "
-             f"{device['latencyMs']}ms each")
+    def budget(name: str, observed, limit: int, detail: str) -> None:
+        """One budget, reported as a regression or as an unmeasurable machine, never both.
+
+        A breach on a machine the reference says is starved is not evidence about the
+        surface, and calling it one would be a diagnostic naming a cause it did not
+        verify. It is still a FAILURE — a measurement that did not happen cannot be a
+        pass — but a differently named one, so the single permitted re-run rests on
+        evidence in the log rather than on somebody's impression that it looked flaky.
+        """
+        if observed is None:
+            measured(name, False, f"the probe reported nothing for {name}")
+            return
+        within = observed <= limit
+        if within:
+            measured(name, True, f"{observed}ms against a {limit}ms budget. {detail}")
+        elif measurable:
+            measured(name, False,
+                     f"PERFORMANCE_BUDGET_EXCEEDED: {observed}ms against a {limit}ms "
+                     f"budget, and the reference says this machine is {factor:.2f}x — "
+                     f"within its normal band, so the surface is what is slow. {detail}")
+        else:
+            measured(name, False,
+                     f"PERFORMANCE_NOT_MEASURABLE: {observed}ms against a {limit}ms "
+                     f"budget on a machine the reference puts at {factor:.2f}x, past the "
+                     f"{REFERENCE_TOLERANCE}x band. Everything here is slow together, so "
+                     f"this run is not evidence about the surface. The budget has not "
+                     f"moved and this is still a failure; what it is not is a regression")
+
+    budget("first contentful paint is within budget",
+           perf["firstContentfulPaintMs"], BUDGET_FIRST_CONTENTFUL_PAINT_MS,
+           "From the browser's own paint timing under the throttle above")
+
+    budget("the menu is on screen within budget",
+           perf["menuVisibleMs"] if perf["menuArrived"] else None,
+           BUDGET_MENU_VISIBLE_MS,
+           f"This is the whole journey: entry, QR exchange, join, basket and menu read, "
+           f"four round trips at {device['latencyMs']}ms each")
 
     measured("an interaction responds within budget",
              perf["interactionMs"] <= BUDGET_INTERACTION_MS,
