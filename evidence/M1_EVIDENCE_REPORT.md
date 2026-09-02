@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `aa02db6cb1a44a44a51ca5807a21d71a76415764` |
-| Short | `aa02db6` |
+| Commit | `f4b3bb492c6ef189bd7505e5a2b09e88908c5ad0` |
+| Short | `f4b3bb4` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation |
@@ -56,6 +56,10 @@ Ordered, forward-only and checksum-locked. An edited applied migration fails pre
 | `0015` | `0015_terminals_override_handover_and_staff_surface.sql` | `35342bead8fa5fc5…` | applied |
 | `0016` | `0016_translatable_order_status_wording.sql` | `330343affebf3743…` | applied |
 | `0017` | `0017_localized_customer_status_timeline.sql` | `c529f24f453ebbf3…` | applied |
+| `0018` | `0018_counter_origin_and_billing_artifacts.sql` | `22fdbcf12661811d…` | applied |
+| `0019` | `0019_checks_bills_splitting_and_tip_separation.sql` | `6cb20a943a665186…` | applied |
+| `0020` | `0020_counter_channel_and_payment_dependent_acceptance.sql` | `91b077ba0de1e80b…` | applied |
+| `0021` | `0021_financial_conditions_on_closure_and_completion.sql` | `381a6dc87738d6ee…` | applied |
 
 ## Seeds applied
 
@@ -66,7 +70,7 @@ least-privileged application role.
 
 | Version | File | SHA-256 | Applied |
 |---|---|---|---|
-| `0001` | `0001_demonstration_tenants.sql` | `39528da13643bbb9…` | applied |
+| `0001` | `0001_demonstration_tenants.sql` | `485ab69c5e0da290…` | applied |
 | `0002` | `0002_reason_codes.sql` | `27b8595f98f7e129…` | applied |
 
 ## Schema shape
@@ -97,16 +101,18 @@ Money is stored as integer minor units beside an explicit currency.
 | M3-B fulfillment, tickets, stations, the KDS | **PASS** | 127 | 0 |
 | M3-C service requests, notifications, integration | **PASS** | 125 | 0 |
 | M3-D terminals, override, handover, the waiter surface | **PASS** | 95 | 0 |
+| M4-A checks, bills, splitting, tip separation | **PASS** | 105 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
 | The five golden journeys, end to end | **PASS** | 61 | 0 |
-| **Total** | | **1014** | |
+| **Total** | | **1119** | |
 
 ## The five golden journeys (FR-TST-005A)
 
 Browser automation against real persistence — the journey a person walks, not an API
-sequence. Each journey names the gates it reaches, because these are not M3-D's tests:
-they exercise everything M1 through M3-D built, and a reader who filed them under the
-slice they were committed beside would be reading them as a repeat of it.
+sequence. Each journey names the gates it reaches, because these are not any one
+slice's tests: they exercise everything the repository has landed, and a reader who
+filed them under the slice they were committed beside would be reading them as a
+repeat of it.
 
 A failure names the JOURNEY and the STEP. Steps after a failure are reported as not
 reached rather than skipped silently, so a journey that stopped early cannot be
@@ -123,7 +129,7 @@ mistaken for one that mostly worked.
 
 ## Negative controls
 
-**79** controls — M1 22, M2 22, M3 35 — each planted as a real
+**89** controls — M1 22, M2 22, M3 35, M4 10 — each planted as a real
 defect, required to produce its exact registered signature, then reverted and
 required to pass again. A control that never went red is a coverage gap wearing a
 green badge, and CI fails the build when one is missing. The registry is
@@ -212,6 +218,16 @@ build, and so does one described and never proved.
 | `NC-M3D-011` | A description states a fact the generator can derive | `DESCRIPTION_NAMES_A_DERIVABLE_FACT` | red, then green |
 | `NC-M3D-012` | The CI matrix stops describing the pipeline | `CI_MATRIX_DRIFT` | red, then green |
 | `NC-M3D-013` | A control the suites prove and no document describes | `CONTROL_UNDESCRIBED` | red, then green |
+| `NC-M4-001` | A tip preselected for the guest | `TIP_PRESELECTED` | red, then green |
+| `NC-M4-002` | A tip counted towards a bill balance | `TIP_COMMINGLED_WITH_BILL` | red, then green |
+| `NC-M4A-001` | A closure completer moved later with no reason | `PARTIAL_CLOSURE_COMPLETER_MOVED_LATER` | red, then green |
+| `NC-M4A-002` | A line quantity billed on two checks | `QUANTITY_DOUBLE_BILLED` | red, then green |
+| `NC-M4A-003` | A split that loses or creates a minor unit | `SPLIT_NOT_EXACT` | red, then green |
+| `NC-M4A-004` | A bill finalized with an unsettled balance | `BILL_FINALIZED_UNSETTLED` | red, then green |
+| `NC-M4A-005` | An issued bill corrected by deletion | `BILL_DELETED_NOT_CREDITED` | red, then green |
+| `NC-M4A-006` | A per-payer tip that reallocates bill lines | `TIP_REALLOCATED_BILL` | red, then green |
+| `NC-M4A-007` | The counter channel on an order path of its own | `CHANNEL_RULE_DIVERGENCE` | red, then green |
+| `NC-M4A-008` | A finalized bill with no calculation version | `CALCULATION_VERSION_MISSING` | red, then green |
 
 ## Design decision: the ledger is the record, everything else is a projection (M3-A)
 
