@@ -84,8 +84,20 @@ GATE_DELIVERS = {
     "M6":  "Multi-region distribution",
 }
 
+# A directory description may not NAME A GATE. It may ask for one.
+#
+# This dictionary said the API was "M1 surface only" through three gates of API work.
+# Nobody noticed, because nothing could: the sentence was a literal, and a literal cannot
+# go stale in a way a check can see. It is the third instance of the shape — the
+# undescribed slice and the default suite description were the first two — and it is
+# fixed the same way: the fact is derived, and stating it by hand fails the build.
+#
+# The tokens below are substituted from the repository. A value that spells a gate out
+# instead raises DescriptionNamesADerivableFact, which is why "M1 surface only" cannot
+# come back.
 DIRECTORY_PURPOSE = {
-    "api": "the cloud API — Fastify and TypeScript, M1 surface only",
+    "api": "the cloud API — Fastify and TypeScript, two runtime dependencies, "
+           "serving {api_routes}",
     "docs": "the approved v2.0.9 package, byte-identical and verified by its own `SHA256SUMS.txt`",
     "docs-local": "cross-platform command reference",
     "evidence": "`M1_EVIDENCE_REPORT.md`, generated from the repository, database and suite logs",
@@ -93,7 +105,7 @@ DIRECTORY_PURPOSE = {
     "planning": "architecture conformance, migration ownership, CI matrix, known limitations",
     "schema": "`SCHEMA_CATALOG.md`, generated from the live database, never hand-written",
     "seeds": "demonstration tenants and reason-code sets, with their own ordered record",
-    "tests": "verification suites, one per slice, plus the fenced-domain gate suite",
+    "tests": "verification suites — {suite_shape}",
     "tools": "migration and seed runners, generators, and the forbidden-surface verifier",
 }
 
@@ -186,6 +198,20 @@ def slice_tags() -> list[str]:
 
 class SliceUndescribed(RuntimeError):
     """A slice exists in the repository and this generator has nothing to say about it."""
+
+
+class DescriptionNamesADerivableFact(RuntimeError):
+    """A hand-written description states something this generator can derive.
+
+    Separate from SliceUndescribed because the remedy is the opposite: one means "say
+    something about this", the other means "stop saying this by hand".
+    """
+
+
+# M0R, M1 through M6, and M5a/M5b, alone or with a slice letter. Matched inside prose
+# only — the keys of SLICE_DELIVERS and GATE_DELIVERS are gates by definition and are the
+# subject of their entry rather than a claim inside it.
+GATE_IN_PROSE = re.compile(r"\bM0R\b|\bM[1-6][ab]?(?:-[A-Z])?\b")
 
 
 class PartialClosureDrift(RuntimeError):
@@ -305,10 +331,45 @@ def build() -> str:
         else:
             sequence.append(gate)
 
+    # Which suites are slices and which cut across gates — the same distinction the
+    # suite table draws below, derived once and used by both.
+    slice_suites = [p for p in suites
+                    if re.fullmatch(r"m(\d)([a-z])", p.parent.name)]
+    cross_cutting_suites = [p for p in suites if p not in slice_suites]
+
+    # The facts a directory description is allowed to state, derived here so no value
+    # can hold a stale one. Named tokens rather than positional formatting, because a
+    # description that wants none of them must still render unchanged.
+    route_modules = sorted(p.stem for p in (REPO / "api" / "src" / "routes").glob("*.ts"))
+    facts = {
+        "api_routes": (", ".join(f"`{m}`" for m in route_modules[:-1])
+                       + f" and `{route_modules[-1]}`") if len(route_modules) > 1
+                      else ", ".join(f"`{m}`" for m in route_modules),
+        "suite_shape": (f"{len(slice_suites)} that each verify one slice, and "
+                        f"{len(cross_cutting_suites)} that cut across gates"),
+    }
+
     layout = ["| Path | Contents |", "|---|---|"]
     for name in sorted(DIRECTORY_PURPOSE):
-        if (REPO / name).is_dir():
-            layout.append(f"| `{name}/` | {DIRECTORY_PURPOSE[name]} |")
+        if not (REPO / name).is_dir():
+            continue
+        description = DIRECTORY_PURPOSE[name]
+        named = GATE_IN_PROSE.search(description)
+        if named:
+            raise DescriptionNamesADerivableFact(
+                f"the description of {name}/ names the gate {named.group(0)!r}. A gate "
+                f"in a hand-written sentence is a fact that goes stale silently — this "
+                f"one said the API was M1 surface only through three gates of API work. "
+                f"State it with a token this generator substitutes, or say something "
+                f"that stays true.")
+        try:
+            layout.append(f"| `{name}/` | {description.format(**facts)} |")
+        except KeyError as unknown:
+            raise DescriptionNamesADerivableFact(
+                f"the description of {name}/ asks for {unknown} and this generator "
+                f"derives no such fact. Add the derivation or remove the token; a "
+                f"description that renders a brace is worse than one that renders "
+                f"nothing") from None
 
     suite_table = ["| Suite | Covers |", "|---|---|"]
     for path in suites:
@@ -400,6 +461,10 @@ def main() -> int:
         # A named failure, not a traceback: this is the one a contributor will hit after
         # adding a slice, and it should read like the tool's other refusals.
         print("FAIL SLICE_UNDESCRIBED", file=sys.stderr)
+        print(f"  {error}", file=sys.stderr)
+        return 1
+    except DescriptionNamesADerivableFact as error:
+        print("FAIL DESCRIPTION_NAMES_A_DERIVABLE_FACT", file=sys.stderr)
         print(f"  {error}", file=sys.stderr)
         return 1
 

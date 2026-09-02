@@ -110,6 +110,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/generate_readme.py --check README.md
+          python3 tools/generate_ci_matrix.py --check planning/CI_TEST_MATRIX.md
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -285,6 +286,7 @@ jobs:
           # depend on which platform last regenerated it. cp1252 decoding already caused
           # exactly that once, reporting drift against a schema that had not drifted.
           python tools/generate_readme.py --check README.md
+          python tools/generate_ci_matrix.py --check planning/CI_TEST_MATRIX.md
           python tools/generate_schema_catalog.py \
             --dsn "postgresql://$SUPERUSER@$PGTCP_HOST:$PGPORT/$DB" \
             --check schema/SCHEMA_CATALOG.md
@@ -770,35 +772,32 @@ jobs:
         run: |
           set -euo pipefail
           # A control that never went red is a coverage gap wearing a green badge.
-          for control in NC-M1-001 NC-M1-002 NC-M1-003 NC-M1-004 \
-                         NC-M1B-001 NC-M1B-002 NC-M1B-003 NC-M1B-004 NC-M1B-005 \
-                         NC-M1C-001 NC-M1C-002 NC-M1C-003 NC-M1C-004 NC-M1C-005 \
-                         NC-M1D-001 NC-M1D-002 NC-M1D-003 NC-M1D-004 NC-M1D-005 \
-                         NC-M1D-006 NC-M1D-007 NC-M1D-008 \
-                         NC-M2A-001 NC-M2A-002 NC-M2A-003 NC-M2A-004 NC-M2A-005 \
-                         NC-M2-001 NC-M2-002 NC-M2-003 \
-                         NC-M2B-004 NC-M2B-005 NC-M2B-006 NC-M2B-007 NC-M2B-008 \
-                         NC-M2B-009 NC-M2B-010 \
-                         NC-M2-004 NC-M2C-005 NC-M2C-006 NC-M2C-007 NC-M2C-008 \
-                         NC-M2C-009 NC-M2C-010 \
-                         NC-M3-001 NC-M3-002 NC-M3-003 NC-M3-005 NC-M3-006 \
-                         NC-M3-007 NC-M3-008 NC-M3-009 \
-                         NC-M3-004 NC-M3B-001 NC-M3B-002 NC-M3B-003 \
-                         NC-M3B-004 NC-M3B-005 NC-M3B-006 \
-                         NC-M3C-001 NC-M3C-002 NC-M3C-003 NC-M3C-004 \
-                         NC-M3C-005 NC-M3C-006 NC-M3C-007 \
-                         NC-M3D-001 NC-M3D-002 NC-M3D-003 NC-M3D-004 NC-M3D-005 \
-                         NC-M3D-006 NC-M3D-007 NC-M3D-008 NC-M3D-009 NC-M3D-010; do
+          # THE LIST COMES FROM THE REGISTRY. It used to be written out here, which
+          # made three places that had to agree about which controls exist — this file,
+          # the evidence report, and the matrix that states how many there are — and a
+          # fourth number in a review brief that said 62 when the report said 76. The
+          # report was right and the prose had never been re-derived. There is one
+          # registry now, tools/controls.py, and tools/generate_evidence_report.py
+          # refuses the build if it disagrees with what the suites printed, in either
+          # direction. This step reads it rather than repeating it.
+          logs=("$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log
+                "$LOG_DIR"/m2a.log "$LOG_DIR"/m2b.log "$LOG_DIR"/m2c.log "$LOG_DIR"/m3a.log
+                "$LOG_DIR"/m3b.log "$LOG_DIR"/m3c.log "$LOG_DIR"/m3d.log)
+          mapfile -t registered < <(python3 -c "import sys; sys.path.insert(0, 'tools'); import controls; print(chr(10).join(c[0] for c in controls.CONTROLS))")
+          test "${#registered[@]}" -ge 70 || {
+            echo "::error::the control registry yielded only ${#registered[@]} controls"
+            exit 1; }
+          for control in "${registered[@]}"; do
             # $control.* rather than "$control — ": M3-D writes the control's description
             # between its identifier and the marker, so the log line says what was broken.
-            red="$(grep -cE "\[PASS\] (\([a-z]+\) )?$control.* — RED" "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log "$LOG_DIR"/m2a.log "$LOG_DIR"/m2b.log "$LOG_DIR"/m2c.log "$LOG_DIR"/m3a.log "$LOG_DIR"/m3b.log "$LOG_DIR"/m3c.log "$LOG_DIR"/m3d.log | awk -F: '{s+=$2} END {print s}')"
-            green="$(grep -cE "\[PASS\] (\([a-z]+\) )?$control.* — GREEN" "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log "$LOG_DIR"/m2a.log "$LOG_DIR"/m2b.log "$LOG_DIR"/m2c.log "$LOG_DIR"/m3a.log "$LOG_DIR"/m3b.log "$LOG_DIR"/m3c.log "$LOG_DIR"/m3d.log | awk -F: '{s+=$2} END {print s}')"
+            red="$(grep -cE "\[PASS\] (\([a-z]+\) )?$control.* — RED" "${logs[@]}" | awk -F: '{s+=$2} END {print s}')"
+            green="$(grep -cE "\[PASS\] (\([a-z]+\) )?$control.* — GREEN" "${logs[@]}" | awk -F: '{s+=$2} END {print s}')"
             if [ "${red:-0}" -lt 1 ] || [ "${green:-0}" -lt 1 ]; then
               echo "::error::$control was not shown both red and green (red=$red green=$green)"
               exit 1
             fi
-            echo "$control: proved red then green"
           done
+          echo "${#registered[@]} controls, each proved red then green"
 
       - uses: actions/upload-artifact@v4
         if: always()

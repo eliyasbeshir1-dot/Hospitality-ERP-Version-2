@@ -17,7 +17,7 @@ recorded deliberately and are marked as such.
 | Short | `7c876d2` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
-| Working tree | clean at generation |
+| Working tree | NOT CLEAN — regenerate from a clean tree |
 
 ## Versions
 
@@ -96,10 +96,10 @@ Money is stored as integer minor units beside an explicit currency.
 | M3-A orders, snapshots, session lifecycle | **PASS** | 136 | 0 |
 | M3-B fulfillment, tickets, stations, the KDS | **PASS** | 127 | 0 |
 | M3-C service requests, notifications, integration | **PASS** | 125 | 0 |
-| M3-D terminals, override, handover, the waiter surface | **PASS** | 89 | 0 |
+| M3-D terminals, override, handover, the waiter surface | **PASS** | 95 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
 | The five golden journeys, end to end | **PASS** | 61 | 0 |
-| **Total** | | **1008** | |
+| **Total** | | **1014** | |
 
 ## The five golden journeys (FR-TST-005A)
 
@@ -123,9 +123,13 @@ mistaken for one that mostly worked.
 
 ## Negative controls
 
-Each control is planted as a real defect, required to produce its exact registered
-signature, then reverted and required to pass again. A control that never went red is
-a coverage gap wearing a green badge, and CI fails the build when one is missing.
+**79** controls — M1 22, M2 22, M3 35 — each planted as a real
+defect, required to produce its exact registered signature, then reverted and
+required to pass again. A control that never went red is a coverage gap wearing a
+green badge, and CI fails the build when one is missing. The registry is
+`tools/controls.py` and it is compared with this run's logs before this table is
+rendered, in both directions: a control proved and described nowhere fails the
+build, and so does one described and never proved.
 
 | Control | Property | Signature | State |
 |---|---|---|---|
@@ -205,6 +209,9 @@ a coverage gap wearing a green badge, and CI fails the build when one is missing
 | `NC-M3D-008` | A landed slice the README describes nowhere | `SLICE_UNDESCRIBED` | red, then green |
 | `NC-M3D-009` | A suite exists and nothing says what it covers | `SUITE_UNDESCRIBED` | red, then green |
 | `NC-M3D-010` | A cross-cutting suite that declares no span | `SUITE_SPAN_UNDECLARED` | red, then green |
+| `NC-M3D-011` | A description states a fact the generator can derive | `DESCRIPTION_NAMES_A_DERIVABLE_FACT` | red, then green |
+| `NC-M3D-012` | The CI matrix stops describing the pipeline | `CI_MATRIX_DRIFT` | red, then green |
+| `NC-M3D-013` | A control the suites prove and no document describes | `CONTROL_UNDESCRIBED` | red, then green |
 
 ## Design decision: the ledger is the record, everything else is a projection (M3-A)
 

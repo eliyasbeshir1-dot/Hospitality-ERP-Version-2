@@ -1,0 +1,213 @@
+#!/usr/bin/env python3
+"""The negative controls: what each one is, and what the run says about it.
+
+ONE REGISTRY, AND THE RUN IS THE AUTHORITY OVER IT.
+
+A control is a real defect, planted, required to produce its exact registered signature,
+then reverted and required to pass again. Three things need to agree about which controls
+exist: the evidence report that tabulates them, the CI step that refuses a build unless
+each went red and green, and the CI matrix that says how many there are. Before this
+module they were three separate lists, and a fourth number lived in a review brief that
+said 62 when the artifact said 76. The artifact was right; the prose had been carried
+forward and never re-derived.
+
+So the descriptions live here once, and `check_against_run()` compares them with what the
+suites actually printed. A control the suites prove and nobody describes fails the build
+by name, exactly as an undescribed slice does — the reverse direction, a control described
+and never proved, was already caught by the evidence report's "not proven" row and is
+asserted here too. Neither list can drift from the run while both are checked against it.
+
+Anything that STATES a number asks this module for it. There is no second place to count.
+"""
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+
+class ControlDrift(RuntimeError):
+    """The registry and the run disagree about which controls exist."""
+
+
+# (identifier, what it proves, the signature it must produce, the suite that proves it)
+CONTROLS = [
+    ("NC-M1-001", "Fail-closed tenant context", "VISIBLE_OR_WRITABLE_ROWS_WITHOUT_CONTEXT", "m1a"),
+    ("NC-M1-002", "Sibling-outlet isolation", "SIBLING_OUTLET_ACCESS", "m1a"),
+    ("NC-M1-003", "Future schema protection", "OUTLET_POLICY_NOT_UPGRADED", "m1a"),
+    ("NC-M1-004", "Runtime least privilege", "PRIVILEGED_RUNTIME_ROLE_REJECTED", "m1a"),
+    ("NC-M1B-001", "Session survives role removal", "SESSION_SURVIVED_ROLE_REMOVAL", "m1b"),
+    ("NC-M1B-002", "Quick PIN for a governed action", "LOW_RISK_CREDENTIAL_USED_FOR_SENSITIVE_ACTION", "m1b"),
+    ("NC-M1B-003", "Step-up recency ignored", "STALE_STEP_UP_ACCEPTED", "m1b"),
+    ("NC-M1B-004", "Principal outside its scope", "OUT_OF_SCOPE_PRINCIPAL_ACCEPTED", "m1b"),
+    ("NC-M1B-005", "Context outlives its transaction", "CONTEXT_SURVIVED_COMMIT", "m1b"),
+    ("NC-M1C-001", "Audit mutated by ordinary role", "AUDIT_MUTATED_BY_ORDINARY_ROLE", "m1c"),
+    ("NC-M1C-002", "Inexact money type", "INEXACT_MONEY_TYPE_ACCEPTED", "m1c"),
+    ("NC-M1C-003", "Entitlement defaulting open", "UNKNOWN_ENTITLEMENT_DEFAULTED_OPEN", "m1c"),
+    ("NC-M1C-004", "Retention deleting audit", "APPEND_ONLY_VIOLATED", "m1c"),
+    ("NC-M1C-005", "Numbering collision", "DUPLICATE_DOCUMENT_NUMBER_ISSUED", "m1c"),
+    ("NC-M1D-001", "Privileged runtime credential", "PRIVILEGED_RUNTIME_CREDENTIAL_ACCEPTED", "m1d"),
+    ("NC-M1D-002", "Readiness green with broken job", "READINESS_GREEN_WITH_BROKEN_JOB", "m1d"),
+    ("NC-M1D-003", "Secret emitted in logs", "SECRET_EMITTED_IN_LOGS", "m1d"),
+    ("NC-M1D-004", "Required header absent", "REQUIRED_HEADER_ABSENT", "m1d"),
+    ("NC-M1D-005", "Seed checksum lock bypassed", "SEED_CHECKSUM_LOCK_BYPASSED", "m1d"),
+    ("NC-M1D-006", "Route served without context", "ROUTE_SERVED_WITHOUT_CONTEXT", "m1d"),
+    ("NC-M1D-007", "Readiness reads a stale role snapshot", "READINESS_GREEN_WITH_PRIVILEGED_ROLE", "m1d"),
+    ("NC-M1D-008", "Readiness discloses deployment detail", "READINESS_DISCLOSES_DEPLOYMENT_DETAIL", "m1d"),
+    ("NC-M2A-001", "Snapshot mutated after publish", "IMMUTABLE_SNAPSHOT_ALTERED", "m2a"),
+    ("NC-M2A-002", "Inexact or currency-less price", "INEXACT_PRICE_TYPE_ACCEPTED", "m2a"),
+    ("NC-M2A-003", "Availability discloses a figure", "EXACT_QUANTITY_DISCLOSED", "m2a"),
+    ("NC-M2A-004", "Publish with a locale missing", "REQUIRED_TRANSLATION_MISSING", "m2a"),
+    ("NC-M2A-005", "Daypart in server time", "WRONG_DAYPART_AT_BOUNDARY", "m2a"),
+    ("NC-M2-001", "QR reference enumerable", "ENUMERABLE_QR_REFERENCE", "m2b"),
+    ("NC-M2-002", "Foreign session accepted", "FOREIGN_SESSION_ACCEPTED", "m2b"),
+    ("NC-M2-003", "Publish with safety text missing", "REQUIRED_SAFETY_TRANSLATION_MISSING", "m2b"),
+    ("NC-M2B-004", "Allergen conveyed by icon alone", "WRITTEN_WARNING_ABSENT", "m2b"),
+    ("NC-M2B-005", "Declaration not re-evaluated", "STALE_DECLARATION_SERVED", "m2b"),
+    ("NC-M2B-006", "Stale QR joins a later occupancy", "STALE_SESSION_ADMITTED", "m2b"),
+    ("NC-M2B-007", "Ownership moved without acknowledgement", "OWNERSHIP_TRANSFERRED_SILENTLY", "m2b"),
+    ("NC-M2B-008", "Pinned reference readable by display", "AUDIT_REFERENCE_DISCLOSED_TO_DISPLAY", "m2b"),
+    ("NC-M2B-009", "Correction withheld from a published menu", "CORRECTION_WITHHELD_FROM_PUBLISHED_MENU", "m2b"),
+    ("NC-M2B-010", "Archive policy deletes instead", "ARCHIVE_POLICY_DELETED_ROWS", "m2b"),
+    ("NC-M2-004", "Arabic does not lay out right-to-left", "RTL_LAYOUT_OR_READING_ORDER_FAILURE", "m2c"),
+    ("NC-M2C-005", "Icon rendered without its warning", "WRITTEN_WARNING_ABSENT_FROM_RENDER", "m2c"),
+    ("NC-M2C-006", "State told by colour alone", "STATE_CONVEYED_BY_COLOUR_ALONE", "m2c"),
+    ("NC-M2C-007", "Language change loses the basket", "CART_LOST_ON_LOCALE_CHANGE", "m2c"),
+    ("NC-M2C-008", "A locale renders only partly", "INCOMPLETE_LOCALE_RENDER", "m2c"),
+    ("NC-M2C-009", "Retry commits a second time", "DUPLICATE_COMMITMENT_ON_RETRY", "m2c"),
+    ("NC-M2C-010", "Chosen locale not recorded", "LOCALE_SNAPSHOT_ABSENT", "m2c"),
+    ("NC-M3-001", "A retry produces a second effect", "DUPLICATE_ORDER_EFFECT", "m3a"),
+    ("NC-M3-002", "Price moved between preview and submission", "STALE_PRICE_ACCEPTED", "m3a"),
+    ("NC-M3-003", "Allergy declaration lost on a hop", "ALLERGY_FLAG_LOST", "m3a"),
+    ("NC-M3-005", "Client-stated total is stored", "CLIENT_CALCULATED_TOTAL_ACCEPTED", "m3a"),
+    ("NC-M3-006", "Accepted order edited destructively", "ACCEPTED_ORDER_MUTATED", "m3a"),
+    ("NC-M3-007", "Merge or move loses an order", "ORDER_LOST_ON_SESSION_CHANGE", "m3a"),
+    ("NC-M3-008", "Private staff note reaches a customer", "PRIVATE_NOTE_DISCLOSED", "m3a"),
+    ("NC-M3-009", "Rebuild diverges from the ledger", "REBUILD_NOT_DETERMINISTIC", "m3a"),
+    ("NC-M3-004", "Illegal ticket transition accepted", "ILLEGAL_TRANSITION_ACCEPTED", "m3b"),
+    ("NC-M3B-001", "Allergy emphasis lost at a station", "ALLERGY_EMPHASIS_LOST_AT_STATION", "m3b"),
+    ("NC-M3B-002", "A recall duplicates completed work", "DUPLICATED_WORK_ON_RECALL", "m3b"),
+    ("NC-M3B-003", "A transfer duplicates a ticket", "DUPLICATED_WORK_ON_TRANSFER", "m3b"),
+    ("NC-M3B-004", "Printer fallback emits a second ticket", "DUPLICATE_STATION_TICKET", "m3b"),
+    ("NC-M3B-005", "Expo releases an incomplete set", "INCOMPLETE_SET_SERVED", "m3b"),
+    ("NC-M3B-006", "Priority applied with no attributed actor", "PRIORITY_WITHOUT_ATTRIBUTION", "m3b"),
+    ("NC-M3C-001", "Deduplication swallows a deliberate repeat", "DELIBERATE_REPEAT_SUPPRESSED", "m3c"),
+    ("NC-M3C-002", "Accidental repeated taps raise a second alert", "DUPLICATE_ALERT_EMITTED", "m3c"),
+    ("NC-M3C-003", "Staff identity reaches a customer screen unconfigured", "STAFF_IDENTITY_DISCLOSED", "m3c"),
+    ("NC-M3C-004", "Presence survives its retention window", "EPHEMERAL_PRESENCE_RETAINED", "m3c"),
+    ("NC-M3C-005", "Sensitive data reaches a notification payload", "SENSITIVE_DATA_IN_NOTIFICATION", "m3c"),
+    ("NC-M3C-006", "A deep link resolves for an unauthorized session", "DEEP_LINK_CROSSES_SESSION_SCOPE", "m3c"),
+    ("NC-M3C-007", "A dead-letter replay causes a duplicate effect", "DUPLICATE_EFFECT_ON_REPLAY", "m3c"),
+    ("NC-M3D-001", "Waiter-entered order bypasses a rule QR ordering enforces", "CHANNEL_RULE_DIVERGENCE", "m3d"),
+    ("NC-M3D-002", "Manager override completes without step-up", "OVERRIDE_WITHOUT_STEP_UP", "m3d"),
+    ("NC-M3D-003", "Override succeeds by credential sharing, not delegation", "CREDENTIAL_SHARED_FOR_OVERRIDE", "m3d"),
+    ("NC-M3D-004", "Staff search returns a row outside the searcher's scope", "STAFF_SEARCH_CROSSES_SCOPE", "m3d"),
+    ("NC-M3D-005", "Allergy confirmation carries ordinary friction", "FRICTION_NOT_GRADED_BY_CONSEQUENCE", "m3d"),
+    ("NC-M3D-006", "A destructive action proceeds with no reason", "DESTRUCTIVE_ACTION_WITHOUT_REASON", "m3d"),
+    ("NC-M3D-007", "Handover leaves a table with no responsible owner", "RESPONSIBILITY_LOST_ON_HANDOVER", "m3d"),
+    ("NC-M3D-008", "A landed slice the README describes nowhere", "SLICE_UNDESCRIBED", "m3d"),
+    ("NC-M3D-009", "A suite exists and nothing says what it covers", "SUITE_UNDESCRIBED", "m3d"),
+    ("NC-M3D-010", "A cross-cutting suite that declares no span", "SUITE_SPAN_UNDECLARED", "m3d"),
+    ("NC-M3D-011", "A description states a fact the generator can derive", "DESCRIPTION_NAMES_A_DERIVABLE_FACT", "m3d"),
+    ("NC-M3D-012", "The CI matrix stops describing the pipeline", "CI_MATRIX_DRIFT", "m3d"),
+    ("NC-M3D-013", "A control the suites prove and no document describes", "CONTROL_UNDESCRIBED", "m3d"),
+]
+
+
+# A control identifier: the gate that owns it and a three-digit ordinal. Matched against
+# the suite logs rather than against the suite SOURCES, because what matters is that the
+# control RAN — a control commented out is a control that no longer exists, and its source
+# would still name it.
+IDENTIFIER = re.compile(r"NC-[A-Z0-9]+-\d+")
+
+_RESULT = re.compile(
+    # "[PASS] (asserted) NC-M3D-001  a waiter-entered order … — RED with the defect planted"
+    #
+    # The evidence prefix is optional because only the rendering suites carry one, and the
+    # description between the identifier and the marker is optional because only M3-D
+    # writes one. Anchoring on adjacency instead reported ten proved controls as missing.
+    r"\[PASS\] (?:\([a-z]+\) )?(NC-[A-Z0-9]+-\d+)[^\n]*? — (RED|GREEN)")
+
+
+def described() -> dict[str, tuple[str, str, str]]:
+    """The registry, keyed by identifier."""
+    return {c[0]: (c[1], c[2], c[3]) for c in CONTROLS}
+
+
+def proved(logs: Path) -> dict[str, dict[str, set[str]]]:
+    """What the run says: {identifier: {"RED": {suite…}, "GREEN": {suite…}}}.
+
+    Read from the logs, so this is the controls that actually executed on this run rather
+    than the ones somebody wrote down.
+    """
+    found: dict[str, dict[str, set[str]]] = {}
+    for path in sorted(logs.glob("*.log")):
+        suite = path.stem
+        text = path.read_text(encoding="utf-8", errors="ignore")
+        for identifier, marker in _RESULT.findall(text):
+            found.setdefault(identifier, {"RED": set(), "GREEN": set()})[marker].add(suite)
+    return found
+
+
+def check_against_run(logs: Path) -> None:
+    """Refuse when the registry and the run disagree about which controls exist.
+
+    Raises ControlDrift naming the direction of the disagreement. Both directions matter
+    and they fail differently: a control nobody describes is invisible in every document,
+    and a control nobody proves is a coverage gap wearing a green badge.
+    """
+    registry = described()
+    run = proved(logs)
+    if not run:
+        raise ControlDrift(
+            f"CONTROL_REGISTRY_UNVERIFIABLE: no control result found in any log under "
+            f"{logs}. A registry checked against nothing would agree with anything, so "
+            f"this is a failure rather than a silent pass")
+
+    undescribed = sorted(set(run) - set(registry))
+    if undescribed:
+        raise ControlDrift(
+            f"CONTROL_UNDESCRIBED: {undescribed} went red and green in this run and no "
+            f"entry in tools/controls.py says what they prove. Add one: every document "
+            f"that counts controls counts this registry, so a control missing from it is "
+            f"a control missing from the evidence report, from the CI matrix and from the "
+            f"step that requires each to have been proved")
+
+    unproved = sorted(set(registry) - set(run))
+    if unproved:
+        raise ControlDrift(
+            f"CONTROL_NOT_IN_THIS_RUN: {unproved} are described and did not appear in "
+            f"this run's logs. Either the suite stopped proving them or a log is missing "
+            f"from the set handed to this check")
+
+    misattributed = sorted(
+        f"{identifier} (registry says {registry[identifier][2]}, "
+        f"proved in {sorted(markers['RED'] | markers['GREEN'])})"
+        for identifier, markers in run.items()
+        if registry[identifier][2] not in (markers["RED"] | markers["GREEN"]))
+    if misattributed:
+        raise ControlDrift(
+            f"CONTROL_SUITE_MISATTRIBUTED: {misattributed}. The registry names the suite "
+            f"that proves each control, and the evidence report reads that suite's log to "
+            f"decide whether it went red — so a wrong name reports a proved control as "
+            f"not proven")
+
+
+def count() -> int:
+    return len(CONTROLS)
+
+
+def by_gate() -> list[tuple[str, int]]:
+    """How many controls each gate owns, derived from the identifiers themselves.
+
+    NC-M1-001 and NC-M1B-001 both belong to M1: the letter is the slice within the gate,
+    and a gate's total is what a reader of the matrix wants.
+    """
+    tally: dict[str, int] = {}
+    for identifier, _p, _s, _suite in CONTROLS:
+        gate = re.fullmatch(r"NC-(M\d)[A-Z]?-\d+", identifier)
+        if not gate:
+            raise ControlDrift(
+                f"CONTROL_IDENTIFIER_UNPARSEABLE: {identifier} does not name a gate, so "
+                f"no distribution can be derived from it")
+        tally[gate.group(1)] = tally.get(gate.group(1), 0) + 1
+    return sorted(tally.items())

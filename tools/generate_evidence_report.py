@@ -155,84 +155,15 @@ def journey_result(logs: Path, journey: str) -> tuple[str, str]:
     return (matched.group(1), matched.group(2))
 
 
-CONTROLS = [
-    ("NC-M1-001", "Fail-closed tenant context", "VISIBLE_OR_WRITABLE_ROWS_WITHOUT_CONTEXT", "m1a"),
-    ("NC-M1-002", "Sibling-outlet isolation", "SIBLING_OUTLET_ACCESS", "m1a"),
-    ("NC-M1-003", "Future schema protection", "OUTLET_POLICY_NOT_UPGRADED", "m1a"),
-    ("NC-M1-004", "Runtime least privilege", "PRIVILEGED_RUNTIME_ROLE_REJECTED", "m1a"),
-    ("NC-M1B-001", "Session survives role removal", "SESSION_SURVIVED_ROLE_REMOVAL", "m1b"),
-    ("NC-M1B-002", "Quick PIN for a governed action", "LOW_RISK_CREDENTIAL_USED_FOR_SENSITIVE_ACTION", "m1b"),
-    ("NC-M1B-003", "Step-up recency ignored", "STALE_STEP_UP_ACCEPTED", "m1b"),
-    ("NC-M1B-004", "Principal outside its scope", "OUT_OF_SCOPE_PRINCIPAL_ACCEPTED", "m1b"),
-    ("NC-M1B-005", "Context outlives its transaction", "CONTEXT_SURVIVED_COMMIT", "m1b"),
-    ("NC-M1C-001", "Audit mutated by ordinary role", "AUDIT_MUTATED_BY_ORDINARY_ROLE", "m1c"),
-    ("NC-M1C-002", "Inexact money type", "INEXACT_MONEY_TYPE_ACCEPTED", "m1c"),
-    ("NC-M1C-003", "Entitlement defaulting open", "UNKNOWN_ENTITLEMENT_DEFAULTED_OPEN", "m1c"),
-    ("NC-M1C-004", "Retention deleting audit", "APPEND_ONLY_VIOLATED", "m1c"),
-    ("NC-M1C-005", "Numbering collision", "DUPLICATE_DOCUMENT_NUMBER_ISSUED", "m1c"),
-    ("NC-M1D-001", "Privileged runtime credential", "PRIVILEGED_RUNTIME_CREDENTIAL_ACCEPTED", "m1d"),
-    ("NC-M1D-002", "Readiness green with broken job", "READINESS_GREEN_WITH_BROKEN_JOB", "m1d"),
-    ("NC-M1D-003", "Secret emitted in logs", "SECRET_EMITTED_IN_LOGS", "m1d"),
-    ("NC-M1D-004", "Required header absent", "REQUIRED_HEADER_ABSENT", "m1d"),
-    ("NC-M1D-005", "Seed checksum lock bypassed", "SEED_CHECKSUM_LOCK_BYPASSED", "m1d"),
-    ("NC-M1D-006", "Route served without context", "ROUTE_SERVED_WITHOUT_CONTEXT", "m1d"),
-    ("NC-M1D-007", "Readiness reads a stale role snapshot", "READINESS_GREEN_WITH_PRIVILEGED_ROLE", "m1d"),
-    ("NC-M1D-008", "Readiness discloses deployment detail", "READINESS_DISCLOSES_DEPLOYMENT_DETAIL", "m1d"),
-    ("NC-M2A-001", "Snapshot mutated after publish", "IMMUTABLE_SNAPSHOT_ALTERED", "m2a"),
-    ("NC-M2A-002", "Inexact or currency-less price", "INEXACT_PRICE_TYPE_ACCEPTED", "m2a"),
-    ("NC-M2A-003", "Availability discloses a figure", "EXACT_QUANTITY_DISCLOSED", "m2a"),
-    ("NC-M2A-004", "Publish with a locale missing", "REQUIRED_TRANSLATION_MISSING", "m2a"),
-    ("NC-M2A-005", "Daypart in server time", "WRONG_DAYPART_AT_BOUNDARY", "m2a"),
-    ("NC-M2-001", "QR reference enumerable", "ENUMERABLE_QR_REFERENCE", "m2b"),
-    ("NC-M2-002", "Foreign session accepted", "FOREIGN_SESSION_ACCEPTED", "m2b"),
-    ("NC-M2-003", "Publish with safety text missing", "REQUIRED_SAFETY_TRANSLATION_MISSING", "m2b"),
-    ("NC-M2B-004", "Allergen conveyed by icon alone", "WRITTEN_WARNING_ABSENT", "m2b"),
-    ("NC-M2B-005", "Declaration not re-evaluated", "STALE_DECLARATION_SERVED", "m2b"),
-    ("NC-M2B-006", "Stale QR joins a later occupancy", "STALE_SESSION_ADMITTED", "m2b"),
-    ("NC-M2B-007", "Ownership moved without acknowledgement", "OWNERSHIP_TRANSFERRED_SILENTLY", "m2b"),
-    ("NC-M2B-008", "Pinned reference readable by display", "AUDIT_REFERENCE_DISCLOSED_TO_DISPLAY", "m2b"),
-    ("NC-M2B-009", "Correction withheld from a published menu", "CORRECTION_WITHHELD_FROM_PUBLISHED_MENU", "m2b"),
-    ("NC-M2B-010", "Archive policy deletes instead", "ARCHIVE_POLICY_DELETED_ROWS", "m2b"),
-    ("NC-M2-004", "Arabic does not lay out right-to-left", "RTL_LAYOUT_OR_READING_ORDER_FAILURE", "m2c"),
-    ("NC-M2C-005", "Icon rendered without its warning", "WRITTEN_WARNING_ABSENT_FROM_RENDER", "m2c"),
-    ("NC-M2C-006", "State told by colour alone", "STATE_CONVEYED_BY_COLOUR_ALONE", "m2c"),
-    ("NC-M2C-007", "Language change loses the basket", "CART_LOST_ON_LOCALE_CHANGE", "m2c"),
-    ("NC-M2C-008", "A locale renders only partly", "INCOMPLETE_LOCALE_RENDER", "m2c"),
-    ("NC-M2C-009", "Retry commits a second time", "DUPLICATE_COMMITMENT_ON_RETRY", "m2c"),
-    ("NC-M2C-010", "Chosen locale not recorded", "LOCALE_SNAPSHOT_ABSENT", "m2c"),
-    ("NC-M3-001", "A retry produces a second effect", "DUPLICATE_ORDER_EFFECT", "m3a"),
-    ("NC-M3-002", "Price moved between preview and submission", "STALE_PRICE_ACCEPTED", "m3a"),
-    ("NC-M3-003", "Allergy declaration lost on a hop", "ALLERGY_FLAG_LOST", "m3a"),
-    ("NC-M3-005", "Client-stated total is stored", "CLIENT_CALCULATED_TOTAL_ACCEPTED", "m3a"),
-    ("NC-M3-006", "Accepted order edited destructively", "ACCEPTED_ORDER_MUTATED", "m3a"),
-    ("NC-M3-007", "Merge or move loses an order", "ORDER_LOST_ON_SESSION_CHANGE", "m3a"),
-    ("NC-M3-008", "Private staff note reaches a customer", "PRIVATE_NOTE_DISCLOSED", "m3a"),
-    ("NC-M3-009", "Rebuild diverges from the ledger", "REBUILD_NOT_DETERMINISTIC", "m3a"),
-    ("NC-M3-004", "Illegal ticket transition accepted", "ILLEGAL_TRANSITION_ACCEPTED", "m3b"),
-    ("NC-M3B-001", "Allergy emphasis lost at a station", "ALLERGY_EMPHASIS_LOST_AT_STATION", "m3b"),
-    ("NC-M3B-002", "A recall duplicates completed work", "DUPLICATED_WORK_ON_RECALL", "m3b"),
-    ("NC-M3B-003", "A transfer duplicates a ticket", "DUPLICATED_WORK_ON_TRANSFER", "m3b"),
-    ("NC-M3B-004", "Printer fallback emits a second ticket", "DUPLICATE_STATION_TICKET", "m3b"),
-    ("NC-M3B-005", "Expo releases an incomplete set", "INCOMPLETE_SET_SERVED", "m3b"),
-    ("NC-M3B-006", "Priority applied with no attributed actor", "PRIORITY_WITHOUT_ATTRIBUTION", "m3b"),
-    ("NC-M3C-001", "Deduplication swallows a deliberate repeat", "DELIBERATE_REPEAT_SUPPRESSED", "m3c"),
-    ("NC-M3C-002", "Accidental repeated taps raise a second alert", "DUPLICATE_ALERT_EMITTED", "m3c"),
-    ("NC-M3C-003", "Staff identity reaches a customer screen unconfigured", "STAFF_IDENTITY_DISCLOSED", "m3c"),
-    ("NC-M3C-004", "Presence survives its retention window", "EPHEMERAL_PRESENCE_RETAINED", "m3c"),
-    ("NC-M3C-005", "Sensitive data reaches a notification payload", "SENSITIVE_DATA_IN_NOTIFICATION", "m3c"),
-    ("NC-M3C-006", "A deep link resolves for an unauthorized session", "DEEP_LINK_CROSSES_SESSION_SCOPE", "m3c"),
-    ("NC-M3C-007", "A dead-letter replay causes a duplicate effect", "DUPLICATE_EFFECT_ON_REPLAY", "m3c"),
-    ("NC-M3D-001", "Waiter-entered order bypasses a rule QR ordering enforces", "CHANNEL_RULE_DIVERGENCE", "m3d"),
-    ("NC-M3D-002", "Manager override completes without step-up", "OVERRIDE_WITHOUT_STEP_UP", "m3d"),
-    ("NC-M3D-003", "Override succeeds by credential sharing, not delegation", "CREDENTIAL_SHARED_FOR_OVERRIDE", "m3d"),
-    ("NC-M3D-004", "Staff search returns a row outside the searcher's scope", "STAFF_SEARCH_CROSSES_SCOPE", "m3d"),
-    ("NC-M3D-005", "Allergy confirmation carries ordinary friction", "FRICTION_NOT_GRADED_BY_CONSEQUENCE", "m3d"),
-    ("NC-M3D-006", "A destructive action proceeds with no reason", "DESTRUCTIVE_ACTION_WITHOUT_REASON", "m3d"),
-    ("NC-M3D-007", "Handover leaves a table with no responsible owner", "RESPONSIBILITY_LOST_ON_HANDOVER", "m3d"),
-    ("NC-M3D-008", "A landed slice the README describes nowhere", "SLICE_UNDESCRIBED", "m3d"),
-    ("NC-M3D-009", "A suite exists and nothing says what it covers", "SUITE_UNDESCRIBED", "m3d"),
-    ("NC-M3D-010", "A cross-cutting suite that declares no span", "SUITE_SPAN_UNDECLARED", "m3d"),
-]
+# The registry moved to tools/controls.py at M3-D, and the reason is the drift it now
+# prevents. Three places needed to agree about which controls exist — this report, the CI
+# step that requires each to have gone red and green, and the CI matrix that states how
+# many there are — and a fourth number in a review brief said 62 while this report said
+# 76. The artifact was right and the prose had never been re-derived. There is one
+# registry now, and controls.check_against_run() compares it with what the suites printed
+# before this report renders a single row.
+from controls import CONTROLS, ControlDrift  # noqa: E402
+import controls as control_registry          # noqa: E402
 
 
 def control_state(logs: Path, control: str, suite: str) -> str:
@@ -417,9 +348,18 @@ def build(dsn: str, logs: Path) -> str:
 
     w("## Negative controls")
     w("")
-    w("Each control is planted as a real defect, required to produce its exact registered")
-    w("signature, then reverted and required to pass again. A control that never went red is")
-    w("a coverage gap wearing a green badge, and CI fails the build when one is missing.")
+    # The number is DERIVED, here and in every other document that states it. It read 62
+    # in a review brief and 76 here, and the difference was a count carried forward by
+    # hand. Nothing counts controls by hand any more.
+    control_registry.check_against_run(logs)
+    distribution = ", ".join(f"{gate} {n}" for gate, n in control_registry.by_gate())
+    w(f"**{control_registry.count()}** controls — {distribution} — each planted as a real")
+    w("defect, required to produce its exact registered signature, then reverted and")
+    w("required to pass again. A control that never went red is a coverage gap wearing a")
+    w("green badge, and CI fails the build when one is missing. The registry is")
+    w("`tools/controls.py` and it is compared with this run's logs before this table is")
+    w("rendered, in both directions: a control proved and described nowhere fails the")
+    w("build, and so does one described and never proved.")
     w("")
     w("| Control | Property | Signature | State |")
     w("|---|---|---|---|")
@@ -989,6 +929,13 @@ def main() -> int:
         return 1
     except SuiteLogMissing as error:
         print("FAIL SUITE_LOG_MISSING", file=sys.stderr)
+        print(f"  {error}", file=sys.stderr)
+        return 1
+    except ControlDrift as error:
+        # A named refusal rather than a traceback, like every other gate this tool holds.
+        # The signature is the first word of the message, so the CI grep and a reader see
+        # the same name.
+        print(f"FAIL {str(error).split(':')[0]}", file=sys.stderr)
         print(f"  {error}", file=sys.stderr)
         return 1
     path = Path(args.out)

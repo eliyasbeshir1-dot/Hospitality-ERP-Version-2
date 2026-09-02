@@ -1753,6 +1753,8 @@ def _generator_refusal(module) -> str:
         return str(refused)
     except module.SliceUndescribed as refused:
         return f"FAIL SLICE_UNDESCRIBED: {refused}"
+    except module.DescriptionNamesADerivableFact as refused:
+        return f"FAIL DESCRIPTION_NAMES_A_DERIVABLE_FACT: {refused}"
     return ""
 
 
@@ -1840,6 +1842,130 @@ def section_generator_controls() -> None:
 
     control("NC-M3D-010  a cross-cutting suite that declares no span",
             "", red_span, green_span)
+
+    # NC-M3D-011 — a description states a fact the generator can derive.
+    #
+    # The instance: DIRECTORY_PURPOSE said the API was "M1 surface only" for three gates
+    # of API work, and no check could see it because a literal cannot go stale visibly.
+    # Planted as the exact sentence that was there, so this control fails the day somebody
+    # writes it again.
+    def red_derivable():
+        was = module.DIRECTORY_PURPOSE["api"]
+        module.DIRECTORY_PURPOSE["api"] = (
+            "the cloud API — Fastify and TypeScript, M1 surface only")
+        named = _generator_refusal(module)
+        module.DIRECTORY_PURPOSE["api"] = "the cloud API — serving {no_such_fact}"
+        unknown = _generator_refusal(module)
+        module.DIRECTORY_PURPOSE["api"] = was
+        return ("DESCRIPTION_NAMES_A_DERIVABLE_FACT" in named
+                and "DESCRIPTION_NAMES_A_DERIVABLE_FACT" in unknown,
+                f"the sentence that was actually there: "
+                f"{named.splitlines()[0] if named else 'generated anyway'} | a token "
+                f"nothing derives: "
+                f"{unknown.splitlines()[0] if unknown else 'generated anyway'} — both "
+                f"refused, so neither a hardcoded gate nor a description that would "
+                f"render a brace can reach the README")
+
+    def green_derivable():
+        signature = _generator_refusal(module)
+        rendered = module.build()
+        return (signature == "" and "M1 surface only" not in rendered,
+                "the API row states what it serves, derived from the route modules on "
+                "disk, so it cannot name a gate it has outgrown")
+
+    control("NC-M3D-011  a directory description states a fact the generator can derive",
+            "", red_derivable, green_derivable)
+
+    # NC-M3D-012 — the CI matrix stops describing the pipeline.
+    #
+    # This document was hand-written at M0R and never locked. It said five jobs, four
+    # suites and nineteen controls when there were six, thirteen and seventy-six, and
+    # nothing failed because nothing read it.
+    matrix_path = REPO / "planning" / "CI_TEST_MATRIX.md"
+    matrix_was = matrix_path.read_text(encoding="utf-8")
+
+    def _matrix_check() -> str:
+        result = subprocess.run(
+            [sys.executable, str(REPO / "tools" / "generate_ci_matrix.py"),
+             "--check", str(matrix_path)],
+            capture_output=True, text=True, cwd=str(REPO),
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+        return (result.stdout + result.stderr).strip()
+
+    def red_matrix():
+        matrix_path.write_text(
+            matrix_was.replace("Six jobs", "Five jobs", 1), encoding="utf-8")
+        drifted = _matrix_check()
+        return ("CI_MATRIX_DRIFT" in drifted,
+                f"{drifted.splitlines()[0] if drifted else 'the matrix checked out clean'} "
+                f"— one word changed in a document nobody was checking is exactly how it "
+                f"came to claim five jobs through three gates of pipeline work")
+
+    def green_matrix():
+        matrix_path.write_text(matrix_was, encoding="utf-8")
+        restored = _matrix_check()
+        return ("PASS CI_MATRIX_MATCHES_REPOSITORY" in restored,
+                f"{restored.splitlines()[0] if restored else 'no verdict'} — the "
+                f"committed matrix equals a fresh generation, and every count in it is "
+                f"derived rather than typed")
+
+    try:
+        control("NC-M3D-012  the CI matrix stops describing the pipeline",
+                "", red_matrix, green_matrix)
+    finally:
+        matrix_path.write_text(matrix_was, encoding="utf-8")
+
+    # NC-M3D-013 — a control the suites prove and no document describes.
+    #
+    # The reverse direction was already caught: a control described and never proved shows
+    # as "not proven" in the evidence report and fails the build. A control PROVED and
+    # described nowhere was invisible, and it is the direction that makes a stated count
+    # wrong — the count comes from the registry, so a control outside it is a control the
+    # evidence report, the CI matrix and the red-before-green step all fail to mention.
+    sys.path.insert(0, str(REPO / "tools"))
+    import controls as registry                                   # noqa: PLC0415
+
+    def red_undescribed():
+        planted = Path(CONTEXT["control_log_dir"])
+        (planted / "m3d.log").write_text(
+            "  [PASS] (asserted) NC-M9Z-001  a control nobody wrote down — RED with the "
+            "defect planted\n"
+            "  [PASS] (asserted) NC-M9Z-001  a control nobody wrote down — GREEN after "
+            "revert\n", encoding="utf-8")
+        try:
+            registry.check_against_run(planted)
+            return (False, "the registry accepted a control it has never heard of")
+        except registry.ControlDrift as refused:
+            return ("CONTROL_UNDESCRIBED" in str(refused),
+                    f"{str(refused).splitlines()[0][:200]} — the run proved it and every "
+                    f"document that counts controls counts the registry, so it would "
+                    f"have gone unmentioned everywhere")
+
+    def green_undescribed():
+        planted = Path(CONTEXT["control_log_dir"])
+        (planted / "m3d.log").write_text(
+            "".join(f"  [PASS] (asserted) {identifier}  described — {marker} here\n"
+                    for identifier, _p, _s, suite in registry.CONTROLS if suite == "m3d"
+                    for marker in ("RED", "GREEN")), encoding="utf-8")
+        for suite in {c[3] for c in registry.CONTROLS} - {"m3d"}:
+            (planted / f"{suite}.log").write_text(
+                "".join(f"  [PASS] {identifier}  described — {marker} here\n"
+                        for identifier, _p, _s, owner in registry.CONTROLS
+                        if owner == suite for marker in ("RED", "GREEN")),
+                encoding="utf-8")
+        try:
+            registry.check_against_run(planted)
+            return (True, f"all {registry.count()} registered controls accounted for, "
+                          f"and no identifier in the logs that the registry cannot name")
+        except registry.ControlDrift as refused:
+            return (False, str(refused)[:200])
+
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix="m3d-controls-") as tmp:
+        CONTEXT["control_log_dir"] = tmp
+        control("NC-M3D-013  a control the suites prove and no document describes",
+                "", red_undescribed, green_undescribed)
+
 
 
 # ===========================================================================

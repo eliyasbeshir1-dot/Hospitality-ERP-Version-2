@@ -4,7 +4,7 @@
      Do not edit by hand: CI regenerates this file and fails on any difference. -->
 
 **Repository:** `Hospitality-ERP-Version-2`
-**Gate:** M3 — complete through **M3-D**
+**Gate:** {{GATE_STATUS}}
 **Governing requirement:** FR-SEC-015
 **Workflow:** `.github/workflows/m1-conformance.yml`
 
@@ -17,7 +17,7 @@ would fail the build for doing the assigned work. The script is retained unmodif
 historical evidence and is superseded by `tools/verify_m1.py`.
 
 This file used to be hand-written, and it said five jobs, four suites and nineteen
-controls long after there were six jobs, thirteen suites and seventy-nine controls.
+controls long after there were {{JOB_COUNT_WORD}} jobs, {{SUITE_COUNT_WORD}} suites and {{CONTROL_COUNT_WORD}} controls.
 
 That is the third time a hardcoded description outlived its truth in this repository,
 after the README's undescribed slice and its default suite description. So every count
@@ -31,17 +31,10 @@ report. A document that describes the repository must fail when it stops being t
 
 ## What runs today
 
-Six jobs, all required, none permitted to fail soft.
+{{JOB_COUNT_SENTENCE}}
 Each runs on push, on pull request, and on manual dispatch.
 
-| Job | Runs on | What it must show |
-|---|---|---|
-| `forbidden-surface` | `ubuntu-latest` | no fenced Phase 2/3 surface, no v1.1 inheritance, no bypass role in a deployment path, no drift in `/docs`, and the generated README equals a fresh generation |
-| `windows-verification` | `windows-latest` | every suite and every golden journey again on Windows, through the same drivers, and the generators must emit identical bytes on both platforms |
-| `docs-package-integrity` | `ubuntu-latest` | the pinned package is byte-identical: 92 files, 91 checksum lines, 91 `OK` results, 0 failures |
-| `database-verification` | `ubuntu-latest` | every suite in order against a `postgres:16` service and again in reverse, then the five golden journeys, then the generated artifacts and the negative controls |
-| `occurrence-registry` | `ubuntu-latest` | the package's own frozen validator emits exactly `PASS FORBIDDEN_OCCURRENCE_REGISTRY_VALID` with `passed: true` and `failure_count: 0` |
-| `mechanism-suite` | `ubuntu-latest` | the package's occurrence mechanism suite emits `28/28 correct` |
+{{JOB_TABLE}}
 
 The database job runs every assertion through `hospitality_app`, the least-privileged
 runtime role — never the owner, never a superuser (FR-DAT-017). The service container uses
@@ -50,23 +43,9 @@ credential out of the repository (FR-SEC-007).
 
 ## The suites
 
-Thirteen suites: eleven that each verify one slice, and two that cut across gates.
+{{SUITE_COUNT_SENTENCE}}
 
-| Suite | Kind |
-|---|---|
-| `tests/fenced_gate/verify_fenced_gate.py` | cross-cutting |
-| `tests/journeys/verify_journeys.py` | cross-cutting |
-| `tests/m1a/verify_m1a.py` | one slice |
-| `tests/m1b/verify_m1b.py` | one slice |
-| `tests/m1c/verify_m1c.py` | one slice |
-| `tests/m1d/verify_m1d.py` | one slice |
-| `tests/m2a/verify_m2a.py` | one slice |
-| `tests/m2b/verify_m2b.py` | one slice |
-| `tests/m2c/verify_m2c.py` | one slice |
-| `tests/m3a/verify_m3a.py` | one slice |
-| `tests/m3b/verify_m3b.py` | one slice |
-| `tests/m3c/verify_m3c.py` | one slice |
-| `tests/m3d/verify_m3d.py` | one slice |
+{{SUITE_TABLE}}
 
 Order independence is checked on every run: the slice suites run again in reverse against
 the same database, and a suite whose failure count differs between the two orders fails
@@ -74,17 +53,12 @@ the build (FR-TST-020). That requirement has found eight real defects across M3 
 
 ## Negative controls are checked for non-vacuity
 
-A control that never fails is not a control. There are 79 of them — M1 22, M2 22, M3 35. The database job
+A control that never fails is not a control. {{CONTROL_COUNT_SENTENCE}} The database job
 requires each of them to appear in a suite log **both** as RED with a defect planted and
 as GREEN after revert, and the evidence report is regenerated in the same job and fails
 the build if it lists any control as `not proven`.
 
-| Gate | Controls proved |
-|---|---:|
-| M1 | 22 |
-| M2 | 22 |
-| M3 | 35 |
-| **Total** | **79** |
+{{CONTROL_TABLE}}
 
 The registry is `tools/controls.py`. It is not a list somebody maintains beside the run:
 `controls.check_against_run()` compares it with what the suites actually printed, in both
@@ -155,10 +129,7 @@ The database created by CI is ephemeral and job-local. Nothing is deployed.
 Each of these is regenerated in CI and compared with the committed copy, and a difference
 fails the build rather than being carried forward:
 
-- `README.md`
-- `evidence/M1_EVIDENCE_REPORT.md`
-- `planning/CI_TEST_MATRIX.md`
-- `schema/SCHEMA_CATALOG.md`
+{{LOCKED_ARTIFACTS}}
 
 ---
 
@@ -201,17 +172,7 @@ frozen at Package M0 and enumerated in
 They say which defects each GATE must eventually plant. The table above says which the
 repository has planted and proved so far.
 
-| Gate | Controls the package froze |
-|---|---:|
-| M0 | 8 |
-| M1 | 4 |
-| M2 | 4 |
-| M3 | 4 |
-| M4 | 6 |
-| M5a | 4 |
-| M5b | 9 |
-| M6 | 5 |
-| **Total** | **44** |
+{{PACKAGE_CONTROL_TABLE}}
 
 The M0 controls — package pinning, requirement recount, phase boundary, vocabulary
 completeness, accounting/CRM/workforce alias leakage and canonical projection parity — are

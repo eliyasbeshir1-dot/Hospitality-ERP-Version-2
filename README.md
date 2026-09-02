@@ -117,7 +117,7 @@ position is to write fresh.
 
 | Path | Contents |
 |---|---|
-| `api/` | the cloud API — Fastify and TypeScript, M1 surface only |
+| `api/` | the cloud API — Fastify and TypeScript, two runtime dependencies, serving `api`, `customer`, `health`, `service`, `staff`, `station` and `surface` |
 | `docs/` | the approved v2.0.9 package, byte-identical and verified by its own `SHA256SUMS.txt` |
 | `docs-local/` | cross-platform command reference |
 | `evidence/` | `M1_EVIDENCE_REPORT.md`, generated from the repository, database and suite logs |
@@ -125,7 +125,7 @@ position is to write fresh.
 | `planning/` | architecture conformance, migration ownership, CI matrix, known limitations |
 | `schema/` | `SCHEMA_CATALOG.md`, generated from the live database, never hand-written |
 | `seeds/` | demonstration tenants and reason-code sets, with their own ordered record |
-| `tests/` | verification suites, one per slice, plus the fenced-domain gate suite |
+| `tests/` | verification suites — 11 that each verify one slice, and 2 that cut across gates |
 | `tools/` | migration and seed runners, generators, and the forbidden-surface verifier |
 
 ## Migrations
