@@ -68,7 +68,7 @@ not have, or is still open after its completing gate has landed.
 
 | Requirement | Half that waits | Completed at |
 |---|---|---|
-| **FR-DAT-010** | financial projections | M4 |
+| **FR-DAT-010** | financial projections | M4-A |
 | **FR-FUL-001** | routing during an outage | M5a |
 | **FR-FUL-003** | KDS from the local node | M5a |
 | **FR-FUL-008** | salience on real paper | M5a |
@@ -76,32 +76,34 @@ not have, or is still open after its completing gate has landed.
 | **FR-FUL-012** | analytical consumption | M6 |
 | **FR-FUL-014** | physical printing and dedup across restart | M5a |
 | **FR-FUL-015** | rerouting with the outlet node authoritative | M5a |
-| **FR-I18N-008** | receipt communications | M4 |
+| **FR-I18N-008** | receipt communications | M4-C |
 | **FR-INT-007** | transport failures in the dead-letter queue | M5a |
-| **FR-INT-014** | bill, payment, tip and sync in the chain | M4 |
-| **FR-NOT-001** | bill, payment, tip, outage and sync producers | M4 |
+| **FR-INT-014** | bill, payment and tip in the chain | M4-B |
+| **FR-INT-014** | the sync record in the chain | M5a |
+| **FR-NOT-001** | bill, payment and tip producers | M4-B |
+| **FR-NOT-001** | outage and sync producers | M5a |
 | **FR-NOT-005** | operational alert producers | M5a |
 | **FR-NOT-012** | staff notification centre render | M3-D |
 | **FR-NOT-012** | the customer status timeline in the session language | M3-D |
-| **FR-ORD-002** | no financial commitment | M4 |
-| **FR-ORD-003** | discount and tax interaction order | M4 |
-| **FR-ORD-003** | fee component | M4 |
-| **FR-ORD-005** | fee snapshot | M4 |
+| **FR-ORD-002** | no financial commitment | M4-A |
+| **FR-ORD-003** | discount and tax interaction order | M4-A |
+| **FR-ORD-003** | fee component | M4-A |
+| **FR-ORD-005** | fee snapshot | M4-A |
 | **FR-ORD-006** | station capacity | M3-B |
 | **FR-ORD-009** | separate fulfillment per add-on order | M3-B |
 | **FR-ORD-010** | post-preparation refusal | M3-B |
-| **FR-ORD-011** | payment dimension of the cancellation policy | M4 |
-| **FR-ORD-012A** | unpaid precondition | M4 |
+| **FR-ORD-011** | payment dimension of the cancellation policy | M4-B |
+| **FR-ORD-012A** | unpaid precondition | M4-B |
 | **FR-ORD-016A** | service events on the timeline | M3-C |
 | **FR-ORD-016A** | station events on the timeline | M3-B |
 | **FR-ORD-019A** | fulfillment ticket in the chain | M3-B |
 | **FR-ORD-019A** | service request in the chain | M3-C |
-| **FR-POS-004** | unpaid balance on the table view | M4 |
+| **FR-POS-004** | unpaid balance on the table view | M4-A |
 | **FR-TAB-007A** | service requests consolidated by a merge | M3-C |
 | **FR-TAB-008** | service requests preserved by a move | M3-C |
-| **FR-TAB-009** | financial closure condition | M4 |
+| **FR-TAB-009** | financial closure condition | M4-A |
 | **FR-UX-012** | budgets calibrated against the runner, not against wall clock alone | M4-A |
-| **SM-ORDER** | fulfillment labels derived rather than stored | M4 |
+| **SM-ORDER** | fulfillment labels derived rather than stored | M4-A |
 
 ## Repository lineage
 

@@ -4,10 +4,10 @@
      Do not edit by hand: CI regenerates this file and fails on any difference. -->
 
 **Repository:** `Hospitality-ERP-Version-2`
-**Gate:** M3 — building, through **M3-D**
+**Gate:** {{GATE_STATUS}}
 **Governing requirement:** FR-GOV-001A
 **Source of truth:** `docs/Hospitality_OS_Phase_1_Clean_Build_Package_v2.0.9/`, pinned at
-`b89a2d4211356be5941dc25ff2dc540728c87ed761ffd9894a3f2691ccf5b590`
+`{{PACKAGE_SHA}}`
 
 This document states what this repository is permitted to contain, and what each gate
 builds. It builds nothing. Every rule below is drawn from the package under `/docs`; where
@@ -23,31 +23,9 @@ distinction between a description and a record, and why the two need opposite tr
 
 ## What this repository contains today
 
-```
-.gitattributes   line-ending normalisation, so the same bytes check out on both platforms
-.github/         the conformance workflow and nothing else
-.gitignore       caches, dependency directories, generated validator output
-README.md        gate status, prohibitions, lineage — generated
-api/             the cloud API: Fastify and TypeScript, two runtime dependencies
-docs/            the pinned package, byte-identical, verified by its own SHA256SUMS.txt
-docs-local/      cross-platform command reference and its verification record
-evidence/        the generated evidence report
-migrations/      ordered, checksum-locked SQL history beginning at 0001
-planning/        conformance, ownership, the CI matrix, known limitations, the closure register
-pwa/             the customer surface: vanilla TypeScript, no runtime dependency
-schema/          the schema catalog, generated from the live database
-seeds/           demonstration tenants and reason-code sets, with their own ordered record
-station/         the kitchen display surface
-tests/           verification suites and the cross-cutting suites
-tools/           migration and seed runners, generators, verifiers
-waiter/          the staff surface
-```
+{{REPO_TREE}}
 
-CI is `.github/workflows/m1-conformance.yml` — 6 jobs, all required, none
-permitted to fail soft. There is no directory, table, route, worker or screen for
-any of the 11 permanently fenced domains, however inert:
-`tools/verify_m1.py` proves that mechanically on every run, against a vocabulary
-it loads from the package rather than one written into it.
+{{SURFACE_NOTE}}
 
 ---
 
@@ -58,8 +36,8 @@ POS and checks · separate optional tips · payments · receipts · outlet conti
 internet outage.
 
 **Not in Phase 1:** inventory, accounting, purchasing, payroll, recipes, costing, loyalty,
-CRM, pickup, delivery. These are fenced by 24 of the 30
-requirements introduced at M0R, and by 63 authoritative terms the
+CRM, pickup, delivery. These are fenced by {{M0R_FENCED_COUNT}} of the {{M0R_TOTAL}}
+requirements introduced at M0R, and by {{FENCED_TERMS}} authoritative terms the
 forbidden-surface gate loads from the package at run time.
 
 Despite the repository name, **this is not an ERP.** The name does not widen the scope.
@@ -70,16 +48,7 @@ Despite the repository name, **this is not an ERP.** The name does not widen the
 
 Each is created at its own gate, never earlier. Built or not is read from the repository.
 
-| Component | Gate | Purpose | Built |
-|---|---|---|---|
-| Cloud API (Fastify/TypeScript) | M1 | tenancy, identity, configuration, domain services | yes |
-| PostgreSQL | M1 | single canonical store, row level security forced | yes |
-| Customer PWA | M2 | QR menu, cart, ordering, status — three languages | yes |
-| KDS surface | M3 | station tickets, expo, allergy salience | yes |
-| Waiter surface | M3 | order entry, role home, table view, handover | yes |
-| POS and billing | M4 | checks, splitting, separate tips, payments, receipts | not yet |
-| Outlet Continuity Node | M5a | local API, local PostgreSQL, sync worker, print agent | — |
-| Same-QR routing | M5b | split-horizon DNS, per-outlet TLS, authority lease | — |
+{{COMPONENTS}}
 
 The component each requirement is assigned to is recorded in the package itself, in
 `docs/…/02_MACHINE_READABLE/requirements.json` under `component_path`. This repository does
@@ -91,7 +60,7 @@ not restate that mapping; it points at it.
 These bind M1 onward. They are stated here because M0R is where the baseline is set.
 
 1. **Gate-local closure** — a gate closes only on behavior provable at that gate.
-   213 of the 336 active requirements carry at least one
+   {{DUAL_GATED}} of the {{ACTIVE_REQUIREMENTS}} active requirements carry at least one
    revalidation gate.
 2. **Deny by default** — API, database policy, jobs, cache and files fail closed on missing
    tenant, outlet, session or actor context.
@@ -108,33 +77,33 @@ These bind M1 onward. They are stated here because M0R is where the baseline is 
 
 ---
 
-## The 30 requirements introduced at M0R
+## The {{M0R_TOTAL}} requirements introduced at M0R
 
 Verified against `docs/…/02_MACHINE_READABLE/requirements.json` (`introduced_at == "M0R"`).
 
-**24 are fenced negatives** — obligations to prove something is *absent*:
+**{{M0R_FENCED_COUNT}} are fenced negatives** — obligations to prove something is *absent*:
 
-FR-CFG-002B · FR-CFG-005B · FR-EDG-002B · FR-FUL-016B · FR-MNU-002B · FR-ORD-001C · FR-ORD-012B · FR-ORD-016B · FR-ORD-019B · FR-PAY-010B · FR-POS-003C · FR-POS-010B · FR-RCP-008B · FR-SEC-010B · FR-SRV-007B · FR-TEN-002B · FR-TEN-009B · FR-TST-004B · FR-TST-005B · FR-TST-007B · FR-UX-001B · FR-GOV-002 · FR-GOV-005 · FR-GOV-006
+{{M0R_FENCED_IDS}}
 
 They are satisfied by this repository containing no storage location, no payroll data, no
 pickup or delivery domain, no accounting posting, no CRM correlation, no recipe module and
 no supplier or courier surface. An empty repository satisfies them trivially — **that is
 why M0R exists.** It establishes the clean baseline before anything can leak in.
 
-**6 are positive obligations:**
+**{{M0R_POSITIVE_COUNT}} are positive obligations:**
 
 | ID | Obligation | Where it is met at M0R |
 |---|---|---|
 | FR-GOV-001A | Empty repository conformance | `tools/verify_m0r_skeleton.py` reports PASS |
 | FR-GOV-003 | Controlled reuse process from the frozen prototype | stated below; nothing reused |
 | FR-SEC-015 | Pipeline fails on unknown/empty/skipped results | `planning/CI_TEST_MATRIX.md` |
-| FR-TST-013 | Mandatory journeys mapped to tests, owner, evidence slots | package: `journeys.json`, 16 slices |
-| FR-TST-014 | Active requirements mapped to component and test | package: `requirements.json`, 336/336 |
+| FR-TST-013 | Mandatory journeys mapped to tests, owner, evidence slots | package: `journeys.json`, {{JOURNEY_SLICES}} slices |
+| FR-TST-014 | Active requirements mapped to component and test | package: `requirements.json`, {{ACTIVE_REQUIREMENTS}}/{{ACTIVE_REQUIREMENTS}} |
 | FR-TST-019 | Per-milestone audit branch with immutable commands and decision | opens at M1 |
 
 FR-TST-013 and FR-TST-014 are **planning maps, not tests.** Both are already carried in the
-pinned package: all 16 mandatory journey slices are enumerated in
-`docs/…/02_MACHINE_READABLE/journeys.json`, and all 336 active requirements carry both a
+pinned package: all {{JOURNEY_SLICES}} mandatory journey slices are enumerated in
+`docs/…/02_MACHINE_READABLE/journeys.json`, and all {{ACTIVE_REQUIREMENTS}} active requirements carry both a
 `component_path` and test links in `docs/…/02_MACHINE_READABLE/requirements.json`. The
 `Requirements_Traceability_Matrix_v2.0.9.xlsx` workbook projects the same data. Evidence
 slots stay empty until each gate populates them. This repository does not duplicate those
@@ -148,12 +117,12 @@ Every gate begins only when **all** of the following hold:
 
 - independent review has approved the gate before it
 - nothing exists for a gate that has not started
-- `/docs` holds the pinned package, verified 91/91
+- `/docs` holds the pinned package, verified {{PACKAGE_CHECKSUMS}}
 - the planning artifacts in `planning/` exist
 - CI runs the validators and fails closed
 
 A gate's first migration is created at that gate, not before. This repository holds
-17, `0001` through `0017`.
+{{MIGRATION_COUNT}}.
 
 ---
 

@@ -45,6 +45,21 @@ file does not own:
       an entry closed by a slice that has not landed. Nothing can be closed by work that
       does not exist yet, and this is the shape a premature tick would take.
 
+  PARTIAL_CLOSURE_COMPLETER_MOVED_LATER
+      an entry whose completing gate has been moved to a LATER one without a recorded
+      reason. Added at M4-A, the first gate at which a completer was edited rather than
+      satisfied, and it exists because that is the power somebody would abuse: an entry
+      about to come due can be sent to the next gate, and then the next, and it never
+      comes due at all. Moving a completer EARLIER is not policed — it brings work
+      forward and closes sooner. Moving it later is the direction that hides work, so it
+      costs a sentence in the entry saying why.
+
+      The previous value is read from the register's OWN GIT HISTORY, not declared: an
+      entry cannot avoid the rule by forgetting to mention that it moved. Gate order
+      comes from the pinned package's milestone list, and the slice letter orders within
+      a gate, so M4-A precedes M4-B precedes M5a without this file holding an opinion
+      about which gate follows which.
+
 Standard library only. Fails closed: a register it cannot read or parse is an error, not
 an empty list.
 """
@@ -144,6 +159,107 @@ def landed_gates(gates: set[str] | None = None) -> set[str]:
     return landed
 
 
+def gate_order() -> list[str]:
+    """The gates in the order the PINNED PACKAGE lists them.
+
+    Read from the package's milestone list rather than written here, for the same reason
+    known_gates() is: an order this file held an opinion about would be a second source
+    of truth that could disagree with the package about what follows what.
+    """
+    path = _requirements_path().parent / "implementation_manifest.json"
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RegisterUnreadable(
+            f"{path.name} could not be parsed, so no gate order can be derived: "
+            f"{exc}") from exc
+    order = [m["gate"] for m in payload.get("milestones", []) if m.get("gate")]
+    if not order:
+        raise RegisterUnreadable(
+            f"{path.name} lists no milestone, so gate order cannot be derived. An order "
+            f"derived from nothing would rank every completer equal and the "
+            f"moved-later rule would never fire")
+    return order
+
+
+def completer_rank(completer: str) -> tuple[int, str]:
+    """When a completer COMES DUE: its gate's position, then its slice letter.
+
+    A bare gate ranks as that gate's FIRST slice, and the reason is landed_gates(): a
+    gate is landed when any of its slices is, so an entry naming the bare gate M4 comes
+    due the moment tests/m4a exists. M4 and M4-A therefore come due together and
+    refining one to the other moves nothing — which is what makes M4 -> M4-B a genuine
+    move later and M4 -> M4-A not a move at all.
+
+    The first draft ranked a bare gate BEFORE its slices, on the reasoning that a gate is
+    a wider promise than a slice inside it. That reasoning is about scope and this
+    comparison is about time, and it made all eight refinements to M4-A report as moves
+    later. Its own red test caught it.
+    """
+    order = gate_order()
+    match = SLICE_SUFFIX.fullmatch(completer)
+    gate = match.group("gate") if match else completer
+    try:
+        position = order.index(gate)
+    except ValueError:
+        raise RegisterUnreadable(
+            f"completer {completer!r} names gate {gate!r}, which the package's milestone "
+            f"list does not contain") from None
+    letter = (match.group("slice") if match else None) or "A"
+    return (position, letter)
+
+
+def previous_completers() -> dict[tuple[str, str], str] | None:
+    """What the register said about each entry at HEAD, keyed by (requirement, aspect).
+
+    Read out of git rather than out of the file, because the whole point is to catch a
+    change the file no longer remembers making. Returns None when the register has no
+    committed version yet — a first commit has nothing to have moved from.
+    """
+    import subprocess
+    relative = REGISTER.relative_to(REPO).as_posix()
+    result = subprocess.run(
+        ["git", "-C", str(REPO), "show", f"HEAD:{relative}"],
+        capture_output=True, text=True)
+    if result.returncode != 0:
+        if "exists on disk, but not in" in result.stderr or "does not exist" in result.stderr:
+            return None
+        raise RegisterUnreadable(
+            f"the committed register could not be read, so a moved completer cannot be "
+            f"detected: {result.stderr.strip()[:200]}. Refusing rather than reporting "
+            f"that nothing moved")
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RegisterUnreadable(
+            f"the committed register is not valid JSON: {exc}") from exc
+    return {(e.get("requirement", ""), e.get("aspect", "")): (e.get("completing_gate") or "")
+            for e in payload.get("partial_closures", [])}
+
+
+def landing_evidence(completer: str) -> list[str]:
+    """The suite directories that make `completer` landed, named rather than constructed.
+
+    The path a reader should go and look at, derived from the filesystem the same way
+    landed_gates() derives landing — so the message and the decision cannot disagree.
+    """
+    found = []
+    for suite in sorted(TESTS.iterdir()):
+        if not suite.is_dir() or not (suite / f"verify_{suite.name}.py").is_file():
+            continue
+        match = re.fullmatch(r"m([0-9]+)([a-z])?", suite.name)
+        if not match:
+            continue
+        number, letter = match.groups()
+        names = {f"M{number}"}
+        if letter:
+            names.add(f"M{number}-{letter.upper()}")
+        names |= {g for g in known_gates() if g.lower() == suite.name}
+        if completer in names:
+            found.append(f"tests/{suite.name}")
+    return found
+
+
 def load() -> list[dict]:
     try:
         payload = json.loads(REGISTER.read_text(encoding="utf-8"))
@@ -170,6 +286,10 @@ def check(entries: list[dict] | None = None) -> list[tuple[str, str]]:
     landed = landed_gates(gates)
     failures: list[tuple[str, str]] = []
 
+    # What the register said last time, so a completer that moved cannot pretend it did
+    # not. None means there is no committed version to compare against.
+    previous = previous_completers()
+
     for index, entry in enumerate(entries):
         label = f"{entry.get('requirement', f'entry {index}')}" \
                 f"{'/' + entry['aspect'] if entry.get('aspect') else ''}"
@@ -190,6 +310,38 @@ def check(entries: list[dict] | None = None) -> list[tuple[str, str]]:
                 f"{label} names completing gate {completer!r}, and the requirements "
                 f"register has no gate {gate!r}"))
             continue
+
+        # A completer that moved LATER has to say why, in the entry. Checked before the
+        # state rules, because a closed entry can have been moved too — and moving one
+        # later and closing it at the later slice is exactly the shape this catches.
+        if previous is not None:
+            was = previous.get((entry.get("requirement", ""), entry.get("aspect", "")))
+            if was and was != completer:
+                try:
+                    moved_later = completer_rank(completer) > completer_rank(was)
+                except RegisterUnreadable as exc:
+                    failures.append(("PARTIAL_CLOSURE_GATE_UNKNOWN", f"{label}: {exc}"))
+                    continue
+                recorded = (entry.get("completer_moved") or {})
+                stated = (recorded.get("why") or "").strip()
+                if moved_later and not stated:
+                    failures.append((
+                        "PARTIAL_CLOSURE_COMPLETER_MOVED_LATER",
+                        f"{label} moved its completer from {was} to {completer}, which is "
+                        f"LATER, and records no reason. An entry about to come due can be "
+                        f"sent to the next gate and then the next until it never comes due "
+                        f"at all; that is the one thing this register cannot survive. Add "
+                        f"completer_moved.why saying what makes {completer} the slice that "
+                        f"genuinely completes it. Moving a completer EARLIER needs no "
+                        f"reason — it brings the work forward."))
+                    continue
+                if moved_later and recorded.get("from", was) != was:
+                    failures.append((
+                        "PARTIAL_CLOSURE_COMPLETER_MOVED_LATER",
+                        f"{label} records a move from {recorded.get('from')!r}, and the "
+                        f"committed register says it was {was!r}. The reason describes a "
+                        f"move that did not happen"))
+                    continue
 
         if state not in ("open", "closed"):
             failures.append((
@@ -227,11 +379,20 @@ def check(entries: list[dict] | None = None) -> list[tuple[str, str]]:
             continue
 
         if completer in landed:
+            # Name what ACTUALLY landed. This message used to construct the path from the
+            # entry's own text — "its completing gate M4 has landed: tests/m4 exists" —
+            # and tests/m4 does not exist and never will: what landed was tests/m4a, and
+            # a gate is landed when any of its slices is. A diagnostic must not name a
+            # cause it did not verify, and this one sent a reader to look for a directory
+            # that was not there.
+            evidence = ", ".join(landing_evidence(completer)) or (
+                "a suite this check could not name, which is itself a defect")
             failures.append((
                 "PARTIAL_CLOSURE_NOT_REVISITED",
-                f"{label} is still open and its completing gate {completer} has landed: "
-                f"tests/{completer.lower().replace('-', '')} exists. The completer "
-                f"arrived and the record was never revisited"))
+                f"{label} is still open and its completing gate {completer} has landed. "
+                f"What landed: {evidence}. A gate is landed when ANY of its slices is, "
+                f"so an entry naming a bare gate comes due on that gate's first slice. "
+                f"The completer arrived and the record was never revisited"))
 
     return failures
 

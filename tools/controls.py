@@ -110,6 +110,7 @@ CONTROLS = [
     ("NC-M3D-011", "A description states a fact the generator can derive", "DESCRIPTION_NAMES_A_DERIVABLE_FACT", "m3d"),
     ("NC-M3D-012", "The CI matrix stops describing the pipeline", "CI_MATRIX_DRIFT", "m3d"),
     ("NC-M3D-013", "A control the suites prove and no document describes", "CONTROL_UNDESCRIBED", "m3d"),
+    ("NC-M4A-001", "A closure completer moved later with no reason", "PARTIAL_CLOSURE_COMPLETER_MOVED_LATER", "m4a"),
 ]
 
 

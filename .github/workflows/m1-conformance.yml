@@ -111,6 +111,10 @@ jobs:
           set -euo pipefail
           python3 tools/generate_readme.py --check README.md
           python3 tools/generate_ci_matrix.py --check planning/CI_TEST_MATRIX.md
+          python3 tools/generate_architecture_plan.py --check planning/ARCHITECTURE_CONFORMANCE_PLAN.md
+          # A description is derived and locked; a RECORD of a past run is anchored
+          # instead, because deriving it would rewrite the past into the present.
+          python3 tools/check_dated_records.py
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -287,6 +291,8 @@ jobs:
           # exactly that once, reporting drift against a schema that had not drifted.
           python tools/generate_readme.py --check README.md
           python tools/generate_ci_matrix.py --check planning/CI_TEST_MATRIX.md
+          python tools/generate_architecture_plan.py --check planning/ARCHITECTURE_CONFORMANCE_PLAN.md
+          python tools/check_dated_records.py
           python tools/generate_schema_catalog.py \
             --dsn "postgresql://$SUPERUSER@$PGTCP_HOST:$PGPORT/$DB" \
             --check schema/SCHEMA_CATALOG.md

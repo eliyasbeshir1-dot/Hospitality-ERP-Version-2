@@ -1,6 +1,16 @@
+<!-- dated-record -->
 # Known Limitations — carried into M0R review
 
-Disclosed deliberately. None blocks M0R.
+**This is a RECORD, not a description.** It says what was found, when, and against which
+state of the repository. It is deliberately NOT generated: deriving it from today's tree
+would rewrite a finding made on a date into a claim about now, which destroys the evidence
+rather than keeping it fresh. What it owes instead is an anchor on every count and gate it
+states — see `tools/check_dated_records.py`, which enforces exactly that and which states
+the rule for the next person who writes a document here.
+
+Recorded against `f53c2c7` on 26 August 2026.
+
+Disclosed deliberately. None blocked M0R at that commit.
 
 ---
 
@@ -56,4 +66,5 @@ The build lead independently re-verified checksums, ran the occurrence validator
 28-case mechanism suite, and confirmed both findings closed. That is corroboration, not
 approval.
 
-M0R approval is Codex's, and the merge decision is the founder's.
+M0R approval is Codex's, and the merge decision is the founder's — as recorded at
+`f53c2c7` on 26 August 2026.

@@ -1,3 +1,4 @@
+<!-- dated-record -->
 # Cross-platform commands (FR-OPS-021)
 
 Ordinary commands on an ordinary machine. Nothing here depends on a PATH that only exists
@@ -5,6 +6,13 @@ inside CI, and nothing is injected by the pipeline: every command below works fr
 shell on a developer's own machine, or fails with a message naming what is missing.
 
 ## What was verified, and what was not
+
+**Recorded against `cf278fb` on 28 August 2026.** Everything in this section is a record
+of one run on one machine at one commit, not a description of the repository now. The
+suites have grown since and the counts below have not, because they are counts OF that
+run — that is what makes them true permanently rather than true briefly. A description of
+the present belongs in a generated document; `tools/check_dated_records.py` states the
+distinction and enforces the anchor.
 
 **Verified on Linux.** Every command in the Linux column was executed on
 `Linux 6.18.44 x86_64` with Python 3.11, PostgreSQL 16.13, Node 22.22 and Git 2.43, and
