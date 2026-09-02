@@ -112,6 +112,7 @@ jobs:
           python3 tools/generate_readme.py --check README.md
           python3 tools/generate_ci_matrix.py --check planning/CI_TEST_MATRIX.md
           python3 tools/generate_architecture_plan.py --check planning/ARCHITECTURE_CONFORMANCE_PLAN.md
+          python3 tools/generate_ownership_map.py --check planning/MIGRATION_AND_DOMAIN_OWNERSHIP_MAP.md
           # A description is derived and locked; a RECORD of a past run is anchored
           # instead, because deriving it would rewrite the past into the present.
           python3 tools/check_dated_records.py
@@ -256,7 +257,7 @@ jobs:
           # themselves, and the fallback is tested on this runner by the fact that
           # check_prerequisites.py ran under the documented name above.
           export PYTHON=python
-          # The journeys driver, which runs the M3-D driver — and therefore the whole
+          # The journeys driver, which runs the M4-A driver — and therefore the whole
           # chain beneath it — and then walks the five journeys. One entry point, so this
           # runner cannot fall behind the Linux one by a slice.
           bash tests/journeys/run_verification.sh 2>&1 | tee "$LOG_DIR/windows-suites.log"
@@ -264,7 +265,7 @@ jobs:
           # being updated: this loop said M1A..M3A while the driver beneath it had been
           # running through M3-C for a gate, so two suites were passing on Windows
           # without anybody requiring them to.
-          for verdict in M1A M1B M1C M1D M2A M2B M2C M3A M3B M3C M3D; do
+          for verdict in M1A M1B M1C M1D M2A M2B M2C M3A M3B M3C M3D M4A; do
             grep -q "^PASS ${verdict}_VERIFICATION" "$LOG_DIR/windows-suites.log" || {
               echo "::error::${verdict} did not report PASS on Windows"; exit 1; }
           done
@@ -292,6 +293,7 @@ jobs:
           python tools/generate_readme.py --check README.md
           python tools/generate_ci_matrix.py --check planning/CI_TEST_MATRIX.md
           python tools/generate_architecture_plan.py --check planning/ARCHITECTURE_CONFORMANCE_PLAN.md
+          python tools/generate_ownership_map.py --check planning/MIGRATION_AND_DOMAIN_OWNERSHIP_MAP.md
           python tools/check_dated_records.py
           python tools/generate_schema_catalog.py \
             --dsn "postgresql://$SUPERUSER@$PGTCP_HOST:$PGPORT/$DB" \
@@ -652,6 +654,35 @@ jobs:
             echo "::error::only ${measured:-0} M3-D checks were browser-measured"; exit 1; }
           echo "M3-D: $checks checks, 0 failures, $rules rule functions, $measured measured"
 
+      - name: M4-A — checks, bills, splitting and tip separation
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Chains from the M3-D driver. A bill is every earlier gate arriving at a till:
+          # a currency from M1-C, a price from M2-A, a party from M2-B, a language from
+          # M2-C, an accepted order from M3-A, a served ticket from M3-B and an override
+          # from M3-D.
+          bash tests/m4a/run_verification.sh 2>&1 | tee "$LOG_DIR/m4a.log"
+          grep -q '^PASS M4A_VERIFICATION' "$LOG_DIR/m4a.log" || {
+            echo "::error::M4-A suite did not report PASS"; exit 1; }
+          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' "$LOG_DIR/m4a.log" | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/m4a.log" | tail -1)"
+          test "${checks:-0}" -ge 60 || { echo "::error::only ${checks:-0} M4-A checks ran"; exit 1; }
+          test "${failed:-1}" -eq 0 || { echo "::error::${failed} M4-A check(s) failed"; exit 1; }
+          # FR-BIL-007 puts the tip box after or beside the bill summary and never inside
+          # it. That is a claim about a rendered page, so it has to be measured on one; a
+          # run with no browser evidence would be asserting it from the markup alone.
+          measured="$(grep -oP 'measured\s+:\s+\K[0-9]+' "$LOG_DIR/m4a.log" | tail -1)"
+          test "${measured:-0}" -ge 8 || {
+            echo "::error::only ${measured:-0} M4-A checks were browser-measured"; exit 1; }
+          # The structural half of FR-BIL-014 must have RUN. It is the half behaviour
+          # cannot supply — a tip that never touches a balance because nobody wrote that
+          # code today is not the same as one that cannot — so a run in which it silently
+          # did not execute would be the weaker proof wearing the stronger one's badge.
+          grep -q 'no function that computes a bill balance reads a tip' "$LOG_DIR/m4a.log" || {
+            echo "::error::the structural tip-separation assertion did not run"; exit 1; }
+          echo "M4-A: $checks checks, 0 failures, $measured measured"
+
       - name: The five golden journeys — end to end, in a browser (FR-TST-005A)
         shell: bash
         # `if: always()` on purpose. The journeys run AFTER the slice suites and report
@@ -710,11 +741,11 @@ jobs:
           mkdir -p "$LOG_DIR/reorder"
           # Reverse order, same database, no rebuild. A suite that only passes when it runs
           # first is depending on state another suite left behind.
-          for suite in m3d m3c m3b m3a m2c m2b m2a m1d m1c m1b m1a; do
+          for suite in m4a m3d m3c m3b m3a m2c m2b m2a m1d m1c m1b m1a; do
             python3 "tests/$suite/verify_${suite}.py" > "$LOG_DIR/reorder/$suite.log" 2>&1 || true
           done
           fail=0
-          for suite in m1a m1b m1c m1d m2a m2b m2c m3a m3b m3c m3d; do
+          for suite in m1a m1b m1c m1d m2a m2b m2c m3a m3b m3c m3d m4a; do
             tag="$(echo "$suite" | tr '[:lower:]' '[:upper:]')"
             declared="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/$suite.log" | tail -1)"
             reordered="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/reorder/$suite.log" | tail -1)"
@@ -742,7 +773,7 @@ jobs:
           cp "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log \
              "$LOG_DIR"/m2a.log "$LOG_DIR"/m2b.log "$LOG_DIR"/m2c.log \
              "$LOG_DIR"/m3a.log "$LOG_DIR"/m3b.log "$LOG_DIR"/m3c.log \
-             "$LOG_DIR"/m3d.log "$LOG_DIR"/journeys.log \
+             "$LOG_DIR"/m3d.log "$LOG_DIR"/m4a.log "$LOG_DIR"/journeys.log \
              "$LOG_DIR/evidence-logs/"
           # No "|| true" here. A missing suite log must stop the report, not silently
           # become a "not run" row with a wrong total.
@@ -788,9 +819,10 @@ jobs:
           # direction. This step reads it rather than repeating it.
           logs=("$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log
                 "$LOG_DIR"/m2a.log "$LOG_DIR"/m2b.log "$LOG_DIR"/m2c.log "$LOG_DIR"/m3a.log
-                "$LOG_DIR"/m3b.log "$LOG_DIR"/m3c.log "$LOG_DIR"/m3d.log)
+                "$LOG_DIR"/m3b.log "$LOG_DIR"/m3c.log "$LOG_DIR"/m3d.log
+                "$LOG_DIR"/m4a.log)
           mapfile -t registered < <(python3 -c "import sys; sys.path.insert(0, 'tools'); import controls; print(chr(10).join(c[0] for c in controls.CONTROLS))")
-          test "${#registered[@]}" -ge 70 || {
+          test "${#registered[@]}" -ge 80 || {
             echo "::error::the control registry yielded only ${#registered[@]} controls"
             exit 1; }
           for control in "${registered[@]}"; do

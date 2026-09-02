@@ -37,7 +37,9 @@ type StringKey =
   | 'askAgain' | 'alreadyAsked' | 'askedTimes'
   | 'received' | 'being_handled' | 'completed' | 'withdrawn' | 'closed'
   // M3-D. Placing the order — the step the golden journeys found had no surface at all.
-  | 'placeOrder' | 'orderPlaced' | 'orderRefused';
+  | 'placeOrder' | 'orderPlaced' | 'orderRefused'
+  // M4-A. The bill, and then the tip. Separate keys because they are separate blocks.
+  | 'billHeading' | 'billTotal' | 'tipHeading' | 'tipHint' | 'tipChosen' | 'tipRefused';
 
 const STRINGS: Record<Locale, Record<StringKey, string>> = {
   en: {
@@ -59,6 +61,11 @@ const STRINGS: Record<Locale, Record<StringKey, string>> = {
     placeOrder: 'Place the order',
     orderPlaced: 'Your order is with the kitchen.',
     orderRefused: 'That could not be sent. Please ask a member of staff.',
+    billHeading: 'Your bill', billTotal: 'Total',
+    tipHeading: 'Add a tip',
+    tipHint: 'A tip is optional and is separate from your bill.',
+    tipChosen: 'Thank you. Your tip has been recorded separately from the bill.',
+    tipRefused: 'That tip could not be recorded. Please ask a member of staff.',
   },
   am: {
     title: 'ዝርዝር', menuHeading: 'ዛሬ', cartHeading: 'ቅርጫትዎ',
@@ -79,6 +86,11 @@ const STRINGS: Record<Locale, Record<StringKey, string>> = {
     placeOrder: 'ትዕዛዙን ያስገቡ',
     orderPlaced: 'ትዕዛዝዎ ወደ ማብሰያው ደርሷል።',
     orderRefused: 'መላክ አልተቻለም። እባክዎ ሰራተኛ ይጠይቁ።',
+    billHeading: 'ሂሳብዎ', billTotal: 'ጠቅላላ ድምር',
+    tipHeading: 'ጉርሻ ይጨምሩ',
+    tipHint: 'ጉርሻ በፈቃደኝነት ነው፤ ከሂሳብዎ ተለይቶ ይያዛል።',
+    tipChosen: 'እናመሰግናለን። ጉርሻዎ ከሂሳቡ ተለይቶ ተመዝግቧል።',
+    tipRefused: 'ጉርሻው ሊመዘገብ አልቻለም። እባክዎ ሠራተኛ ይጠይቁ።',
   },
   ar: {
     title: 'قائمة الطعام', menuHeading: 'اليوم', cartHeading: 'سلتك',
@@ -99,6 +111,11 @@ const STRINGS: Record<Locale, Record<StringKey, string>> = {
     placeOrder: 'أرسل الطلب',
     orderPlaced: 'طلبك في المطبخ الآن.',
     orderRefused: 'تعذّر الإرسال. من فضلك اسأل أحد الموظفين.',
+    billHeading: 'فاتورتك', billTotal: 'المجموع',
+    tipHeading: 'أضف بقشيشًا',
+    tipHint: 'البقشيش اختياري ويُسجَّل بشكل منفصل عن فاتورتك.',
+    tipChosen: 'شكرًا لك. سُجِّل بقشيشك بشكل منفصل عن الفاتورة.',
+    tipRefused: 'تعذّر تسجيل البقشيش. من فضلك اسأل أحد الموظفين.',
   },
 };
 
@@ -430,6 +447,10 @@ function render(): void {
   renderStatus();
   renderMenu();
   renderCart();
+  // The bill too, so a language change redraws the amounts in the new locale's digits
+  // and the chrome around them in the new locale's words. M2-C's defect was one
+  // untranslated word beside a translated one, and a bill is the worst place for it.
+  renderBill();
 }
 
 // ---------------------------------------------------------------------------
@@ -643,6 +664,14 @@ async function start(): Promise<void> {
     void ask(target.getAttribute('data-request-type') ?? '',
              target.getAttribute('data-deliberate') === 'true');
   });
+  // Delegated for the same reason: the tip buttons are drawn from the server's answer
+  // and redrawn whenever the bill or the language changes.
+  $('tip-options').addEventListener('click', (event) => {
+    const target = (event.target as HTMLElement).closest('.tip-option');
+    if (!(target instanceof HTMLElement) || !billView?.shareId) return;
+    void chooseTip(billView.shareId, Number(target.dataset.amountMinor),
+                   target.dataset.percentage ? Number(target.dataset.percentage) : null);
+  });
 
   render();
 
@@ -702,6 +731,10 @@ async function start(): Promise<void> {
   // is idle, with a bounded fallback for engines that do not offer that.
   await whenIdle();
   await loadService();
+  // The bill last. A guest reads the menu, asks for things, and settles up at the end,
+  // and the request costs nothing on a table where no bill has been issued — the route
+  // answers with a null bill and the section stays hidden.
+  await loadBill();
 }
 
 
@@ -975,6 +1008,9 @@ declare global {
       ready(): Promise<void>;
       pendingKey(): string | null;
       formatMoney: typeof formatMoney;
+      loadBill(): Promise<void>;
+      chooseTip(shareId: string, amountMinor: number, percentage: number | null): Promise<void>;
+      bill(): BillView | null;
     };
   }
 }
@@ -1051,6 +1087,172 @@ async function placeOrder(): Promise<void> {
   }
 }
 
+// ===========================================================================
+// The bill, and then the tip (M4-A: FR-BIL-007, FR-BIL-013, FR-BIL-015)
+// ===========================================================================
+//
+// TWO FETCHES, TWO SECTIONS, AND NO ARITHMETIC.
+//
+// Every figure below was calculated by billing.issue_bill() and translated by
+// billing.bill_preview_lines(); this draws what it was handed. A surface that summed the
+// components itself would be a second opinion about money, which is the same mistake
+// placing an order would be if this file computed a total — and the reason it does not.
+//
+// The tip is a SEPARATE FETCH into a SEPARATE SECTION. /c/v1/bill carries no tip field at
+// all, so there is nothing a careless render could put inside the summary, and the tip
+// box is a sibling element rather than a descendant. That is FR-BIL-007's "after or
+// beside, never inside" expressed in the only two places it can be: the API shape and the
+// document structure.
+//
+// NO SUGGESTION IS PRESELECTED. Every button is drawn with aria-pressed="false" and the
+// server sends nothing that could say otherwise. NC-M4-001 plants the preselection in
+// this function, because after the schema and the API it is the last place left.
+
+interface BillLine {
+  stage: number; kind: string; label: string;
+  currency_code: string; amount_minor: string;
+}
+
+interface BillView {
+  id: string; bill_number: string; state: string; currency_code: string;
+  bill_total_minor: string; outstanding_minor: string; calculation_version: string;
+  lines: BillLine[];
+  shareId: string | null;
+  tipOptions: { display_order: number; percentage: string; currency_code: string;
+                amount_minor: string }[];
+}
+
+let billView: BillView | null = null;
+
+async function loadBill(): Promise<void> {
+  const token = credentials?.guestToken ?? '';
+  if (!token) return;
+  const headers = { authorization: `Guest ${token}` };
+  try {
+    const [billResponse, tipResponse] = await Promise.all([
+      fetch('/c/v1/bill', { headers }),
+      fetch('/c/v1/bill/tip-options', { headers }),
+    ]);
+    if (!billResponse.ok) return;
+    const payload = await billResponse.json() as { bill: BillView | null; lines: BillLine[] };
+    if (!payload.bill) { billView = null; renderBill(); return; }
+    const tips = tipResponse.ok
+      ? await tipResponse.json() as { shareId: string | null; options: BillView['tipOptions'] }
+      : { shareId: null, options: [] };
+    billView = {
+      ...payload.bill,
+      lines: payload.lines,
+      shareId: tips.shareId,
+      tipOptions: tips.options,
+    };
+    renderBill();
+  } catch {
+    // A bill that could not be fetched is simply not drawn. The menu and the basket are
+    // unaffected, for the reason the service panel records.
+  }
+}
+
+function renderBill(): void {
+  const section = $('bill-section');
+  const box = $('tip-box');
+  const rows = $('bill-lines');
+  const options = $('tip-options');
+  rows.replaceChildren();
+  options.replaceChildren();
+
+  if (!billView) {
+    section.hidden = true;
+    box.hidden = true;
+    return;
+  }
+  const strings = STRINGS[app.locale];
+  section.hidden = false;
+
+  for (const line of billView.lines) {
+    const row = document.createElement('tr');
+    row.className = 'bill-line';
+    row.dataset.kind = line.kind;
+    const label = document.createElement('th');
+    label.scope = 'row';
+    label.className = 'bill-label';
+    // The LABEL the server translated, not a key this file maps. M2-A's approval
+    // workflow decided what a bill calls its components, in the language the order was
+    // placed in, and a table here would be a second vocabulary nobody reviewed.
+    label.textContent = line.label;
+    const amount = document.createElement('td');
+    amount.className = 'bill-amount';
+    amount.textContent = formatMoney(Number(line.amount_minor), line.currency_code,
+                                     app.locale);
+    row.append(label, amount);
+    rows.append(row);
+  }
+
+  $('bill-total-label').textContent = strings.billTotal;
+  $('bill-total').textContent = formatMoney(Number(billView.bill_total_minor),
+                                            billView.currency_code, app.locale);
+  // The version the figures above were computed under, on the document rather than in a
+  // log. FR-BIL-006: a disputed bill is recomputed the way it was computed.
+  $('bill-summary').dataset.calculationVersion = billView.calculation_version;
+
+  $('tip-heading').textContent = strings.tipHeading;
+  $('tip-hint').textContent = strings.tipHint;
+  box.hidden = billView.tipOptions.length === 0 || !billView.shareId;
+
+  for (const option of billView.tipOptions) {
+    const item = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'tip-option';
+    // NOT PRESSED. Every one of them, every time. There is no branch here that could
+    // press one, and nothing in the payload that could ask for it.
+    button.setAttribute('aria-pressed', 'false');
+    button.dataset.percentage = option.percentage;
+    button.dataset.amountMinor = option.amount_minor;
+    button.textContent = `${formatMoney(Number(option.amount_minor),
+                                        option.currency_code, app.locale)}`;
+    item.append(button);
+    options.append(item);
+  }
+}
+
+/** One payer's own tip. It is posted to its own endpoint and changes no bill line. */
+async function chooseTip(shareId: string, amountMinor: number,
+                         percentage: number | null): Promise<void> {
+  const token = credentials?.guestToken ?? '';
+  if (!token) return;
+  const outcome = $('tip-outcome');
+  const strings = STRINGS[app.locale];
+  try {
+    const response = await fetch('/c/v1/bill/tip', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Guest ${token}`,
+        'idempotency-key': newIdempotencyKey(),
+      },
+      body: JSON.stringify({ shareId, amountMinor, percentage }),
+    });
+    outcome.hidden = false;
+    if (response.ok) {
+      outcome.textContent = strings.tipChosen;
+      for (const button of Array.from(
+             document.querySelectorAll<HTMLButtonElement>('.tip-option'))) {
+        button.setAttribute('aria-pressed',
+          String(Number(button.dataset.amountMinor) === amountMinor));
+      }
+    } else {
+      const body = await response.json().catch(() => ({}));
+      outcome.textContent = strings.tipRefused;
+      outcome.dataset.reason = String((body as { reason?: string }).reason ?? 'REFUSED');
+    }
+  } catch {
+    outcome.hidden = false;
+    outcome.textContent = strings.tipRefused;
+    outcome.dataset.reason = 'NETWORK';
+  }
+}
+
+
 // Kicked off BEFORE window.surface is published so the promise can be handed out with
 // it. Nothing in start()'s synchronous prologue reads window.surface.
 const startup = start();
@@ -1084,6 +1286,9 @@ window.surface = {
   renderService,
   pendingKey: () => pending?.key ?? null,
   formatMoney,
+  loadBill,
+  chooseTip,
+  bill: () => billView,
 };
 
 void startup;

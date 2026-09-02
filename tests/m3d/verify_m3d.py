@@ -52,6 +52,9 @@ sys.path.insert(0, str(HERE.parent / "m1d"))
 sys.path.insert(0, str(HERE))
 
 import fixtures as fx                                            # noqa: E402
+from channel_differential import (                               # noqa: E402
+    OPERATIONS, RULE_FUNCTION_QUERY, RULE_SCHEMAS,
+    handler_block, named_rules, rules_by_surface, strip_comments)
 from fenced import fenced_identifier_pattern                     # noqa: E402
 from pg import CommandUnreadable, ProbeFailed, count, run        # noqa: E402
 from service import Service, WORKSPACE, patch_workspace, sync_and_build   # noqa: E402
@@ -294,53 +297,13 @@ def section_terminals() -> None:
 # anybody remembering to extend anything, which is the same lesson as M3-A's schema list
 # going stale the moment fulfillment landed.
 
-RULE_SCHEMAS = ("menu", "safety", "ordering", "service")
-
-# The operations BOTH surfaces offer, by the path each exposes them at. An operation only
-# one channel can perform — amending an accepted order, approving an override — is not a
-# divergence in a shared rule, and is covered instead by the governed-action checks below.
-SHARED_OPERATIONS = (
-    ("a priced cart line", "/c/v1/cart/lines", "/s/v1/cart/lines"),
-    ("the order preview", "/c/v1/orders/preview", "/s/v1/orders/preview"),
-    ("the submission", "/c/v1/orders", "/s/v1/orders"),
-)
-
-
-def strip_comments(source: str) -> str:
-    """What the code CALLS, not what the file mentions.
-
-    Without this the check reads prose. The comment in customer.ts that explains why the
-    route no longer calls menu.effective_price() contains the words
-    'menu.effective_price(' — and the first version of this check counted it as a call,
-    which would have made the route look guilty of the thing the comment says it stopped
-    doing.
-    """
-    source = re.sub(r"/\*.*?\*/", " ", source, flags=re.S)
-    return re.sub(r"(?m)^\s*//.*$", " ", source)
+# The instrument itself lives in tests/channel_differential.py, because M4-A adds a third
+# channel and a second copy of the check that proves there is only one implementation
+# would be the joke writing itself. What stays here is this gate's USE of it.
 
 
 def rule_functions() -> set[str]:
-    return {r[0] for r in rows(f"""
-        SELECT n.nspname || '.' || p.proname
-        FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-        WHERE n.nspname IN {RULE_SCHEMAS};""", dsn=ADMIN)}
-
-
-def handler_block(source: str, path: str) -> str:
-    """The source of one route handler: from its path literal to the next registration."""
-    marker = f"'{path}'"
-    if marker not in source:
-        raise ProbeFailed(path, f"no route registered at {path}; the comparison would "
-                                f"otherwise pass by having nothing to compare")
-    start = source.index(marker)
-    following = [m.start() for m in re.finditer(r"app\.(get|post)[<(]", source)
-                 if m.start() > start]
-    return source[start:following[0] if following else len(source)]
-
-
-def named_rules(block: str, universe: set[str]) -> list[str]:
-    return sorted(name for name in universe
-                  if re.search(r"\b" + re.escape(name) + r"\s*\(", block))
+    return {r[0] for r in rows(RULE_FUNCTION_QUERY, dsn=ADMIN)}
 
 
 def section_same_rules_structurally() -> None:
@@ -355,12 +318,12 @@ def section_same_rules_structurally() -> None:
            f"would stop covering the rule M4 adds, which is exactly how M3-A's schema "
            f"list went stale when fulfillment landed")
 
-    guest = strip_comments((REPO / "api/src/routes/customer.ts").read_text(encoding="utf-8"))
-    staff = strip_comments((REPO / "api/src/routes/staff.ts").read_text(encoding="utf-8"))
+    by_surface = rules_by_surface(
+        lambda relative: (REPO / relative).read_text(encoding="utf-8"), universe)
 
-    for label, guest_path, staff_path in SHARED_OPERATIONS:
-        g = named_rules(handler_block(guest, guest_path), universe)
-        s = named_rules(handler_block(staff, staff_path), universe)
+    for label in OPERATIONS:
+        g = by_surface["guest"][label]
+        s = by_surface["staff"][label]
         record(f"{label}: both channels reach the same function, and only that function",
                g == s and len(g) == 1,
                f"guest {g}, staff {s}. Not 'they agree' — the same NAME, so there is no "

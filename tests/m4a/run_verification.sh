@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
-# Golden journey driver: rebuild from empty through every slice, then walk the journeys.
+# M4-A verification driver: rebuild from empty through every earlier slice, then M4-A.
 #
-# Runs AFTER the slice suites — the M4-A driver, which chains the whole history beneath
-# it — and reports its own outcome whether or not one of them failed. If a slice check and a journey fail together that is one signal; if only the
-# journey fails that is a different and more interesting one, and a driver that stopped
-# at the first slice failure would hide the second case entirely.
+# Chains for the reason every slice before it does. A bill is the last thing this system
+# computes and the first that needs all of it: a currency and a rounding mode from M1-C,
+# a price from M2-A, a seated party from M2-B, a language from M2-C, an accepted order
+# from M3-A, a served ticket from M3-B, an override from M3-D. A suite that started here
+# would be charging people in a restaurant nobody had proved.
+#
+# The five golden journeys are NOT run from here, for the reason M3-D's driver records:
+# "a journey failed" and "an M4-A check failed" must be distinguishable without reading
+# a log.
 set -euo pipefail
 export PYTHONDONTWRITEBYTECODE=1
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -19,12 +24,12 @@ if [ -z "$PY_BIN" ]; then
 fi
 if [ -z "$PY_BIN" ]; then
     echo "FAIL PREREQUISITE_ABSENT: no runnable interpreter on PATH" >&2
+    echo "  tried python3 then python; a name on PATH that cannot run is not a tool" >&2
     exit 1
 fi
 export PYTHON="$PY_BIN"
 
-slice_status=0
-bash "$REPO/tests/m4a/run_verification.sh" || slice_status=$?
+bash "$REPO/tests/m3d/run_verification.sh"
 
 PGHOST_DIR="${PGHOST_DIR:-/var/lib/m1apg/run}"
 PGPORT="${PGPORT:-5433}"
@@ -39,11 +44,5 @@ export M1A_APP_DSN="$(dsn hospitality_app "$DB")"
 export M1A_MIGRATOR_DSN="$(dsn hospitality_migrator "$DB")"
 
 echo
-echo "=== 15. The five golden journeys ==="
-journey_status=0
-"$PY_BIN" "$REPO/tests/journeys/verify_journeys.py" || journey_status=$?
-
-if [ "$slice_status" -ne 0 ]; then
-    echo "NOTE: a slice suite failed before the journeys ran; both outcomes are above." >&2
-fi
-exit $(( slice_status != 0 || journey_status != 0 ))
+echo "=== 14. M4-A verification gates ==="
+"$PY_BIN" "$REPO/tests/m4a/verify_m4a.py"

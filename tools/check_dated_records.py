@@ -60,6 +60,7 @@ REPO = Path(__file__).resolve().parents[1]
 DATED_RECORDS = [
     "planning/KNOWN_LIMITATIONS.md",
     "docs-local/CROSS_PLATFORM_COMMANDS.md",
+    "planning/M0R_MIGRATION_RECORD.md",
 ]
 
 DECLARATION = "<!-- dated-record -->"

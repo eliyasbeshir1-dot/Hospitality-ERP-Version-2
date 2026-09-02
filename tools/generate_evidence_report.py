@@ -319,6 +319,7 @@ def build(dsn: str, logs: Path) -> str:
                         ("m3b", "M3-B fulfillment, tickets, stations, the KDS"),
                         ("m3c", "M3-C service requests, notifications, integration"),
                         ("m3d", "M3-D terminals, override, handover, the waiter surface"),
+                        ("m4a", "M4-A checks, bills, splitting, tip separation"),
                         ("fenced_gate", "Fenced-domain gate, vocabulary and mutations"),
                         ("journeys", "The five golden journeys, end to end")):
         verdict, ran, failed = suite_result(logs, name)

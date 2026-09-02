@@ -53,8 +53,19 @@ VALUES ('33331101-0000-4000-8000-000000000001'::uuid, :t_habesha::uuid, :o_h1::u
         'service_area', 'SA-H1-MAIN', 'Main Hall');
 -- Outlet-scoped rows are written here, under this outlet's own context. Writing them
 -- later with the context cleared is refused by RLS, which is the correct behaviour.
+--
+-- UPSERT, not INSERT. Since 0019 an outlet gets a check and a bill series the moment it
+-- is created, because an outlet that cannot number a check cannot open one and the gap
+-- was invisible while nothing opened checks. That trigger fires on the org.org_node
+-- INSERT above, so by the time this statement runs the row already exists. This seed
+-- still gets the last word on the PREFIX, which is what it was ever really stating: the
+-- demonstration numbers read H1-2026-000001 rather than CHK-OUT-H1-2026-000001.
 INSERT INTO config.number_series (tenant_id, outlet_id, document_type, fiscal_period, prefix)
-VALUES (:t_habesha::uuid, :o_h1::uuid, 'check', '2026', 'H1-');
+VALUES (:t_habesha::uuid, :o_h1::uuid, 'check', '2026', 'H1-')
+ON CONFLICT (tenant_id, document_type, fiscal_period,
+             coalesce(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid),
+             coalesce(outlet_id, '00000000-0000-0000-0000-000000000000'::uuid))
+DO UPDATE SET prefix = EXCLUDED.prefix;
 
 SELECT set_config('app.outlet_id', :o_h2, false);
 INSERT INTO org.org_node (id, tenant_id, parent_id, kind, reference_code, display_name)
@@ -66,7 +77,11 @@ INSERT INTO org.org_node (id, tenant_id, parent_id, kind, reference_code, displa
 VALUES ('33332101-0000-4000-8000-000000000002'::uuid, :t_habesha::uuid, :o_h2::uuid,
         'service_area', 'SA-H2-MAIN', 'Ground Floor');
 INSERT INTO config.number_series (tenant_id, outlet_id, document_type, fiscal_period, prefix)
-VALUES (:t_habesha::uuid, :o_h2::uuid, 'check', '2026', 'H2-');
+VALUES (:t_habesha::uuid, :o_h2::uuid, 'check', '2026', 'H2-')
+ON CONFLICT (tenant_id, document_type, fiscal_period,
+             coalesce(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid),
+             coalesce(outlet_id, '00000000-0000-0000-0000-000000000000'::uuid))
+DO UPDATE SET prefix = EXCLUDED.prefix;
 -- This outlet has waiter service switched off, so outlet scope can be seen overriding
 -- the tenant-wide grant above.
 INSERT INTO config.entitlement (tenant_id, outlet_id, scope_kind, scope_node_id, feature_key, granted)
@@ -142,7 +157,11 @@ VALUES (:o_n1::uuid, :t_nile::uuid, '44440200-0000-4000-8000-000000000001'::uuid
 INSERT INTO org.outlet_profile (outlet_id, tenant_id, timezone)
 VALUES (:o_n1::uuid, :t_nile::uuid, 'Asia/Dubai');
 INSERT INTO config.number_series (tenant_id, outlet_id, document_type, fiscal_period, prefix)
-VALUES (:t_nile::uuid, :o_n1::uuid, 'check', '2026', 'N1-');
+VALUES (:t_nile::uuid, :o_n1::uuid, 'check', '2026', 'N1-')
+ON CONFLICT (tenant_id, document_type, fiscal_period,
+             coalesce(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid),
+             coalesce(outlet_id, '00000000-0000-0000-0000-000000000000'::uuid))
+DO UPDATE SET prefix = EXCLUDED.prefix;
 SELECT set_config('app.outlet_id', '', false);
 INSERT INTO config.configuration_version
     (tenant_id, scope_kind, category, version, payload, effective_from,

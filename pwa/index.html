@@ -97,6 +97,41 @@
       <h3 id="service-timeline-heading" data-i18n="timelineHeading">What has happened</h3>
       <ol class="service-timeline" id="service-timeline"></ol>
     </section>
+
+    <!--
+      M4-A. The bill, and then the tip.
+
+      TWO SECTIONS, AND THE ORDER OF THEM IS THE REQUIREMENT. FR-BIL-007 puts the optional
+      Tip box AFTER OR BESIDE the bill summary and never inside it, because a tip drawn
+      among the components reads as part of what is owed. So the tip box is a SIBLING of
+      the summary, not a descendant, and tests/m4a measures both facts in a real browser:
+      the DOM containment, and the two rectangles the layout actually produced.
+
+      No tip is preselected. Every suggestion is a button with aria-pressed="false", and
+      nothing in the markup or the configuration can say which one is preferred — there is
+      no column for it in billing.tip_suggestion. NC-M4-001 plants the preselection here,
+      which is the only level at which it is still expressible.
+    -->
+    <section class="bill" id="bill-section" aria-labelledby="bill-heading" hidden>
+      <h2 id="bill-heading" data-i18n="billHeading">Your bill</h2>
+      <table class="bill-summary" id="bill-summary">
+        <caption class="visually-hidden" id="bill-caption" data-i18n="billHeading">Your bill</caption>
+        <tbody id="bill-lines"></tbody>
+        <tfoot>
+          <tr class="bill-total-row">
+            <th scope="row" id="bill-total-label" data-i18n="billTotal">Total</th>
+            <td class="bill-total" id="bill-total"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </section>
+
+    <section class="tip" id="tip-box" aria-labelledby="tip-heading" hidden>
+      <h2 id="tip-heading" data-i18n="tipHeading">Add a tip</h2>
+      <p class="tip-hint" id="tip-hint" data-i18n="tipHint">A tip is optional and is separate from your bill.</p>
+      <ul class="tip-options" id="tip-options"></ul>
+      <p class="tip-outcome" id="tip-outcome" role="status" aria-live="polite" hidden></p>
+    </section>
   </main>
 
   <script type="module" src="/app/app.js"></script>

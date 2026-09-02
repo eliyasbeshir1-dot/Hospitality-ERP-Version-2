@@ -62,6 +62,23 @@ function refusal(error: unknown): string | null {
   return matched && matched[1] ? matched[1] : null;
 }
 
+/**
+ * FR-ORD-001B. The counter is a value of the origin dimension M3-A built, and the channel
+ * its menu is published on. Stated ONCE, here, so the preview and the submission cannot
+ * disagree about which menu a counter order was priced from — which is the shape a
+ * "divergent order path" actually takes in practice: not a second function, but two
+ * callers of one function passing different arguments.
+ */
+const ORIGIN_CHANNEL: Record<string, string> = {
+  waiter_entered: 'dine_in',
+  counter: 'counter',
+};
+
+function orderOrigin(requested: string | undefined): string | null {
+  if (requested === undefined) return 'waiter_entered';
+  return requested in ORIGIN_CHANNEL ? requested : null;
+}
+
 export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencies): void {
   async function asStaff<T>(
     request: FastifyRequest,
@@ -126,8 +143,9 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
            FROM pos.table_view($1::uuid, $2::uuid)`,
         [tenantId, outletId],
       );
-      // unpaid_balance_minor comes back NULL from the read model and is passed through
-      // as null. A zero here would be a figure a waiter could act on, and billing is M4.
+      // unpaid_balance_minor is a real figure since M4-A: billing.session_outstanding()
+      // summed over the session's live bills, less what authority has disposed of, and
+      // blind to tips. It is passed through unchanged, as every other figure here is.
       return { tables: rows };
     }),
   );
@@ -262,7 +280,7 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
   );
 
   /** FR-ORD-002. The same server-calculated preview the guest surface receives. */
-  app.post<{ Body: { cartId: string; locale?: string } }>(
+  app.post<{ Body: { cartId: string; locale?: string; origin?: string } }>(
     '/s/v1/orders/preview',
     {
       schema: {
@@ -271,17 +289,25 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
           properties: {
             cartId: { type: 'string', format: 'uuid' },
             locale: { type: 'string' },
+            origin: { type: 'string', enum: ['waiter_entered', 'counter'] },
           },
         },
       },
     },
     async (request, reply) =>
       asStaff(request, reply, async (client, tenantId, outletId) => {
+        const origin = orderOrigin(request.body.origin);
+        if (!origin) {
+          reply.code(400);
+          return { error: 'unknown origin', reason: 'ORDER_ORIGIN_UNKNOWN' };
+        }
         try {
           const { rows } = await client.query(
             `SELECT ordering.preview_cart($1::uuid, $2::uuid, $3::uuid,
-                                          $4::menu.customer_locale) AS preview`,
-            [tenantId, outletId, request.body.cartId, request.body.locale ?? 'en'],
+                                          $4::menu.customer_locale,
+                                          $5::menu.sales_channel) AS preview`,
+            [tenantId, outletId, request.body.cartId, request.body.locale ?? 'en',
+             ORIGIN_CHANNEL[origin]],
           );
           return { preview: rows[0]?.preview ?? null };
         } catch (error) {
@@ -306,7 +332,7 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
     Body: {
       cartId: string; expectedTotalMinor: number; pricingDigest: string;
       locale?: string; allergyDeclarations?: unknown[]; notes?: unknown[];
-      repeatIntent?: boolean;
+      repeatIntent?: boolean; origin?: string;
     };
   }>(
     '/s/v1/orders',
@@ -323,6 +349,7 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
             allergyDeclarations: { type: 'array' },
             notes: { type: 'array' },
             repeatIntent: { type: 'boolean' },
+            origin: { type: 'string', enum: ['waiter_entered', 'counter'] },
           },
         },
       },
@@ -334,19 +361,29 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
           reply.code(400);
           return { error: 'Idempotency-Key is required', reason: 'IDEMPOTENCY_KEY_ABSENT' };
         }
+        // The ORIGIN is the whole of the difference between a waiter order and a counter
+        // one. Same function, same revalidation, same pricing, same ledger — one
+        // argument. FR-ORD-001B asks for no divergent order path and this is what having
+        // none looks like from the route that would otherwise have forked.
+        const origin = orderOrigin(request.body.origin);
+        if (!origin) {
+          reply.code(400);
+          return { error: 'unknown origin', reason: 'ORDER_ORIGIN_UNKNOWN' };
+        }
         try {
           const { rows } = await client.query(
             `SELECT ordering.submit_order(
                       $1::uuid, $2::uuid, $3::uuid, $4, decode($5, 'hex'), $6::bigint,
                       $7::menu.customer_locale, gen_random_uuid(), gen_random_uuid(),
-                      'waiter_entered'::ordering.order_origin,
+                      $12::ordering.order_origin,
                       $8::uuid, NULL::uuid, $9::boolean,
-                      $10::jsonb, $11::jsonb) AS id`,
+                      $10::jsonb, $11::jsonb, $13::menu.sales_channel) AS id`,
             [tenantId, outletId, request.body.cartId, key, request.body.pricingDigest,
              request.body.expectedTotalMinor, request.body.locale ?? 'en', userId,
              request.body.repeatIntent ?? false,
              JSON.stringify(request.body.allergyDeclarations ?? []),
-             JSON.stringify(request.body.notes ?? [])],
+             JSON.stringify(request.body.notes ?? []),
+             origin, ORIGIN_CHANNEL[origin]],
           );
           return { orderId: rows[0].id as string };
         } catch (error) {

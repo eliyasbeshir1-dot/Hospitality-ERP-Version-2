@@ -110,7 +110,16 @@ CONTROLS = [
     ("NC-M3D-011", "A description states a fact the generator can derive", "DESCRIPTION_NAMES_A_DERIVABLE_FACT", "m3d"),
     ("NC-M3D-012", "The CI matrix stops describing the pipeline", "CI_MATRIX_DRIFT", "m3d"),
     ("NC-M3D-013", "A control the suites prove and no document describes", "CONTROL_UNDESCRIBED", "m3d"),
+    ("NC-M4-001", "A tip preselected for the guest", "TIP_PRESELECTED", "m4a"),
+    ("NC-M4-002", "A tip counted towards a bill balance", "TIP_COMMINGLED_WITH_BILL", "m4a"),
     ("NC-M4A-001", "A closure completer moved later with no reason", "PARTIAL_CLOSURE_COMPLETER_MOVED_LATER", "m4a"),
+    ("NC-M4A-002", "A line quantity billed on two checks", "QUANTITY_DOUBLE_BILLED", "m4a"),
+    ("NC-M4A-003", "A split that loses or creates a minor unit", "SPLIT_NOT_EXACT", "m4a"),
+    ("NC-M4A-004", "A bill finalized with an unsettled balance", "BILL_FINALIZED_UNSETTLED", "m4a"),
+    ("NC-M4A-005", "An issued bill corrected by deletion", "BILL_DELETED_NOT_CREDITED", "m4a"),
+    ("NC-M4A-006", "A per-payer tip that reallocates bill lines", "TIP_REALLOCATED_BILL", "m4a"),
+    ("NC-M4A-007", "The counter channel on an order path of its own", "CHANNEL_RULE_DIVERGENCE", "m4a"),
+    ("NC-M4A-008", "A finalized bill with no calculation version", "CALCULATION_VERSION_MISSING", "m4a"),
 ]
 
 

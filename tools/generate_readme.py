@@ -68,6 +68,10 @@ SLICE_DELIVERS = {
     "M3-D": "the waiter surface: terminals, role home and table view, waiter-entered "
             "ordering on the one order aggregate, operational search, manager override "
             "without shared credentials, and handover",
+    "M4-A": "checks and allocation that cannot bill a unit twice, exact calculation "
+            "carrying a persisted version, five split modes with deterministic "
+            "rounding, merge and split of checks, tips kept structurally out of every "
+            "bill balance, and the counter channel on the same order aggregate",
 }
 
 # The gates in order, and what each one brings that does not exist yet. Rows are emitted
@@ -158,6 +162,11 @@ SUITE_PURPOSE = {
            "that agrees, manager override that cannot be obtained by sharing a "
            "credential, handover that cannot lose a table, and confirmation friction "
            "graded by consequence and measured by pressing the buttons",
+    "m4a": "checks, bills and tips: allocation that cannot bill a unit twice across a "
+           "set of checks, every component recomputed independently and compared, five "
+           "split modes exercised at payer counts that do not divide evenly, tip "
+           "separation proved from the catalog before it is proved by behaviour, and the "
+           "bill summary and tip box measured as two rectangles in a real browser",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
     "journeys": "the five golden journeys end to end in a browser against real "
                 "persistence, plus the duplicate-submit race: what a guest and a waiter "

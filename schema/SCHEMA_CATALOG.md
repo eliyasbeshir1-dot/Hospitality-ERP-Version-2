@@ -4,7 +4,7 @@
 Do not edit by hand: the verification suite regenerates this file and fails on any
 difference, so a hand edit is reported as drift (FR-DAT-015).
 
-Schemas covered: `app`, `audit`, `config`, `fulfillment`, `identity`, `integration`, `menu`, `money`, `notify`, `ordering`, `org`, `pos`, `safety`, `service`, discovered from the database rather than listed here.
+Schemas covered: `app`, `audit`, `billing`, `config`, `fulfillment`, `identity`, `integration`, `menu`, `money`, `notify`, `ordering`, `org`, `pos`, `safety`, `service`, discovered from the database rather than listed here.
 
 ---
 
@@ -20,6 +20,12 @@ Schemas covered: `app`, `audit`, `config`, `fulfillment`, `identity`, `integrati
 
 | Type | Values |
 |---|---|
+| `billing.bill_event_kind` | issued, component_calculated, disposition_recorded, finalized, voided, credited, reissued |
+| `billing.bill_state` | issued, finalized, voided, credited, reissued |
+| `billing.check_state` | open, billed, merged, void |
+| `billing.disposition_kind` | comped, written_off, transferred |
+| `billing.split_mode` | by_item, by_participant, equal_share, custom_amount, separate_orders |
+| `billing.tip_correction_kind` | reversal, refund, correction |
 | `config.configuration_category` | branding, locale, currency, timezone, tax, calendar, numbering, payment_method, service, feature, connector |
 | `config.policy_category` | ordering, service, cancellation, discount, refund, tip, cash, approval, local_continuity |
 | `config.reason_code_category` | order_cancellation, void, refund, discount, complimentary_item, payment_reversal, tip_correction, service_failure, printer_failure, manager_override |
@@ -43,7 +49,7 @@ Schemas covered: `app`, `audit`, `config`, `fulfillment`, `identity`, `integrati
 | `menu.availability_state` | available, limited, temporarily_unavailable, scheduled_later, hidden |
 | `menu.customer_locale` | en, am, ar |
 | `menu.image_format` | webp, avif, jpeg, png |
-| `menu.menu_entity` | menu, category, item_group, item, variant, modifier_group, modifier, image, allergen, dietary_claim, service_request_type, notification_template, order_status_wording |
+| `menu.menu_entity` | menu, category, item_group, item, variant, modifier_group, modifier, image, allergen, dietary_claim, service_request_type, notification_template, order_status_wording, bill_component_wording |
 | `menu.publication_state` | draft, review, scheduled, published, paused, archived |
 | `menu.sales_channel` | dine_in, counter, room_service, kiosk |
 | `menu.translation_provenance` | human, machine_assisted |
@@ -54,14 +60,14 @@ Schemas covered: `app`, `audit`, `config`, `fulfillment`, `identity`, `integrati
 | `notify.event_class` | order, kitchen, service_request, bill, payment, tip, outage, sync |
 | `notify.failure_reason` | recipient_not_authorized, recipient_out_of_scope, template_missing |
 | `notify.notice_state` | pending, sent, read, failed, dead_lettered |
-| `ordering.acceptance_mode` | automatic, staff_confirmed |
+| `ordering.acceptance_mode` | automatic, staff_confirmed, payment_dependent |
 | `ordering.actor_kind` | guest, staff, system |
-| `ordering.artifact_kind` | request, cart, table_session, order, fulfillment_ticket, service_request |
+| `ordering.artifact_kind` | request, cart, table_session, order, fulfillment_ticket, service_request, check, bill |
 | `ordering.charge_kind` | item_subtotal, discount, tax, fee |
 | `ordering.charge_source_kind` | menu_price, tax_configuration, discount_policy, service_configuration |
 | `ordering.event_kind` | submitted, accepted, rejected, amended, cancelled, voided, note_added, allergy_declared, session_merged, session_moved, tickets_released, station_acknowledged, station_preparing, station_ready, items_collected, items_served, station_exception |
 | `ordering.note_kind` | customer, allergy_declaration, kitchen_instruction, private_staff |
-| `ordering.order_origin` | guest_qr, waiter_entered |
+| `ordering.order_origin` | guest_qr, waiter_entered, counter |
 | `ordering.order_state` | submitted, accepted, rejected, cancelled, voided |
 | `org.lifecycle_status` | active, inactive, archived |
 | `org.node_kind` | brand, legal_entity, outlet, service_area, preparation_station, dining_table, device |
@@ -95,14 +101,29 @@ graph LR
   org_org_node["org.org_node"]
   org_tenant["org.tenant"]
   audit_security_event["audit.security_event"]
-  config_configuration_version["config.configuration_version"]
+  billing_bill["billing.bill"]
+  billing_check["billing.check"]
+  billing_bill_component["billing.bill_component"]
+  billing_bill_disposition["billing.bill_disposition"]
+  config_reason_code["config.reason_code"]
   identity_user_account["identity.user_account"]
+  pos_override_approval["pos.override_approval"]
+  billing_bill_event["billing.bill_event"]
+  service_table_session["service.table_session"]
+  billing_check_allocation["billing.check_allocation"]
+  billing_component_wording["billing.component_wording"]
+  billing_service_charge_setting["billing.service_charge_setting"]
+  config_configuration_version["config.configuration_version"]
+  billing_tip["billing.tip"]
+  billing_bill_share["billing.bill_share"]
+  billing_tip_correction["billing.tip_correction"]
+  billing_tip_setting["billing.tip_setting"]
+  billing_tip_suggestion["billing.tip_suggestion"]
   config_entitlement["config.entitlement"]
   config_issued_document_number["config.issued_document_number"]
   config_number_series["config.number_series"]
   config_policy["config.policy"]
   identity_governed_action["identity.governed_action"]
-  config_reason_code["config.reason_code"]
   config_reason_code_label["config.reason_code_label"]
   config_retention_policy["config.retention_policy"]
   fulfillment_priority_change["fulfillment.priority_change"]
@@ -160,7 +181,6 @@ graph LR
   menu_translatable_field["menu.translatable_field"]
   notify_deep_link["notify.deep_link"]
   notify_notice["notify.notice"]
-  service_table_session["service.table_session"]
   notify_notification["notify.notification"]
   service_guest_session["service.guest_session"]
   notify_catalog_event["notify.catalog_event"]
@@ -185,7 +205,6 @@ graph LR
   pos_fast_pick["pos.fast_pick"]
   pos_handover["pos.handover"]
   pos_handover_item["pos.handover_item"]
-  pos_override_approval["pos.override_approval"]
   pos_terminal["pos.terminal"]
   safety_jurisdiction["safety.jurisdiction"]
   safety_declaration["safety.declaration"]
@@ -219,6 +238,36 @@ graph LR
   audit_operational_event --> org_tenant
   audit_security_event --> org_org_node
   audit_security_event --> org_tenant
+  billing_bill --> billing_bill
+  billing_bill --> billing_check
+  billing_bill --> org_org_node
+  billing_bill --> org_tenant
+  billing_bill_component --> billing_bill
+  billing_bill_disposition --> billing_check
+  billing_bill_disposition --> config_reason_code
+  billing_bill_disposition --> identity_user_account
+  billing_bill_disposition --> pos_override_approval
+  billing_bill_event --> config_reason_code
+  billing_bill_event --> identity_user_account
+  billing_bill_event --> org_org_node
+  billing_bill_event --> org_tenant
+  billing_check --> billing_check
+  billing_check --> identity_user_account
+  billing_check --> org_org_node
+  billing_check --> org_tenant
+  billing_check --> service_table_session
+  billing_check_allocation --> billing_check
+  billing_component_wording --> org_org_node
+  billing_component_wording --> org_tenant
+  billing_service_charge_setting --> config_configuration_version
+  billing_service_charge_setting --> org_org_node
+  billing_tip --> billing_bill_share
+  billing_tip_correction --> billing_tip
+  billing_tip_correction --> config_reason_code
+  billing_tip_correction --> identity_user_account
+  billing_tip_correction --> pos_override_approval
+  billing_tip_setting --> org_org_node
+  billing_tip_suggestion --> billing_tip_setting
   config_configuration_version --> identity_user_account
   config_configuration_version --> org_org_node
   config_configuration_version --> org_tenant
@@ -688,6 +737,442 @@ Constraints:
 Policies:
 
 - `security_event_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+### `billing`
+
+Checks, bills, splitting and tips (FR-BIL-001 through FR-BIL-016). Separate from ordering because a bill is a view onto an order rather than a part of one: the order ledger is append-only and untouched by anything here, which is what FR-BIL-001's "without changing order ownership or history" means in practice.
+
+#### `billing.bill`
+
+FR-BIL-005 through FR-BIL-009. The calculated document issued from a check. A projection: nothing writes it outside the writers that set the fold's marker, and the total is asserted to equal the sum of its components. THERE IS NO TIP COLUMN — a tip is a separate value and a separate record (FR-BIL-014), and the absence of a column is what makes that structural rather than a habit.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `check_id` | `uuid` | NOT NULL |  |  |
+| `bill_number` | `text` | NOT NULL |  |  |
+| `state` | `billing.bill_state` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `bill_total_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `disposed_minor` | `money.amount_minor` | NOT NULL | `0` |  |
+| `calculation_version` | `text` | NOT NULL |  |  |
+| `locale` | `menu.customer_locale` | NOT NULL |  |  |
+| `issued_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `finalized_at` | `timestamp with time zone` |  |  |  |
+| `reissued_as_bill_id` | `uuid` |  |  |  |
+| `supersedes_bill_id` | `uuid` |  |  |  |
+| `ledger_sequence` | `integer` | NOT NULL | `0` |  |
+
+Constraints:
+
+- `bill_calculation_version_stated` — `CHECK ((btrim(calculation_version) <> ''::text))`
+- `bill_check_fk` — `FOREIGN KEY (tenant_id, check_id) REFERENCES billing."check"(tenant_id, id) ON DELETE RESTRICT`
+- `bill_currency_is_iso` — `CHECK ((currency_code ~ '^[A-Z]{3}$'::text))`
+- `bill_disposed_within_total` — `CHECK ((((disposed_minor)::bigint >= 0) AND ((disposed_minor)::bigint <= (bill_total_minor)::bigint)))`
+- `bill_does_not_supersede_itself` — `CHECK (((supersedes_bill_id IS DISTINCT FROM id) AND (reissued_as_bill_id IS DISTINCT FROM id)))`
+- `bill_finalization_consistent` — `CHECK (((state = 'finalized'::billing.bill_state) = (finalized_at IS NOT NULL)))`
+- `bill_ledger_sequence_not_negative` — `CHECK ((ledger_sequence >= 0))`
+- `bill_number_unique` — `UNIQUE (tenant_id, outlet_id, bill_number)`
+- `bill_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `bill_pkey` — `PRIMARY KEY (id)`
+- `bill_reissue_fk` — `FOREIGN KEY (tenant_id, reissued_as_bill_id) REFERENCES billing.bill(tenant_id, id) ON DELETE RESTRICT`
+- `bill_supersedes_fk` — `FOREIGN KEY (tenant_id, supersedes_bill_id) REFERENCES billing.bill(tenant_id, id) ON DELETE RESTRICT`
+- `bill_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `bill_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `bill_total_not_negative` — `CHECK (((bill_total_minor)::bigint >= 0))`
+
+Policies:
+
+- `bill_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `billing.bill_component`
+
+FR-BIL-005. Item subtotal, discount, tax and fee, each computed exactly and each recording the basis it was computed from. One per kind per bill, so the total is a sum with no double-counted term.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `bill_id` | `uuid` | NOT NULL |  |  |
+| `kind` | `ordering.charge_kind` | NOT NULL |  |  |
+| `source_kind` | `ordering.charge_source_kind` | NOT NULL |  |  |
+| `source_id` | `uuid` |  |  |  |
+| `basis` | `jsonb` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+
+Constraints:
+
+- `bill_component_basis_is_an_object` — `CHECK ((jsonb_typeof(basis) = 'object'::text))`
+- `bill_component_bill_fk` — `FOREIGN KEY (tenant_id, bill_id) REFERENCES billing.bill(tenant_id, id) ON DELETE CASCADE`
+- `bill_component_currency_is_iso` — `CHECK ((currency_code ~ '^[A-Z]{3}$'::text))`
+- `bill_component_one_per_kind` — `UNIQUE (bill_id, kind)`
+- `bill_component_pkey` — `PRIMARY KEY (id)`
+- `bill_component_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `bill_total_is_the_sum_of_its_components` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
+
+Policies:
+
+- `bill_component_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `billing.bill_disposition`
+
+FR-BIL-008's second branch. At M4-A it is the only branch: nothing here takes money, so a bill reaches a settled balance by being comped, written off or transferred, each with an override that names two people and a reason that names why.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `bill_id` | `uuid` | NOT NULL |  |  |
+| `kind` | `billing.disposition_kind` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `override_id` | `uuid` | NOT NULL |  |  |
+| `reason_code_id` | `uuid` | NOT NULL |  |  |
+| `reason_text` | `text` | NOT NULL |  |  |
+| `actor_user_id` | `uuid` | NOT NULL |  |  |
+| `disposed_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `transferred_to_check_id` | `uuid` |  |  |  |
+
+Constraints:
+
+- `bill_disposition_actor_fk` — `FOREIGN KEY (tenant_id, actor_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `bill_disposition_amount_positive` — `CHECK (((amount_minor)::bigint > 0))`
+- `bill_disposition_currency_is_iso` — `CHECK ((currency_code ~ '^[A-Z]{3}$'::text))`
+- `bill_disposition_override_fk` — `FOREIGN KEY (tenant_id, override_id) REFERENCES pos.override_approval(tenant_id, id) ON DELETE RESTRICT`
+- `bill_disposition_pkey` — `PRIMARY KEY (id)`
+- `bill_disposition_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `bill_disposition_states_a_reason` — `CHECK ((btrim(reason_text) <> ''::text))`
+- `bill_disposition_target_fk` — `FOREIGN KEY (tenant_id, transferred_to_check_id) REFERENCES billing."check"(tenant_id, id) ON DELETE RESTRICT`
+- `bill_disposition_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `bill_disposition_transfer_names_a_destination` — `CHECK (((kind = 'transferred'::billing.disposition_kind) = (transferred_to_check_id IS NOT NULL)))`
+
+Policies:
+
+- `bill_disposition_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `billing.bill_event`
+
+FR-BIL-009 and FR-DAT-008A. The authoritative record of everything that happened to a bill. Append-only by trigger and by grant. Every projection below is folded from it, so a rebuild reproduces them and a correction is an event rather than an edit.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `bigint` | NOT NULL | `nextval('billing.bill_event_id_seq'::regclass)` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `bill_id` | `uuid` | NOT NULL |  |  |
+| `sequence_number` | `integer` | NOT NULL |  |  |
+| `kind` | `billing.bill_event_kind` | NOT NULL |  |  |
+| `occurred_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `actor_user_id` | `uuid` |  |  |  |
+| `override_id` | `uuid` |  |  |  |
+| `reason_code_id` | `uuid` |  |  |  |
+| `reason_text` | `text` |  |  |  |
+| `before` | `jsonb` |  |  |  |
+| `after` | `jsonb` |  |  |  |
+| `correlation_id` | `uuid` |  |  |  |
+
+Constraints:
+
+- `bill_event_actor_fk` — `FOREIGN KEY (tenant_id, actor_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `bill_event_correction_states_a_reason` — `CHECK (((kind <> ALL (ARRAY['voided'::billing.bill_event_kind, 'credited'::billing.bill_event_kind, 'reissued'::billing.bill_event_kind])) OR ((reason_code_id IS NOT NULL) AND (btrim(COALESCE(reason_text, ''::text)) <> ''::text))))`
+- `bill_event_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `bill_event_pkey` — `PRIMARY KEY (id)`
+- `bill_event_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `bill_event_sequence_positive` — `CHECK ((sequence_number >= 1))`
+- `bill_event_sequence_unique` — `UNIQUE (tenant_id, bill_id, sequence_number)`
+- `bill_event_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `bill_event_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `billing.bill_share`
+
+FR-BIL-003. One payer's share of a bill. Shares sum to the bill total exactly — billing.assert_shares_sum_to_the_bill() refuses any set that does not — so a split can neither lose a minor unit nor create one.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `bill_id` | `uuid` | NOT NULL |  |  |
+| `share_number` | `integer` | NOT NULL |  |  |
+| `mode` | `billing.split_mode` | NOT NULL |  |  |
+| `participant_guest_session_id` | `uuid` |  |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+
+Constraints:
+
+- `bill_share_amount_not_negative` — `CHECK (((amount_minor)::bigint >= 0))`
+- `bill_share_currency_is_iso` — `CHECK ((currency_code ~ '^[A-Z]{3}$'::text))`
+- `bill_share_number_positive` — `CHECK ((share_number >= 1))`
+- `bill_share_number_unique` — `UNIQUE (bill_id, share_number)`
+- `bill_share_pkey` — `PRIMARY KEY (id)`
+- `bill_share_sums_to_the_bill` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
+- `bill_share_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `bill_share_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `billing.check`
+
+FR-BIL-001. What a party is being billed for: an allocation of order lines, created from accepted or served lines and changing nothing about them. A check may be split or merged while the money is still undecided; once a bill is issued from it the money is decided and corrections go through FR-BIL-009's void, credit and reissue instead.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `table_session_id` | `uuid` | NOT NULL |  |  |
+| `check_number` | `text` | NOT NULL |  |  |
+| `state` | `billing.check_state` | NOT NULL | `'open'::billing.check_state` |  |
+| `merged_into_check_id` | `uuid` |  |  |  |
+| `split_from_check_id` | `uuid` |  |  |  |
+| `opened_by_user_id` | `uuid` | NOT NULL |  |  |
+| `opened_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `closed_at` | `timestamp with time zone` |  |  |  |
+
+Constraints:
+
+- `check_closure_consistent` — `CHECK (((state = 'open'::billing.check_state) = (closed_at IS NULL)))`
+- `check_does_not_merge_into_itself` — `CHECK ((merged_into_check_id IS DISTINCT FROM id))`
+- `check_does_not_split_from_itself` — `CHECK ((split_from_check_id IS DISTINCT FROM id))`
+- `check_merge_target_only_when_merged` — `CHECK (((state = 'merged'::billing.check_state) = (merged_into_check_id IS NOT NULL)))`
+- `check_merged_into_fk` — `FOREIGN KEY (tenant_id, merged_into_check_id) REFERENCES billing."check"(tenant_id, id) ON DELETE RESTRICT`
+- `check_number_unique` — `UNIQUE (tenant_id, outlet_id, check_number)`
+- `check_opener_fk` — `FOREIGN KEY (tenant_id, opened_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `check_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `check_pkey` — `PRIMARY KEY (id)`
+- `check_session_fk` — `FOREIGN KEY (tenant_id, table_session_id) REFERENCES service.table_session(tenant_id, id) ON DELETE RESTRICT`
+- `check_split_from_fk` — `FOREIGN KEY (tenant_id, split_from_check_id) REFERENCES billing."check"(tenant_id, id) ON DELETE RESTRICT`
+- `check_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `check_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `"check"_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `billing.check_allocation`
+
+FR-BIL-002. Which order line units this check bills for. There is no amount column: an allocation says WHAT is billed and the bill says what it COSTS, so the price a guest is asked for is calculated once from the order's own snapshot rather than copied here where it could drift from it.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `check_id` | `uuid` | NOT NULL |  |  |
+| `order_id` | `uuid` | NOT NULL |  |  |
+| `order_line_id` | `uuid` | NOT NULL |  |  |
+| `quantity` | `integer` | NOT NULL |  |  |
+| `allocated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `check_allocation_check_fk` — `FOREIGN KEY (tenant_id, check_id) REFERENCES billing."check"(tenant_id, id) ON DELETE CASCADE`
+- `check_allocation_never_bills_a_unit_twice` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
+- `check_allocation_once_per_line` — `UNIQUE (check_id, order_line_id)`
+- `check_allocation_pkey` — `PRIMARY KEY (id)`
+- `check_allocation_quantity_positive` — `CHECK ((quantity >= 1))`
+- `check_allocation_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `check_allocation_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `billing.component_wording`
+
+FR-BIL-007. What a bill calls each of its components, in the language the order was placed in. Identity and the English source only; the Amharic and Arabic live in menu.translation where a person has to review and approve them. No migration writes one, because an approved translation asserts that somebody read it.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `kind` | `ordering.charge_kind` | NOT NULL |  |  |
+| `source_text` | `text` | NOT NULL |  |  |
+| `status` | `org.lifecycle_status` | NOT NULL | `'active'::org.lifecycle_status` |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `component_wording_one_per_kind` — `UNIQUE (tenant_id, kind)`
+- `component_wording_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `component_wording_pkey` — `PRIMARY KEY (id)`
+- `component_wording_row_version_positive` — `CHECK ((row_version > 0))`
+- `component_wording_source_not_blank` — `CHECK ((btrim(source_text) <> ''::text))`
+- `component_wording_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `component_wording_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `component_wording_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `billing.service_charge_setting`
+
+FR-CFG-001C and FR-ORD-003's fee component. The configured source 'fee' never had until now: it points at a config.configuration_version so the value a bill used is the approved one and stays recoverable, exactly as the tax component does.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `configuration_version_id` | `uuid` | NOT NULL |  |  |
+| `percentage` | `money.percentage` | NOT NULL |  |  |
+| `rounding` | `money.rounding_mode` | NOT NULL |  |  |
+| `applies_to` | `ordering.charge_kind[]` | NOT NULL | `ARRAY['item_subtotal'::ordering.charge_kind]` |  |
+| `effective_from` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `service_charge_applies_to_something` — `CHECK ((array_length(applies_to, 1) >= 1))`
+- `service_charge_not_charged_on_itself` — `CHECK ((NOT ('fee'::ordering.charge_kind = ANY (applies_to))))`
+- `service_charge_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `service_charge_percentage_sane` — `CHECK ((((percentage)::numeric >= (0)::numeric) AND ((percentage)::numeric <= (100)::numeric)))`
+- `service_charge_setting_pkey` — `PRIMARY KEY (tenant_id, outlet_id)`
+- `service_charge_version_fk` — `FOREIGN KEY (configuration_version_id) REFERENCES config.configuration_version(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `service_charge_setting_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `billing.tip`
+
+FR-BIL-014 and FR-BIL-015. A tip, attached to one payer's share. It is in its own table with its own currency and amount because bill balance and tip are separate values and separate records; there is no column anywhere in billing.bill that could hold one, and the total's trigger sums components rather than tips.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `bill_share_id` | `uuid` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `chosen_from_percentage` | `money.percentage` |  |  |  |
+| `chosen_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `tip_amount_positive` — `CHECK (((amount_minor)::bigint > 0))`
+- `tip_currency_is_iso` — `CHECK ((currency_code ~ '^[A-Z]{3}$'::text))`
+- `tip_one_per_share` — `UNIQUE (bill_share_id)`
+- `tip_pkey` — `PRIMARY KEY (id)`
+- `tip_share_fk` — `FOREIGN KEY (tenant_id, bill_share_id) REFERENCES billing.bill_share(tenant_id, id) ON DELETE RESTRICT`
+- `tip_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `tip_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `billing.tip_correction`
+
+FR-BIL-016. A reversal, refund or correction of a tip, LINKED to the original rather than replacing it. It carries an override, so M3-D's rule that an approver is never the actor applies here without being written a second time — which is NC-M4-004's maker-checker for the half of it that exists at this gate.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `tip_id` | `uuid` | NOT NULL |  |  |
+| `kind` | `billing.tip_correction_kind` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `reason_code_id` | `uuid` | NOT NULL |  |  |
+| `reason_text` | `text` | NOT NULL |  |  |
+| `actor_user_id` | `uuid` | NOT NULL |  |  |
+| `override_id` | `uuid` | NOT NULL |  |  |
+| `corrected_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `tip_correction_actor_fk` — `FOREIGN KEY (tenant_id, actor_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `tip_correction_amount_positive` — `CHECK (((amount_minor)::bigint > 0))`
+- `tip_correction_currency_is_iso` — `CHECK ((currency_code ~ '^[A-Z]{3}$'::text))`
+- `tip_correction_override_fk` — `FOREIGN KEY (tenant_id, override_id) REFERENCES pos.override_approval(tenant_id, id) ON DELETE RESTRICT`
+- `tip_correction_pkey` — `PRIMARY KEY (id)`
+- `tip_correction_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `tip_correction_states_a_reason` — `CHECK ((btrim(reason_text) <> ''::text))`
+- `tip_correction_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `tip_correction_tip_fk` — `FOREIGN KEY (tenant_id, tip_id) REFERENCES billing.tip(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `tip_correction_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `billing.tip_setting`
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `offered` | `boolean` | NOT NULL | `true` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `tip_setting_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `tip_setting_pkey` — `PRIMARY KEY (tenant_id, outlet_id)`
+
+Policies:
+
+- `tip_setting_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `billing.tip_suggestion`
+
+FR-BIL-013. Amounts a guest may tap, in a layout order. THERE IS NO COLUMN FOR A DEFAULT and that is the requirement: no tip is selected by default, so the model is given nowhere to say one is. NC-M4-001 plants the defect at the only level left — the surface preselecting one — and tests/m4a measures the rendered page for it.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `display_order` | `integer` | NOT NULL |  |  |
+| `percentage` | `money.percentage` | NOT NULL |  |  |
+
+Constraints:
+
+- `tip_suggestion_order_positive` — `CHECK ((display_order >= 1))`
+- `tip_suggestion_percentage_sane` — `CHECK ((((percentage)::numeric > (0)::numeric) AND ((percentage)::numeric <= (100)::numeric)))`
+- `tip_suggestion_pkey` — `PRIMARY KEY (tenant_id, outlet_id, display_order)`
+- `tip_suggestion_setting_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES billing.tip_setting(tenant_id, outlet_id) ON DELETE CASCADE`
+
+Policies:
+
+- `tip_suggestion_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
 ### `config`
 
@@ -2972,7 +3457,7 @@ Constraints:
 - `customer_order_idempotency_key_not_blank` — `CHECK ((btrim(idempotency_key) <> ''::text))`
 - `customer_order_number_not_blank` — `CHECK ((btrim(order_number) <> ''::text))`
 - `customer_order_one_per_key` — `UNIQUE (tenant_id, outlet_id, idempotency_key)`
-- `customer_order_origin_consistent` — `CHECK ((((origin = 'guest_qr'::ordering.order_origin) AND (placed_by_guest_session_id IS NOT NULL) AND (placed_by_user_id IS NULL)) OR ((origin = 'waiter_entered'::ordering.order_origin) AND (placed_by_user_id IS NOT NULL) AND (placed_by_guest_session_id IS NULL))))`
+- `customer_order_origin_consistent` — `CHECK ((((origin = 'guest_qr'::ordering.order_origin) AND (placed_by_guest_session_id IS NOT NULL) AND (placed_by_user_id IS NULL)) OR ((origin = ANY (ARRAY['waiter_entered'::ordering.order_origin, 'counter'::ordering.order_origin])) AND (placed_by_user_id IS NOT NULL) AND (placed_by_guest_session_id IS NULL))))`
 - `customer_order_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
 - `customer_order_pkey` — `PRIMARY KEY (id)`
 - `customer_order_resolution_consistent` — `CHECK (((state = ANY (ARRAY['submitted'::ordering.order_state, 'accepted'::ordering.order_state])) = (resolved_at IS NULL)))`
@@ -4415,6 +4900,7 @@ Row level security: **enabled**, **forced**.
 | `outstanding_orders` | `integer` | NOT NULL |  |  |
 | `note` | `text` | NOT NULL |  |  |
 | `recorded_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `unsettled_bills` | `integer` | NOT NULL | `0` | FR-TAB-009's financial condition: how many live bills on this occupancy still owed money when it was closed over an exception. Separate from outstanding_orders because they are different reasons and a manager reading the record needs to know which. |
 
 Constraints:
 

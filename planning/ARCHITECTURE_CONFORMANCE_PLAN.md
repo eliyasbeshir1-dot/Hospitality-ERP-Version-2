@@ -4,7 +4,7 @@
      Do not edit by hand: CI regenerates this file and fails on any difference. -->
 
 **Repository:** `Hospitality-ERP-Version-2`
-**Gate:** M3 — building, through **M3-D**
+**Gate:** M4 — building, through **M4-A**
 **Governing requirement:** FR-GOV-001A
 **Source of truth:** `docs/Hospitality_OS_Phase_1_Clean_Build_Package_v2.0.9/`, pinned at
 `b89a2d4211356be5941dc25ff2dc540728c87ed761ffd9894a3f2691ccf5b590`
@@ -77,7 +77,7 @@ Each is created at its own gate, never earlier. Built or not is read from the re
 | Customer PWA | M2 | QR menu, cart, ordering, status — three languages | yes |
 | KDS surface | M3 | station tickets, expo, allergy salience | yes |
 | Waiter surface | M3 | order entry, role home, table view, handover | yes |
-| POS and billing | M4 | checks, splitting, separate tips, payments, receipts | not yet |
+| POS and billing | M4 | checks, splitting, separate tips, payments, receipts | yes |
 | Outlet Continuity Node | M5a | local API, local PostgreSQL, sync worker, print agent | — |
 | Same-QR routing | M5b | split-horizon DNS, per-outlet TLS, authority lease | — |
 
@@ -153,7 +153,7 @@ Every gate begins only when **all** of the following hold:
 - CI runs the validators and fails closed
 
 A gate's first migration is created at that gate, not before. This repository holds
-17, `0001` through `0017`.
+21, `0001` through `0021`.
 
 ---
 

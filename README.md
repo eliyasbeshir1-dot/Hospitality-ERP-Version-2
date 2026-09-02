@@ -20,6 +20,7 @@
 | **M3-B** | fulfillment: routing, station tickets, the eleven-state machine enforced in the database, the KDS, expo and non-colour-only allergy salience | `ab63b82` |
 | **M3-C** | service requests, ephemeral presence, in-app notifications, deep links, the dead-letter queue and customer status in the session's language | `ccd83fe` |
 | **M3-D** | the waiter surface: terminals, role home and table view, waiter-entered ordering on the one order aggregate, operational search, manager override without shared credentials, and handover | `40f86ca` |
+| **M4-A** | checks and allocation that cannot bill a unit twice, exact calculation carrying a persisted version, five split modes with deterministic rounding, merge and split of checks, tips kept structurally out of every bill balance, and the counter channel on the same order aggregate | `unreleased` |
 
 The M1 evidence report is at `evidence/M1_EVIDENCE_REPORT.md`.
 
@@ -68,6 +69,10 @@ not have, or is still open after its completing gate has landed.
 
 | Requirement | Half that waits | Completed at |
 |---|---|---|
+| **FR-BIL-007** | the printed bill | M4-C |
+| **FR-BIL-008** | settlement by tender | M4-B |
+| **FR-BIL-014** | total tendered | M4-B |
+| **FR-BIL-016** | tip refund through a provider | M4-B |
 | **FR-DAT-010** | financial projections | M4-A |
 | **FR-FUL-001** | routing during an outage | M5a |
 | **FR-FUL-003** | KDS from the local node | M5a |
@@ -90,6 +95,7 @@ not have, or is still open after its completing gate has landed.
 | **FR-ORD-003** | fee component | M4-A |
 | **FR-ORD-005** | fee snapshot | M4-A |
 | **FR-ORD-006** | station capacity | M3-B |
+| **FR-ORD-007B** | acceptance on a verified payment outcome | M4-B |
 | **FR-ORD-009** | separate fulfillment per add-on order | M3-B |
 | **FR-ORD-010** | post-preparation refusal | M3-B |
 | **FR-ORD-011** | payment dimension of the cancellation policy | M4-B |
@@ -120,7 +126,7 @@ position is to write fresh.
 
 | Path | Contents |
 |---|---|
-| `api/` | the cloud API — Fastify and TypeScript, two runtime dependencies, serving `api`, `customer`, `health`, `service`, `staff`, `station` and `surface` |
+| `api/` | the cloud API — Fastify and TypeScript, two runtime dependencies, serving `api`, `billing`, `customer`, `health`, `service`, `staff`, `station` and `surface` |
 | `docs/` | the approved v2.0.9 package, byte-identical and verified by its own `SHA256SUMS.txt` |
 | `docs-local/` | cross-platform command reference |
 | `evidence/` | `M1_EVIDENCE_REPORT.md`, generated from the repository, database and suite logs |
@@ -128,7 +134,7 @@ position is to write fresh.
 | `planning/` | architecture conformance, migration ownership, CI matrix, known limitations |
 | `schema/` | `SCHEMA_CATALOG.md`, generated from the live database, never hand-written |
 | `seeds/` | demonstration tenants and reason-code sets, with their own ordered record |
-| `tests/` | verification suites — 11 that each verify one slice, and 2 that cut across gates |
+| `tests/` | verification suites — 12 that each verify one slice, and 2 that cut across gates |
 | `tools/` | migration and seed runners, generators, and the forbidden-surface verifier |
 
 ## Migrations
@@ -152,6 +158,10 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0015_terminals_override_handover_and_staff_surface.sql`
 - `0016_translatable_order_status_wording.sql`
 - `0017_localized_customer_status_timeline.sql`
+- `0018_counter_origin_and_billing_artifacts.sql`
+- `0019_checks_bills_splitting_and_tip_separation.sql`
+- `0020_counter_channel_and_payment_dependent_acceptance.sql`
+- `0021_financial_conditions_on_closure_and_completion.sql`
 
 ## Seeds
 
@@ -184,6 +194,7 @@ bash tests/m1d/run_verification.sh         # rebuilds from empty, runs every sli
 | `tests/m3b/verify_m3b.py` | fulfillment: versioned routing to stations, tickets separate from the commercial order, every ordered pair of SM-FULFILLMENT-TICKET's eleven states walked against the database, expo blocking, printer-fallback deduplication, and allergy salience measured in a colour-flattened render |
 | `tests/m3c/verify_m3c.py` | service requests: a translated catalog, routing by table, area, role and presence, deduplication that collapses an accident and keeps a deliberate repeat, presence proved discarded rather than marked, notifications with nothing sensitive in a payload or a log, deep links that respect session scope, and a dead-letter queue whose replay cannot duplicate |
 | `tests/m3d/verify_m3d.py` | the waiter surface rendered in a real browser: terminals and their revocation, role home ordered by what is overdue, waiter-entered ordering proved to be the same code path as QR ordering rather than a second one that agrees, manager override that cannot be obtained by sharing a credential, handover that cannot lose a table, and confirmation friction graded by consequence and measured by pressing the buttons |
+| `tests/m4a/verify_m4a.py` | checks, bills and tips: allocation that cannot bill a unit twice across a set of checks, every component recomputed independently and compared, five split modes exercised at payer counts that do not divide evenly, tip separation proved from the catalog before it is proved by behaviour, and the bill summary and tip box measured as two rectangles in a real browser |
 
 Every suite runs against a real PostgreSQL through the least-privileged application role,
 and every negative control is proved red with a defect planted before it is trusted green.

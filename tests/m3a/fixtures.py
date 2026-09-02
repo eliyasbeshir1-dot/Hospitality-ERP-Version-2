@@ -146,7 +146,24 @@ def _seed_service_window() -> None:
 
 
 def _seed_policies_and_rules() -> None:
-    """The policies an order is handled under, and the charge rules with real sources."""
+    """The policies an order is handled under, and the charge rules with real sources.
+
+    THE ACCEPTANCE BLOCK NAMES ALL THREE ORIGINS, INCLUDING THE COUNTER, AND IT IS
+    STATED HERE RATHER THAN ADDED BY M4-A.
+
+    There is one ordering policy per outlet and ordering.submit_order() resolves the mode
+    by looking the origin up inside it. A later slice that appended its channel by
+    UPDATE-ing an approved policy would be editing a versioned configuration artifact to
+    make a test pass, and a later slice that added a SECOND policy version would leave two
+    in force — which M3-A's own "an outlet with no ordering policy in force accepts no
+    order at all" check would then fail, because expiring the first would no longer leave
+    the outlet without one. Both routes make the counter a special case of the thing
+    FR-ORD-001B says must not be special.
+
+    So the policy states how this outlet accepts an order of each origin, in one place,
+    the way the running system would. Nothing at M3 submits a counter order; the counter
+    origin arrives with migration 0018 and tests/m4a is what exercises it.
+    """
     res = run(APP, f"""
         INSERT INTO config.configuration_version
             (id, tenant_id, outlet_id, scope_kind, scope_node_id, category, version,
@@ -164,7 +181,8 @@ def _seed_policies_and_rules() -> None:
         VALUES
             ('{ORDERING_POLICY}', '{TENANT}', '{OUTLET_H1}', 'ordering', 1,
              '{{"acceptance": {{"guest_qr": "staff_confirmed",
-                                "waiter_entered": "automatic"}},
+                                "waiter_entered": "automatic",
+                                "counter": "staff_confirmed"}},
                 "max_line_quantity": 20,
                 "duplicate_window_seconds": 300,
                 "amendment_allowed_states": ["submitted"]}}'::jsonb,

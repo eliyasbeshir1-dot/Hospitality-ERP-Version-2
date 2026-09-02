@@ -601,15 +601,35 @@ def section_reason_codes() -> None:
     # the property that outlives every gate: a consumer REFERENCES the registry and never
     # copies it. A second table holding reason codes is how two lists come to disagree
     # about what a cancellation means.
-    unbilled = count(ADMIN, """
-        SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND c.relname ~* '(^|_)(check|payment|tip|refund|settlement)($|_)';
-    """)
-    record("nothing that consumes a reason code at a LATER gate has been built early",
-           unbilled == 0,
-           f"{unbilled} table(s) naming a check, payment, tip, refund or settlement — "
-           f"all of them M4. Order tables may exist from M3 and do")
+    #
+    # ITS SECOND FORM — "no check, payment, tip, refund or settlement table exists yet,
+    # because all of them are M4" — retired at M4-A for the same reason the first retired
+    # at M3-A: the gate it was fencing arrived. A criterion whose subject has been built
+    # is not evidence of anything, and a check that can no longer fail is a defect.
+    #
+    # What replaces it is the boundary that outlives every remaining gate. The money
+    # vocabulary belongs to the schema that records what is OWED. It must never appear in
+    # the schemas that record what was ORDERED, PREPARED or PUBLISHED, because FR-BIL-001
+    # makes a check a view onto the order ledger rather than an edit of it — and the way
+    # that stops being true is a payment or tip column bolted onto an order table by
+    # somebody in a hurry, not by anybody deciding it.
+    misplaced = run(ADMIN, """
+        SELECT n.nspname || '.' || c.relname
+        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'r'
+          AND n.nspname IN ('ordering', 'service', 'fulfillment', 'menu')
+          AND c.relname ~* '(^|_)(check|payment|tip|refund|settlement)($|_)'
+        ORDER BY 1;""")
+    if not misplaced.ok:
+        raise CommandUnreadable(
+            f"the misplaced-money-table scan did not run: {misplaced.why()}")
+    intruders = [r[0] for r in misplaced.rows]
+    record("no money vocabulary has leaked into the schemas that record what was ordered",
+           not intruders,
+           f"check, payment, tip, refund or settlement tables outside the billing "
+           f"schema: {intruders or 'none'}. A check is a VIEW onto the order ledger "
+           f"(FR-BIL-001); the moment one becomes a column on an order table, the order "
+           f"history stops being what the guest asked for")
 
     consumers = run(ADMIN, """
         SELECT n.nspname || '.' || c.relname

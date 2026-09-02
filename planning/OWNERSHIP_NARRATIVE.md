@@ -21,7 +21,7 @@
 **One domain owns each migration. No migration spans domains.**
 
 Ownership follows the gate that introduces the requirement, so a migration is never
-written before its governing gate. The gate at which each of the 336
+written before its governing gate. The gate at which each of the {{ACTIVE_REQUIREMENTS}}
 active requirements is introduced is recorded in
 `docs/…/02_MACHINE_READABLE/requirements.json` under `introduced_at`; the component each
 maps to is recorded under `component_path`.
@@ -35,75 +35,28 @@ migration spans domains" a sentence every migration satisfies by touching nothin
 
 ---
 
-## Gate distribution of the 336 active requirements
+## Gate distribution of the {{ACTIVE_REQUIREMENTS}} active requirements
 
 Counted from `active_requirements` in the pinned package, by `introduced_at`.
 
-| Gate | Requirements | Domain focus |
-|---|---:|---|
-| M0 | 2 | package governance |
-| M0R | 30 | repository conformance |
-| M1 | 77 | foundation, security, tenancy, identity, data architecture |
-| M2 | 49 | menu, localization, safety, tables, QR, sessions |
-| M3 | 75 | orders, waiter, fulfillment, KDS, service requests, notifications |
-| M4 | 55 | POS, checks, payments, tips, receipts, cash |
-| M5a | 24 | outlet node, sync, local printing |
-| M5b | 12 | same-QR DNS/TLS, reachability lease, authority fencing |
-| M6 | 12 | deployment, backup, reporting, hardening |
-| **Total** | **336** | |
+{{GATE_DISTRIBUTION}}
 
 ---
 
 ## The migrations this repository has
 
-21 of them, `0001_organizational_model_and_rls.sql` through `0021_financial_conditions_on_closure_and_completion.sql`, across
-15 domains. The owning domain of each is read out of its own SQL — the
+{{MIGRATION_COUNT}} of them, {{FIRST_MIGRATION}} through {{LAST_MIGRATION}}, across
+{{DOMAIN_COUNT}} domains. The owning domain of each is read out of its own SQL — the
 schemas it creates and the schemas it creates tables in — and the gate from the header
 comment every migration in this repository carries.
 
-| Migration | Owning domain | Also changes | Slice |
-|---|---|---|---|
-| `0001_organizational_model_and_rls.sql` | app · org | — | M1-A |
-| `0002_identity_memberships_and_authentication.sql` | identity | app | M1-B |
-| `0003_configuration_audit_money_and_quantity.sql` | money · config · audit | — | M1-C |
-| `0004_readiness_provenance_grants.sql` | — | — | M1-D |
-| `0005_security_event_storage_allocation_and_context.sql` | — | identity · money | M1-D |
-| `0006_menu_pricing_availability_and_translation.sql` | menu | — | M2-A |
-| `0007_safety_and_retention_enum_extensions.sql` | — | menu · config | M2-B |
-| `0008_tables_qr_guest_sessions_and_allergen_safety.sql` | safety · service · config | org · menu | M2-B |
-| `0009_customer_surface_locale_snapshot_and_idempotency.sql` | service | menu | M2-C |
-| `0010_orders_submission_snapshots_and_session_lifecycle.sql` | ordering · service | identity · config | M3-A |
-| `0011_fulfillment_timeline_event_kinds.sql` | — | ordering | M3-B |
-| `0012_fulfillment_tickets_stations_and_service.sql` | fulfillment | ordering | M3-B |
-| `0013_translatable_service_and_notification_entities.sql` | — | menu | M3-C |
-| `0014_service_requests_notifications_and_integration_runtime.sql` | notify · integration · service | ordering | M3-C |
-| `0015_terminals_override_handover_and_staff_surface.sql` | pos | identity · service | M3-D |
-| `0016_translatable_order_status_wording.sql` | — | menu | M3-D |
-| `0017_localized_customer_status_timeline.sql` | notify | ordering | M3-D |
-| `0018_counter_origin_and_billing_artifacts.sql` | — | ordering · menu | M4-A |
-| `0019_checks_bills_splitting_and_tip_separation.sql` | billing | config · pos | M4-A |
-| `0020_counter_channel_and_payment_dependent_acceptance.sql` | — | ordering | M4-A |
-| `0021_financial_conditions_on_closure_and_completion.sql` | — | service · fulfillment | M4-A |
+{{MIGRATION_TABLE}}
 
 ---
 
 ## The domains
 
-- **`app`** — context, row-scope predicate and shared triggers
-- **`audit`** — the append-only audit ledger every governed change is written to
-- **`billing`** — checks, allocation, bills, splitting, dispositions and tips
-- **`config`** — policies, configuration versions, numbering and retention
-- **`fulfillment`** — routing, station tickets and the fulfillment state machine
-- **`identity`** — users, roles, memberships, sessions and step-up
-- **`integration`** — outbound integration runtime and the dead-letter queue
-- **`menu`** — items, variants, modifiers, prices, dayparts and translation
-- **`money`** — exact amounts, rates, rounding and allocation
-- **`notify`** — notification templates, deliveries and status wording
-- **`ordering`** — the order aggregate, its ledger and its projections
-- **`org`** — tenants, outlets, the node tree and device registration
-- **`pos`** — terminals, override approval, handover and the staff read models
-- **`safety`** — allergens, dietary tags and the warnings a guest is shown
-- **`service`** — tables, QR resolution, guest sessions, carts and service requests
+{{DOMAINS}}
 
 ---
 
@@ -132,10 +85,10 @@ comment every migration in this repository carries.
 ## Forbidden domains — never receive a migration
 
 No table, column, enum value or index may be created, at any gate, for any of the
-11 fenced domains the package defines through
-63 controlled terms:
+{{FENCED_DOMAIN_COUNT}} fenced domains the package defines through
+{{FENCED_TERM_COUNT}} controlled terms:
 
-accounting_finance_ledger · data_portability_product · delivery · horeca_supplier_runtime · intelligence_ai · inventory_stock_storage · loyalty_crm_promotions · operational_recipes_costing · pickup · purchasing_procurement_supplier · workforce_hr_payroll
+{{FENCED_DOMAINS}}
 
 These are fenced by the negative requirements introduced at M0R and enforced by the
 forbidden-occurrence registry shipped in the package

@@ -267,3 +267,93 @@ body {
   margin: 0.5rem 0 0;
   font-weight: 600;
 }
+
+/*
+ * M4-A. The bill, and then the tip.
+ *
+ * TWO BLOCKS, ONE AFTER THE OTHER, AND THAT IS FR-BIL-007 RATHER THAN A LAYOUT CHOICE.
+ * The tip box is a sibling of the bill summary and is laid out below it, or beside it
+ * where there is room; it is never inside it and there is no rule here that could put it
+ * there. tests/m4a measures the two rectangles in a real browser rather than reading this
+ * comment.
+ *
+ * Nothing here is told by colour. An amount is a number in a column, a label is the word
+ * the server translated, and a chosen tip is a pressed button that also says so in text.
+ */
+.bill { margin-top: 1.5rem; }
+
+.bill-summary {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.bill-summary td, .bill-summary th {
+  padding: 0.35rem 0;
+  text-align: start;
+  vertical-align: baseline;
+}
+
+.bill-summary .bill-amount, .bill-summary .bill-total { text-align: end; }
+
+.bill-total-row th, .bill-total-row td {
+  border-block-start: 3px solid var(--ink);
+  font-weight: 700;
+  padding-block-start: 0.5rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/*
+ * The tip box. A separate block with its own heading, so a guest reads "your bill" and
+ * then "add a tip" rather than meeting a tip among the things they owe.
+ */
+.tip {
+  margin-top: 1.5rem;
+  padding: 0.75rem;
+  border: 2px dashed var(--ink);
+  border-radius: 8px;
+}
+
+.tip-hint { margin: 0 0 0.75rem; color: var(--ink-quiet); }
+
+.tip-options {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tip-option {
+  font: inherit;
+  min-height: 44px;
+  padding: 0.6rem 0.9rem;
+  color: var(--ink);
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+/*
+ * A chosen tip is thicker AND says so. Weight is not colour, and the word is what a
+ * guest who cannot see the border reads.
+ */
+.tip-option[aria-pressed="true"] { border-width: 4px; font-weight: 700; }
+
+.tip-outcome { margin: 0.5rem 0 0; font-weight: 600; }
+
+@media (min-width: 44rem) {
+  /* Beside, on a wide screen. Still a sibling, still never inside. */
+  .bill, .tip { display: inline-block; vertical-align: top; inline-size: 48%; }
+  .tip { margin-inline-start: 2%; }
+}
