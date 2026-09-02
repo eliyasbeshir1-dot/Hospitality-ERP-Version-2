@@ -100,6 +100,7 @@ not have, or is still open after its completing gate has landed.
 | **FR-TAB-007A** | service requests consolidated by a merge | M3-C |
 | **FR-TAB-008** | service requests preserved by a move | M3-C |
 | **FR-TAB-009** | financial closure condition | M4 |
+| **FR-UX-012** | budgets calibrated against the runner, not against wall clock alone | M4-A |
 | **SM-ORDER** | fulfillment labels derived rather than stored | M4 |
 
 ## Repository lineage
