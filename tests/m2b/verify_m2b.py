@@ -1398,25 +1398,32 @@ def section_boundary() -> None:
            f"{(columns.scalar or '').strip() or 'none'}. An allergen declaration names "
            f"what a guest must know, never an operational recipe, a quantity or a cost")
 
-    # The order surface left this pattern when M3-A built it, the same way 'cart' left
-    # M2-A's pattern when this slice built that. What M2-B still owns is the boundary
-    # BELOW its own: no fulfillment (M3-B), no service request (M3-C), no billing (M4).
-    # Fulfillment left this pattern when M3-B built it, exactly as the order surface left
-    # it at M3-A and 'cart' left M2-A's at M2-B. What M2-B still owns is the boundary
-    # below its own: no service request (M3-C), no billing (M4).
-    m3_m4 = run(ADMIN, """
+    # THE LAST GATE THIS CHECK WAS FENCING HAS LANDED, so the check narrows again rather
+    # than being deleted — the fourth time, and each time the boundary MOVED:
+    #
+    #   'cart'        left M2-A's pattern when this slice built it.
+    #   the order     left at M3-A, which polices its own boundary.
+    #   fulfillment   left at M3-B; service requests left at M3-C.
+    #   billing       leaves at M4-A, which builds it and proves from the catalog that
+    #                 the money vocabulary stays out of ordering, service, fulfillment
+    #                 and menu.
+    #
+    # What M2-B still owns, and will own at every remaining gate, is that ITS OWN schemas
+    # hold no billing surface. A table is a place a party sits; what they owe for sitting
+    # there is billing's, and a bill table appearing in service would be this slice
+    # growing an opinion about money.
+    billing_here = run(ADMIN, """
         SELECT coalesce(string_agg(n.nspname || '.' || c.relname, ', '), '')
         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+        WHERE c.relkind = 'r' AND n.nspname IN ('service', 'safety')
           AND c.relname ~* '(^|_)(check|bill|payment|tip|receipt)($|_)';
     """)
-    record("no billing surface exists",
-           m3_m4.ok and not (m3_m4.scalar or "").strip(),
-           f"{(m3_m4.scalar or '').strip() or 'none'}. A basket before submission is "
-           f"FR-TAB-005 and lives here; the order it becomes is M3-A and polices its own "
-           f"boundary; tickets are M3-B and service requests M3-C, both of which landed "
-           f"and left this pattern the way 'cart' left M2-A's. Billing is M4 and has "
-           f"not")
+    record("the schemas this slice owns hold no billing surface",
+           billing_here.ok and not (billing_here.scalar or "").strip(),
+           f"{(billing_here.scalar or '').strip() or 'none'}. A basket before submission "
+           f"is FR-TAB-005 and lives here; the order it becomes is M3-A's, tickets are "
+           f"M3-B's, service requests M3-C's and the bill M4-A's, and each left this "
+           f"pattern as it landed. What stays is the boundary below this slice's own")
 
     # Submission itself now exists, in the ordering schema, and M3-A proves it. What this
     # slice must still be able to say is that ITS OWN schemas contain no path across the

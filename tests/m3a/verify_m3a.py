@@ -247,14 +247,23 @@ def section_aggregate() -> None:
     # Stated as an exhaustive positive assertion rather than as a list of labels that
     # must be absent. An absence list only ever forbids what somebody thought of; this
     # says what the type IS, so any label at all that nobody put there fails it.
+    #
+    # THE LIST IS NO LONGER WRITTEN HERE. It said exactly ['guest_qr', 'waiter_entered']
+    # until M4-A added the counter, and a hand-written list is how a check comes to forbid
+    # the thing the next gate was supposed to build. What has not changed is the claim: an
+    # unreachable label is a promise the schema cannot keep, so every label must be one a
+    # SURFACE CAN ACTUALLY SUBMIT. That mapping lives in tests/channel_differential.py,
+    # where tests/m4a checks it against the catalog and against the routes — so this is
+    # one statement read twice rather than two lists that agree until they do not.
+    from channel_differential import ORIGIN_SURFACE
     origin_labels = [r[0] for r in rows("""
         SELECT e.enumlabel FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
         WHERE t.typname = 'order_origin' ORDER BY e.enumsortorder;""", dsn=ADMIN)]
-    record("the origin type names exactly the two origins this gate builds, and no other",
-           origin_labels == ["guest_qr", "waiter_entered"],
-           f"order_origin: {origin_labels}. FR-ORD-001A names a third channel that does "
-           f"not exist until the POS surface is built at M4, and two more that are not "
-           f"Phase 1 at all; an unreachable label is a claim the schema cannot keep")
+    record("every origin the type names is one a surface can actually submit",
+           sorted(origin_labels) == sorted(ORIGIN_SURFACE),
+           f"order_origin: {origin_labels}; origins a surface serves: "
+           f"{sorted(ORIGIN_SURFACE)}. FR-ORD-001A names channels that are not Phase 1 at "
+           f"all, and none of them is here")
 
 
 # ===========================================================================
@@ -424,17 +433,36 @@ def section_fee_seam() -> None:
     cart = fx.cart_with(session, guest)
     before = preview(cart)
 
-    config_id = "3333efee-0000-4000-8000-0000000efee1"
+    # THE PROBE NEEDS *A* CONFIGURED SOURCE, NOT A PARTICULAR ONE, and that distinction
+    # cost a reversed run. This created its own approved 'service' configuration version
+    # at the outlet scope — and config.configuration_version carries a partial unique
+    # index admitting ONE open version per (tenant, category, scope), so when M4-A's
+    # fixture seeded the outlet's real service-charge configuration and the suites ran in
+    # reverse, this insert collided with it. The forward order never showed it, which is
+    # the whole content of FR-TST-020.
+    #
+    # So it reuses an approved service configuration if the repository has one by the time
+    # this runs, and creates one only when it does not — and removes only what it created.
+    # What the probe is actually about is unchanged: the RULE carries its own rate, and
+    # the configuration version is the source it names.
+    config_id = scalar(f"""
+        SELECT coalesce(
+            (SELECT id::text FROM config.configuration_version
+              WHERE tenant_id = '{fx.TENANT}' AND category = 'service'
+                AND effective_to IS NULL
+              ORDER BY version DESC LIMIT 1),
+            '3333efee-0000-4000-8000-0000000efee1');""", dsn=ADMIN)
+    borrowed = config_id != "3333efee-0000-4000-8000-0000000efee1"
     rule_id = "3333efee-0000-4000-8000-0000000efee2"
     planted = run(ADMIN, f"""
         INSERT INTO config.configuration_version
             (id, tenant_id, outlet_id, scope_kind, scope_node_id, category, version,
              payload, effective_from, actor_id, approved_by_id, approved_at)
-        VALUES ('{config_id}', '{fx.TENANT}', '{fx.OUTLET_H1}', 'outlet',
-                '{fx.OUTLET_H1}', 'service', 1,
-                '{{"service_charge": {{"percentage": "5.0000"}}}}'::jsonb,
-                now() - interval '1 hour', '{fx.USER}', '{fx.USER}', now() - interval '1 hour')
-        ON CONFLICT (id) DO NOTHING;
+        SELECT '{config_id}', '{fx.TENANT}', '{fx.OUTLET_H1}', 'outlet',
+               '{fx.OUTLET_H1}', 'service', 1,
+               '{{"service_charge": {{"percentage": "5.0000"}}}}'::jsonb,
+               now() - interval '1 hour', '{fx.USER}', '{fx.USER}', now() - interval '1 hour'
+         WHERE NOT {str(borrowed).lower()};
 
         INSERT INTO ordering.charge_rule
             (id, tenant_id, outlet_id, kind, source_kind, source_configuration_id,
@@ -475,9 +503,13 @@ def section_fee_seam() -> None:
                f"{' + '.join(str(c['amount_minor']) for c in after['charges'])} = "
                f"{after['total_amount_minor']}")
     finally:
+        # Only what this probe created. A configuration version it BORROWED belongs to
+        # whichever fixture seeded it, and deleting somebody else's approved configuration
+        # to tidy up after a probe is how a suite comes to depend on running first.
         run(ADMIN, f"""
             DELETE FROM ordering.charge_rule WHERE id = '{rule_id}';
-            DELETE FROM config.configuration_version WHERE id = '{config_id}';
+            DELETE FROM config.configuration_version
+             WHERE id = '{config_id}' AND NOT {str(borrowed).lower()};
         """)
 
     restored = preview(cart)

@@ -695,11 +695,32 @@ def section_role_home_and_search() -> None:
            f"open and overdue requests, order progress derived from the tickets, and why "
            f"a table needs attention — all derived, so none can drift from its source")
 
-    record("and the unpaid balance is a SLOT, not an invented zero",
-           all(row[3] in ("t", "true") for row in view),
-           f"{sum(1 for r in view if r[3] in ('t', 'true'))} of {len(view)} tables report "
-           f"no balance figure. M4 owns the number. 'Nothing outstanding' and 'we have "
-           f"not built billing' are different sentences and a zero would say the first")
+    # THE SLOT WAS FILLED AT M4-A, and this check moved with it rather than being
+    # deleted. It read "the unpaid balance is a SLOT, not an invented zero" and required
+    # the column to be NULL, because at M3-D 'nothing outstanding' and 'we have not built
+    # billing' were different sentences and a zero would have said the first. Billing
+    # exists now, so requiring NULL would require the slot to stay empty forever.
+    #
+    # What survives is the property this slice actually owns: the figure is DERIVED. No
+    # column in pos holds a balance, and pos.table_view() computes it by calling billing
+    # rather than by reading something somebody wrote down — which is what makes every
+    # other figure on this screen unable to drift from its source, and this one too.
+    stored_balance = [r[0] for r in rows("""
+        SELECT c.relname || '.' || a.attname
+        FROM pg_attribute a
+        JOIN pg_class c ON c.oid = a.attrelid
+        JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'pos' AND c.relkind = 'r'
+          AND a.attnum > 0 AND NOT a.attisdropped
+          AND a.attname ~* '(balance|outstanding|amount|total)'
+        ORDER BY 1;""", dsn=ADMIN)]
+    computed = "billing.session_outstanding" in definition("pos.table_view(uuid, uuid)")
+    record("and the unpaid balance is DERIVED, never a figure this schema stores",
+           not stored_balance and computed,
+           f"columns in pos that could hold a money figure: {stored_balance or 'none'}; "
+           f"pos.table_view() computes the balance by calling billing: {computed}. The "
+           f"slot this slice left was filled at M4-A by a function call, not by a column "
+           f"somebody has to remember to update")
 
     # --- search ---
     sku = scalar(f"""
@@ -1284,15 +1305,21 @@ def section_governance() -> None:
            f"installed {installer.why() or installer.scalar} additional row(s) for a "
            f"tenant the trigger already covered")
 
+    # 'billing' left this list at M4-A, which built it, the same way every earlier gate
+    # left the equivalent list in the suite below it. What remains is what has genuinely
+    # not been built: payment capture is M4-B, receipts are M4-C, and the outlet node,
+    # synchronization and the print queue are M5a. tests/m4a took over proving where the
+    # money vocabulary is allowed to live.
     later = rows("""
         SELECT c.table_schema || '.' || c.table_name
         FROM information_schema.tables c
-        WHERE c.table_schema IN ('billing', 'payment', 'sync', 'outlet_node')
+        WHERE c.table_schema IN ('payment', 'receipt', 'sync', 'outlet_node')
         ORDER BY 1;""", dsn=ADMIN)
     record("nothing belonging to a later slice was built here",
            later == [],
-           f"{later or 'none'} — checks, payments, tips and receipts are M4; the outlet "
-           f"node, synchronization and the print queue are M5a")
+           f"{later or 'none'} — payment capture is M4-B and receipts M4-C; the outlet "
+           f"node, synchronization and the print queue are M5a. Billing landed at M4-A "
+           f"and left this list, as the order surface left M2-A's when M3-A built it")
 
     secrets = []
     for path in files:

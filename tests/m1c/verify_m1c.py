@@ -605,31 +605,37 @@ def section_reason_codes() -> None:
     # ITS SECOND FORM — "no check, payment, tip, refund or settlement table exists yet,
     # because all of them are M4" — retired at M4-A for the same reason the first retired
     # at M3-A: the gate it was fencing arrived. A criterion whose subject has been built
-    # is not evidence of anything, and a check that can no longer fail is a defect.
+    # is not evidence of anything, and a check that can no longer fail is a defect. Where
+    # the money vocabulary is allowed to live is now tests/m4a's, which asserts it against
+    # the schema that owns it.
     #
-    # What replaces it is the boundary that outlives every remaining gate. The money
-    # vocabulary belongs to the schema that records what is OWED. It must never appear in
-    # the schemas that record what was ORDERED, PREPARED or PUBLISHED, because FR-BIL-001
-    # makes a check a view onto the order ledger rather than an edit of it — and the way
-    # that stops being true is a payment or tip column bolted onto an order table by
-    # somebody in a hurry, not by anybody deciding it.
-    misplaced = run(ADMIN, """
-        SELECT n.nspname || '.' || c.relname
-        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relkind = 'r'
-          AND n.nspname IN ('ordering', 'service', 'fulfillment', 'menu')
-          AND c.relname ~* '(^|_)(check|payment|tip|refund|settlement)($|_)'
+    # What replaces it here is a property about REASON CODES, which is this section's
+    # subject, and one that outlives every remaining gate: a consumer names WHO invoked
+    # the reason and WHEN. FR-CFG-003's whole content is that a deliberate action is
+    # accountable, and a reason code with no author is a category rather than an account
+    # — the same sentence service.close_table_session() raises when an exception carries
+    # a code and no note. Derived from information_schema, so the payment reasons M4-B
+    # adds are covered without anybody extending anything.
+    unaccountable = run(ADMIN, """
+        SELECT c.table_schema || '.' || c.table_name
+        FROM information_schema.columns c
+        WHERE c.table_schema NOT IN ('pg_catalog', 'information_schema', 'config')
+          AND c.column_name = 'reason_code_id'
+          AND NOT EXISTS (
+                SELECT 1 FROM information_schema.columns a
+                 WHERE a.table_schema = c.table_schema AND a.table_name = c.table_name
+                   AND a.column_name ~ '(actor|_by_user_id|user_account_id)')
         ORDER BY 1;""")
-    if not misplaced.ok:
+    if not unaccountable.ok:
         raise CommandUnreadable(
-            f"the misplaced-money-table scan did not run: {misplaced.why()}")
-    intruders = [r[0] for r in misplaced.rows]
-    record("no money vocabulary has leaked into the schemas that record what was ordered",
-           not intruders,
-           f"check, payment, tip, refund or settlement tables outside the billing "
-           f"schema: {intruders or 'none'}. A check is a VIEW onto the order ledger "
-           f"(FR-BIL-001); the moment one becomes a column on an order table, the order "
-           f"history stops being what the guest asked for")
+            f"the reason-code accountability scan did not run: {unaccountable.why()}")
+    anonymous = [r[0] for r in unaccountable.rows]
+    record("every consumer of a reason code names who invoked it",
+           not anonymous,
+           f"tables carrying a reason code and naming nobody: {anonymous or 'none'}. A "
+           f"reason with no author is a category, not an account, and it is the shape a "
+           f"deliberate action takes when somebody wants the record without the "
+           f"responsibility")
 
     consumers = run(ADMIN, """
         SELECT n.nspname || '.' || c.relname

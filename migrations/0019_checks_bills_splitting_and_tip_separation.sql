@@ -2158,12 +2158,36 @@ END;
 $$;
 
 CREATE FUNCTION billing.rebuild_projections(p_tenant_id uuid) RETURNS integer
-LANGUAGE plpgsql
+-- SECURITY DEFINER, and NOT as a convenience: the loop below and billing.apply_event()
+-- must run as the SAME role or they see different ledgers. apply_event() is definer
+-- because it writes the projection; a caller who is a superuser therefore SELECTs every
+-- event and hands ids to a function that, under FORCE ROW LEVEL SECURITY, can see none
+-- of them — and the rebuild dies on LEDGER_EVENT_ABSENT for an event that is plainly
+-- there. Two roles reading one ledger is the defect; one role reading it is the fix.
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, billing, ordering, config, money, menu, service, public
 AS $$
 DECLARE
     v_event bigint;
     v_count integer := 0;
+    v_available integer;
 BEGIN
+    -- A REBUILD THAT SEES NOTHING IS NOT A REBUILD. Row level security scopes this to
+    -- the caller's tenant AND outlet, so a caller who set a tenant and no outlet can see
+    -- no outlet-scoped event at all — and would drop the projections, fold nothing, and
+    -- report success. A census taken either side of that compares empty with empty and
+    -- agrees. So it refuses instead.
+    SELECT count(*) INTO v_available FROM billing.bill_event
+     WHERE tenant_id = p_tenant_id;
+    IF v_available = 0 THEN
+        RAISE EXCEPTION
+            'REBUILD_SEES_NO_LEDGER: no bill event is in scope for tenant %. A rebuild '
+            'that folds nothing looks identical to one that folded everything correctly, '
+            'which is the one outcome this operation must not be able to produce. Set the '
+            'outlet context, or there is genuinely nothing to rebuild',
+            p_tenant_id USING ERRCODE = 'HS409';
+    END IF;
+
     PERFORM billing.drop_projections_for_rebuild(p_tenant_id);
 
     FOR v_event IN

@@ -835,27 +835,36 @@ def section_boundary() -> None:
            f"the service and safety domains that came after it, so M2-B could add them "
            f"beside the menu rather than inside it")
 
-    order_surface = count(ADMIN, """
+    billing_in_menu = count(ADMIN, """
         SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+        WHERE c.relkind = 'r' AND n.nspname = 'menu'
           AND c.relname ~* '(^|_)(check|bill|payment|tip|receipt|settlement|refund)($|_)';
     """)
-    # Two words have left this pattern, each when the gate that owns them landed, and each
-    # time the boundary MOVED rather than evaporated:
+    # THE SCOPE HAS NARROWED THREE TIMES, once per gate that landed, and each time the
+    # boundary MOVED rather than evaporated:
     #
     #   'cart'  left at M2-B. A basket BEFORE submission is FR-TAB-005; the M2-B suite
     #           took over proving there is no submitted state and no submission function.
-    #   'order' leaves at M3-A, which builds the aggregate. The M3-A suite took over
+    #   'order' left at M3-A, which builds the aggregate. The M3-A suite took over
     #           proving there is no ticket, station, service request, check or payment
     #           surface, and its own governance section names every requirement it could
     #           only half-close.
+    #   the whole DATABASE-WIDE form leaves at M4-A, which builds billing. tests/m4a took
+    #           over: it asserts from the catalog that no money vocabulary exists outside
+    #           the billing schema, that no tip column exists outside billing's own tip
+    #           tables, and that no function computing a bill balance reads one.
     #
     # Narrowing a pattern is otherwise exactly how a check quietly stops catching things,
-    # so what remains here is the M4 half, which is still genuinely forbidden.
-    record("no check, payment, tip or receipt surface exists",
-           order_surface == 0,
-           f"{order_surface} table(s) belonging to M4. The order surface left this "
-           f"pattern when M3-A built it; billing has not landed and is still refused here")
+    # so what remains here is the property that outlives every gate and belongs to THIS
+    # suite: the menu schema is about what is sold, never about what is owed. A price
+    # lives in menu.price; what a guest is CHARGED is billing's, and a bill table
+    # appearing here would be M2-A growing an opinion about money.
+    record("the menu schema holds no billing surface",
+           billing_in_menu == 0,
+           f"{billing_in_menu} check, bill, payment, tip, receipt, settlement or refund "
+           f"table(s) in schema menu. Billing landed at M4-A and lives in its own schema; "
+           f"tests/m4a proves the money vocabulary stays out of ordering, service, "
+           f"fulfillment and menu alike")
 
     pattern, term_total = fenced_identifier_pattern()
     fenced_anywhere = run(ADMIN, f"""

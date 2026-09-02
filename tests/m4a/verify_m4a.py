@@ -731,6 +731,26 @@ def section_tip_separation_structurally() -> None:
            f"reallocating bill lines, and there is no function from which both are "
            f"reachable")
 
+    # WHERE THE MONEY VOCABULARY IS ALLOWED TO LIVE. M1-C fenced this while billing was
+    # unbuilt — "no check, payment, tip, refund or settlement table exists yet" — and that
+    # criterion retired the moment this slice landed. The boundary that outlives every
+    # remaining gate takes its place, and it belongs here because this is the gate that
+    # owns the vocabulary: a check is a VIEW onto the order ledger (FR-BIL-001), and the
+    # way that stops being true is a payment or tip column bolted onto an order table by
+    # somebody in a hurry rather than by anybody deciding.
+    intruders = [r[0] for r in rows("""
+        SELECT n.nspname || '.' || c.relname
+        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'r'
+          AND n.nspname IN ('ordering', 'service', 'fulfillment', 'menu')
+          AND c.relname ~* '(^|_)(check|bill|payment|tip|refund|settlement)($|_)'
+        ORDER BY 1;""", dsn=ADMIN)]
+    record("no money vocabulary has leaked into the schemas that record what was ordered",
+           not intruders,
+           f"check, bill, payment, tip, refund or settlement tables outside the billing "
+           f"schema: {intruders or 'none'}. The moment one becomes a column on an order "
+           f"table, the order history stops being what the guest asked for")
+
     no_tip_column = count(ADMIN, """
         SELECT count(*) FROM information_schema.columns
          WHERE table_schema = 'billing' AND table_name = 'bill'
@@ -1118,6 +1138,11 @@ def section_correction() -> None:
 
     # FR-DAT-010: the projection is reproducible, which is what makes the guard's refusal
     # a statement about a mechanism rather than a hope.
+    # Scoped to ONE OUTLET on both sides, because that is the scope a rebuild runs in:
+    # row level security is per (tenant, outlet), so a rebuild folds what the caller can
+    # see. A census taken tenant-wide as a superuser and compared against a refold scoped
+    # to one outlet would report a difference that is the SCOPES disagreeing rather than
+    # the ledger.
     def bill_census() -> list[list[str]]:
         return rows(f"""
             SELECT b.bill_number, b.state::text, b.bill_total_minor::text,
@@ -1126,13 +1151,13 @@ def section_correction() -> None:
                    (SELECT string_agg(c.kind::text || '=' || c.amount_minor::text, ','
                                       ORDER BY c.kind)
                       FROM billing.bill_component c WHERE c.bill_id = b.id)
-              FROM billing.bill b WHERE b.tenant_id = '{fx.TENANT}'
-             ORDER BY b.bill_number;""", dsn=ADMIN, outlet=None)
+              FROM billing.bill b
+             WHERE b.tenant_id = '{fx.TENANT}' AND b.outlet_id = '{fx.OUTLET_H1}'
+             ORDER BY b.bill_number;""", dsn=ADMIN)
 
     before = bill_census()
-    rebuilt = run(ADMIN, f"""
-        SELECT set_config('app.tenant_id', '{fx.TENANT}', false);
-        SELECT billing.rebuild_projections('{fx.TENANT}');""", tx=True)
+    rebuilt = run(ADMIN,
+                  f"SELECT billing.rebuild_projections('{fx.TENANT}');", tx=True, **CTX)
     after = bill_census()
     record("the whole bill projection can be rebuilt from the ledger, byte for byte",
            rebuilt.ok and before == after and len(before) > 1,
@@ -2081,9 +2106,8 @@ $$;""")
         # which the plant did not touch — so refolding puts them back on every bill the
         # red leg issued. Nothing is repaired by hand, and the constraint can only come
         # back if the refold really produced a version for every document.
-        rebuilt = run(ADMIN, f"""
-            SELECT set_config('app.tenant_id', '{fx.TENANT}', false);
-            SELECT billing.rebuild_projections('{fx.TENANT}');""", tx=True)
+        rebuilt = run(ADMIN, f"SELECT billing.rebuild_projections('{fx.TENANT}');",
+                      tx=True, **CTX)
         if not rebuilt.ok:
             raise ProbeFailed("refolding the bills the plant left versionless",
                               rebuilt.err)

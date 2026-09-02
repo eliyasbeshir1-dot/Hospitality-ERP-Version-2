@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -401,7 +402,15 @@ def section_fit_and_snapshot(probe: dict, session_id: str) -> None:
              f"{len(zoomed['clipped'])} element(s) clip. No horizontal scrolling, which is "
              f"what WCAG asks for")
 
-    css = (REPO / "pwa" / "app.css").read_text(encoding="utf-8")
+    # COMMENTS REMOVED FIRST, for the reason the settlement scan above records: a check
+    # that cannot tell a declaration from a sentence ABOUT a declaration punishes people
+    # for writing down why something is the way it is. The TypeScript half of this suite
+    # learned it when a comment saying "M4 will have receipts" was counted as a receipt;
+    # this half learned it at M4-A, when a comment explaining why a border uses the
+    # shorthand was counted as a fixed width. A declaration inside a comment applies to
+    # nothing, so removing them narrows this check by exactly zero.
+    css = re.sub(r"/\*.*?\*/", " ",
+                 (REPO / "pwa" / "app.css").read_text(encoding="utf-8"), flags=re.S)
     fixed = [line.strip() for line in css.splitlines()
              if ("width:" in line and "px" in line and "max-inline-size" not in line
                  and "min-inline-size" not in line and "--" not in line)]
@@ -537,23 +546,32 @@ def section_boundary(probe: dict) -> None:
     # that outlives its gate stops being a boundary and becomes a check that fails when
     # the plan is followed.
     #
-    # The MONEY half has not moved and is not softened: checkout, payment, tip, check and
-    # receipt are M4's, and a customer surface that named any of them at M3 would be the
-    # scope creep this check exists to catch. kitchenTicket stays too — the KDS is M3-B's
-    # own surface and a guest's phone must never render one.
+    # THE TIP HALF MOVED AT M4-A, and it moved for a reason stated in a requirement
+    # rather than because somebody wanted this check quieter. FR-BIL-007 puts an optional
+    # Tip box on the guest's own screen, after or beside the bill summary; tests/m4a
+    # measures both facts in a real browser. A boundary that outlived the gate that
+    # delivered it stops being a boundary and becomes a check that fails when the plan is
+    # followed — which is exactly what happened to the ORDER half at M3-D.
+    #
+    # WHAT HAS NOT MOVED AND IS NOT SOFTENED: this surface still cannot take money.
+    # Checkout, payment and receipt are M4-B's and M4-C's, and opening a check is staff
+    # work on a different surface. kitchenTicket stays too — the KDS is M3-B's own
+    # surface and a guest's phone must never render one.
+    #
     # Scanned over the CODE, with comments removed. The first version of this edit put
     # 'receipt' on the list and it went red on a comment that says M4 will have receipts
     # — prose about a later gate, which is the opposite of scope creep. A check that
     # cannot tell a payment button from a sentence about payments is a check that
     # punishes people for writing down why something is absent.
     code = _strip_ts_comments(source)
-    settlement = [word for word in ("checkout", "payment", "tip", "receipt",
+    settlement = [word for word in ("checkout", "payment", "receipt",
                                     "kitchenTicket", "openCheck")
                   if word.lower() in code.lower()]
-    record("the surface still cannot pay, tip, or open a check",
+    record("the surface still cannot take a payment or open a check",
            not settlement,
            f"settlement terms in the surface: {settlement or 'none'}. Ordering arrived at "
-           f"M3 and this surface submits one; money is M4's and none of it is here")
+           f"M3 and this surface submits one; the optional tip box arrived at M4-A and "
+           f"this surface offers one; TAKING money has not arrived and none of it is here")
 
     # The route check below asserted the same boundary and could not fail. It read the
     # file line by line and kept the lines containing `app.post` — but every route in
@@ -563,19 +581,30 @@ def section_boundary(probe: dict) -> None:
     # would have passed on a payment route on the day it was written. An assertion that
     # cannot fail is a defect; this one is repaired and re-targeted in the same edit, so
     # the repair is visible rather than hidden inside a boundary change.
+    # READ ACROSS EVERY ROUTE FILE, not just customer.ts. It read one file, and at M4-A
+    # the guest's bill route arrived in api/src/routes/billing.ts — so the check would
+    # have gone on reporting "the customer API adds no money route" while the customer
+    # API had one. A check passing for the wrong reason is worse than one that fails: the
+    # question is what the GUEST can reach, and the guest does not know which file a
+    # route was declared in.
     import re as _re
-    routes = (REPO / "api" / "src" / "routes" / "customer.ts").read_text(encoding="utf-8")
-    declared = sorted({m.group(1) for m in _re.finditer(
-        r"app\.(?:post|put|get|delete|patch)\s*(?:<[\s\S]*?>)?\s*\(\s*'([^']+)'",
-        routes)})
+    declared = sorted({
+        m.group(1)
+        for path in sorted((REPO / "api" / "src" / "routes").glob("*.ts"))
+        for m in _re.finditer(
+            r"app\.(?:post|put|get|delete|patch)\s*(?:<[\s\S]*?>)?\s*\(\s*'([^']+)'",
+            path.read_text(encoding="utf-8"))
+        if m.group(1).startswith("/c/v1")})
     money = [path for path in declared
              if any(word in path.lower()
-                    for word in ("check", "payment", "receipt", "tip", "settle"))]
-    record("the customer API still adds no check, payment or receipt route",
+                    for word in ("check", "payment", "receipt", "settle", "refund",
+                                 "tender"))]
+    record("no route a guest can reach takes money or opens a check",
            bool(declared) and not money,
-           f"customer routes read out of the source: {declared}. Money routes among "
-           f"them: {money or 'none'}. The list is non-empty by assertion, because a "
-           f"regex that matched nothing would make this pass for the second time")
+           f"guest-reachable routes read out of every route file: {declared}. Money "
+           f"routes among them: {money or 'none'}. The list is non-empty by assertion, "
+           f"because a regex that matched nothing would make this pass for the second "
+           f"time")
 
     sync = [word for word in ("serviceWorker", "backgroundSync", "syncQueue", "flushQueue")
             if word.lower() in source.lower()]
