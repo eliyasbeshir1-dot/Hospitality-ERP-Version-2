@@ -4528,7 +4528,7 @@ Constraints:
 - `reversal_actor_fk` — `FOREIGN KEY (tenant_id, actor_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
 - `reversal_allocation_fk` — `FOREIGN KEY (tenant_id, allocation_id) REFERENCES payments.allocation(tenant_id, id) ON DELETE CASCADE`
 - `reversal_amount_positive` — `CHECK (((amount_minor)::bigint > 0))`
-- `reversal_is_authorized` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
+- `reversal_is_authorized` — `TRIGGER`
 - `reversal_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
 - `reversal_override_fk` — `FOREIGN KEY (tenant_id, override_id) REFERENCES pos.override_approval(tenant_id, id) ON DELETE RESTRICT`
 - `reversal_override_used_once` — `UNIQUE (override_id)`
@@ -4537,7 +4537,7 @@ Constraints:
 - `reversal_reason_not_blank` — `CHECK ((btrim(reason_text) <> ''::text))`
 - `reversal_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
 - `reversal_tenant_id_unique` — `UNIQUE (tenant_id, id)`
-- `reversal_within_the_allocation` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
+- `reversal_within_the_allocation` — `TRIGGER`
 
 Policies:
 

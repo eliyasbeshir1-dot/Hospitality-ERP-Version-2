@@ -39,13 +39,23 @@ export interface PaymentDependencies {
 
 const UUID = { type: 'string', format: 'uuid' } as const;
 
-/** The six providers the database knows. Mirrored so a body can be rejected before it
- *  reaches a cast that would fail with a less useful message; payments.provider remains
- *  the authority and tests/m4b asserts this list equals it. */
-const PROVIDERS = [
-  'cash', 'external_terminal', 'telebirr_proof', 'cbe_birr_proof',
-  'telebirr_direct', 'cbe_birr_direct',
-] as const;
+/**
+ * WHICH PROVIDERS EXIST IS NOT STATED HERE, and cannot be.
+ *
+ * M1-D's forbidden-surface rule keeps tenant and payment provider names out of API
+ * source, and it is right for a reason beyond the rule: payments.provider is an enum in
+ * the database, and a list here would be a second copy of it — the shape of drift this
+ * repository refuses everywhere else. The first version of this file mirrored the six
+ * values "so a body could be rejected with a better message", which is exactly the
+ * argument that produces two sources of truth.
+ *
+ * So the route schemas below constrain SHAPE and not membership. An unknown provider
+ * fails the cast to payments.provider and comes back as a named refusal; a live adapter
+ * offered to the simulator is refused by payments.invoke_direct_provider(); a
+ * non-proof provider on a proof confirmation is refused by a CHECK. Every one of those
+ * decisions was already in the database, and none of them was ever this file's.
+ */
+const PROVIDER_NAME = { type: 'string', minLength: 1, maxLength: 40 } as const;
 
 function staffToken(request: FastifyRequest): string | null {
   const header = request.headers.authorization;
@@ -194,9 +204,7 @@ export function registerPaymentRoutes(app: FastifyInstance, deps: PaymentDepende
           billAmountMinor: { type: 'integer', minimum: 0 },
           tipAmountMinor: { type: 'integer', minimum: 0 },
           tipId: UUID,
-          permittedProviders: {
-            type: 'array', items: { type: 'string', enum: PROVIDERS as unknown as string[] },
-          },
+          permittedProviders: { type: 'array', items: PROVIDER_NAME },
         },
       },
     },
@@ -340,7 +348,7 @@ export function registerPaymentRoutes(app: FastifyInstance, deps: PaymentDepende
         required: ['provider', 'currencyCode', 'amountMinor', 'providerReference'],
         additionalProperties: false,
         properties: {
-          provider: { type: 'string', enum: ['telebirr_proof', 'cbe_birr_proof'] },
+          provider: PROVIDER_NAME,
           currencyCode: { type: 'string', minLength: 3, maxLength: 3 },
           amountMinor: { type: 'integer', minimum: 1 },
           providerReference: { type: 'string', minLength: 1, maxLength: 128 },
@@ -432,7 +440,7 @@ export function registerPaymentRoutes(app: FastifyInstance, deps: PaymentDepende
         type: 'object', required: ['provider', 'currencyCode', 'amountMinor'],
         additionalProperties: false,
         properties: {
-          provider: { type: 'string', enum: ['telebirr_direct', 'cbe_birr_direct'] },
+          provider: PROVIDER_NAME,
           currencyCode: { type: 'string', minLength: 3, maxLength: 3 },
           amountMinor: { type: 'integer', minimum: 1 },
         },
@@ -441,6 +449,9 @@ export function registerPaymentRoutes(app: FastifyInstance, deps: PaymentDepende
   }, async (request, reply) =>
     asStaff(request, reply, async (client, tenantId, outletId, userId) => {
       const b = request.body as { provider: string; currencyCode: string; amountMinor: number };
+      // No check that the provider is a simulated one: payments.invoke_direct_provider()
+      // refuses a live adapter by name, and repeating the judgement here would be the
+      // second implementation this file exists to avoid.
       try {
         const { rows } = await client.query(
           `SELECT payments.invoke_direct_provider($1::uuid, $2::uuid,

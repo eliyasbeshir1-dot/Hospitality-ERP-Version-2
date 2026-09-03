@@ -2090,9 +2090,18 @@ SET search_path = pg_catalog, payments, public
 AS $$
 BEGIN
     PERFORM set_config('payments.applying_event', 'yes', true);
-    -- Reversals and allocations cascade from the payment, so this is one statement and
-    -- not three that must be kept in the right order.
-    DELETE FROM payments.payment WHERE tenant_id = p_tenant_id;
+    -- EACH ONE NAMED, in dependency order, even though the cascades would do it. The one
+    -- statement this used to be was correct and invisible: tests/m3d derives the set of
+    -- projections by reading the DELETEs out of every drop-or-rebuild function in the
+    -- catalog, so a table removed by a cascade is a table that derivation never learns
+    -- about — and payments.allocation was then judged DURABLE and its foreign key onto
+    -- payments.payment read as a durable reference into a projection, which is the exact
+    -- defect that rule exists to catch. The rule was right and the cascade was hiding the
+    -- answer from it. Naming them also states the dependency order a reader would
+    -- otherwise have to infer from the constraints.
+    DELETE FROM payments.reversal   WHERE tenant_id = p_tenant_id;
+    DELETE FROM payments.allocation WHERE tenant_id = p_tenant_id;
+    DELETE FROM payments.payment    WHERE tenant_id = p_tenant_id;
     PERFORM set_config('payments.applying_event', '', true);
 END;
 $$;
