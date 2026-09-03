@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `b613a81ac36bd3611a0a9ea9d6d18b8cdd493b70` |
-| Short | `b613a81` |
+| Commit | `23c94d1f98f3ae9b1fb0553d442b96ae2da6dfe0` |
+| Short | `23c94d1` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation |
@@ -106,10 +106,10 @@ Money is stored as integer minor units beside an explicit currency.
 | M3-C service requests, notifications, integration | **PASS** | 126 | 0 |
 | M3-D terminals, override, handover, the waiter surface | **PASS** | 95 | 0 |
 | M4-A checks, bills, splitting, tip separation | **PASS** | 105 | 0 |
-| M4-B payment capture, verification, cash, reversal | **PASS** | 144 | 0 |
+| M4-B payment capture, verification, cash, reversal | **PASS** | 148 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
 | The five golden journeys, end to end | **PASS** | 61 | 0 |
-| **Total** | | **1264** | |
+| **Total** | | **1268** | |
 
 ## The five golden journeys (FR-TST-005A)
 
@@ -134,7 +134,7 @@ mistaken for one that mostly worked.
 
 ## Negative controls
 
-**102** controls — M1 22, M2 22, M3 35, M4 23 — each planted as a real
+**103** controls — M1 22, M2 22, M3 35, M4 24 — each planted as a real
 defect, required to produce its exact registered signature, then reverted and
 required to pass again. A control that never went red is a coverage gap wearing a
 green badge, and CI fails the build when one is missing. The registry is
@@ -246,6 +246,7 @@ build, and so does one described and never proved.
 | `NC-M4B-008` | A closure resting on a completer that is itself incomplete | `PARTIAL_CLOSURE_COMPLETER_INCOMPLETE` | red, then green |
 | `NC-M4B-009` | A verification suite the evidence report does not count | `SUITE_UNACCOUNTED` | red, then green |
 | `NC-M4B-010` | A correlation link kind no rebuild puts back | `CORRELATION_KIND_UNOWNED` | red, then green |
+| `NC-M4B-011` | A suite's controls searched for in logs that cannot contain them | `CONTROL_LOG_ABSENT` | red, then green |
 
 ## Design decision: the ledger is the record, everything else is a projection (M3-A)
 
