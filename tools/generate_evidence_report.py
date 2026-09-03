@@ -48,6 +48,31 @@ from repo_history import (  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
 UNIT = "\x1f"
+
+# EVERY SUITE THE REPORT ACCOUNTS FOR, in the order the table prints them.
+#
+# Named once, here, and read back by `--list-suites` so the CI job that hands this tool
+# its logs derives the list instead of restating it. A suite added to the report but not
+# to the job's copy list would otherwise fail at generation with a missing log, and a
+# suite dropped from the job would silently stop being accounted for — the same "two
+# statements of one fact with one left behind" defect the checksum locks exist to prevent.
+SUITES = (
+    ("m1a", "M1-A database, RLS, roles"),
+    ("m1b", "M1-B identity and authentication"),
+    ("m1c", "M1-C configuration, audit, money"),
+    ("m1d", "M1-D API, security, operations"),
+    ("m2a", "M2-A menu, pricing, translation storage"),
+    ("m2b", "M2-B tables, QR, guests, allergen safety"),
+    ("m2c", "M2-C customer surface, rendered"),
+    ("m3a", "M3-A orders, snapshots, session lifecycle"),
+    ("m3b", "M3-B fulfillment, tickets, stations, the KDS"),
+    ("m3c", "M3-C service requests, notifications, integration"),
+    ("m3d", "M3-D terminals, override, handover, the waiter surface"),
+    ("m4a", "M4-A checks, bills, splitting, tip separation"),
+    ("m4b", "M4-B payment capture, verification, cash, reversal"),
+    ("fenced_gate", "Fenced-domain gate, vocabulary and mutations"),
+    ("journeys", "The five golden journeys, end to end"),
+)
 REPORT_PATH = "evidence/M1_EVIDENCE_REPORT.md"
 
 
@@ -72,6 +97,44 @@ def digest(path: Path) -> str:
 
 class SuiteLogMissing(Exception):
     """An expected suite log is absent. The report must not be written without it."""
+
+
+class SuiteUnaccounted(Exception):
+    """A verification suite exists in the repository and the report has no row for it."""
+
+
+def assert_suites_cover_the_repository() -> None:
+    """SUITES must name every verification suite the repository actually has.
+
+    SUITES is a list, and a list is a second statement of a fact the repository already
+    holds: tests/<name>/verify_<name>.py IS the suite. The two can disagree in one
+    direction quietly — a suite added without a row here simply stops being accounted for,
+    and the report then states a total that is missing a whole gate while looking complete.
+    The other direction is already loud, because suite_result() refuses a missing log.
+
+    So the catalog is the repository, and this is the equality check. It is the same rule
+    the README generator enforces as SLICE_UNDESCRIBED, applied to the document that adds
+    the numbers up rather than the one that describes them.
+    """
+    on_disk = {d.name for d in sorted((REPO / "tests").iterdir())
+               if d.is_dir() and (d / f"verify_{d.name}.py").is_file()}
+    named = {name for name, _label in SUITES}
+    unaccounted = sorted(on_disk - named)
+    if unaccounted:
+        raise SuiteUnaccounted(
+            "SUITE_UNACCOUNTED: " + ", ".join(unaccounted) + " "
+            + ("is a verification suite" if len(unaccounted) == 1
+               else "are verification suites")
+            + " in tests/ with no row in this report. Add "
+            + ("it" if len(unaccounted) == 1 else "them")
+            + " to SUITES; a suite the repository runs and the evidence report does not "
+              "count makes the total quietly wrong rather than visibly short")
+    absent = sorted(named - on_disk)
+    if absent:
+        raise SuiteUnaccounted(
+            "SUITE_UNACCOUNTED: " + ", ".join(absent) + " is named in SUITES and has no "
+            "tests/<name>/verify_<name>.py. A row for a suite that does not exist would "
+            "be a report describing a repository that is not this one")
 
 
 def suite_result(logs: Path, name: str) -> tuple[str, str, str]:
@@ -194,6 +257,9 @@ def build(dsn: str, logs: Path) -> str:
     out: list[str] = []
     w = out.append
 
+    # Before anything is read: the report's own list of suites must equal the repository's.
+    assert_suites_cover_the_repository()
+
     # Under a shallow checkout the commit this report names cannot be resolved, and the
     # field would come out empty rather than wrong-looking. Refuse instead.
     assert_history_available()
@@ -308,21 +374,7 @@ def build(dsn: str, logs: Path) -> str:
     w("| Suite | Verdict | Checks | Failures |")
     w("|---|---|---:|---:|")
     total = 0
-    for name, label in (("m1a", "M1-A database, RLS, roles"),
-                        ("m1b", "M1-B identity and authentication"),
-                        ("m1c", "M1-C configuration, audit, money"),
-                        ("m1d", "M1-D API, security, operations"),
-                        ("m2a", "M2-A menu, pricing, translation storage"),
-                        ("m2b", "M2-B tables, QR, guests, allergen safety"),
-                        ("m2c", "M2-C customer surface, rendered"),
-                        ("m3a", "M3-A orders, snapshots, session lifecycle"),
-                        ("m3b", "M3-B fulfillment, tickets, stations, the KDS"),
-                        ("m3c", "M3-C service requests, notifications, integration"),
-                        ("m3d", "M3-D terminals, override, handover, the waiter surface"),
-                        ("m4a", "M4-A checks, bills, splitting, tip separation"),
-                        ("m4b", "M4-B payment capture, verification, cash, reversal"),
-                        ("fenced_gate", "Fenced-domain gate, vocabulary and mutations"),
-                        ("journeys", "The five golden journeys, end to end")):
+    for name, label in SUITES:
         verdict, ran, failed = suite_result(logs, name)
         if ran.isdigit():
             total += int(ran)
@@ -919,10 +971,21 @@ vocabulary shipped in the pinned package rather than a list restated here.
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate the M1 evidence report.")
-    parser.add_argument("--dsn", required=True)
-    parser.add_argument("--logs", required=True)
-    parser.add_argument("--out", required=True)
+    parser.add_argument("--dsn")
+    parser.add_argument("--logs")
+    parser.add_argument("--out")
+    parser.add_argument(
+        "--list-suites", action="store_true",
+        help="print the suite log basenames this report requires, one per line, and exit")
     args = parser.parse_args()
+
+    if args.list_suites:
+        for name, _label in SUITES:
+            print(name)
+        return 0
+    missing = [flag for flag in ("dsn", "logs", "out") if not getattr(args, flag)]
+    if missing:
+        parser.error("--" + ", --".join(missing) + " are required unless --list-suites")
 
     try:
         report = build(args.dsn, Path(args.logs))
@@ -932,6 +995,10 @@ def main() -> int:
         return 1
     except SuiteLogMissing as error:
         print("FAIL SUITE_LOG_MISSING", file=sys.stderr)
+        print(f"  {error}", file=sys.stderr)
+        return 1
+    except SuiteUnaccounted as error:
+        print("FAIL SUITE_UNACCOUNTED", file=sys.stderr)
         print(f"  {error}", file=sys.stderr)
         return 1
     except ControlDrift as error:

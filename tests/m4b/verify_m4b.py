@@ -66,6 +66,7 @@ from service import Service, WORKSPACE, sync_and_build           # noqa: E402
 
 import controls as registry                                      # noqa: E402
 import partial_closures                                          # noqa: E402
+import generate_evidence_report as evidence                      # noqa: E402
 
 assert fx.__file__ == str(HERE / "fixtures.py"), f"wrong fixtures module: {fx.__file__}"
 
@@ -2620,6 +2621,47 @@ def section_controls() -> None:
 
     control("NC-M4B-008  a closure resting on a completer that is itself incomplete",
             red_register, green_register)
+
+    # ---------------------------------------------------------------- NC-M4B-009
+    # A verification suite the evidence report does not count. This is the defect this
+    # slice actually shipped: tests/m4b existed, CI ran it, and the job that regenerates
+    # the evidence report handed the generator every log EXCEPT m4b.log, because the copy
+    # list was a second statement of a fact the generator already owned. The generator
+    # refused, correctly — but only because a missing log is loud. The quiet direction is
+    # the one this control holds: a suite with no ROW is simply not added up, and the
+    # report then states a total that is short by a whole gate while looking complete.
+    #
+    # Planted as a REAL directory, like NC-M3D-009, because the rule compares the report's
+    # list against the filesystem; mutating the list instead would prove a different rule.
+    def suite_gate() -> tuple[bool, str, str]:
+        try:
+            evidence.assert_suites_cover_the_repository()
+        except evidence.SuiteUnaccounted as refused:
+            return (False, "SUITE_UNACCOUNTED", str(refused)[:240])
+        return (True, "",
+                f"{len(evidence.SUITES)} suite(s) named, and tests/ holds exactly those")
+
+    planted_suite = REPO / "tests" / "zz_evidence_unaccounted"
+
+    def red_suite():
+        planted_suite.mkdir(exist_ok=True)
+        (planted_suite / "verify_zz_evidence_unaccounted.py").write_text(
+            "# Planted by NC-M4B-009 and removed by it. If this file is in a commit, the\n"
+            "# control crashed between planting and cleanup and the tree is not clean.\n",
+            encoding="utf-8")
+        ok, sig, detail = suite_gate()
+        return (not ok and sig == "SUITE_UNACCOUNTED", f"{sig}: {detail}")
+
+    def green_suite():
+        (planted_suite / "verify_zz_evidence_unaccounted.py").unlink(missing_ok=True)
+        planted_suite.rmdir()
+        ok, _sig, detail = suite_gate()
+        return (ok and not planted_suite.exists(),
+                f"{detail}; the planted directory is gone, so the tree this control ran "
+                f"in is the tree it leaves behind")
+
+    control("NC-M4B-009  a verification suite the evidence report does not count",
+            red_suite, green_suite)
 
 
 # ===========================================================================

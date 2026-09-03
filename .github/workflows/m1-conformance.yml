@@ -798,14 +798,20 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$LOG_DIR/evidence-logs"
-          cp "$LOG_DIR"/m1a.log "$LOG_DIR"/m1b.log "$LOG_DIR"/m1c.log "$LOG_DIR"/m1d.log \
-             "$LOG_DIR"/m2a.log "$LOG_DIR"/m2b.log "$LOG_DIR"/m2c.log \
-             "$LOG_DIR"/m3a.log "$LOG_DIR"/m3b.log "$LOG_DIR"/m3c.log \
-             "$LOG_DIR"/m3d.log "$LOG_DIR"/m4a.log "$LOG_DIR"/journeys.log \
-             "$LOG_DIR/evidence-logs/"
-          # No "|| true" here. A missing suite log must stop the report, not silently
-          # become a "not run" row with a wrong total.
+          # The suites are ASKED FOR, not restated. The generator owns the list, so a
+          # suite added to the report cannot be forgotten here and a suite dropped here
+          # cannot silently stop being accounted for. No "|| true" on the copy either:
+          # a missing suite log must stop the report, not become a "not run" row with a
+          # wrong total.
+          #
+          # fenced_gate is the one exception, because it ran in a different job and
+          # arrives as a downloaded artifact rather than from this job's LOG_DIR.
           cp "$LOG_DIR/collected/fenced_gate.log" "$LOG_DIR/evidence-logs/fenced_gate.log"
+          for suite in $(python3 tools/generate_evidence_report.py --list-suites); do
+            if [ "$suite" != fenced_gate ]; then
+              cp "$LOG_DIR/$suite.log" "$LOG_DIR/evidence-logs/"
+            fi
+          done
           python3 tools/generate_evidence_report.py \
             --dsn "postgresql://$SUPERUSER@$PGTCP_HOST:$PGPORT/$DB" \
             --logs "$LOG_DIR/evidence-logs" --out "$LOG_DIR/regenerated_report.md"
