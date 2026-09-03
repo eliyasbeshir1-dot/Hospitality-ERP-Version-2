@@ -564,14 +564,47 @@ def section_scope_boundary() -> None:
         SELECT count(*) FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
         WHERE t.typname = 'principal_class';
     """)
-    edge_behaviour = count(ADMIN, """
+    # THE BOUNDARY MOVED AT M4-C, and it is replaced by the property that outlives the
+    # gate rather than deleted — the tenth time this repository has done that.
+    #
+    # This check used to refuse any table matching sync|outbox|inbox|PRINT|edge, and read
+    # as "the print-agent principal class is registered and nothing uses it". That was
+    # true from M1-B to M4-B and stopped being the right question at the gate whose whole
+    # subject is a printed receipt: FR-BIL-017 requires a real physical receipt at M4 and
+    # FR-CFG-001D requires the printer registered and tested, so docs.print_attempt is the
+    # requirement rather than a violation of it.
+    #
+    # What has NOT changed is the M5a boundary, and it is now asserted directly instead of
+    # by proxy. M5a owns the outlet node, its synchronization, and the RESILIENT LOCAL
+    # PRINT QUEUE. So: no sync, outbox, inbox or edge table at all, and printing exists
+    # with NO QUEUE — nothing pending, nothing retried, nothing scheduled for a later
+    # attempt. A queue is what makes a print survive an outage, and surviving an outage is
+    # exactly what this gate does not build.
+    #
+    # Strictly stronger than what it replaces: "no printing" was a fence that a correct
+    # change had to break, and "no queued printing" is one that stays true through M5a's
+    # arrival and fails if the queue lands early.
+    outlet_node_behaviour = count(ADMIN, """
         SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND c.relname ~* '(^|_)(sync|outbox|inbox|print|edge)($|_)';
+          AND c.relname ~* '(^|_)(sync|outbox|inbox|edge)($|_)';
     """)
-    record("edge and print-agent principal classes registered, no edge behaviour built",
-           principal_classes == 4 and edge_behaviour == 0,
-           f"{principal_classes} principal classes registered; {edge_behaviour} edge-specific table(s) — M5a owns those")
+    print_queue = count(ADMIN, """
+        SELECT count(*) FROM pg_attribute a
+          JOIN pg_class c ON c.oid = a.attrelid
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+          AND a.attnum > 0 AND NOT a.attisdropped
+          AND c.relname ~* '(^|_)print($|_)'
+          AND a.attname ~* '(queue|pending|retry|attempts_remaining|next_attempt)';
+    """)
+    record("the outlet node and its print queue are still M5a's, and printing has no queue",
+           principal_classes == 4 and outlet_node_behaviour == 0 and print_queue == 0,
+           f"{principal_classes} principal classes registered; "
+           f"{outlet_node_behaviour} sync, outbox, inbox or edge table(s); "
+           f"{print_queue} queue-shaped column(s) on a print table. FR-BIL-017 makes the "
+           f"minimum print path this gate's; the queue that would make it survive an "
+           f"outage stays M5a's")
 
 
 def session_context_leak_gate() -> tuple[bool, str, str]:

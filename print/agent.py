@@ -32,8 +32,8 @@ call sites return different shapes so a caller cannot treat one as the other by 
 WHAT THIS DOES NOT PROVE, stated here because a reader should meet it rather than infer
 it: that a specific contracted printer accepts these bytes. No pilot device is chosen, the
 command set is generic ESC/POS, and the only physical proof possible is a print on a real
-machine. planning/KNOWN_LIMITATIONS.md carries that; this docstring is not the only place
-it is said.
+machine. planning/M4C_LIMITATIONS.md carries that — KNOWN_LIMITATIONS.md is M0R's record
+and is left alone — and this docstring is not the only place it is said.
 
 Standard library only.
 """
