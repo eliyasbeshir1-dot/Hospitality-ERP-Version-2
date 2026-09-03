@@ -44,9 +44,9 @@
 --
 -- WHAT IS NOT HERE. No receipt, no printing, no fiscal adapter, no report — M4-C. No
 -- outlet node, no synchronization, no resilient print queue — M5a. No consumer for the
--- payment events this file emits: FR-PAY-010A asks for the SHAPE a future accounting
--- consumer could subscribe to, and accounting is fenced, so the shape is documented and
--- nothing subscribes.
+-- payment events this file emits. FR-PAY-010A asks for the SHAPE a consumer outside
+-- Phase 1 could one day subscribe to; that whole domain is fenced and no such consumer
+-- may be written here, so the shape is documented and nothing subscribes.
 -- =============================================================================
 
 CREATE SCHEMA payments;

@@ -16,7 +16,7 @@ the earned check. Only then is the crossing attempted, through the real route.
 THE REGISTRY IS ASSERTED NON-EMPTY, AND NAMED, BEFORE ANY OF IT RUNS. M4-A's thirteen
 balance functions are the model: a fence proved against an empty set passes by having
 nothing to examine. If the adapter registry ever loads with no simulated adapter in it,
-this suite stops rather than reporting that nothing could be promoted.
+this suite stops rather than reporting that no simulator could be made live.
 
 THE OUTAGE CLAIM IS A CLAIM ABOUT A CALL GRAPH, NOT ABOUT ONE STAGED OUTAGE. FR-PAY-002
 says cash service continues during an internet outage, and the outlet node an outage could
@@ -307,19 +307,20 @@ def section_registry() -> None:
     # THE GUARD, before anything below it. M4-A's thirteen balance functions are the
     # model: a boundary proved against an empty set passes by having nothing to examine.
     # If the registry ever loads with no simulated adapter, every check in section 2 would
-    # report that no simulator could be promoted — truthfully, and uselessly.
+    # report that no simulator could be made live — truthfully, and uselessly.
     if not simulated or not live:
         raise CommandUnreadable(
             f"the adapter registry has {len(live)} live and {len(simulated)} simulated "
             f"adapter(s). NC-M4-003 needs both to exist: with no simulated adapter there "
-            f"is nothing to attempt a promotion FROM, and the whole of section 2 would "
+            f"is nothing to attempt the forbidden claim FROM, and the whole of section 2 "
+            f"would "
             f"pass by emptiness. Registry as loaded: {adapters}")
 
     record("the registry is non-empty and both worlds are in it",
            len(simulated) >= 2 and len(live) >= 4,
            f"live: {live}; simulated: {simulated}. Named rather than counted, so a "
            f"registry that silently emptied cannot make section 2 pass by having nothing "
-           f"to promote")
+           f"to make live")
 
     # FR-CFG-001C. The registry is not hand-written: it follows the approved
     # payment_method configuration version, and the ACTIVE set equals what setup permitted.
@@ -1486,7 +1487,8 @@ def section_shift_closure() -> None:
            unresolved.get("status") == 409
            and unresolved.get("reason") == "REOPENED_SHIFT_NOT_RESOLVED",
            f"{resubmitted.get('state')} then {reverified.get('state')} then "
-           f"{unresolved}. Closing an accounting hole by declaring it shut is the failure "
+           f"{unresolved}. Closing a hole in the record by declaring it shut is the "
+           f"failure "
            f"the control is named for")
 
     exceptions = call("GET", "/s/v1/cash/exceptions", manager_token)
@@ -1932,10 +1934,10 @@ def section_governance() -> None:
     record("no fenced term reaches the schema these slices added",
            not intruders,
            f"{intruders or 'none'}, against {term_count} authoritative terms loaded from "
-           f"the package. FR-CSH-003 and FR-CSH-008 both ask for 'variance', and that "
-           f"word is fenced for recipe costing — so the FIGURE is here in full as "
-           f"over_short_minor and the word is not. That is a tension inside the package "
-           f"rather than a choice, and the M4-B report names it")
+           f"the package. FR-CSH-003 and FR-CSH-008 both ask for a word this build may "
+           f"not use — it is one of the 63, reserved for a fenced domain — so the FIGURE "
+           f"is here in full as over_short_minor and the word is not. That is a tension "
+           f"inside the package rather than a choice, and the M4-B report names it")
 
     signatures = registry.signatures_for("M4")
     colliding = [s for s in signatures

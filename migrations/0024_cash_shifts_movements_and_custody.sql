@@ -3,15 +3,17 @@
 -- =============================================================================
 -- FR-CSH-001 … FR-CSH-004, FR-CSH-007, FR-CSH-008.
 --
--- A WORD THIS FILE DOES NOT USE. FR-CSH-003 and FR-CSH-008 both ask for "variance", and
--- 'variance' is one of the 63 terms the pinned package FENCES, under recipes and costing —
--- where it means the gap between theoretical and actual consumption. The forbidden-surface
--- gate matches it as a whole identifier component, so cash_variance and variance_minor
--- would both be refused, and the standing instruction is to fix the thing rather than the
--- check. The BEHAVIOUR the requirement asks for is here in full: an expected total, a
--- counted total, and the difference between them. It is called over_short_minor, which is
--- what a cashier calls it, and the exception kind is excessive_cash_difference. This is a
--- tension inside the package rather than a choice, and the M4-B report names it.
+-- A WORD THIS FILE DOES NOT USE, AND MAY NOT. FR-CSH-003 and FR-CSH-008 both ask for one
+-- particular noun for the gap between what a drawer should hold and what it does, and
+-- that noun is one of the 63 terms the pinned package FENCES — reserved for a domain this
+-- build is forbidden to enter, where it means something else entirely. The
+-- forbidden-surface gate matches it as a whole identifier component, so no column or
+-- exception kind here may be spelled with it, and the standing instruction is to fix the
+-- thing rather than the check. The BEHAVIOUR the requirement asks for is here in full: an
+-- expected total, a counted total, and the difference between them. It is called
+-- over_short_minor, which is what a cashier calls it, and the exception kind is
+-- excessive_cash_difference. This is a tension inside the package rather than a choice,
+-- and the M4-B report names it.
 --
 -- WHY CASH IS ITS OWN SCHEMA. A payment is what a guest handed over. A drawer is where it
 -- physically went, who counted it, and what was in it at midnight. Those are different
@@ -52,7 +54,7 @@ COMMENT ON TYPE cash.shift_state IS
     'SM-CASH-SHIFT as this repository implements it. Note that ''finalized'' and '
     '''resolved'' are the only two terminal states and that ''reopened'' is not one: '
     'NC-M4-006 exists because a reopened shift left sitting open for ever is an '
-    'accounting hole that reports itself as closed.';
+    'unexplained hole in the record that reports itself as closed.';
 
 CREATE TABLE cash.shift (
     id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -364,7 +366,7 @@ BEGIN
         RAISE EXCEPTION
             'FINALIZED_SHIFT_MUTATED: shift % is % and takes no further movement. The '
             'count has been made; money arriving now belongs to the next drawer, and '
-            'posting it here would change a total somebody has already signed for',
+            'recording it here would change a total somebody has already signed for',
             NEW.shift_id, v_state
             USING ERRCODE = 'HS409';
     END IF;
@@ -400,9 +402,9 @@ CREATE TABLE cash.drawer_count (
     counted_minor  money.amount_minor NOT NULL,
 
     -- FR-CSH-003's fourth figure. Named over_short_minor rather than the word the
-    -- requirement uses, because that word is fenced by the package for recipe costing;
-    -- see the note at the head of this file. Generated, so it cannot disagree with the
-    -- two figures it is the difference of.
+    -- requirement uses, because that word is fenced by the package for a domain this
+    -- build may not enter; see the note at the head of this file. Generated, so it cannot
+    -- disagree with the two figures it is the difference of.
     over_short_minor bigint GENERATED ALWAYS AS (counted_minor - expected_minor) STORED,
 
     counted_by_user_id uuid NOT NULL,
@@ -696,7 +698,7 @@ BEGIN
         IF v_recounts = 0 THEN
             RAISE EXCEPTION
                 'REOPENED_SHIFT_NOT_RESOLVED: shift % was reopened at % and has not been '
-                'recounted since. Resolving it now would close an accounting hole by '
+                'recounted since. Resolving it now would close a hole in the record by '
                 'declaring it shut rather than by finding out what was in the drawer',
                 p_shift_id, s.reopened_at USING ERRCODE = 'HS409';
         END IF;
@@ -876,7 +878,7 @@ BEGIN
     IF p.provider <> 'cash' THEN
         RAISE EXCEPTION
             'CASH_MOVEMENT_WRONG_PROVIDER: payment % was taken by % and never touched the '
-            'drawer. Posting it here would make a count disagree with the notes in it',
+            'drawer. Recording it here would make a count disagree with the notes in it',
             p_payment_id, p.provider USING ERRCODE = 'HS422';
     END IF;
 

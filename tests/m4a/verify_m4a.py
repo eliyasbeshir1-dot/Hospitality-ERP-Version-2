@@ -672,20 +672,47 @@ def section_tip_separation_structurally() -> None:
     print("\n--- 5. A tip CANNOT reach a bill balance, proved from the catalog "
           "(FR-BIL-014, NC-M4-002) ---")
 
-    # 1. NO COLUMN. A tip has nowhere to be stored except its own tables.
-    columns = rows(f"""
-        SELECT c.table_schema || '.' || c.table_name || '.' || c.column_name
-          FROM information_schema.columns c
-         WHERE c.table_schema NOT IN ('pg_catalog', 'information_schema')
-           AND c.column_name ~ 'tip'
-           AND c.table_schema || '.' || c.table_name NOT IN
-               ('{"', '".join(TIP_TABLES)}')
+    # 1. NO COLUMN WHERE IT WOULD BECOME MONEY OWED.
+    #
+    # This check used to say "no column outside billing's own four tip tables", and that
+    # was true while billing was the only domain that had heard of a tip. M4-B gave a
+    # PAYMENT an allocation to a tip — payments.allocation.tip_id and the intent's
+    # tip_amount_minor — which FR-PAY-017 requires: a payment records separate allocations
+    # to bill balance and to optional tip, and it cannot do that without naming the tip.
+    # The fence was a list of the tables that existed on the day, and it is the eighth of
+    # its kind this repository has had to retire.
+    #
+    # The doctrine underneath is not "tips live in four tables". It is that a tip is never
+    # part of what a guest OWES. So the question is asked of the tables where owing is
+    # recorded, derived from the catalog rather than named: anything carrying a bill total,
+    # and everything in the schemas that record what was ordered and served. A tip column
+    # on any of those is the defect; a tip column on a payment's allocation is the
+    # requirement.
+    columns = rows("""
+        WITH owes AS (
+            SELECT c.relname, n.nspname
+              FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+             WHERE c.relkind = 'r'
+               AND (n.nspname IN ('ordering', 'service', 'fulfillment', 'menu')
+                 OR EXISTS (SELECT 1 FROM pg_attribute a
+                             WHERE a.attrelid = c.oid AND a.attnum > 0
+                               AND NOT a.attisdropped
+                               AND a.attname IN ('bill_total_minor', 'total_amount_minor')))
+        )
+        SELECT o.nspname || '.' || o.relname || '.' || a.attname
+          FROM owes o
+          JOIN pg_class c ON c.relname = o.relname
+          JOIN pg_namespace n ON n.oid = c.relnamespace AND n.nspname = o.nspname
+          JOIN pg_attribute a ON a.attrelid = c.oid
+         WHERE a.attnum > 0 AND NOT a.attisdropped AND a.attname ~ 'tip'
          ORDER BY 1;""", dsn=ADMIN)
-    record("no column outside billing's own tip tables could hold a tip",
+    record("no table that records what is owed carries a tip column",
            not columns,
-           f"columns naming a tip elsewhere: {[r[0] for r in columns] or 'none'}. "
-           f"Enumerated from information_schema, so a tip column added to an order or a "
-           f"bill at M4-B fails this without anybody remembering to look")
+           f"tip columns on tables carrying a bill or order total, or on the schemas that "
+           f"record what was ordered and served: {[r[0] for r in columns] or 'none'}. "
+           f"Derived from the catalog, so a tip column added to a bill, an order or a "
+           f"check at any later gate fails here without anybody remembering to look — "
+           f"which a list of today's tip tables would not have done")
 
     balance_functions = [r[0] for r in rows(BALANCE_FUNCTION_QUERY, dsn=ADMIN)]
     if len(balance_functions) < 3:
@@ -1301,16 +1328,25 @@ def section_payment_dependent_acceptance() -> None:
                                        '"staff_confirmed"')
              WHERE id = '{fx.m3a.ORDERING_POLICY}';""", **CTX)
 
+    # ACCOUNTED FOR, in whichever state is true. This asked for an OPEN entry against
+    # M4-B, which was the honest state at M4-A and stopped being one the moment M4-B
+    # closed it — the ninth gate fence of this shape. What has to remain true at every
+    # later gate is that the register SAYS SOMETHING about who owed the verification:
+    # open against the slice that will supply it, or closed by the slice that did, with
+    # evidence. Silence is the failure, and silence is what is checked for.
     entries = partial_closures.load()
     dependency = [e for e in entries
                   if e["requirement"] == "FR-ORD-007B"
-                  and e.get("completing_gate") == "M4-B" and e.get("state") == "open"]
-    record("the verification half is recorded as a dependency rather than assumed",
+                  and (
+                      (e.get("state") == "open" and e.get("completing_gate") == "M4-B")
+                      or (e.get("state") == "closed"
+                          and (e.get("closed_by_evidence") or "").strip()))]
+    record("the verification half is accounted for in the register, not assumed",
            bool(dependency) and dependency[0].get("opened_at") == "M4-A",
-           f"{[e.get('aspect') for e in dependency]} opened at "
-           f"{dependency[0].get('opened_at') if dependency else 'nothing'} and completing "
-           f"at M4-B. 'Verified' is M4-B's word; M4-A supplies the fail-closed refusal and "
-           f"the register carries who owes the verification")
+           f"{[(e.get('aspect'), e.get('state')) for e in dependency]}, opened at "
+           f"{dependency[0].get('opened_at') if dependency else 'nothing'}. 'Verified' is "
+           f"M4-B's word; M4-A supplies the fail-closed refusal, and the register names "
+           f"who owed the verification whether or not they have delivered it yet")
 
 
 # ===========================================================================
