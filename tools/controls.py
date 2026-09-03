@@ -21,8 +21,13 @@ Anything that STATES a number asks this module for it. There is no second place 
 """
 from __future__ import annotations
 
+import argparse
 import re
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from console import use_utf8_output  # noqa: E402
 
 
 class ControlDrift(RuntimeError):
@@ -133,6 +138,7 @@ CONTROLS = [
     ("NC-M4B-008", "A closure resting on a completer that is itself incomplete", "PARTIAL_CLOSURE_COMPLETER_INCOMPLETE", "m4b"),
     ("NC-M4B-009", "A verification suite the evidence report does not count", "SUITE_UNACCOUNTED", "m4b"),
     ("NC-M4B-010", "A correlation link kind no rebuild puts back", "CORRELATION_KIND_UNOWNED", "m4b"),
+    ("NC-M4B-011", "A suite's controls searched for in logs that cannot contain them", "CONTROL_LOG_ABSENT", "m4b"),
 ]
 
 
@@ -247,3 +253,86 @@ def by_gate() -> list[tuple[str, int]]:
                 f"no distribution can be derived from it")
         tally[gate.group(1)] = tally.get(gate.group(1), 0) + 1
     return sorted(tally.items())
+
+
+class ControlUnproved(RuntimeError):
+    """A registered control did not go red and then green in the run being checked."""
+
+
+def check_red_then_green(logs: Path) -> int:
+    """Every registered control went RED and then GREEN in the log of the suite that owns it.
+
+    CI asserted this in shell, over a hand-written list of log files. The list stopped at
+    m4a.log, so the thirteen M4-B controls were searched for in logs that could not contain
+    them and every one was reported unproved — and because `grep -c` exits 1 when it
+    matches nothing, `pipefail` killed the step before it could print WHICH control was
+    missing. The failure was real; the diagnostic was absent and the cause was wrong.
+
+    So it lives here, next to the registry it reads, and CI calls it. One implementation,
+    no list, and a suite can plant against it — which is what NC-M4B-011 does.
+
+    Stronger than the shell it replaces in two ways. It requires both markers in the
+    OWNING suite's log rather than anywhere in the set, because a control's registry row
+    already says which suite proves it and a control proved somewhere else is a
+    misattribution the evidence report would render wrongly. And it refuses to run when a
+    log it needs is absent, rather than concluding from silence that a control never went
+    red: a diagnostic must not name a cause it did not verify.
+
+    Returns the number of controls checked, so a caller can print it rather than restate it.
+    """
+    registry = described()
+    if not registry:
+        raise ControlUnproved(
+            "CONTROL_REGISTRY_EMPTY: there are no controls to check. A check over an "
+            "empty set agrees with everything, so this is a failure rather than a pass")
+
+    owning = sorted({suite for _description, _signature, suite in registry.values()})
+    absent = [f"{suite}.log" for suite in owning if not (logs / f"{suite}.log").is_file()]
+    if absent:
+        raise ControlUnproved(
+            f"CONTROL_LOG_ABSENT: the registry says {', '.join(owning)} prove controls "
+            f"and {absent} {'is' if len(absent) == 1 else 'are'} not under {logs}. The "
+            f"controls those suites own cannot be searched for, and calling them unproved "
+            f"would state a cause this check did not establish")
+
+    run = proved(logs)
+    unproved = []
+    for identifier, (description, _signature, suite) in sorted(registry.items()):
+        markers = run.get(identifier, {"RED": set(), "GREEN": set()})
+        gaps = [marker for marker in ("RED", "GREEN") if suite not in markers[marker]]
+        if gaps:
+            elsewhere = sorted((markers["RED"] | markers["GREEN"]) - {suite})
+            unproved.append(
+                f"{identifier} ({description}): no {' or '.join(gaps)} in {suite}.log"
+                + (f", though it appears in {elsewhere}" if elsewhere else ""))
+    if unproved:
+        raise ControlUnproved(
+            "CONTROL_NOT_PROVED_RED_THEN_GREEN: " + "; ".join(unproved)
+            + ". A control that never went red is a coverage gap wearing a green badge")
+    return len(registry)
+
+
+def main(argv: list[str] | None = None) -> int:
+    # The diagnostics above carry em-dashes and typographic quotes, and a Windows console
+    # inherits cp1252 — which is how M1-A's rule came to exist at all: a run died
+    # reporting a real finding it could not encode. Called HERE rather than at import,
+    # because this module is imported by every suite and by three generators, and a
+    # library that reconfigures somebody else's stdout is a library that surprises them.
+    use_utf8_output()
+
+    parser = argparse.ArgumentParser(
+        description="Every registered control went red and then green in this run.")
+    parser.add_argument("--logs", required=True, type=Path,
+                        help="directory holding one <suite>.log per suite")
+    args = parser.parse_args(argv)
+    try:
+        checked = check_red_then_green(args.logs)
+    except (ControlUnproved, ControlDrift) as refused:
+        print(f"FAIL {refused}")
+        return 1
+    print(f"{checked} controls, each proved red then green in the suite that owns it")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

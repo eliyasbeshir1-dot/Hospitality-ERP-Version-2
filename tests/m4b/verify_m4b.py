@@ -37,10 +37,14 @@ ASSERTED, meaning read from source, from a payload, or from the database.
 """
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import os
 import re
+import shutil
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -101,6 +105,42 @@ def record(name: str, ok: bool, detail: str = "", *, evidence: str = "asserted")
     print(f"  [{'PASS' if ok else 'FAIL'}] ({evidence}) {name}")
     for line in (detail or "").splitlines():
         print(f"         {line}")
+
+
+def synthesised_control_run(into: Path, omit: str = "", drop_red: str = "") -> Path:
+    """One suite log per suite that owns controls, written by THIS SUITE'S OWN PRINTER.
+
+    The reader in tools/controls.py and the printer in each suite have to agree about the
+    shape of a result line. Written here as string literals, these logs would agree with
+    the reader by construction and prove nothing about the printer; captured off stdout
+    from record(), a drift in either one turns section 16 and NC-M4B-011 red — which is
+    correct, because a drift in either one is what stops CI seeing a real control.
+
+    `omit` leaves out a suite's log entirely and `drop_red` withholds one control's RED
+    line: the two directions the check must refuse.
+    """
+    into.mkdir(parents=True, exist_ok=True)
+    held = list(results)
+    try:
+        for suite in sorted({row[3] for row in registry.CONTROLS}):
+            if suite == omit:
+                continue
+            buffered = io.StringIO()
+            with contextlib.redirect_stdout(buffered):
+                for identifier, description, _signature, owner in registry.CONTROLS:
+                    if owner != suite:
+                        continue
+                    if identifier != drop_red:
+                        record(f"{identifier}  {description} — RED with the defect "
+                               f"planted", True, "")
+                    record(f"{identifier}  {description} — GREEN after revert", True, "")
+            (into / f"{suite}.log").write_text(buffered.getvalue(), encoding="utf-8")
+    finally:
+        # The printer appends to the suite's own tally as it prints. Restoring it is not
+        # tidiness: a control that inflated the count of checks this suite ran would be a
+        # test supplying its own evidence.
+        results[:] = held
+    return into
 
 
 def measured(name: str, ok: bool, detail: str = "") -> None:
@@ -2007,6 +2047,41 @@ def section_governance() -> None:
            f"{colliding or 'none'} out of {len(signatures)} M4 signature(s), checked "
            f"programmatically against every term rather than by reading them")
 
+    # THE CHECK THAT SAYS EVERY CONTROL WENT RED. CI asserted this in shell over a list of
+    # log files written out by hand, and the list stopped at m4a.log — so the thirteen
+    # M4-B controls below were searched for in logs that could not contain them, and the
+    # whole slice's coverage went unchecked behind a step whose name says it did not. The
+    # assertion moved into tools/controls.py, beside the registry it reads, and these three
+    # checks are what makes it a checked check rather than another unexamined one.
+    #
+    # The logs are SYNTHESISED BY THIS SUITE'S OWN PRINTER, captured off stdout, rather
+    # than written out as string literals. The reader in controls.py and the printer in
+    # each suite have to agree about a line's shape; a literal here would agree with the
+    # reader by construction and prove nothing about the printer. Captured, a drift in
+    # either one turns these red — which is correct, because a drift in either one is what
+    # stops CI seeing a real control.
+
+    with tempfile.TemporaryDirectory() as scratch:
+        complete = synthesised_control_run(Path(scratch) / "complete")
+        record("the check that says every control went red then green passes a run that did",
+               registry.check_red_then_green(complete) == registry.count(),
+               f"{registry.count()} control(s) across "
+               f"{len({row[3] for row in registry.CONTROLS})} suite log(s), written by "
+               f"this suite's own record() and read back by tools/controls.py")
+
+        short = synthesised_control_run(Path(scratch) / "short",
+                                        drop_red="NC-M4B-001")
+        try:
+            registry.check_red_then_green(short)
+            refused = "nothing"
+        except registry.ControlUnproved as stopped:
+            refused = str(stopped)
+        record("and refuses a run where a control went green having never gone red",
+               refused.startswith("CONTROL_NOT_PROVED_RED_THEN_GREEN")
+               and "NC-M4B-001" in refused,
+               f"{refused[:200]}. This is the direction the shell it replaces did check, "
+               f"though it died on grep's own exit code before it could say which")
+
 
 # ===========================================================================
 # 17. Negative controls
@@ -2762,6 +2837,49 @@ def section_controls() -> None:
 
     control("NC-M4B-010  a correlation link kind no rebuild puts back",
             red_ownership, green_ownership)
+
+    # ---------------------------------------------------------------- NC-M4B-011
+    # A suite's controls searched for in logs that cannot contain them. This is the second
+    # defect this slice shipped and the one that failed CI: the step named "every negative
+    # control must have been proved red before green" held its own list of log files, the
+    # list stopped at m4a.log, and so the thirteen controls above it were never looked for.
+    # The step went red — but for the wrong reason and with no diagnostic at all, because
+    # grep exits 1 when it matches nothing and `pipefail` killed the shell before the line
+    # that would have said which control was missing.
+    #
+    # The check now lives in tools/controls.py beside the registry it reads, and this is
+    # the control on the checker. Planted as a REAL absent log rather than by mutating the
+    # registry, because the rule is about the evidence handed to the check: a registry
+    # edit would prove that a control removed from the registry is not looked for, which
+    # is true and is not the defect that shipped.
+    def coverage_gate(directory: Path) -> tuple[bool, str, str]:
+        try:
+            checked = registry.check_red_then_green(directory)
+        except registry.ControlUnproved as refused:
+            return (False, str(refused).split(":", 1)[0], str(refused)[:240])
+        return (True, "", f"{checked} control(s) accounted for")
+
+    def red_coverage():
+        CONTEXT["nc4b011_dir"] = tempfile.mkdtemp(prefix="nc4b011-")
+        root = Path(CONTEXT["nc4b011_dir"])
+        synthesised_control_run(root / "partial", omit="m4b")
+        ok, sig, detail = coverage_gate(root / "partial")
+        return (not ok and sig == "CONTROL_LOG_ABSENT",
+                f"{sig}: {detail} With m4b.log absent the fourteen controls this suite "
+                f"owns cannot be searched for, and the check says exactly that rather "
+                f"than calling them unproved")
+
+    def green_coverage():
+        root = Path(CONTEXT["nc4b011_dir"])
+        synthesised_control_run(root / "whole")
+        ok, _sig, detail = coverage_gate(root / "whole")
+        shutil.rmtree(root, ignore_errors=True)
+        return (ok and not root.exists(),
+                f"{detail}, every one in the log of the suite the registry says proves "
+                f"it; the planted directory is gone")
+
+    control("NC-M4B-011  a suite's controls searched for in logs that cannot contain them",
+            red_coverage, green_coverage)
 
 
 # ===========================================================================
