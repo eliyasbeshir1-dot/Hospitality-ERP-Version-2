@@ -56,8 +56,8 @@ Counted from `active_requirements` in the pinned package, by `introduced_at`.
 
 ## The migrations this repository has
 
-27 of them, `0001_organizational_model_and_rls.sql` through `0027_receipts_printing_and_the_document_path.sql`, across
-18 domains. The owning domain of each is read out of its own SQL — the
+28 of them, `0001_organizational_model_and_rls.sql` through `0028_financial_table_classification_and_the_fiscal_port.sql`, across
+19 domains. The owning domain of each is read out of its own SQL — the
 schemas it creates and the schemas it creates tables in — and the gate from the header
 comment every migration in this repository carries.
 
@@ -89,7 +89,8 @@ comment every migration in this repository carries.
 | `0024_cash_shifts_movements_and_custody.sql` | cash | — | M4-B |
 | `0025_financial_acceptance_producers_and_the_chain.sql` | integration | notify · billing · ordering · payments | M4-B |
 | `0026_translatable_receipt_wording.sql` | — | menu · ordering | M4-C |
-| `0027_receipts_printing_and_the_document_path.sql` | docs | billing · payments · ordering · config | M4-C |
+| `0027_receipts_printing_and_the_document_path.sql` | docs | billing · payments · app · ordering · config | M4-C |
+| `0028_financial_table_classification_and_the_fiscal_port.sql` | fiscal · org | app | M4-C |
 
 ---
 
@@ -101,6 +102,7 @@ comment every migration in this repository carries.
 - **`cash`** — drawer shifts, movements, counts, custody and exceptions
 - **`config`** — policies, configuration versions, numbering and retention
 - **`docs`** — documents somebody outside this system reads: receipts, their revisions and reprints, the registered printers and what was put on paper
+- **`fiscal`** — the fiscal-document port: a request against a receipt, its lifecycle and its reconciliation status, with no provider's schema inside it
 - **`fulfillment`** — routing, station tickets and the fulfillment state machine
 - **`identity`** — users, roles, memberships, sessions and step-up
 - **`integration`** — outbound integration runtime and the dead-letter queue

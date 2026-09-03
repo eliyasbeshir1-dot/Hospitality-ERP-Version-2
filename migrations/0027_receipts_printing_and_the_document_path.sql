@@ -540,7 +540,7 @@ COMMENT ON FUNCTION docs.tip_total_for_bill(uuid, uuid) IS
 -- this trigger refuses them from ANYONE, the table owner included, under FORCE ROW LEVEL
 -- SECURITY. Either lock surviving the other's removal is the point.
 
-CREATE FUNCTION docs.refuse_document_mutation() RETURNS trigger
+CREATE FUNCTION app.refuse_financial_mutation() RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
@@ -553,22 +553,26 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION docs.refuse_document_mutation() IS
-    'FR-DAT-008B at the write. Attached to every append-only table in docs, and the set '
-    'of tables carrying it is asserted from the catalog by tests/m4c rather than listed, '
-    'so a table added at a later gate without it fails the build rather than the audit.';
+COMMENT ON FUNCTION app.refuse_financial_mutation() IS
+    'FR-DAT-008B at the write. IN app RATHER THAN docs, and generic over TG_TABLE_NAME, '
+    'because 0028 attaches it to ledger tables in billing, cash and payments too: a '
+    'drawer count refused by a function called refuse_document_mutation would be a '
+    'diagnostic naming something the row is not. Which tables must carry it is DECLARED '
+    'by app.financial_table_class() in 0028 and asserted from the catalog by tests/m4c, '
+    'so a financial table added at a later gate with no classification fails the build '
+    'rather than sliding past the audit.';
 
 CREATE TRIGGER receipt_is_append_only
     BEFORE UPDATE OR DELETE ON docs.receipt
-    FOR EACH ROW EXECUTE FUNCTION docs.refuse_document_mutation();
+    FOR EACH ROW EXECUTE FUNCTION app.refuse_financial_mutation();
 
 CREATE TRIGGER receipt_line_is_append_only
     BEFORE UPDATE OR DELETE ON docs.receipt_line
-    FOR EACH ROW EXECUTE FUNCTION docs.refuse_document_mutation();
+    FOR EACH ROW EXECUTE FUNCTION app.refuse_financial_mutation();
 
 CREATE TRIGGER printer_test_is_append_only
     BEFORE UPDATE OR DELETE ON docs.printer_test
-    FOR EACH ROW EXECUTE FUNCTION docs.refuse_document_mutation();
+    FOR EACH ROW EXECUTE FUNCTION app.refuse_financial_mutation();
 
 
 -- ===========================================================================

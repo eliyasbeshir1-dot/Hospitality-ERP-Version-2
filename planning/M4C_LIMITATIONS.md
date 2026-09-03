@@ -81,3 +81,30 @@ of this repository or of any artifact built from it that contains the font.
 The licence text was extracted verbatim from the `fontTools` distribution's
 `LICENSE.external`, because `scripts.sil.org` and `openfontlicense.org` are both
 unreachable from this build environment. It was not retyped from memory.
+
+## 5. The fiscal port has one implementation, and it is a simulator
+
+Recorded against `463dc83` on 3 September 2026.
+
+FR-BIL-012 asks for a fiscal-document port and reconciliation status without embedding one
+provider's schema, and it names its own trap: an abstraction with one implementation has
+nothing to prove it is an abstraction.
+
+What is built: `fiscal.document` is a request against a receipt, a lifecycle, and a
+reconciliation status. No column names a provider, a device or a signature format;
+`provider_reference` and `provider_payload` are opaque and the platform never parses
+either. `fiscal.adapter.mode` is **simulated by CHECK**, not by default, so no adapter can
+claim to be live while no Ethiopian fiscal integration is contracted — and the day one is,
+that CHECK is the line that must change, visibly, in a migration.
+
+**What this does not prove is that any real provider's contract fits this shape.** A
+provider that requires the platform to compute a signature over specific fields, or to
+submit before the receipt prints rather than after, or to reconcile per shift rather than
+per document, would not fit — and no second implementation exists to have found that out.
+The port is a commitment about where the seam goes, not evidence that the seam is in the
+right place.
+
+`fiscal.reconciliation()` counts by state and never totals, because the question a
+reconciliation answers is which documents are stuck; a single number hides the requested
+ones that never went anywhere.
+

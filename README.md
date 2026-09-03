@@ -192,6 +192,7 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0025_financial_acceptance_producers_and_the_chain.sql`
 - `0026_translatable_receipt_wording.sql`
 - `0027_receipts_printing_and_the_document_path.sql`
+- `0028_financial_table_classification_and_the_fiscal_port.sql`
 
 ## Seeds
 

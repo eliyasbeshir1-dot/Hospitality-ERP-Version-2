@@ -75,6 +75,8 @@ DOMAIN_PURPOSE = {
     "billing": "checks, allocation, bills, splitting, dispositions and tips",
     "docs": "documents somebody outside this system reads: receipts, their revisions and "
             "reprints, the registered printers and what was put on paper",
+    "fiscal": "the fiscal-document port: a request against a receipt, its lifecycle and "
+              "its reconciliation status, with no provider's schema inside it",
     "payments": "adapters and the live/simulated boundary, intents, capture, "
                 "verification, dual allocation and reversal",
     "cash": "drawer shifts, movements, counts, custody and exceptions",
@@ -181,7 +183,7 @@ MIGRATION_SLICE = {
     "0015": "M3-D", "0016": "M3-D", "0017": "M3-D",
     "0018": "M4-A", "0019": "M4-A", "0020": "M4-A", "0021": "M4-A",
     "0022": "M4-B", "0023": "M4-B", "0024": "M4-B", "0025": "M4-B",
-    "0026": "M4-C", "0027": "M4-C",
+    "0026": "M4-C", "0027": "M4-C", "0028": "M4-C",
 }
 
 

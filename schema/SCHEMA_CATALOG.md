@@ -4,7 +4,7 @@
 Do not edit by hand: the verification suite regenerates this file and fails on any
 difference, so a hand edit is reported as drift (FR-DAT-015).
 
-Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `docs`, `fulfillment`, `identity`, `integration`, `menu`, `money`, `notify`, `ordering`, `org`, `payments`, `pos`, `safety`, `service`, discovered from the database rather than listed here.
+Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `docs`, `fiscal`, `fulfillment`, `identity`, `integration`, `menu`, `money`, `notify`, `ordering`, `org`, `payments`, `pos`, `safety`, `service`, discovered from the database rather than listed here.
 
 ---
 
@@ -42,6 +42,8 @@ Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `docs`, `fulfillme
 | `docs.receipt_line_kind` | bill_component, bill_total, tip, total_paid, payment_method |
 | `docs.render_outcome` | rendered, failed |
 | `docs.sink_kind` | device, preview |
+| `fiscal.adapter_mode` | live, simulated |
+| `fiscal.document_state` | requested, submitted, accepted, rejected, reconciled |
 | `fulfillment.document_trigger` | kds_unavailable, policy_requires_paper |
 | `fulfillment.priority_level` | ordinary, rush, service_access |
 | `fulfillment.serve_exception` | missing_item, wrong_item |
@@ -82,6 +84,7 @@ Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `docs`, `fulfillme
 | `ordering.order_state` | submitted, accepted, rejected, cancelled, voided |
 | `org.lifecycle_status` | active, inactive, archived |
 | `org.node_kind` | brand, legal_entity, outlet, service_area, preparation_station, dining_table, device |
+| `org.record_concern` | menu, orders, billing, payments, cash, fiscal_documents, identity |
 | `payments.adapter_mode` | live, simulated |
 | `payments.allocation_target` | bill_balance, tip |
 | `payments.live_outcome` | approved, declined |
@@ -162,6 +165,8 @@ graph LR
   money_currency["money.currency"]
   docs_receipt_line["docs.receipt_line"]
   docs_render_attempt["docs.render_attempt"]
+  fiscal_adapter["fiscal.adapter"]
+  fiscal_document["fiscal.document"]
   fulfillment_priority_change["fulfillment.priority_change"]
   fulfillment_ticket["fulfillment.ticket"]
   fulfillment_ready_notice["fulfillment.ready_notice"]
@@ -235,6 +240,7 @@ graph LR
   org_device_registration["org.device_registration"]
   org_org_closure["org.org_closure"]
   org_outlet_profile["org.outlet_profile"]
+  org_system_of_record["org.system_of_record"]
   payments_allocation["payments.allocation"]
   payments_payment["payments.payment"]
   payments_payment_adapter["payments.payment_adapter"]
@@ -379,6 +385,12 @@ graph LR
   docs_render_attempt --> identity_user_account
   docs_render_attempt --> org_org_node
   docs_render_attempt --> org_tenant
+  fiscal_adapter --> identity_user_account
+  fiscal_adapter --> org_tenant
+  fiscal_document --> docs_receipt
+  fiscal_document --> fiscal_adapter
+  fiscal_document --> org_org_node
+  fiscal_document --> org_tenant
   fulfillment_priority_change --> config_reason_code
   fulfillment_priority_change --> fulfillment_ticket
   fulfillment_priority_change --> identity_user_account
@@ -612,6 +624,9 @@ graph LR
   org_org_node --> org_org_node
   org_org_node --> org_tenant
   org_outlet_profile --> org_org_node
+  org_system_of_record --> identity_user_account
+  org_system_of_record --> org_org_node
+  org_system_of_record --> org_tenant
   payments_allocation --> org_org_node
   payments_allocation --> org_tenant
   payments_allocation --> payments_payment
@@ -2077,6 +2092,84 @@ Constraints:
 Policies:
 
 - `render_attempt_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+### `fiscal`
+
+FR-BIL-012's port. What a fiscal document IS to this platform — a request, an outcome and a reconciliation status — with no provider's schema inside it. The provider is configuration.
+
+#### `fiscal.adapter`
+
+A fiscal provider, as configuration. Its mode is simulated BY CHECK and not by default: no Ethiopian fiscal integration is contracted, so no adapter may claim to be live, and the day one is contracted that CHECK is the line that has to change — visibly, in a migration, rather than in a row.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `provider` | `text` | NOT NULL |  |  |
+| `mode` | `fiscal.adapter_mode` | NOT NULL |  |  |
+| `status` | `org.lifecycle_status` | NOT NULL | `'active'::org.lifecycle_status` |  |
+| `registered_by_user_id` | `uuid` | NOT NULL |  |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `adapter_pkey` — `PRIMARY KEY (id)`
+- `fiscal_adapter_actor_fk` — `FOREIGN KEY (tenant_id, registered_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `fiscal_adapter_mode_is_derived` — `CHECK ((mode = 'simulated'::fiscal.adapter_mode))`
+- `fiscal_adapter_mode_unique` — `UNIQUE (id, mode)`
+- `fiscal_adapter_one_per_provider` — `UNIQUE (tenant_id, provider, status)`
+- `fiscal_adapter_provider_shape` — `CHECK ((provider ~ '^[a-z][a-z0-9_]*$'::text))`
+- `fiscal_adapter_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `fiscal_adapter_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `adapter_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `fiscal.document`
+
+FR-BIL-012's port. A fiscal document is a request against a receipt, an outcome, and a reconciliation status — and nothing in this table names a provider's field. provider_reference and provider_payload are opaque and the platform never parses them. One document per receipt, because two would make the fiscal record of a sale ambiguous.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `legal_entity_id` | `uuid` | NOT NULL |  |  |
+| `adapter_id` | `uuid` | NOT NULL |  |  |
+| `adapter_mode` | `fiscal.adapter_mode` | NOT NULL |  |  |
+| `receipt_id` | `uuid` | NOT NULL |  |  |
+| `state` | `fiscal.document_state` | NOT NULL | `'requested'::fiscal.document_state` |  |
+| `provider_reference` | `text` |  |  |  |
+| `provider_payload` | `jsonb` |  |  |  |
+| `requested_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `submitted_at` | `timestamp with time zone` |  |  |  |
+| `settled_at` | `timestamp with time zone` |  |  |  |
+| `reconciled_at` | `timestamp with time zone` |  |  |  |
+| `rejection_reason` | `text` |  |  |  |
+
+Constraints:
+
+- `document_pkey` — `PRIMARY KEY (id)`
+- `fiscal_document_adapter_fk` — `FOREIGN KEY (adapter_id, adapter_mode) REFERENCES fiscal.adapter(id, mode) ON DELETE RESTRICT`
+- `fiscal_document_entity_fk` — `FOREIGN KEY (tenant_id, legal_entity_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `fiscal_document_one_per_receipt` — `UNIQUE (tenant_id, receipt_id)`
+- `fiscal_document_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `fiscal_document_receipt_fk` — `FOREIGN KEY (tenant_id, receipt_id) REFERENCES docs.receipt(tenant_id, id) ON DELETE RESTRICT`
+- `fiscal_document_states_carry_their_times` — `CHECK ((((state = 'requested'::fiscal.document_state) AND (submitted_at IS NULL) AND (settled_at IS NULL)) OR ((state = 'submitted'::fiscal.document_state) AND (submitted_at IS NOT NULL) AND (settled_at IS NULL)) OR ((state = 'accepted'::fiscal.document_state) AND (submitted_at IS NOT NULL) AND (settled_at IS NOT NULL)) OR ((state = 'rejected'::fiscal.document_state) AND (submitted_at IS NOT NULL) AND (settled_at IS NOT NULL) AND (btrim(COALESCE(rejection_reason, ''::text)) <> ''::text)) OR ((state = 'reconciled'::fiscal.document_state) AND (submitted_at IS NOT NULL) AND (settled_at IS NOT NULL) AND (reconciled_at IS NOT NULL))))`
+- `fiscal_document_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `fiscal_document_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `document_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
 ### `fulfillment`
 
@@ -4526,6 +4619,41 @@ Constraints:
 Policies:
 
 - `outlet_profile_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `org.system_of_record`
+
+FR-TEN-009A. Which system is authoritative for each Phase 1 concern, per tenant and legal entity. The fiscal port below READS it: a fiscal document may only be issued by the platform for an entity that says this platform is of record for fiscal_documents, so the registry governs behaviour rather than describing it.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `legal_entity_id` | `uuid` | NOT NULL |  |  |
+| `concern` | `org.record_concern` | NOT NULL |  |  |
+| `system_name` | `text` | NOT NULL |  |  |
+| `is_this_platform` | `boolean` | NOT NULL |  |  |
+| `effective_from` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `recorded_by_user_id` | `uuid` | NOT NULL |  |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `system_of_record_actor_fk` — `FOREIGN KEY (tenant_id, recorded_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `system_of_record_entity_fk` — `FOREIGN KEY (tenant_id, legal_entity_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `system_of_record_name_not_blank` — `CHECK ((btrim(system_name) <> ''::text))`
+- `system_of_record_one_per_concern` — `UNIQUE (tenant_id, legal_entity_id, concern)`
+- `system_of_record_pkey` — `PRIMARY KEY (id)`
+- `system_of_record_platform_names_itself` — `CHECK ((is_this_platform = (system_name = 'this_platform'::text)))`
+- `system_of_record_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `system_of_record_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `system_of_record_isolation` — `app.row_in_scope(tenant_id, NULL::uuid)`
 
 #### `org.tenant`
 
