@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `f4b3bb492c6ef189bd7505e5a2b09e88908c5ad0` |
-| Short | `f4b3bb4` |
+| Commit | `b613a81ac36bd3611a0a9ea9d6d18b8cdd493b70` |
+| Short | `b613a81` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation |
@@ -60,6 +60,10 @@ Ordered, forward-only and checksum-locked. An edited applied migration fails pre
 | `0019` | `0019_checks_bills_splitting_and_tip_separation.sql` | `6cb20a943a665186…` | applied |
 | `0020` | `0020_counter_channel_and_payment_dependent_acceptance.sql` | `91b077ba0de1e80b…` | applied |
 | `0021` | `0021_financial_conditions_on_closure_and_completion.sql` | `381a6dc87738d6ee…` | applied |
+| `0022` | `0022_payment_and_tip_artifacts.sql` | `c1db2786754adc0c…` | applied |
+| `0023` | `0023_payment_capture_verification_and_reversal.sql` | `2a4e63ac331eb936…` | applied |
+| `0024` | `0024_cash_shifts_movements_and_custody.sql` | `80c6a2445b4ed519…` | applied |
+| `0025` | `0025_financial_acceptance_producers_and_the_chain.sql` | `ee0c428b36298be9…` | applied |
 
 ## Seeds applied
 
@@ -99,12 +103,13 @@ Money is stored as integer minor units beside an explicit currency.
 | M2-C customer surface, rendered | **PASS** | 63 | 0 |
 | M3-A orders, snapshots, session lifecycle | **PASS** | 136 | 0 |
 | M3-B fulfillment, tickets, stations, the KDS | **PASS** | 127 | 0 |
-| M3-C service requests, notifications, integration | **PASS** | 125 | 0 |
+| M3-C service requests, notifications, integration | **PASS** | 126 | 0 |
 | M3-D terminals, override, handover, the waiter surface | **PASS** | 95 | 0 |
 | M4-A checks, bills, splitting, tip separation | **PASS** | 105 | 0 |
+| M4-B payment capture, verification, cash, reversal | **PASS** | 144 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
 | The five golden journeys, end to end | **PASS** | 61 | 0 |
-| **Total** | | **1119** | |
+| **Total** | | **1264** | |
 
 ## The five golden journeys (FR-TST-005A)
 
@@ -129,7 +134,7 @@ mistaken for one that mostly worked.
 
 ## Negative controls
 
-**89** controls — M1 22, M2 22, M3 35, M4 10 — each planted as a real
+**102** controls — M1 22, M2 22, M3 35, M4 23 — each planted as a real
 defect, required to produce its exact registered signature, then reverted and
 required to pass again. A control that never went red is a coverage gap wearing a
 green badge, and CI fails the build when one is missing. The registry is
@@ -228,6 +233,19 @@ build, and so does one described and never proved.
 | `NC-M4A-006` | A per-payer tip that reallocates bill lines | `TIP_REALLOCATED_BILL` | red, then green |
 | `NC-M4A-007` | The counter channel on an order path of its own | `CHANNEL_RULE_DIVERGENCE` | red, then green |
 | `NC-M4A-008` | A finalized bill with no calculation version | `CALCULATION_VERSION_MISSING` | red, then green |
+| `NC-M4-003` | A simulated or unverified result recorded as money received | `UNVERIFIED_OR_SIMULATED_PAYMENT_CLAIM` | red, then green |
+| `NC-M4-004` | A cashier approving their own refund or their own count | `SELF_APPROVAL_ACCEPTED` | red, then green |
+| `NC-M4-006` | A reopened cash shift closed without being resolved | `REOPENED_SHIFT_NOT_RESOLVED` | red, then green |
+| `NC-M4B-001` | Raw card data reaching storage, a log or analytics | `CARD_DATA_RETAINED` | red, then green |
+| `NC-M4B-002` | A payment allocation recomputed on read | `ALLOCATION_RECOMPUTED_ON_READ` | red, then green |
+| `NC-M4B-003` | A tip merged into sales revenue in reconciliation | `TIP_MERGED_INTO_REVENUE` | red, then green |
+| `NC-M4B-004` | A retry that produces a second payment | `DUPLICATE_PAYMENT_ON_RETRY` | red, then green |
+| `NC-M4B-005` | A finalized cash shift that accepts a movement | `FINALIZED_SHIFT_MUTATED` | red, then green |
+| `NC-M4B-006` | A proof confirmation accepted with no attributor | `VERIFICATION_WITHOUT_ATTRIBUTOR` | red, then green |
+| `NC-M4B-007` | An incompatible peer version silently accepted | `UNKNOWN_SCHEMA_ACCEPTED` | red, then green |
+| `NC-M4B-008` | A closure resting on a completer that is itself incomplete | `PARTIAL_CLOSURE_COMPLETER_INCOMPLETE` | red, then green |
+| `NC-M4B-009` | A verification suite the evidence report does not count | `SUITE_UNACCOUNTED` | red, then green |
+| `NC-M4B-010` | A correlation link kind no rebuild puts back | `CORRELATION_KIND_UNOWNED` | red, then green |
 
 ## Design decision: the ledger is the record, everything else is a projection (M3-A)
 
