@@ -120,7 +120,31 @@ CONTROLS = [
     ("NC-M4A-006", "A per-payer tip that reallocates bill lines", "TIP_REALLOCATED_BILL", "m4a"),
     ("NC-M4A-007", "The counter channel on an order path of its own", "CHANNEL_RULE_DIVERGENCE", "m4a"),
     ("NC-M4A-008", "A finalized bill with no calculation version", "CALCULATION_VERSION_MISSING", "m4a"),
+    ("NC-M4-003", "A simulated or unverified result recorded as money received", "UNVERIFIED_OR_SIMULATED_PAYMENT_CLAIM", "m4b"),
+    ("NC-M4-004", "A cashier approving their own refund or their own count", "SELF_APPROVAL_ACCEPTED", "m4b"),
+    ("NC-M4-006", "A reopened cash shift closed without being resolved", "REOPENED_SHIFT_NOT_RESOLVED", "m4b"),
+    ("NC-M4B-001", "Raw card data reaching storage, a log or analytics", "CARD_DATA_RETAINED", "m4b"),
+    ("NC-M4B-002", "A payment allocation recomputed on read", "ALLOCATION_RECOMPUTED_ON_READ", "m4b"),
+    ("NC-M4B-003", "A tip merged into sales revenue in reconciliation", "TIP_MERGED_INTO_REVENUE", "m4b"),
+    ("NC-M4B-004", "A retry that produces a second payment", "DUPLICATE_PAYMENT_ON_RETRY", "m4b"),
+    ("NC-M4B-005", "A finalized cash shift that accepts a movement", "FINALIZED_SHIFT_MUTATED", "m4b"),
+    ("NC-M4B-006", "A proof confirmation accepted with no attributor", "VERIFICATION_WITHOUT_ATTRIBUTOR", "m4b"),
+    ("NC-M4B-007", "An incompatible peer version silently accepted", "UNKNOWN_SCHEMA_ACCEPTED", "m4b"),
+    ("NC-M4B-008", "A closure resting on a completer that is itself incomplete", "PARTIAL_CLOSURE_COMPLETER_INCOMPLETE", "m4b"),
 ]
+
+
+def signatures_for(gate: str) -> list[str]:
+    """Every failure signature owned by a gate, from the registry rather than a list.
+
+    Used by tests/m4b to check each signature against the package's fenced vocabulary
+    programmatically. Matched on the identifier so that both NC-M4-00n and NC-M4B-00n
+    answer to "M4" — the gate owns them, the slice merely proved them.
+    """
+    prefix = f"NC-{gate.upper()}"
+    return sorted({c[2] for c in CONTROLS
+                   if c[0].startswith(prefix)
+                   and re.fullmatch(rf"{re.escape(prefix)}[A-Z]?-\d+", c[0])})
 
 
 # A control identifier: the gate that owns it and a three-digit ordinal. Matched against

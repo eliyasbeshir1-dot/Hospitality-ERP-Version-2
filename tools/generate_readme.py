@@ -72,6 +72,13 @@ SLICE_DELIVERS = {
             "carrying a persisted version, five split modes with deterministic "
             "rounding, merge and split of checks, tips kept structurally out of every "
             "bill balance, and the counter channel on the same order aggregate",
+    "M4-B": "payment capture, verification and reversal: a live/simulated boundary held "
+            "by a derived mode, two distinct outcome types and a refusal at the write; "
+            "cash with change computed in the database; an external terminal's result "
+            "with no card data anywhere; Telebirr and CBE Birr proof attested by a named "
+            "person on their own session; separate bill and tip allocations that are "
+            "stored rather than recomputed; independently reversible refunds under "
+            "maker-checker; and cash shifts a reopened drawer cannot quietly close",
 }
 
 # The gates in order, and what each one brings that does not exist yet. Rows are emitted
@@ -167,6 +174,13 @@ SUITE_PURPOSE = {
            "split modes exercised at payer counts that do not divide evenly, tip "
            "separation proved from the catalog before it is proved by behaviour, and the "
            "bill summary and tip box measured as two rectangles in a real browser",
+    "m4b": "payment and the drawer: a simulated result proved unable to become a live "
+           "one from the catalog before it is attempted through the real route, change "
+           "and allocations recomputed in Python and required to match, card data "
+           "refused at the write on every textual column the catalog knows about, the "
+           "cash path proved to have no outbound dependency anywhere in its transitive "
+           "call graph, and a reopened cash shift that cannot reach a terminal state "
+           "without a recount and somebody else's approval",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
     "journeys": "the five golden journeys end to end in a browser against real "
                 "persistence, plus the duplicate-submit race: what a guest and a waiter "

@@ -73,6 +73,9 @@ DOMAIN_PURPOSE = {
     "integration": "outbound integration runtime and the dead-letter queue",
     "pos": "terminals, override approval, handover and the staff read models",
     "billing": "checks, allocation, bills, splitting, dispositions and tips",
+    "payments": "adapters and the live/simulated boundary, intents, capture, "
+                "verification, dual allocation and reversal",
+    "cash": "drawer shifts, movements, counts, custody and exceptions",
     "migration": "the migration history table itself",
     "seed_history": "the seed history table itself",
     "security": "security events and storage allocation",
@@ -175,6 +178,7 @@ MIGRATION_SLICE = {
     "0010": "M3-A", "0011": "M3-B", "0012": "M3-B", "0013": "M3-C", "0014": "M3-C",
     "0015": "M3-D", "0016": "M3-D", "0017": "M3-D",
     "0018": "M4-A", "0019": "M4-A", "0020": "M4-A", "0021": "M4-A",
+    "0022": "M4-B", "0023": "M4-B", "0024": "M4-B", "0025": "M4-B",
 }
 
 

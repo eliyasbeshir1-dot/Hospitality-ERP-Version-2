@@ -21,6 +21,7 @@
 | **M3-C** | service requests, ephemeral presence, in-app notifications, deep links, the dead-letter queue and customer status in the session's language | `ccd83fe` |
 | **M3-D** | the waiter surface: terminals, role home and table view, waiter-entered ordering on the one order aggregate, operational search, manager override without shared credentials, and handover | `40f86ca` |
 | **M4-A** | checks and allocation that cannot bill a unit twice, exact calculation carrying a persisted version, five split modes with deterministic rounding, merge and split of checks, tips kept structurally out of every bill balance, and the counter channel on the same order aggregate | `7593357` |
+| **M4-B** | payment capture, verification and reversal: a live/simulated boundary held by a derived mode, two distinct outcome types and a refusal at the write; cash with change computed in the database; an external terminal's result with no card data anywhere; Telebirr and CBE Birr proof attested by a named person on their own session; separate bill and tip allocations that are stored rather than recomputed; independently reversible refunds under maker-checker; and cash shifts a reopened drawer cannot quietly close | `unreleased` |
 
 The M1 evidence report is at `evidence/M1_EVIDENCE_REPORT.md`.
 
@@ -72,6 +73,8 @@ not have, or is still open after its completing gate has landed.
 | **FR-BIL-008** | settlement by tender | M4-B |
 | **FR-BIL-014** | total tendered | M4-B |
 | **FR-BIL-016** | tip refund through a provider | M4-B |
+| **FR-CFG-001C** | permitted payment methods | M4-B |
+| **FR-DAT-008B** | receipts in the financial ledgers | M4-C |
 | **FR-DAT-010** | financial projections | M4-A |
 | **FR-FUL-001** | routing during an outage | M5a |
 | **FR-FUL-003** | KDS from the local node | M5a |
@@ -80,8 +83,10 @@ not have, or is still open after its completing gate has landed.
 | **FR-FUL-012** | analytical consumption | M6 |
 | **FR-FUL-014** | physical printing and dedup across restart | M5a |
 | **FR-FUL-015** | rerouting with the outlet node authoritative | M5a |
+| **FR-GOV-004** | every landed requirement audited, not only named completers | M4-C |
 | **FR-I18N-008** | receipt communications | M4-C |
 | **FR-INT-007** | transport failures in the dead-letter queue | M5a |
+| **FR-INT-011** | node connectivity, sync lag and printer status | M5a |
 | **FR-INT-014** | bill, payment and tip in the chain | M4-B |
 | **FR-INT-014** | the sync record in the chain | M5a |
 | **FR-NOT-001** | bill, payment and tip producers | M4-B |
@@ -103,6 +108,8 @@ not have, or is still open after its completing gate has landed.
 | **FR-ORD-016A** | station events on the timeline | M3-B |
 | **FR-ORD-019A** | fulfillment ticket in the chain | M3-B |
 | **FR-ORD-019A** | service request in the chain | M3-C |
+| **FR-PAY-002** | cash service through a staged outage | M5a |
+| **FR-PAY-009** | remittance back through a provider | M4-C |
 | **FR-POS-004** | unpaid balance on the table view | M4-A |
 | **FR-TAB-007A** | service requests consolidated by a merge | M3-C |
 | **FR-TAB-008** | service requests preserved by a move | M3-C |
@@ -125,7 +132,7 @@ position is to write fresh.
 
 | Path | Contents |
 |---|---|
-| `api/` | the cloud API — Fastify and TypeScript, two runtime dependencies, serving `api`, `billing`, `customer`, `health`, `service`, `staff`, `station` and `surface` |
+| `api/` | the cloud API — Fastify and TypeScript, two runtime dependencies, serving `api`, `billing`, `customer`, `health`, `payments`, `service`, `staff`, `station` and `surface` |
 | `docs/` | the approved v2.0.9 package, byte-identical and verified by its own `SHA256SUMS.txt` |
 | `docs-local/` | cross-platform command reference |
 | `evidence/` | `M1_EVIDENCE_REPORT.md`, generated from the repository, database and suite logs |
@@ -133,7 +140,7 @@ position is to write fresh.
 | `planning/` | architecture conformance, migration ownership, CI matrix, known limitations |
 | `schema/` | `SCHEMA_CATALOG.md`, generated from the live database, never hand-written |
 | `seeds/` | demonstration tenants and reason-code sets, with their own ordered record |
-| `tests/` | verification suites — 12 that each verify one slice, and 2 that cut across gates |
+| `tests/` | verification suites — 13 that each verify one slice, and 2 that cut across gates |
 | `tools/` | migration and seed runners, generators, and the forbidden-surface verifier |
 
 ## Migrations
@@ -161,6 +168,10 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0019_checks_bills_splitting_and_tip_separation.sql`
 - `0020_counter_channel_and_payment_dependent_acceptance.sql`
 - `0021_financial_conditions_on_closure_and_completion.sql`
+- `0022_payment_and_tip_artifacts.sql`
+- `0023_payment_capture_verification_and_reversal.sql`
+- `0024_cash_shifts_movements_and_custody.sql`
+- `0025_financial_acceptance_producers_and_the_chain.sql`
 
 ## Seeds
 
@@ -194,6 +205,7 @@ bash tests/m1d/run_verification.sh         # rebuilds from empty, runs every sli
 | `tests/m3c/verify_m3c.py` | service requests: a translated catalog, routing by table, area, role and presence, deduplication that collapses an accident and keeps a deliberate repeat, presence proved discarded rather than marked, notifications with nothing sensitive in a payload or a log, deep links that respect session scope, and a dead-letter queue whose replay cannot duplicate |
 | `tests/m3d/verify_m3d.py` | the waiter surface rendered in a real browser: terminals and their revocation, role home ordered by what is overdue, waiter-entered ordering proved to be the same code path as QR ordering rather than a second one that agrees, manager override that cannot be obtained by sharing a credential, handover that cannot lose a table, and confirmation friction graded by consequence and measured by pressing the buttons |
 | `tests/m4a/verify_m4a.py` | checks, bills and tips: allocation that cannot bill a unit twice across a set of checks, every component recomputed independently and compared, five split modes exercised at payer counts that do not divide evenly, tip separation proved from the catalog before it is proved by behaviour, and the bill summary and tip box measured as two rectangles in a real browser |
+| `tests/m4b/verify_m4b.py` | payment and the drawer: a simulated result proved unable to become a live one from the catalog before it is attempted through the real route, change and allocations recomputed in Python and required to match, card data refused at the write on every textual column the catalog knows about, the cash path proved to have no outbound dependency anywhere in its transitive call graph, and a reopened cash shift that cannot reach a terminal state without a recount and somebody else's approval |
 
 Every suite runs against a real PostgreSQL through the least-privileged application role,
 and every negative control is proved red with a defect planted before it is trusted green.

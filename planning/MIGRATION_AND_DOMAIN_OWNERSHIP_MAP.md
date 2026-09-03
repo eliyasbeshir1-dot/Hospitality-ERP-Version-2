@@ -56,8 +56,8 @@ Counted from `active_requirements` in the pinned package, by `introduced_at`.
 
 ## The migrations this repository has
 
-21 of them, `0001_organizational_model_and_rls.sql` through `0021_financial_conditions_on_closure_and_completion.sql`, across
-15 domains. The owning domain of each is read out of its own SQL — the
+25 of them, `0001_organizational_model_and_rls.sql` through `0025_financial_acceptance_producers_and_the_chain.sql`, across
+17 domains. The owning domain of each is read out of its own SQL — the
 schemas it creates and the schemas it creates tables in — and the gate from the header
 comment every migration in this repository carries.
 
@@ -84,6 +84,10 @@ comment every migration in this repository carries.
 | `0019_checks_bills_splitting_and_tip_separation.sql` | billing | config · pos | M4-A |
 | `0020_counter_channel_and_payment_dependent_acceptance.sql` | — | ordering | M4-A |
 | `0021_financial_conditions_on_closure_and_completion.sql` | — | service · fulfillment | M4-A |
+| `0022_payment_and_tip_artifacts.sql` | — | ordering | M4-B |
+| `0023_payment_capture_verification_and_reversal.sql` | payments | — | M4-B |
+| `0024_cash_shifts_movements_and_custody.sql` | cash | — | M4-B |
+| `0025_financial_acceptance_producers_and_the_chain.sql` | integration | notify · billing · payments · ordering | M4-B |
 
 ---
 
@@ -92,6 +96,7 @@ comment every migration in this repository carries.
 - **`app`** — context, row-scope predicate and shared triggers
 - **`audit`** — the append-only audit ledger every governed change is written to
 - **`billing`** — checks, allocation, bills, splitting, dispositions and tips
+- **`cash`** — drawer shifts, movements, counts, custody and exceptions
 - **`config`** — policies, configuration versions, numbering and retention
 - **`fulfillment`** — routing, station tickets and the fulfillment state machine
 - **`identity`** — users, roles, memberships, sessions and step-up
@@ -101,6 +106,7 @@ comment every migration in this repository carries.
 - **`notify`** — notification templates, deliveries and status wording
 - **`ordering`** — the order aggregate, its ledger and its projections
 - **`org`** — tenants, outlets, the node tree and device registration
+- **`payments`** — adapters and the live/simulated boundary, intents, capture, verification, dual allocation and reversal
 - **`pos`** — terminals, override approval, handover and the staff read models
 - **`safety`** — allergens, dietary tags and the warnings a guest is shown
 - **`service`** — tables, QR resolution, guest sessions, carts and service requests

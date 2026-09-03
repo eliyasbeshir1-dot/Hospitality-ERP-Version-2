@@ -311,9 +311,25 @@ def section_machine(states: list[str], edges: set[tuple[str, str]],
                              "checking a machine somebody widened")
 
     # --- the event catalog, both directions ---
-    catalog = {r[0]: (r[1], r[2] == "t") for r in rows("""
+    # AN ASSERTION THAT CANNOT FAIL IS A DEFECT, and this was one. The cast is
+    # has_producer::text, and PostgreSQL renders a boolean cast to text as 'true' or
+    # 'false' — not as the 't' and 'f' psql prints for a bare boolean column. This
+    # comprehension compared against "t", so every kind read as producer-less, the
+    # producers set below was ALWAYS empty, and "every kind claiming a producer belongs to
+    # a gate that has landed" passed by having nothing to examine from M3-C until M4-B.
+    # Found when M4-B gave eight kinds real producers and the check stayed green while the
+    # behavioural half beside it failed. Compared against the value the cast actually
+    # produces, and the guard below refuses to run on a catalog in which nothing produces
+    # anything — which is what would have caught it the first time.
+    catalog = {r[0]: (r[1], r[2] == "true") for r in rows("""
         SELECT event_id, milestone, has_producer::text FROM notify.catalog_event;""",
         dsn=ADMIN)}
+    if not any(p for _m, p in catalog.values()):
+        raise CommandUnreadable(
+            f"not one of {len(catalog)} catalogued kinds claims a producer. M1, M2 and M3 "
+            f"all ship producers, so this is the parsing failure above rather than an "
+            f"honest state of the system — and every check below it would pass over an "
+            f"empty set")
     unknown = sorted(k for k in catalog if k not in events)
     record("every kind in the notification catalog is a kind the package names",
            not unknown,
@@ -328,13 +344,22 @@ def section_machine(states: list[str], edges: set[tuple[str, str]],
            f"{wrong_milestone or 'none'}. The milestone is what decides whether a kind "
            f"may have a producer, so a wrong one would let an M4 kind claim one")
 
-    m3_classes = {k for k, (m, _p) in catalog.items() if m == "M3"}
+    # WHICH GATES HAVE LANDED, derived rather than named. This check used to say "all at
+    # M3", and that was true on the day M3-C was written and false the moment M4-B gave
+    # bill, payment and tip their producers. It was the seventh gate fence this repository
+    # has had to retire — six went at M4-A — and the replacement is the property the fence
+    # was standing in for: a kind may claim a producer when the gate that produces it
+    # EXISTS. Landing comes from tools/partial_closures.py, which reads it off the
+    # filesystem, so this check and migration 0025's CHECK constraint cannot drift apart
+    # and neither of them has to be edited at M5a.
+    landed = partial_closures.landed_gates()
     producers = {k for k, (_m, p) in catalog.items() if p}
+    unlanded = sorted(k for k, (m, p) in catalog.items() if p and m not in landed)
     record("every kind claiming a producer belongs to a gate that has landed",
-           producers <= m3_classes,
-           f"{len(producers)} kinds claim a producer, all at M3. Claiming one at M4 or "
-           f"M5a: {sorted(producers - m3_classes) or 'none'} — that would be a stubbed "
-           f"domain wearing a real kind's name")
+           not unlanded,
+           f"{len(producers)} kind(s) claim a producer; the gates that have landed are "
+           f"{sorted(landed)}. Claiming one at a gate that has not: {unlanded or 'none'} "
+           f"— that would be a stubbed domain wearing a real kind's name")
 
     classes = {r[0] for r in rows("""
         SELECT DISTINCT event_class::text FROM notify.catalog_event;""", dsn=ADMIN)}
@@ -345,14 +370,28 @@ def section_machine(states: list[str], edges: set[tuple[str, str]],
            f"M5a; the KINDS exist here with nothing producing them, which is the honest "
            f"way to name an event whose domain is a later gate")
 
+    # And the same replacement on the behaviour. The kind planted here used to be
+    # EVT-CHECK-PAID, chosen because bills did not exist; it exists now. The kind is
+    # therefore CHOSEN FROM THE CATALOG — whichever one currently claims no producer —
+    # so this proves the refusal at every gate rather than at the one it was written in.
+    # Deterministic by sorting, so a failure names the same kind twice running.
+    without_producer = sorted(k for k, (_m, p) in catalog.items() if not p)
+    if not without_producer:
+        raise CommandUnreadable(
+            "every kind in the catalog claims a producer, so this check has nothing to "
+            "plant and would pass by having nothing to examine. When the last gate lands "
+            "and that is genuinely true, this becomes an assertion that the catalog is "
+            "complete — but it must be rewritten deliberately, not pass by emptiness")
+
     stubbed = run(APP, f"""
-        SELECT notify.emit('{fx.TENANT}', '{fx.OUTLET_H1}', 'EVT-CHECK-PAID', 'order',
-                           gen_random_uuid(), gen_random_uuid(), NULL, '{{}}'::jsonb);""",
-        **CTX)
+        SELECT notify.emit('{fx.TENANT}', '{fx.OUTLET_H1}', '{without_producer[0]}',
+                           'order', gen_random_uuid(), gen_random_uuid(), NULL,
+                           '{{}}'::jsonb);""", **CTX)
     record("and a kind with no producer cannot be emitted",
            stubbed.failed_with("NOTIFICATION_KIND_HAS_NO_PRODUCER"),
-           stubbed.why() or "a bill notification was emitted at a gate with no bills. A "
-                            "kind with no producer is honest; one that fires is a stub")
+           stubbed.why() or f"{without_producer[0]} was emitted and nothing in this system "
+                            f"produces it. A kind with no producer is honest; one that "
+                            f"fires is a stub")
 
 
 # ===========================================================================
@@ -1914,13 +1953,42 @@ def section_governance() -> None:
            f"request for water has no price — and the check is here so that stops being "
            f"true loudly rather than quietly")
 
+    # WHAT MAKES A TABLE TENANT DATA, asked of the catalog instead of exempted by name.
+    # This check used to spell out "AND c.relname <> 'catalog_event'", and the exemption
+    # was right for the reason stated below — but it was a NAME, and M4-B's
+    # integration.protocol is the second table in these schemas that holds no tenant data
+    # and would have needed a second name. A list of exemptions grows one entry per gate
+    # and eventually exempts something that should not have been. The property underneath
+    # is simple and derivable: a table is tenant data when it HAS A TENANT COLUMN, and
+    # every such table must have row level security enabled and forced. A table without
+    # one has nothing to scope by, and a policy on it would be a policy over no rows.
     unprotected = rows("""
         SELECT n.nspname || '.' || c.relname
         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE n.nspname IN ('notify', 'integration') AND c.relkind = 'r'
-          AND c.relname <> 'catalog_event'
+          AND EXISTS (SELECT 1 FROM pg_attribute a
+                       WHERE a.attrelid = c.oid AND a.attname = 'tenant_id'
+                         AND a.attnum > 0 AND NOT a.attisdropped)
           AND (NOT c.relrowsecurity OR NOT c.relforcerowsecurity)
         ORDER BY 1;""", dsn=ADMIN)
+
+    # And the exemption is now itself an assertion rather than a silence: the tables this
+    # rule does NOT cover are named back, so a table that quietly lost its tenant column
+    # would appear here rather than disappear from the check above.
+    tenantless = [r[0] for r in rows("""
+        SELECT n.nspname || '.' || c.relname
+        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname IN ('notify', 'integration') AND c.relkind = 'r'
+          AND NOT EXISTS (SELECT 1 FROM pg_attribute a
+                           WHERE a.attrelid = c.oid AND a.attname = 'tenant_id'
+                             AND a.attnum > 0 AND NOT a.attisdropped)
+        ORDER BY 1;""", dsn=ADMIN)]
+    record("and the tables that carry no tenant column are named rather than assumed",
+           tenantless == ["integration.protocol", "notify.catalog_event"],
+           f"{tenantless}. notify.catalog_event is the package's event catalog and "
+           f"integration.protocol is the version range this deployment speaks; neither is "
+           f"anybody's data. Listing them here means a THIRD one has to be argued for "
+           f"rather than merely added")
     record("every tenant table in the new schemas has row level security ENABLED and FORCED",
            not unprotected,
            f"{[r[0] for r in unprotected] or 'none'}. notify.catalog_event is exempt and "

@@ -45,6 +45,30 @@ file does not own:
       an entry closed by a slice that has not landed. Nothing can be closed by work that
       does not exist yet, and this is the shape a premature tick would take.
 
+  PARTIAL_CLOSURE_COMPLETER_INCOMPLETE
+      a CLOSED entry resting on a requirement that is itself incomplete. Added at M4-B,
+      because M4-A closed FR-ORD-003 and FR-ORD-005 by naming FR-CFG-001C as the thing
+      that completed them while FR-CFG-001C's own "permitted payment methods" clause was
+      unbuildable and unrecorded. Both closures were honest about themselves and the chain
+      underneath them was not: the register said done, and one link down was a requirement
+      nobody had finished.
+
+      The completer set is DERIVED — every distinct completed_by in the register — so a
+      completer a later gate introduces is covered without anybody extending anything.
+      An entry closed by a requirement that carries an open entry of its own must name
+      completer_aspect: WHICH part of the completer it rests on. That string is then
+      required to differ from every open aspect of that completer. It is not
+      self-certification, because the register holds the other half: the writer says which
+      part, and the register knows which parts are still missing.
+
+      WHAT THIS RULE DOES NOT COVER, stated here because a reader should meet the boundary
+      rather than infer it: it checks NAMED COMPLETERS, not every requirement whose gate
+      has landed. A requirement that is partly built and that no entry points at is
+      invisible to it. That larger audit — every landed requirement either delivered in
+      full or carrying an entry — is the correct rule in general and is recorded as a
+      partial closure against M4-C, so it comes due where a gate is closing rather than
+      where payment capture is being written.
+
   PARTIAL_CLOSURE_COMPLETER_MOVED_LATER
       an entry whose completing gate has been moved to a LATER one without a recorded
       reason. Added at M4-A, the first gate at which a completer was edited rather than
@@ -393,6 +417,69 @@ def check(entries: list[dict] | None = None) -> list[tuple[str, str]]:
                 f"What landed: {evidence}. A gate is landed when ANY of its slices is, "
                 f"so an entry naming a bare gate comes due on that gate's first slice. "
                 f"The completer arrived and the record was never revisited"))
+
+    failures.extend(completer_completeness(entries))
+    return failures
+
+
+def open_aspects_by_requirement(entries: list[dict]) -> dict[str, set[str]]:
+    """{requirement: {aspect, ...}} over the entries still open.
+
+    Derived from the register rather than declared, so a requirement that becomes
+    partially closed at M5a joins this map without anybody editing a list.
+    """
+    out: dict[str, set[str]] = {}
+    for entry in entries:
+        if (entry.get("state") or "").strip() != "closed":
+            requirement = (entry.get("requirement") or "").strip()
+            if requirement:
+                out.setdefault(requirement, set()).add(
+                    (entry.get("aspect") or "").strip())
+    return out
+
+
+def completer_completeness(entries: list[dict]) -> list[tuple[str, str]]:
+    """A closed entry may not rest on a requirement that is itself incomplete.
+
+    The completer set is every distinct completed_by in the register — derived, never
+    listed — so this covers a completer introduced by a gate that does not exist yet.
+    """
+    failures: list[tuple[str, str]] = []
+    still_open = open_aspects_by_requirement(entries)
+
+    for index, entry in enumerate(entries):
+        if (entry.get("state") or "").strip() != "closed":
+            continue
+        completer = (entry.get("completed_by") or "").strip()
+        if not completer:
+            continue
+
+        gaps = still_open.get(completer)
+        if not gaps:
+            continue                      # the completer carries no open entry: complete
+
+        label = f"{entry.get('requirement', f'entry {index}')}" \
+                f"{'/' + entry['aspect'] if entry.get('aspect') else ''}"
+        rests_on = (entry.get("completer_aspect") or "").strip()
+
+        if not rests_on:
+            failures.append((
+                "PARTIAL_CLOSURE_COMPLETER_INCOMPLETE",
+                f"{label} is closed by {completer}, and {completer} is itself only "
+                f"partly delivered — it carries open entr(ies) for "
+                f"{sorted(a or '(unnamed)' for a in gaps)}. A closure resting on an "
+                f"unfinished requirement makes the register overstate: this entry reads "
+                f"done, and one link down is work nobody has finished. Name "
+                f"completer_aspect saying WHICH part of {completer} this rests on, and "
+                f"it must not be one of the parts still open."))
+            continue
+
+        if rests_on in gaps:
+            failures.append((
+                "PARTIAL_CLOSURE_COMPLETER_INCOMPLETE",
+                f"{label} says it rests on {completer}'s {rests_on!r}, and that is "
+                f"exactly the aspect of {completer} still recorded as open. The entry "
+                f"names the gap it is standing on."))
 
     return failures
 

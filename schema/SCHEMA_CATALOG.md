@@ -4,7 +4,7 @@
 Do not edit by hand: the verification suite regenerates this file and fails on any
 difference, so a hand edit is reported as drift (FR-DAT-015).
 
-Schemas covered: `app`, `audit`, `billing`, `config`, `fulfillment`, `identity`, `integration`, `menu`, `money`, `notify`, `ordering`, `org`, `pos`, `safety`, `service`, discovered from the database rather than listed here.
+Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `fulfillment`, `identity`, `integration`, `menu`, `money`, `notify`, `ordering`, `org`, `payments`, `pos`, `safety`, `service`, discovered from the database rather than listed here.
 
 ---
 
@@ -26,6 +26,11 @@ Schemas covered: `app`, `audit`, `billing`, `config`, `fulfillment`, `identity`,
 | `billing.disposition_kind` | comped, written_off, transferred |
 | `billing.split_mode` | by_item, by_participant, equal_share, custom_amount, separate_orders |
 | `billing.tip_correction_kind` | reversal, refund, correction |
+| `cash.count_phase` | opening, closing, recount |
+| `cash.custody_destination` | safe, bank |
+| `cash.exception_kind` | missing_close, excessive_cash_difference, unusual_refund, unusual_payout, late_settlement, reopened_not_resolved |
+| `cash.movement_kind` | sales_receipt, refund, payout, drop, float_adjustment, transfer_in, transfer_out |
+| `cash.shift_state` | open, submitted, verified, finalized, reopened, resolved |
 | `config.configuration_category` | branding, locale, currency, timezone, tax, calendar, numbering, payment_method, service, feature, connector |
 | `config.policy_category` | ordering, service, cancellation, discount, refund, tip, cash, approval, local_continuity |
 | `config.reason_code_category` | order_cancellation, void, refund, discount, complimentary_item, payment_reversal, tip_correction, service_failure, printer_failure, manager_override |
@@ -62,7 +67,7 @@ Schemas covered: `app`, `audit`, `billing`, `config`, `fulfillment`, `identity`,
 | `notify.notice_state` | pending, sent, read, failed, dead_lettered |
 | `ordering.acceptance_mode` | automatic, staff_confirmed, payment_dependent |
 | `ordering.actor_kind` | guest, staff, system |
-| `ordering.artifact_kind` | request, cart, table_session, order, fulfillment_ticket, service_request, check, bill |
+| `ordering.artifact_kind` | request, cart, table_session, order, fulfillment_ticket, service_request, check, bill, payment, tip |
 | `ordering.charge_kind` | item_subtotal, discount, tax, fee |
 | `ordering.charge_source_kind` | menu_price, tax_configuration, discount_policy, service_configuration |
 | `ordering.event_kind` | submitted, accepted, rejected, amended, cancelled, voided, note_added, allergy_declared, session_merged, session_moved, tickets_released, station_acknowledged, station_preparing, station_ready, items_collected, items_served, station_exception |
@@ -71,6 +76,15 @@ Schemas covered: `app`, `audit`, `billing`, `config`, `fulfillment`, `identity`,
 | `ordering.order_state` | submitted, accepted, rejected, cancelled, voided |
 | `org.lifecycle_status` | active, inactive, archived |
 | `org.node_kind` | brand, legal_entity, outlet, service_area, preparation_station, dining_table, device |
+| `payments.adapter_mode` | live, simulated |
+| `payments.allocation_target` | bill_balance, tip |
+| `payments.live_outcome` | approved, declined |
+| `payments.payment_event_kind` | captured, reversed |
+| `payments.payment_state` | captured, reversed |
+| `payments.proof_state` | pending, verified, rejected |
+| `payments.provider` | cash, external_terminal, telebirr_proof, cbe_birr_proof, telebirr_direct, cbe_birr_direct |
+| `payments.reversal_kind` | refund, reversal, correction |
+| `payments.simulated_outcome` | approved, declined |
 | `pos.consequence` | routine, elevated, deliberate |
 | `pos.handover_item_kind` | table_session, service_request |
 | `pos.handover_state` | proposed, acknowledged, cancelled |
@@ -119,6 +133,14 @@ graph LR
   billing_tip_correction["billing.tip_correction"]
   billing_tip_setting["billing.tip_setting"]
   billing_tip_suggestion["billing.tip_suggestion"]
+  cash_custody_transfer["cash.custody_transfer"]
+  cash_movement["cash.movement"]
+  cash_shift["cash.shift"]
+  cash_denomination_tally["cash.denomination_tally"]
+  cash_drawer_count["cash.drawer_count"]
+  identity_session["identity.session"]
+  pos_terminal["pos.terminal"]
+  cash_shift_transition["cash.shift_transition"]
   config_entitlement["config.entitlement"]
   config_issued_document_number["config.issued_document_number"]
   config_number_series["config.number_series"]
@@ -156,7 +178,6 @@ graph LR
   identity_role_action["identity.role_action"]
   identity_service_principal["identity.service_principal"]
   identity_service_principal_scope["identity.service_principal_scope"]
-  identity_session["identity.session"]
   identity_step_up_grant["identity.step_up_grant"]
   identity_terminal_trust["identity.terminal_trust"]
   integration_dead_letter["integration.dead_letter"]
@@ -201,11 +222,19 @@ graph LR
   org_device_registration["org.device_registration"]
   org_org_closure["org.org_closure"]
   org_outlet_profile["org.outlet_profile"]
+  payments_allocation["payments.allocation"]
+  payments_payment["payments.payment"]
+  payments_payment_adapter["payments.payment_adapter"]
+  payments_payment_intent["payments.payment_intent"]
+  payments_proof_confirmation["payments.proof_confirmation"]
+  payments_terminal_result["payments.terminal_result"]
+  payments_payment_event["payments.payment_event"]
+  payments_reversal["payments.reversal"]
+  payments_simulated_attempt["payments.simulated_attempt"]
   pos_confirmation_requirement["pos.confirmation_requirement"]
   pos_fast_pick["pos.fast_pick"]
   pos_handover["pos.handover"]
   pos_handover_item["pos.handover_item"]
-  pos_terminal["pos.terminal"]
   safety_jurisdiction["safety.jurisdiction"]
   safety_declaration["safety.declaration"]
   safety_declaration_reference["safety.declaration_reference"]
@@ -268,6 +297,34 @@ graph LR
   billing_tip_correction --> pos_override_approval
   billing_tip_setting --> org_org_node
   billing_tip_suggestion --> billing_tip_setting
+  cash_custody_transfer --> cash_movement
+  cash_custody_transfer --> cash_shift
+  cash_custody_transfer --> identity_user_account
+  cash_custody_transfer --> org_org_node
+  cash_custody_transfer --> org_tenant
+  cash_denomination_tally --> cash_drawer_count
+  cash_denomination_tally --> org_org_node
+  cash_denomination_tally --> org_tenant
+  cash_drawer_count --> cash_shift
+  cash_drawer_count --> identity_user_account
+  cash_drawer_count --> org_org_node
+  cash_drawer_count --> org_tenant
+  cash_movement --> cash_shift
+  cash_movement --> identity_user_account
+  cash_movement --> org_org_node
+  cash_movement --> org_tenant
+  cash_shift --> config_reason_code
+  cash_shift --> identity_session
+  cash_shift --> identity_user_account
+  cash_shift --> org_org_node
+  cash_shift --> org_tenant
+  cash_shift --> pos_override_approval
+  cash_shift --> pos_terminal
+  cash_shift_transition --> cash_shift
+  cash_shift_transition --> config_reason_code
+  cash_shift_transition --> identity_user_account
+  cash_shift_transition --> org_tenant
+  cash_shift_transition --> pos_override_approval
   config_configuration_version --> identity_user_account
   config_configuration_version --> org_org_node
   config_configuration_version --> org_tenant
@@ -517,6 +574,43 @@ graph LR
   org_org_node --> org_org_node
   org_org_node --> org_tenant
   org_outlet_profile --> org_org_node
+  payments_allocation --> org_org_node
+  payments_allocation --> org_tenant
+  payments_allocation --> payments_payment
+  payments_payment --> identity_user_account
+  payments_payment --> org_org_node
+  payments_payment --> org_tenant
+  payments_payment --> payments_payment_adapter
+  payments_payment --> payments_payment_intent
+  payments_payment --> payments_proof_confirmation
+  payments_payment --> payments_terminal_result
+  payments_payment_adapter --> org_org_node
+  payments_payment_adapter --> org_tenant
+  payments_payment_event --> config_reason_code
+  payments_payment_event --> identity_user_account
+  payments_payment_event --> org_org_node
+  payments_payment_event --> org_tenant
+  payments_payment_event --> pos_override_approval
+  payments_payment_intent --> identity_user_account
+  payments_payment_intent --> org_org_node
+  payments_payment_intent --> org_tenant
+  payments_proof_confirmation --> identity_session
+  payments_proof_confirmation --> identity_user_account
+  payments_proof_confirmation --> org_org_node
+  payments_proof_confirmation --> org_tenant
+  payments_reversal --> config_reason_code
+  payments_reversal --> identity_user_account
+  payments_reversal --> org_org_node
+  payments_reversal --> org_tenant
+  payments_reversal --> payments_allocation
+  payments_reversal --> pos_override_approval
+  payments_simulated_attempt --> identity_user_account
+  payments_simulated_attempt --> org_org_node
+  payments_simulated_attempt --> org_tenant
+  payments_simulated_attempt --> payments_payment_adapter
+  payments_terminal_result --> identity_user_account
+  payments_terminal_result --> org_org_node
+  payments_terminal_result --> org_tenant
   pos_confirmation_requirement --> org_tenant
   pos_fast_pick --> identity_user_account
   pos_fast_pick --> menu_sellable_item
@@ -1173,6 +1267,251 @@ Constraints:
 Policies:
 
 - `tip_suggestion_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+### `cash`
+
+FR-CSH-001 … FR-CSH-008. The drawer: who opened it with how much, every movement in and out, what was counted against what was expected, where the money went afterwards, and what somebody should look at. Separate from payments because a payment is what a guest handed over and a shift is what is physically in the till.
+
+#### `cash.custody_transfer`
+
+FR-CSH-007. Cash to the safe or the bank, with the sealed bag's reference and both people. It names the MOVEMENT that took the money out of the drawer rather than restating the amount independently, so the till and the safe cannot disagree about how much left.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `shift_id` | `uuid` | NOT NULL |  |  |
+| `movement_id` | `uuid` | NOT NULL |  |  |
+| `destination` | `cash.custody_destination` | NOT NULL |  |  |
+| `sealed_bag_reference` | `text` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `released_by_user_id` | `uuid` | NOT NULL |  |  |
+| `accepted_by_user_id` | `uuid` | NOT NULL |  |  |
+| `transferred_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `custody_accepter_fk` — `FOREIGN KEY (tenant_id, accepted_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `custody_amount_positive` — `CHECK (((amount_minor)::bigint > 0))`
+- `custody_movement_fk` — `FOREIGN KEY (tenant_id, movement_id) REFERENCES cash.movement(tenant_id, id) ON DELETE RESTRICT`
+- `custody_one_per_movement` — `UNIQUE (movement_id)`
+- `custody_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `custody_reference_not_blank` — `CHECK ((btrim(sealed_bag_reference) <> ''::text))`
+- `custody_reference_unique` — `UNIQUE (tenant_id, outlet_id, sealed_bag_reference)`
+- `custody_releaser_fk` — `FOREIGN KEY (tenant_id, released_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `custody_shift_fk` — `FOREIGN KEY (tenant_id, shift_id) REFERENCES cash.shift(tenant_id, id) ON DELETE RESTRICT`
+- `custody_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `custody_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `custody_transfer_pkey` — `PRIMARY KEY (id)`
+- `custody_two_people` — `CHECK ((released_by_user_id <> accepted_by_user_id))`
+
+Policies:
+
+- `custody_transfer_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `cash.denomination_tally`
+
+FR-CSH-003's denomination count: how many of each note and coin. The subtotal is generated so a tally cannot disagree with its own arithmetic, and cash.assert_tally_equals_the_count() requires the tallies to add up to the counted total — a denomination breakdown that does not reach the figure beside it is the shape a fudged count takes.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `count_id` | `uuid` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `denomination_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `piece_count` | `integer` | NOT NULL |  |  |
+| `subtotal_minor` | `bigint` |  | `((denomination_minor)::bigint * piece_count)` |  |
+
+Constraints:
+
+- `denomination_tally_count_fk` — `FOREIGN KEY (tenant_id, count_id) REFERENCES cash.drawer_count(tenant_id, id) ON DELETE CASCADE`
+- `denomination_tally_count_not_negative` — `CHECK ((piece_count >= 0))`
+- `denomination_tally_one_row_per_denomination` — `UNIQUE (count_id, denomination_minor)`
+- `denomination_tally_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `denomination_tally_pkey` — `PRIMARY KEY (id)`
+- `denomination_tally_positive` — `CHECK (((denomination_minor)::bigint > 0))`
+- `denomination_tally_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `tally_equals_the_count` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
+
+Policies:
+
+- `denomination_tally_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `cash.drawer_count`
+
+FR-CSH-003. What the drawer should have held, what it did hold, and the difference. The expected figure is stored rather than derived so that a count remains evidence about the moment it was taken. A recount after a reopening is its own row with phase 'recount', which is how NC-M4-006 can require one.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `shift_id` | `uuid` | NOT NULL |  |  |
+| `phase` | `cash.count_phase` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `expected_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `counted_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `over_short_minor` | `bigint` |  | `((counted_minor)::bigint - (expected_minor)::bigint)` |  |
+| `counted_by_user_id` | `uuid` | NOT NULL |  |  |
+| `counted_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `drawer_count_actor_fk` — `FOREIGN KEY (tenant_id, counted_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `drawer_count_not_negative` — `CHECK (((counted_minor)::bigint >= 0))`
+- `drawer_count_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `drawer_count_pkey` — `PRIMARY KEY (id)`
+- `drawer_count_shift_fk` — `FOREIGN KEY (tenant_id, shift_id) REFERENCES cash.shift(tenant_id, id) ON DELETE RESTRICT`
+- `drawer_count_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `drawer_count_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `drawer_count_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `cash.movement`
+
+FR-CSH-002. Six distinct kinds of money crossing the drawer, each with the direction its kind implies rather than a sign somebody chose. Append-only by trigger and by grant: a movement recorded wrongly is corrected by an opposing movement, because FR-DAT-008B says cash movements carry no destructive correction and a drawer that can be edited is a drawer nobody can count.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `shift_id` | `uuid` | NOT NULL |  |  |
+| `kind` | `cash.movement_kind` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `payment_id` | `uuid` |  |  |  |
+| `reversal_id` | `uuid` |  |  |  |
+| `reference` | `text` |  |  |  |
+| `actor_user_id` | `uuid` | NOT NULL |  |  |
+| `occurred_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `movement_actor_fk` — `FOREIGN KEY (tenant_id, actor_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `movement_amount_not_zero` — `CHECK (((amount_minor)::bigint <> 0))`
+- `movement_one_per_payment` — `UNIQUE (payment_id)`
+- `movement_one_per_reversal` — `UNIQUE (reversal_id)`
+- `movement_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `movement_pkey` — `PRIMARY KEY (id)`
+- `movement_refund_names_a_reversal` — `CHECK (((kind <> 'refund'::cash.movement_kind) OR (reversal_id IS NOT NULL)))`
+- `movement_sales_receipt_names_a_payment` — `CHECK (((kind <> 'sales_receipt'::cash.movement_kind) OR (payment_id IS NOT NULL)))`
+- `movement_shift_fk` — `FOREIGN KEY (tenant_id, shift_id) REFERENCES cash.shift(tenant_id, id) ON DELETE RESTRICT`
+- `movement_sign_matches_the_kind` — `CHECK (((kind = 'float_adjustment'::cash.movement_kind) OR ((sign((amount_minor)::double precision))::integer = cash.movement_direction(kind))))`
+- `movement_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `movement_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `movement_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `cash.shift`
+
+FR-CSH-001 and FR-CSH-004. A drawer session: counted float, assigned terminal, and the approval that closed it. The verifier is never the cashier, by CHECK; the verifier's SESSION is recorded beside them so that a manager typing a password into the cashier's terminal is caught by the same reasoning M3-D used for overrides; and a reopened shift cannot reach a terminal state other than 'resolved'.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `terminal_device_id` | `uuid` | NOT NULL |  |  |
+| `cashier_user_id` | `uuid` | NOT NULL |  |  |
+| `state` | `cash.shift_state` | NOT NULL | `'open'::cash.shift_state` |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `opening_float_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `opened_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `submitted_at` | `timestamp with time zone` |  |  |  |
+| `submitted_by_user_id` | `uuid` |  |  |  |
+| `verified_at` | `timestamp with time zone` |  |  |  |
+| `verified_by_user_id` | `uuid` |  |  |  |
+| `verified_by_session_id` | `uuid` |  |  |  |
+| `finalized_at` | `timestamp with time zone` |  |  |  |
+| `reopened_at` | `timestamp with time zone` |  |  |  |
+| `reopen_override_id` | `uuid` |  |  |  |
+| `reopen_reason_code_id` | `uuid` |  |  |  |
+| `reopen_reason` | `text` |  |  |  |
+| `resolved_at` | `timestamp with time zone` |  |  |  |
+| `resolution_override_id` | `uuid` |  |  |  |
+
+Constraints:
+
+- `shift_cashier_fk` — `FOREIGN KEY (tenant_id, cashier_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `shift_finalized_has_a_time` — `CHECK (((state = ANY (ARRAY['finalized'::cash.shift_state, 'resolved'::cash.shift_state])) = (finalized_at IS NOT NULL)))`
+- `shift_float_not_negative` — `CHECK (((opening_float_minor)::bigint >= 0))`
+- `shift_only_a_reopened_shift_resolves` — `CHECK (((state <> 'resolved'::cash.shift_state) OR (reopened_at IS NOT NULL)))`
+- `shift_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `shift_pkey` — `PRIMARY KEY (id)`
+- `shift_reopen_is_authorized` — `CHECK (((reopened_at IS NULL) OR ((reopen_override_id IS NOT NULL) AND (reopen_reason_code_id IS NOT NULL) AND (btrim(COALESCE(reopen_reason, ''::text)) <> ''::text))))`
+- `shift_reopen_override_fk` — `FOREIGN KEY (tenant_id, reopen_override_id) REFERENCES pos.override_approval(tenant_id, id) ON DELETE RESTRICT`
+- `shift_reopen_reason_fk` — `FOREIGN KEY (tenant_id, reopen_reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `shift_reopened_never_refinalizes` — `CHECK (((reopened_at IS NULL) OR (state <> 'finalized'::cash.shift_state)))`
+- `shift_resolution_override_fk` — `FOREIGN KEY (tenant_id, resolution_override_id) REFERENCES pos.override_approval(tenant_id, id) ON DELETE RESTRICT`
+- `shift_resolved_is_authorized` — `CHECK (((state = 'resolved'::cash.shift_state) = ((resolved_at IS NOT NULL) AND (resolution_override_id IS NOT NULL))))`
+- `shift_submitted_has_a_submitter` — `CHECK (((submitted_at IS NULL) = (submitted_by_user_id IS NULL)))`
+- `shift_submitter_fk` — `FOREIGN KEY (tenant_id, submitted_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `shift_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `shift_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `shift_terminal_fk` — `FOREIGN KEY (tenant_id, terminal_device_id) REFERENCES pos.terminal(tenant_id, device_id) ON DELETE RESTRICT`
+- `shift_verification_is_attributed` — `CHECK ((((verified_at IS NULL) AND (verified_by_user_id IS NULL) AND (verified_by_session_id IS NULL)) OR ((verified_at IS NOT NULL) AND (verified_by_user_id IS NOT NULL) AND (verified_by_session_id IS NOT NULL))))`
+- `shift_verifier_fk` — `FOREIGN KEY (tenant_id, verified_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `shift_verifier_is_not_the_cashier` — `CHECK (((verified_by_user_id IS NULL) OR (verified_by_user_id <> cashier_user_id)))`
+- `shift_verifier_session_fk` — `FOREIGN KEY (tenant_id, verified_by_session_id) REFERENCES identity.session(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `shift_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `cash.shift_transition`
+
+Every state a drawer has been in, append-only. It exists because reopening a finalized shift would otherwise erase the finalization, and a shift that was closed, reopened and resolved is precisely the history somebody will ask about.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `bigint` | NOT NULL | `nextval('cash.shift_transition_id_seq'::regclass)` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `shift_id` | `uuid` | NOT NULL |  |  |
+| `sequence_number` | `integer` | NOT NULL |  |  |
+| `from_state` | `cash.shift_state` |  |  |  |
+| `to_state` | `cash.shift_state` | NOT NULL |  |  |
+| `occurred_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `actor_user_id` | `uuid` |  |  |  |
+| `override_id` | `uuid` |  |  |  |
+| `reason_code_id` | `uuid` |  |  |  |
+| `reason_text` | `text` |  |  |  |
+
+Constraints:
+
+- `shift_transition_actor_fk` — `FOREIGN KEY (tenant_id, actor_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `shift_transition_override_fk` — `FOREIGN KEY (tenant_id, override_id) REFERENCES pos.override_approval(tenant_id, id) ON DELETE RESTRICT`
+- `shift_transition_pkey` — `PRIMARY KEY (id)`
+- `shift_transition_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `shift_transition_sequence_positive` — `CHECK ((sequence_number >= 1))`
+- `shift_transition_sequence_unique` — `UNIQUE (tenant_id, shift_id, sequence_number)`
+- `shift_transition_shift_fk` — `FOREIGN KEY (tenant_id, shift_id) REFERENCES cash.shift(tenant_id, id) ON DELETE RESTRICT`
+- `shift_transition_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `shift_transition_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
 ### `config`
 
@@ -2447,6 +2786,26 @@ Policies:
 
 - `dead_letter_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
+#### `integration.protocol`
+
+FR-INT-013. Which protocols this system speaks and the version range it understands for each. Only the protocols that EXIST are here: the outlet-node synchronization protocol is M5a's and is absent rather than declared at version zero, because M1-D's rule is that health and capability advertise what exists.
+
+Row level security: **DISABLED**, **not forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `protocol` | `text` | NOT NULL |  |  |
+| `current_version` | `integer` | NOT NULL |  |  |
+| `minimum_supported_version` | `integer` | NOT NULL |  |  |
+| `description` | `text` | NOT NULL |  |  |
+
+Constraints:
+
+- `protocol_name_shape` — `CHECK ((protocol ~ '^[a-z][a-z0-9_.]*$'::text))`
+- `protocol_pkey` — `PRIMARY KEY (protocol)`
+- `protocol_range_is_a_range` — `CHECK ((current_version >= minimum_supported_version))`
+- `protocol_versions_positive` — `CHECK ((minimum_supported_version >= 1))`
+
 ### `menu`
 
 Menu structure, pricing, availability and translation storage (M2-A). Independent of recipe and inventory identities: no column here references either, and the verification suite proves it against the pinned fenced vocabulary rather than a list written by hand.
@@ -3164,7 +3523,7 @@ Constraints:
 - `catalog_event_id_shape` — `CHECK ((event_id ~ '^EVT-[A-Z0-9-]+$'::text))`
 - `catalog_event_milestone_shape` — `CHECK ((milestone ~ '^M[0-9][A-Za-z]?$'::text))`
 - `catalog_event_pkey` — `PRIMARY KEY (event_id)`
-- `catalog_event_producer_only_when_landed` — `CHECK (((NOT has_producer) OR (milestone = ANY (ARRAY['M1'::text, 'M2'::text, 'M3'::text]))))`
+- `catalog_event_producer_only_when_landed` — `CHECK (((NOT has_producer) OR (milestone = ANY (ARRAY['M1'::text, 'M2'::text, 'M3'::text, 'M4'::text]))))`
 - `catalog_event_severity_known` — `CHECK ((severity = ANY (ARRAY['informational'::text, 'critical'::text])))`
 
 #### `notify.deep_link`
@@ -3898,6 +4257,362 @@ Constraints:
 Policies:
 
 - `tenant_isolation` — `((app.current_tenant_id() IS NOT NULL) AND (id = app.current_tenant_id()))`
+
+### `payments`
+
+FR-PAY-001 … FR-PAY-017. What was tendered, by whom, through which adapter, verified how, and allocated separately to the bill balance and to the tip. Its own schema rather than a corner of billing because a bill is a document that states what is owed and a payment is an event that says what arrived; M4-A's doctrine only holds if the second cannot quietly become part of the first.
+
+#### `payments.allocation`
+
+FR-PAY-017. Where one payment went: some to the bill balance, some to a tip, as separate rows so each can be reversed without the other. The amount is what was allocated AT CAPTURE and is never recalculated — payments.allocation_view() returns this column, and tests/m4b proves from the catalog that no function in this schema derives an allocation figure from a bill instead of reading it.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `payment_id` | `uuid` | NOT NULL |  |  |
+| `target` | `payments.allocation_target` | NOT NULL |  |  |
+| `bill_id` | `uuid` |  |  |  |
+| `tip_id` | `uuid` |  |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `allocated_at` | `timestamp with time zone` | NOT NULL |  |  |
+
+Constraints:
+
+- `allocation_amount_positive` — `CHECK (((amount_minor)::bigint > 0))`
+- `allocation_is_earned` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
+- `allocation_one_per_target` — `UNIQUE (payment_id, target)`
+- `allocation_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `allocation_payment_fk` — `FOREIGN KEY (tenant_id, payment_id) REFERENCES payments.payment(tenant_id, id) ON DELETE CASCADE`
+- `allocation_pkey` — `PRIMARY KEY (id)`
+- `allocation_subject_matches_target` — `CHECK ((((target = 'bill_balance'::payments.allocation_target) AND (bill_id IS NOT NULL) AND (tip_id IS NULL)) OR ((target = 'tip'::payments.allocation_target) AND (tip_id IS NOT NULL) AND (bill_id IS NULL))))`
+- `allocation_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `allocation_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `tender_is_fully_accounted` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
+
+Policies:
+
+- `allocation_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `payments.payment`
+
+FR-PAY-002, FR-PAY-003, FR-PAY-014. One tender: what arrived, through which adapter, with which evidence. The figures are STORED — FR-PAY-017 forbids hidden recomputation, and a payment whose amounts were derived at read time would follow the bill rather than the drawer. Folded from payments.payment_event and written by payments.apply_event() alone.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `intent_id` | `uuid` | NOT NULL |  |  |
+| `adapter_id` | `uuid` | NOT NULL |  |  |
+| `adapter_mode` | `payments.adapter_mode` | NOT NULL |  |  |
+| `provider` | `payments.provider` | NOT NULL |  |  |
+| `outcome` | `payments.live_outcome` |  |  | What a LIVE adapter reported. Typed payments.live_outcome, a type no simulator can produce a value of. NULL exactly when the adapter is simulated, by CHECK — so NC-M4-003's claim has neither a column to be written into nor a flag to be flipped. |
+| `state` | `payments.payment_state` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `tendered_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `change_minor` | `money.amount_minor` | NOT NULL | `0` |  |
+| `proof_id` | `uuid` |  |  |  |
+| `proof_state` | `payments.proof_state` |  |  |  |
+| `terminal_result_id` | `uuid` |  |  |  |
+| `captured_by_user_id` | `uuid` | NOT NULL |  |  |
+| `captured_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `correlation_id` | `uuid` |  |  |  |
+| `ledger_sequence` | `integer` | NOT NULL |  |  |
+
+Constraints:
+
+- `payment_actor_fk` — `FOREIGN KEY (tenant_id, captured_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `payment_adapter_fk` — `FOREIGN KEY (adapter_id, adapter_mode) REFERENCES payments.payment_adapter(id, mode) ON DELETE RESTRICT`
+- `payment_change_is_cash_only` — `CHECK ((((change_minor)::bigint = 0) OR (provider = 'cash'::payments.provider)))`
+- `payment_change_not_negative` — `CHECK (((change_minor)::bigint >= 0))`
+- `payment_evidence_matches_the_provider` — `CHECK (`
+- `payment_intent_fk` — `FOREIGN KEY (tenant_id, intent_id) REFERENCES payments.payment_intent(tenant_id, id) ON DELETE RESTRICT`
+- `payment_ledger_sequence_positive` — `CHECK ((ledger_sequence >= 1))`
+- `payment_live_outcome_only_when_live` — `CHECK ((((adapter_mode = 'live'::payments.adapter_mode) AND (outcome IS NOT NULL)) OR ((adapter_mode = 'simulated'::payments.adapter_mode) AND (outcome IS NULL))))`
+- `payment_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `payment_pkey` — `PRIMARY KEY (id)`
+- `payment_proof_fk` — `FOREIGN KEY (proof_id, proof_state) REFERENCES payments.proof_confirmation(id, state) ON DELETE RESTRICT`
+- `payment_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `payment_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `payment_tendered_positive` — `CHECK (((tendered_minor)::bigint > 0))`
+- `payment_terminal_result_fk` — `FOREIGN KEY (tenant_id, terminal_result_id) REFERENCES payments.terminal_result(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `payment_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `payments.payment_adapter`
+
+FR-PAY-015 and FR-INT-011. Which payment adapters this outlet has and which world each is in. mode is DERIVED from provider by CHECK and neither column may be updated, so NC-M4-003's "label a direct-provider simulator as live" has no path through configuration at all — the promotion it attempts is not a value that exists.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `provider` | `payments.provider` | NOT NULL |  |  |
+| `mode` | `payments.adapter_mode` | NOT NULL |  |  |
+| `active` | `boolean` | NOT NULL | `true` | Whether this outlet can actually use it (FR-INT-011). Distinct from mode on purpose: an outlet without a card terminal deactivates the external-terminal adapter, and that is an operator's decision. Nobody decides whether a direct API is simulated. |
+| `activated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `payment_adapter_identity_includes_mode` — `UNIQUE (id, mode)`
+- `payment_adapter_mode_is_derived_from_the_provider` — `CHECK ((mode =`
+- `payment_adapter_one_per_provider` — `UNIQUE (tenant_id, outlet_id, provider)`
+- `payment_adapter_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `payment_adapter_pkey` — `PRIMARY KEY (id)`
+- `payment_adapter_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `payment_adapter_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `payment_adapter_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `payments.payment_event`
+
+FR-DAT-008B. Everything that happened to a payment, append-only by trigger and by grant. The projections below are folded from it, so a correction is another event rather than an edit and a rebuild reproduces every figure.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `bigint` | NOT NULL | `nextval('payments.payment_event_id_seq'::regclass)` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `payment_id` | `uuid` | NOT NULL |  |  |
+| `sequence_number` | `integer` | NOT NULL |  |  |
+| `kind` | `payments.payment_event_kind` | NOT NULL |  |  |
+| `occurred_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `actor_user_id` | `uuid` |  |  |  |
+| `override_id` | `uuid` |  |  |  |
+| `reason_code_id` | `uuid` |  |  |  |
+| `reason_text` | `text` |  |  |  |
+| `before` | `jsonb` |  |  |  |
+| `after` | `jsonb` |  |  |  |
+| `correlation_id` | `uuid` |  |  |  |
+
+Constraints:
+
+- `payment_event_actor_fk` — `FOREIGN KEY (tenant_id, actor_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `payment_event_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `payment_event_override_fk` — `FOREIGN KEY (tenant_id, override_id) REFERENCES pos.override_approval(tenant_id, id) ON DELETE RESTRICT`
+- `payment_event_pkey` — `PRIMARY KEY (id)`
+- `payment_event_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `payment_event_reversal_states_a_reason` — `CHECK (((kind <> 'reversed'::payments.payment_event_kind) OR ((reason_code_id IS NOT NULL) AND (btrim(COALESCE(reason_text, ''::text)) <> ''::text))))`
+- `payment_event_sequence_positive` — `CHECK ((sequence_number >= 1))`
+- `payment_event_sequence_unique` — `UNIQUE (tenant_id, payment_id, sequence_number)`
+- `payment_event_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+
+Policies:
+
+- `payment_event_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `payments.payment_intent`
+
+FR-PAY-001. What a specific payer is about to pay, for a specific bill balance, with the tip kept as its own figure from the first record onward. Idempotent by unique key so FR-PAY-012's retry cannot produce a second one, and expiring so an abandoned intent does not authorize a payment tomorrow.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `bill_id` | `uuid` | NOT NULL |  |  |
+| `bill_share_id` | `uuid` |  |  |  |
+| `tip_id` | `uuid` |  |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `bill_amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `tip_amount_minor` | `money.amount_minor` | NOT NULL | `0` |  |
+| `permitted_providers` | `payments.provider[]` | NOT NULL |  |  |
+| `idempotency_key` | `text` | NOT NULL |  |  |
+| `expires_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `created_by_user_id` | `uuid` | NOT NULL |  |  |
+
+Constraints:
+
+- `payment_intent_actor_fk` — `FOREIGN KEY (tenant_id, created_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `payment_intent_bill_amount_not_negative` — `CHECK (((bill_amount_minor)::bigint >= 0))`
+- `payment_intent_expires` — `CHECK ((expires_at > created_at))`
+- `payment_intent_idempotent` — `UNIQUE (tenant_id, idempotency_key)`
+- `payment_intent_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `payment_intent_pays_for_something` — `CHECK ((((bill_amount_minor)::bigint > 0) OR ((tip_amount_minor)::bigint > 0)))`
+- `payment_intent_permits_a_method` — `CHECK ((array_length(permitted_providers, 1) >= 1))`
+- `payment_intent_pkey` — `PRIMARY KEY (id)`
+- `payment_intent_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `payment_intent_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `payment_intent_tip_amount_names_a_tip` — `CHECK (((((tip_amount_minor)::bigint = 0) AND (tip_id IS NULL)) OR (((tip_amount_minor)::bigint > 0) AND (tip_id IS NOT NULL))))`
+- `payment_intent_tip_amount_not_negative` — `CHECK (((tip_amount_minor)::bigint >= 0))`
+
+Policies:
+
+- `payment_intent_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `payments.proof_confirmation`
+
+FR-PAY-014 and FR-PAY-015. A member of staff opened Telebirr or CBE Birr, saw a receipt, and said so. The attestation is the artifact: who, what they saw, and when, all four required together by CHECK. An unverified proof stays pending and cannot settle anything, because payments.assert_allocation_is_earned() reads the state through a foreign key that pins it.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `provider` | `payments.provider` | NOT NULL |  |  |
+| `state` | `payments.proof_state` | NOT NULL | `'pending'::payments.proof_state` |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `provider_reference` | `text` | NOT NULL |  |  |
+| `masked_identifier` | `text` |  |  |  |
+| `verified_by_user_id` | `uuid` |  |  |  |
+| `verified_by_session_id` | `uuid` |  |  |  |
+| `verified_at` | `timestamp with time zone` |  |  |  |
+| `what_the_verifier_saw` | `text` |  |  |  |
+| `raised_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `proof_amount_positive` — `CHECK (((amount_minor)::bigint > 0))`
+- `proof_confirmation_pkey` — `PRIMARY KEY (id)`
+- `proof_identity_includes_state` — `UNIQUE (id, state)`
+- `proof_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `proof_provider_is_proof_based` — `CHECK ((provider = ANY (ARRAY['telebirr_proof'::payments.provider, 'cbe_birr_proof'::payments.provider])))`
+- `proof_reference_not_blank` — `CHECK ((btrim(provider_reference) <> ''::text))`
+- `proof_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `proof_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `proof_unverified_carries_no_attestation` — `CHECK (((state = 'verified'::payments.proof_state) OR ((verified_by_user_id IS NULL) AND (verified_by_session_id IS NULL) AND (verified_at IS NULL) AND (what_the_verifier_saw IS NULL))))`
+- `proof_verified_is_attributed` — `CHECK (((state <> 'verified'::payments.proof_state) OR ((verified_by_user_id IS NOT NULL) AND (verified_by_session_id IS NOT NULL) AND (verified_at IS NOT NULL) AND (btrim(COALESCE(what_the_verifier_saw, ''::text)) <> ''::text))))`
+- `proof_verifier_fk` — `FOREIGN KEY (tenant_id, verified_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `proof_verifier_session_fk` — `FOREIGN KEY (tenant_id, verified_by_session_id) REFERENCES identity.session(tenant_id, id) ON DELETE RESTRICT`
+
+Policies:
+
+- `proof_confirmation_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `payments.reversal`
+
+FR-PAY-009. Money going back, against ONE allocation, so a tip and a bill payment are refunded independently. Permissions, reason code and approval threshold are all required; the threshold is read from config.policy, and the approval reuses M3-D's override, whose approver is derived from the approving session rather than supplied.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `allocation_id` | `uuid` | NOT NULL |  |  |
+| `kind` | `payments.reversal_kind` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `override_id` | `uuid` |  |  |  |
+| `reason_code_id` | `uuid` | NOT NULL |  |  |
+| `reason_text` | `text` | NOT NULL |  |  |
+| `actor_user_id` | `uuid` | NOT NULL |  |  |
+| `reversed_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `ledger_sequence` | `integer` | NOT NULL |  |  |
+
+Constraints:
+
+- `reversal_actor_fk` — `FOREIGN KEY (tenant_id, actor_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `reversal_allocation_fk` — `FOREIGN KEY (tenant_id, allocation_id) REFERENCES payments.allocation(tenant_id, id) ON DELETE CASCADE`
+- `reversal_amount_positive` — `CHECK (((amount_minor)::bigint > 0))`
+- `reversal_is_authorized` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
+- `reversal_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `reversal_override_fk` — `FOREIGN KEY (tenant_id, override_id) REFERENCES pos.override_approval(tenant_id, id) ON DELETE RESTRICT`
+- `reversal_override_used_once` — `UNIQUE (override_id)`
+- `reversal_pkey` — `PRIMARY KEY (id)`
+- `reversal_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `reversal_reason_not_blank` — `CHECK ((btrim(reason_text) <> ''::text))`
+- `reversal_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `reversal_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `reversal_within_the_allocation` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
+
+Policies:
+
+- `reversal_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `payments.simulated_attempt`
+
+What a direct-provider simulator returned (FR-PAY-015). A real record of a real call to a thing that is not contracted. It carries simulated_outcome and no live_outcome column exists here, so the row cannot be mistaken for a provider result even by something reading it carelessly.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `adapter_id` | `uuid` | NOT NULL |  |  |
+| `adapter_mode` | `payments.adapter_mode` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `result` | `payments.simulated_outcome` | NOT NULL |  |  |
+| `simulated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `requested_by_user_id` | `uuid` |  |  |  |
+
+Constraints:
+
+- `simulated_attempt_actor_fk` — `FOREIGN KEY (tenant_id, requested_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `simulated_attempt_adapter_fk` — `FOREIGN KEY (adapter_id, adapter_mode) REFERENCES payments.payment_adapter(id, mode) ON DELETE RESTRICT`
+- `simulated_attempt_amount_positive` — `CHECK (((amount_minor)::bigint > 0))`
+- `simulated_attempt_is_simulated` — `CHECK ((adapter_mode = 'simulated'::payments.adapter_mode))`
+- `simulated_attempt_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `simulated_attempt_pkey` — `PRIMARY KEY (id)`
+- `simulated_attempt_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `simulated_attempt_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `simulated_attempt_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `payments.terminal_result`
+
+FR-PAY-003. What an external card terminal reported, recorded by the person who read it off the slip. There is no column for a primary account number, a verification value or a cryptogram, and payments.refuse_card_data() walks every string on the row in case a later column forgets. During an outage this method stays available exactly when the terminal itself can complete the payment, which is a fact about the terminal and is why the record is of a RESULT rather than of a request.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `terminal_reference` | `text` | NOT NULL |  |  |
+| `scheme` | `text` | NOT NULL |  |  |
+| `masked_tail` | `text` |  |  |  |
+| `approval_code` | `text` |  |  |  |
+| `outcome` | `payments.live_outcome` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `amount_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `recorded_by_user_id` | `uuid` | NOT NULL |  |  |
+| `recorded_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `terminal_result_actor_fk` — `FOREIGN KEY (tenant_id, recorded_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `terminal_result_amount_positive` — `CHECK (((amount_minor)::bigint > 0))`
+- `terminal_result_approval_code_is_short` — `CHECK (((approval_code IS NULL) OR (approval_code ~ '^[A-Za-z0-9]{1,12}$'::text)))`
+- `terminal_result_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `terminal_result_pkey` — `PRIMARY KEY (id)`
+- `terminal_result_scheme_not_blank` — `CHECK ((btrim(scheme) <> ''::text))`
+- `terminal_result_tail_is_at_most_four_digits` — `CHECK (((masked_tail IS NULL) OR (masked_tail ~ '^[0-9]{4}$'::text)))`
+- `terminal_result_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `terminal_result_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `terminal_result_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
 ### `pos`
 
