@@ -34,6 +34,7 @@ docs-local/      cross-platform command reference and its verification record
 evidence/        the generated evidence report
 migrations/      ordered, checksum-locked SQL history beginning at 0001
 planning/        conformance, ownership, the CI matrix, known limitations, the closure register
+print/           the print agent: the receipt rasteriser, the ESC/POS encoder, and the Ethiopic font it ships rather than resolves from the host
 pwa/             the customer surface: vanilla TypeScript, no runtime dependency
 schema/          the schema catalog, generated from the live database
 seeds/           demonstration tenants and reason-code sets, with their own ordered record
@@ -153,7 +154,7 @@ Every gate begins only when **all** of the following hold:
 - CI runs the validators and fails closed
 
 A gate's first migration is created at that gate, not before. This repository holds
-25, `0001` through `0025`.
+28, `0001` through `0028`.
 
 ---
 
