@@ -16,6 +16,9 @@
         "M6"
       ],
       "why": "The package's own negative_controls.json is the frozen registry this clause demands, and it is frozen by the pinned package's checksum: the docs-package job proves 92 files and 91/91 byte-identical on both platforms. tools/generate_ci_matrix.py reads the package's control counts and fails when they disagree with the build's, and the forbidden-occurrence registry validator runs as its own job. Zero, skipped and empty results already fail closed across the pipeline. Nothing names the requirement.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -30,6 +33,9 @@
         "M6"
       ],
       "why": "tools/verify_m1.py scans every repository file against the 63 authoritative terms across 11 fenced domains loaded from the package's own forbidden_surface_rules.json, and tests/fenced_gate proves that scanner detects every one of those terms by planting each in turn. The absence this requirement demands is therefore proved, on every gate, by something that runs and has been shown able to fail. What is missing is only that no recorded output names the requirement, so the audit cannot see the proof that exists.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -44,6 +50,9 @@
         "M6"
       ],
       "why": "tools/verify_m1.py scans every repository file against the 63 authoritative terms across 11 fenced domains loaded from the package's own forbidden_surface_rules.json, and tests/fenced_gate proves that scanner detects every one of those terms by planting each in turn. The absence this requirement demands is therefore proved, on every gate, by something that runs and has been shown able to fail. What is missing is only that no recorded output names the requirement, so the audit cannot see the proof that exists.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -55,6 +64,9 @@
       "completing_gate": "M6",
       "revalidated_at": [],
       "why": "Satisfied at M0R and deliberately false since: the clause is that the repository contains no schema, migration, route or UI file, and it now contains twenty-five migrations by design. planning/M0R_MIGRATION_RECORD.md is the anchored record of that gate, and tools/check_dated_records.py requires it to name the commit and date it describes and fails the build otherwise. The evidence runs and can fail; it does not name the requirement.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -74,6 +86,9 @@
         "M6"
       ],
       "why": "tools/verify_m1.py scans every repository file against the 63 authoritative terms across 11 fenced domains loaded from the package's own forbidden_surface_rules.json, and tests/fenced_gate proves that scanner detects every one of those terms by planting each in turn. The absence this requirement demands is therefore proved, on every gate, by something that runs and has been shown able to fail. What is missing is only that no recorded output names the requirement, so the audit cannot see the proof that exists.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -87,6 +102,9 @@
         "M6"
       ],
       "why": "A conditional obligation with no instances: it binds any unit reused from the frozen v1.1 repository, and nothing was reused — every migration, tool, suite and surface in this repository was written against this package. tools/verify_m1.py additionally fails on any v1.1 inheritance or legacy migration history, which is the mechanism that would catch a reuse nobody declared. The package itself defers the complete provenance audit to the final artifact.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -106,6 +124,9 @@
         "M6"
       ],
       "why": "Two halves, both built. planning/MIGRATION_AND_DOMAIN_OWNERSHIP_MAP.md is generated from the migrations that exist and the package that governs them, and CI fails when the committed copy differs from a fresh generation; no deferred requirement can appear because the fenced scanner refuses one. The other half — that every implemented unit maps to an ACTIVE requirement and gate — is what tools/requirement_coverage.py now does from the opposite direction. The citation is owed by this slice's own audit.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -120,6 +141,9 @@
         "M6"
       ],
       "why": "THE SCANNER CANNOT PROVE WHAT THIS REQUIREMENT CREDITS IT WITH. The clause demands a scan for a customer-segment field, assignment rule or screen, and no term for it exists among the 63 in the package's forbidden_surface_rules.json — loyalty_crm_promotions carries loyalty, reward, loyalty points, crm, campaign, promotion and marketing campaign, and none of them matches the word this requirement is about. No such field exists in the build, so the property holds; nothing proves it, and nothing in the repository can, because the vocabulary is the pinned package's and the build may not edit it. The correct disposition is a package amendment through amendment_register.json, not a build change, which is why this is recorded as absent rather than uncited: the scanning behaviour genuinely does not exist.",
+      "buildable_now": false,
+      "buildable_why": "Not buildable in this repository at all: the vocabulary is the pinned package's and the build may not edit it without breaking the checksum lock the package exists to provide.",
+      "closes_when": "The package carries a customer-segment term, through amendment_register.json, and the fenced gate proves the scanner detects it by planting it.",
       "review_may_challenge": true
     },
     {
@@ -134,6 +158,9 @@
         "M6"
       ],
       "why": "tools/verify_m1.py scans every repository file against the 63 authoritative terms across 11 fenced domains loaded from the package's own forbidden_surface_rules.json, and tests/fenced_gate proves that scanner detects every one of those terms by planting each in turn. The absence this requirement demands is therefore proved, on every gate, by something that runs and has been shown able to fail. What is missing is only that no recorded output names the requirement, so the audit cannot see the proof that exists.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -148,6 +175,9 @@
         "M6"
       ],
       "why": "tools/verify_m1.py scans every repository file against the 63 authoritative terms across 11 fenced domains loaded from the package's own forbidden_surface_rules.json, and tests/fenced_gate proves that scanner detects every one of those terms by planting each in turn. The absence this requirement demands is therefore proved, on every gate, by something that runs and has been shown able to fail. What is missing is only that no recorded output names the requirement, so the audit cannot see the proof that exists.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -162,6 +192,9 @@
         "M6"
       ],
       "why": "tools/verify_m1.py scans every repository file against the 63 authoritative terms across 11 fenced domains loaded from the package's own forbidden_surface_rules.json, and tests/fenced_gate proves that scanner detects every one of those terms by planting each in turn. The absence this requirement demands is therefore proved, on every gate, by something that runs and has been shown able to fail. What is missing is only that no recorded output names the requirement, so the audit cannot see the proof that exists.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -176,6 +209,9 @@
         "M6"
       ],
       "why": "tools/verify_m1.py scans every repository file against the 63 authoritative terms across 11 fenced domains loaded from the package's own forbidden_surface_rules.json, and tests/fenced_gate proves that scanner detects every one of those terms by planting each in turn. The absence this requirement demands is therefore proved, on every gate, by something that runs and has been shown able to fail. What is missing is only that no recorded output names the requirement, so the audit cannot see the proof that exists.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -190,6 +226,9 @@
         "M6"
       ],
       "why": "tools/verify_m1.py scans every repository file against the 63 authoritative terms across 11 fenced domains loaded from the package's own forbidden_surface_rules.json, and tests/fenced_gate proves that scanner detects every one of those terms by planting each in turn. The absence this requirement demands is therefore proved, on every gate, by something that runs and has been shown able to fail. What is missing is only that no recorded output names the requirement, so the audit cannot see the proof that exists.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -205,6 +244,9 @@
         "M6"
       ],
       "why": "tools/verify_m1.py scans every repository file against the 63 authoritative terms across 11 fenced domains loaded from the package's own forbidden_surface_rules.json, and tests/fenced_gate proves that scanner detects every one of those terms by planting each in turn. The absence this requirement demands is therefore proved, on every gate, by something that runs and has been shown able to fail. What is missing is only that no recorded output names the requirement, so the audit cannot see the proof that exists.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -219,6 +261,9 @@
         "M6"
       ],
       "why": "tools/verify_m1.py scans every repository file against the 63 authoritative terms across 11 fenced domains loaded from the package's own forbidden_surface_rules.json, and tests/fenced_gate proves that scanner detects every one of those terms by planting each in turn. The absence this requirement demands is therefore proved, on every gate, by something that runs and has been shown able to fail. What is missing is only that no recorded output names the requirement, so the audit cannot see the proof that exists.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -233,6 +278,9 @@
         "M6"
       ],
       "why": "tools/verify_m1.py scans every repository file against the 63 authoritative terms across 11 fenced domains loaded from the package's own forbidden_surface_rules.json, and tests/fenced_gate proves that scanner detects every one of those terms by planting each in turn. The absence this requirement demands is therefore proved, on every gate, by something that runs and has been shown able to fail. What is missing is only that no recorded output names the requirement, so the audit cannot see the proof that exists.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -247,6 +295,9 @@
         "M6"
       ],
       "why": "tools/verify_m1.py scans every repository file against the 63 authoritative terms across 11 fenced domains loaded from the package's own forbidden_surface_rules.json, and tests/fenced_gate proves that scanner detects every one of those terms by planting each in turn. The absence this requirement demands is therefore proved, on every gate, by something that runs and has been shown able to fail. What is missing is only that no recorded output names the requirement, so the audit cannot see the proof that exists.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -261,6 +312,9 @@
         "M6"
       ],
       "why": "tools/verify_m1.py scans every repository file against the 63 authoritative terms across 11 fenced domains loaded from the package's own forbidden_surface_rules.json, and tests/fenced_gate proves that scanner detects every one of those terms by planting each in turn. The absence this requirement demands is therefore proved, on every gate, by something that runs and has been shown able to fail. What is missing is only that no recorded output names the requirement, so the audit cannot see the proof that exists.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -275,6 +329,9 @@
         "M6"
       ],
       "why": "tools/verify_m1.py scans every repository file against the 63 authoritative terms across 11 fenced domains loaded from the package's own forbidden_surface_rules.json, and tests/fenced_gate proves that scanner detects every one of those terms by planting each in turn. The absence this requirement demands is therefore proved, on every gate, by something that runs and has been shown able to fail. What is missing is only that no recorded output names the requirement, so the audit cannot see the proof that exists.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -288,6 +345,9 @@
         "M6"
       ],
       "why": "tools/verify_m1.py scans every repository file against the 63 authoritative terms across 11 fenced domains loaded from the package's own forbidden_surface_rules.json, and tests/fenced_gate proves that scanner detects every one of those terms by planting each in turn. The absence this requirement demands is therefore proved, on every gate, by something that runs and has been shown able to fail. What is missing is only that no recorded output names the requirement, so the audit cannot see the proof that exists.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -301,6 +361,9 @@
         "M6"
       ],
       "why": "tools/verify_m1.py scans every repository file against the 63 authoritative terms across 11 fenced domains loaded from the package's own forbidden_surface_rules.json, and tests/fenced_gate proves that scanner detects every one of those terms by planting each in turn. The absence this requirement demands is therefore proved, on every gate, by something that runs and has been shown able to fail. What is missing is only that no recorded output names the requirement, so the audit cannot see the proof that exists.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -318,6 +381,9 @@
         "M6"
       ],
       "why": "The journeys exist, run in CI on both platforms and fail the build: five golden journeys, 61 steps. What the clause asks for and does not exist is the MAPPING artifact — every mandatory journey against test IDs, evidence, owner and defect status. The package's journeys.json names sixteen journey slices; the repository implements five and no artifact reconciles the two or records an owner or a defect status for any of them. That is a governance absence rather than a product one: the journeys work, and nothing states which of the package's journeys are covered.",
+      "buildable_now": true,
+      "buildable_why": "Buildable now: it is a mapping artifact over journeys.json and the five journeys that already run, and nothing external is needed to write it.",
+      "closes_when": "An artifact maps each of the package's sixteen journey slices to the test that covers it, its owner and its defect status, and CI fails when a package journey has no row.",
       "review_may_challenge": true
     },
     {
@@ -337,6 +403,9 @@
         "M6"
       ],
       "why": "This audit is the clause, minus one column. Every P0/P1 requirement whose gate has landed is now mapped to the evidence that proves it and graded by how strongly, and the gaps are named. What it does not yet carry is the implementation COMPONENT per requirement, which the ownership map holds for migrations only. Recorded as uncited because the traceability the clause is for now runs and can fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -356,6 +425,9 @@
         "M6"
       ],
       "why": "No audit branch exists in this repository, and no immutable command set, evidence bundle or merge decision against an exact commit is stored for any gate. Every gate has produced evidence — the anchored dated records and the regenerated evidence report name their commits — but the independent-audit structure this clause describes is a review process outside the builder's branch and nothing in the repository stands in for it. Absent rather than uncited, and honestly not the builder's to close alone.",
+      "buildable_now": false,
+      "buildable_why": "Not buildable by the builder alone: an independent audit branch with a merge decision is produced by the reviewer, and a builder-written one would be the reviewed party supplying the review.",
+      "closes_when": "An audit branch exists per gate carrying immutable commands, evidence and a merge or no-merge decision against an exact commit.",
       "review_may_challenge": true
     },
     {
@@ -370,6 +442,9 @@
         "M6"
       ],
       "why": "tools/verify_m1.py scans every repository file against the 63 authoritative terms across 11 fenced domains loaded from the package's own forbidden_surface_rules.json, and tests/fenced_gate proves that scanner detects every one of those terms by planting each in turn. The absence this requirement demands is therefore proved, on every gate, by something that runs and has been shown able to fail. What is missing is only that no recorded output names the requirement, so the audit cannot see the proof that exists.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -383,6 +458,9 @@
         "M4"
       ],
       "why": "NC-M1B-002 plants a quick PIN against a governed action and requires LOW_RISK_CREDENTIAL_USED_FOR_SENSITIVE_ACTION; this run shows it red with the defect planted and green after revert. identity.credential_kind carries quick_pin, auth_strength orders low below standard below strong, and identity.authorize_action() compares against that ordering. The sensitive-action list is data in the governed-action table, and M4-B added payment.refund and payment.void to it.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -397,6 +475,9 @@
         "M6"
       ],
       "why": "NC-M1B-003 plants a stale step-up and requires STALE_STEP_UP_ACCEPTED, red then green in this run. The recency window is enforced by identity.authorize_action() and this run records both STEP_UP_REQUIRED and STEP_UP_EXPIRED with the 00:05:00 window named. The clause's later behaviour — refunds, reversals and payout at M4 — is built: M4-B's reversal path requires an approval whose amount threshold is configured and whose override is checked by payments.assert_reversal_is_authorized().",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -410,6 +491,9 @@
         "M5a"
       ],
       "why": "NC-M1B-004 plants an out-of-scope service principal and requires OUT_OF_SCOPE_PRINCIPAL_ACCEPTED, red then green in this run. identity.authorize_service_principal() refuses a revoked principal with PRINCIPAL_NOT_ACTIVE and an out-of-scope one by outlet, both recorded in this run's output. Rotation and revocation are columns on the principal, not a flag.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -421,6 +505,9 @@
       "completing_gate": "M6",
       "revalidated_at": [],
       "why": "The organizational half of the guided setup is org.org_node with its kinds — brand, legal_entity, outlet, service area, dining table — its closure table, and the derived-outlet trigger that refuses a node whose parent is not visible. M1-A proves a new administrator sees only the created tenant and outlet, which is the clause's own gate-local test, and M4-B's FR-CFG-001C extended the same setup to drive a real bill. Flagged for challenge: the setup is a sequence of governed writes rather than one named function, so a reviewer may reasonably ask which artifact IS the guided setup.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -435,6 +522,9 @@
         "M5b"
       ],
       "why": "Branding is configurable — config.configuration_version carries a branding category and the API resolves it per tenant rather than from build-time constants — but the clause names receipt and footer text specifically, and the package places its revalidation at M4 because receipt text is only rendered on a real receipt. There is no receipt at M4-B, so that clause has never been exercised. M4-C's receipt renders it and closes this.",
+      "buildable_now": true,
+      "buildable_why": "Buildable now, and built by this slice: receipt and footer text render on the M4-C receipt from tenant configuration.",
+      "closes_when": "A receipt renders its footer and branding text from configuration rather than a constant, in all three locales.",
       "review_may_challenge": true
     },
     {
@@ -446,6 +536,9 @@
       "completing_gate": "M6",
       "revalidated_at": [],
       "why": "No demo fixture is marked as one, and no reset capability exists to be restricted to non-production. The suites seed their own fixtures through the application role and tear them down themselves; the only reset in the build is the in-process rate limiter's. Nothing is currently exposed, because there is no reset path a production operator could reach. The package records no revalidation beyond M1 for this clause, which is itself worth a reviewer's attention: it comes due wherever demo data is first shipped, and that is a deployment concern.",
+      "buildable_now": true,
+      "buildable_why": "Buildable now: marking a fixture and gating a reset on the environment needs nothing that does not exist.",
+      "closes_when": "Demo fixtures carry an explicit mark and a reset path refuses to run outside a non-production environment, proved by attempting it.",
       "review_may_challenge": true
     },
     {
@@ -460,6 +553,9 @@
         "M5b"
       ],
       "why": "Per-tenant brand and template resolution exists and is consumed from configuration. The clause's template half is placed by the package at M4 — receipt templates render at M4 — and no template renders anything today. M4-C's receipt template closes that half; per-outlet public domains are M5b's and stay open there.",
+      "buildable_now": true,
+      "buildable_why": "Buildable now, and built by this slice: the receipt template is the first template this project renders.",
+      "closes_when": "A tenant-selected template renders a document, with platform attribution configurable, proved on the receipt.",
       "review_may_challenge": true
     },
     {
@@ -474,6 +570,9 @@
         "M4"
       ],
       "why": "Templates are data, not code: config.configuration_version holds tax, service, discount and branding payloads per scope with an approval and an effective date, and M1-D refuses a tenant or provider name appearing as a constant in API source — the check that would catch a hard-coded tenant's menu, tax or workflow. Language defaults are per-tenant configuration proved by M2-C in three locales.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -488,6 +587,9 @@
         "M5b"
       ],
       "why": "No application, schema, edge or connector version is tracked PER TENANT OR DEPLOYMENT. What exists is global: app.schema_migration records which migrations have been applied, and M4-B added a schema-version reading to health. The clause asks for supported versions tracked per tenant/deployment, which is the thing an upgrade decision needs and which nothing in the schema can answer.",
+      "buildable_now": true,
+      "buildable_why": "Buildable now: a per-tenant version record is a table and a read, needing nothing deployed.",
+      "closes_when": "Supported application, schema, edge and connector versions are recorded per tenant and deployment, and a read returns them.",
       "review_may_challenge": true
     },
     {
@@ -499,6 +601,9 @@
       "completing_gate": "M6",
       "revalidated_at": [],
       "why": "Migration 0001 exists, is applied at M1 and is the first entry in the history: M1-A asserts that 0001 applied to a database built from empty and that the recorded history begins at version 1, and this run records both. The M0R approval that precedes it is the anchored record in planning/M0R_MIGRATION_RECORD.md.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -513,6 +618,9 @@
         "M6"
       ],
       "why": "NC-M1D-001 plants a privileged runtime credential and requires PRIVILEGED_RUNTIME_CREDENTIAL_ACCEPTED, red then green in this run. The service validates its environment, roles and paths before its first healthy claim and refuses owner, superuser and BYPASSRLS outright; NC-M1D-007 additionally plants a stale role snapshot so readiness cannot pass on a cached answer.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -527,6 +635,9 @@
         "M6"
       ],
       "why": "Health verifies migrations, production-role access and required jobs and reports unhealthy when any is unavailable: NC-M1D-002 plants a broken job and requires READINESS_GREEN_WITH_BROKEN_JOB, NC-M1D-008 requires readiness not to disclose deployment detail, both red then green here. Printer status and synchronization dependencies are the clause's 'appropriate to each service' half and belong to M4-C and M5a; FR-INT-011 already carries an open entry for exactly that.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -540,6 +651,9 @@
         "M5a"
       ],
       "why": "NC-M1D-003 plants a secret into a log line and requires SECRET_EMITTED_IN_LOGS, red then green in this run. api/src/logging.ts emits correlation, tenant, outlet, actor, event and error classification on every line, and M4-B searched 2514 characters of structured log for two planted card values and found zero of each.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -554,6 +668,9 @@
         "M5a"
       ],
       "why": "api/src/jobs.ts registers the Phase 1 jobs and readiness turns unhealthy when an advertised job cannot do real work, which NC-M1D-002 proves by planting exactly that. The 'only Phase 1 jobs' half is held by the fenced scanner, which fails on a worker named for any deferred domain.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -568,6 +685,9 @@
         "M6"
       ],
       "why": "CI builds the API from clean source into a workspace OUTSIDE the repository and every route and security check runs against that same build — there is no second profile build, which is the specific defect the clause names. Determinism is proved from the other side by the generators: CI requires byte-identical output on Linux and Windows.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -582,6 +702,9 @@
         "M6"
       ],
       "why": "Every suite in the pipeline connects through the least-privileged application role, never the owner and never a superuser, and the bypass role exists only in the test driver. NC-M1D-001 and NC-M1D-007 plant the fallback this clause forbids and require it refused, red then green in this run. Backup and restore readiness is M6's.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -597,6 +720,9 @@
         "M6"
       ],
       "why": "api/src/security.ts registers a CSRF guard over state-changing methods when authentication is cookie-borne, and COOKIE_POLICY sets httpOnly, secure and same-site. Bearer-authenticated requests are deliberately exempt, with the reasoning recorded: a browser does not attach a bearer token automatically, so those requests carry no CSRF exposure. M1-D exercises the guard.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -613,6 +739,9 @@
         "M6"
       ],
       "why": "RATE_LIMIT_RULES and InProcessRateLimiter apply contextual limits on the surfaces that exist, and the module states plainly that it limits ONE INSTANCE and is not distributed production rate limiting — which is the honest posture and is itself worth a reviewer's attention. The clause's payment and webhook surfaces arrive at M4.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -627,6 +756,9 @@
         "M6"
       ],
       "why": "Neither half exists in this repository and neither can. TLS in transit is a property of the deployment in front of the process, and encryption at rest is the provider's or the platform's; no migration, route or suite can deliver either. No high-risk field is encrypted at the column level. The package places the revalidation at M5b and M6 — per-outlet public-trust TLS on the local node, and backup encryption proved with backup and restore — so this is honestly not this gate's to close. Recorded as a security absence rather than a governance one because the capability, not its citation, is what is missing.",
+      "buildable_now": false,
+      "buildable_why": "NOT BUILDABLE HERE. TLS terminates in front of the process and encryption at rest belongs to the provider or the platform; no migration, route or suite can deliver either. Column-level encryption of a selected high-risk field is buildable, and is the one part of this clause that is.",
+      "closes_when": "Per-outlet public-trust TLS terminates on the outlet node, and backup encryption is proved by a restore rather than asserted.",
       "review_may_challenge": true
     },
     {
@@ -640,6 +772,9 @@
         "M3"
       ],
       "why": "There is NO data classification in this build. The word appears twice and neither is this: api/src/logging.ts classifies ERRORS, and 0012 classifies a preparation station. No taxonomy marks a column as customer contact, complaint or PII, and so nothing restricts those fields by role on that basis — what protects them today is the tenant and outlet predicate every table carries, which is a different control answering a different question. Customer contact data exists from M2's guest sessions and M3-C's service requests, so the subject is real.",
+      "buildable_now": true,
+      "buildable_why": "BUILDABLE NOW. A classification taxonomy and a role predicate over the columns holding customer contact data need nothing that does not already exist.",
+      "closes_when": "Each column holding customer contact or complaint data is marked by a classification, and a role without the entitlement cannot read it — proved by a planted read that must be refused.",
       "review_may_challenge": true
     },
     {
@@ -653,6 +788,9 @@
         "M4"
       ],
       "why": "The strongest-evidence gap in this record. NC-M4B-001 plants raw card data and requires CARD_DATA_RETAINED, shown red then green in this run; M4-B enumerated the guarded tables from the catalog in both directions with none unguarded, asserted zero rows stored by census rather than inferring it from the refusal, and searched the structured log for two planted values with zero occurrences of each. The requirement is proved to the strongest standard in the project and no output names it.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -666,6 +804,9 @@
         "M4"
       ],
       "why": "The convenient reading of this one is wrong, so here is the whole of it. The package expected the first real private-file class at M4 through the Telebirr/CBE payment proof; M4-B made that proof a WRITTEN ATTESTATION — payments.proof_confirmation stores what_the_verifier_saw as text and no file — so the subject the package anticipated at this gate never materialised. But menu.image has carried is_private and storage_key since M2, and that IS a private-file class: nothing validates, scans, hashes, authorizes, signs or expires anything. The absence is real and older than M4. What makes it latent rather than live is that no surface uploads or serves those files — the rows point at keys nothing reads — so there is no exposure today. THIS BECOMES URGENT THE MOMENT A SERVING PATH IS ADDED, and a reviewer should challenge the classification on exactly that ground.",
+      "buildable_now": true,
+      "buildable_why": "BUILDABLE NOW in part: validation and hashing of the image rows that exist need nothing deployed. Signing and expiry need a serving path, and there is none — which is also why nothing is exposed today.",
+      "closes_when": "A private file is served only through a signed, expiring, authorized URL, and its bytes are validated and hashed on the way in — proved against menu.image, the private file class that already exists.",
       "review_may_challenge": true
     },
     {
@@ -679,6 +820,9 @@
         "M4"
       ],
       "why": "identity.credential_kind carries otp, auth_strength orders it as a stronger factor, and identity.authorize_action() requires recent stronger authentication for the governed actions — which is step-up MFA for high-risk actions. Enrolment is administrator-controlled through the membership and credential path, and the clause's sharp edge is that documentation must not claim every role is forced to enrol: nothing in this repository makes that claim. High-risk financial actions arrived at M4 and carry approval thresholds and overrides.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -692,6 +836,9 @@
         "M5a"
       ],
       "why": "M3-D's terminal registration is this clause: a device is registered, named, bound to an outlet, revocable, and its handover recorded. M4-B extended it — a cash drawer is opened against a registered terminal device and the partial unique index permits one live shift per till. Edge nodes are M5a's and have nothing to register yet.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -706,6 +853,9 @@
         "M6"
       ],
       "why": "Half built, and the missing half is named precisely. Anonymization exists: 0007 added anonymize to config.retention_action for exactly this reason, and M1-C's retention sweep applies it. LEGAL HOLD DOES NOT EXIST — no flag, no table, no predicate — so nothing can suspend a retention action for a record under hold. The package revalidates at M4 for ledger-protected financial records and M4-C delivers that half: retention must refuse to target the financial ledgers, exactly as retention_policy_never_targets_audit already refuses the audit tables. The entry stays open past this slice because the legal-hold clause remains, and closing it at M4-C would be a false closure.",
+      "buildable_now": true,
+      "buildable_why": "BUILDABLE NOW. A legal hold is a flag and a predicate the retention sweep already has the shape for. The M4 half is built by this slice.",
+      "closes_when": "A legal hold suspends every retention action against the records it names, proved by planting a hold and requiring the sweep to leave them alone. The M4 half — retention refusing to target the financial ledgers — is delivered at M4-C and is not this entry's closing test.",
       "review_may_challenge": true
     },
     {
@@ -719,6 +869,9 @@
         "M6"
       ],
       "why": "No runbook exists in planning/ or anywhere else, and the clause asks for more than a document: detection, containment, credential rotation, tenant notification and evidence preservation, executable against real capability. Credential rotation and revocation are built and proved; detection depends on production monitoring and tenant notification on a deployed multi-tenant artifact, which is why the package revalidates this at M6. Recorded as a security absence, and one a reviewer should not let M4's review absorb quietly just because its gate is later.",
+      "buildable_now": false,
+      "buildable_why": "Not buildable here beyond a document: detection needs production monitoring and tenant notification needs a deployed multi-tenant artifact. Credential rotation and containment already exist and are proved.",
+      "closes_when": "The runbook exists AND its rotation, containment and evidence-preservation steps are executed against the deployed artifact rather than described.",
       "review_may_challenge": true
     },
     {
@@ -734,6 +887,9 @@
         "M6"
       ],
       "why": "Two tenants are seeded and every isolation assertion in the project runs against them: M1-A proves cross-tenant denial for all four verbs in both directions and M1-D proves the second tenant isolated at the API surface. config.entitlement scopes modules per tenant, legal entity or outlet. Flagged for challenge: the clause also names DIFFERENT branding, language defaults and tax settings, and while all three are per-tenant configuration, the second tenant's values are not deliberately made to differ from the first's — so isolation is proved and divergence is not.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -747,6 +903,9 @@
         "M4"
       ],
       "why": "No system-of-record registry exists — no table states, per tenant or legal entity, which system is authoritative for which Phase 1 concern. The package revalidates this at M4 because the registry governs actual fiscal-document and payment behaviour once those exist, and fiscal documents are M4-C's. Recorded as product rather than authority because nothing today makes an authority decision that a missing registry could get wrong; M4-C's fiscal port is the first thing that would.",
+      "buildable_now": true,
+      "buildable_why": "Buildable now, and built by this slice: the registry is the thing M4-C's fiscal port needs in order to say which system is authoritative for a fiscal document.",
+      "closes_when": "A system-of-record entry exists per tenant and legal entity carrying the Phase 1 enumeration only, and the fiscal port reads it.",
       "review_may_challenge": true
     },
     {
@@ -762,6 +921,9 @@
         "M4"
       ],
       "why": "The policies this clause names are all asserted — money types and rounding, the order and ticket state machines, translation completeness, permissions and quantity units — but there is NO UNIT-TEST TIER: every one of them is proved against a real PostgreSQL through the production role, which is FR-DAT-017's test-realism rule taken to its conclusion. Recorded as uncited because the coverage the clause is for exists and is non-vacuous; a reviewer may fairly say the clause asked for isolation and got integration, and that argument should be had rather than buried.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -777,6 +939,9 @@
         "M5a"
       ],
       "why": "This is what the pipeline IS: constraints, transactions, locks, tenant and outlet RLS, later-added outlet columns, append-only rules and migrations, all on real PostgreSQL through raw production-role pools, on two major versions and two platforms. 1268 checks across fourteen suites in this run, order-independent in both directions.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -791,6 +956,9 @@
         "M4"
       ],
       "why": "Most of the clause is delivered — validation, auth, idempotency, concurrency and error contracts are all exercised against the built service, and M4-B proved idempotency by key on payment intents. PAGINATION IS NOT TESTED ANYWHERE, and no route implements it. The package revalidates at M4 because each gate adds route surface subject to the same suite, so M4-C's reporting routes are where pagination first genuinely matters: an export or a dashboard over a shift's orders is the first response too large to return whole. tests/m4c covers it for the routes this slice adds; the M1 routes stay open.",
+      "buildable_now": true,
+      "buildable_why": "Buildable now for the routes that exist; this slice covers its own.",
+      "closes_when": "Pagination is implemented and tested on every route that can return an unbounded collection, error contracts included.",
       "review_may_challenge": true
     },
     {
@@ -805,6 +973,9 @@
         "M5a"
       ],
       "why": "Two ports, and only one exists. The messaging port is real and tested against a production-equivalent simulator — M3-C's notification adapters, with the simulated and live paths kept apart by type at M4-B. THERE IS NO STORAGE PORT: menu.image names a storage_key and nothing reads or writes one, so there is nothing to test against a simulator. The package places the fiscal port at M4 and M4-C builds it with a contract test; the storage half stays open, and it is the same absence FR-SEC-012 records from the security side.",
+      "buildable_now": false,
+      "buildable_why": "The fiscal half is buildable now and this slice builds it. The storage half is not: there is no storage port to test against a simulator, and building one is the same work FR-SEC-012 records.",
+      "closes_when": "Both Phase 1 ports — messaging and storage — are tested against production-equivalent simulators. The fiscal port's contract test lands at M4-C and is not this entry's closing test.",
       "review_may_challenge": true
     },
     {
@@ -821,6 +992,9 @@
         "M6"
       ],
       "why": "Non-vacuous is the word this project has spent four gates on. Fixtures are owner-confirmed and populated before any isolation claim — M1-A asserts 18 nodes exist and 8 are visible under context, so an empty database cannot pass; absent and malformed context are both tested; sibling-outlet attempts are refused for all four verbs; and 103 controls deliberately weaken a policy and require the exact registered signature before reverting.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -834,6 +1008,9 @@
         "M6"
       ],
       "why": "The fresh half is proved every run: twenty-five migrations applied to a database built from empty, checksum-locked, with M1-A planting an edit and requiring MIGRATION_CHECKSUM_MISMATCH, and line endings asserted pure LF across 42 checksum-locked files so the hashes are platform-independent. Ordinary Windows and Linux invocation is proved by the Windows job running the same drivers. THE UPGRADE HALF IS ABSENT: there is no prior approved baseline of this package in the repository and no test applies migrations onto one. Nothing can be upgraded from until a baseline is published, which is a deployment artifact.",
+      "buildable_now": false,
+      "buildable_why": "Not buildable now: there is no prior approved baseline of this package to upgrade from, and publishing one is a deployment act.",
+      "closes_when": "Migrations apply cleanly onto a prior approved baseline of this package, not only onto an empty database.",
       "review_may_challenge": true
     },
     {
@@ -847,6 +1024,9 @@
         "M6"
       ],
       "why": "The practice this clause describes is the one the project has followed at every gate: each confirmed defect gets a regression gate left unchanged and, where the original assertion could be vacuous, an independent stronger control. NC-M4B-009 and NC-M4B-011 are the two most recent instances, both added because a check had gone quietly stale rather than because a test failed. What does not exist is an artifact that records the pairing, so the discipline is visible in commit messages rather than in a register.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -860,6 +1040,9 @@
         "M6"
       ],
       "why": "There is no back-office surface at all. The repository has three: pwa for the customer, waiter for the floor, station for the kitchen. Dense information architecture, filters, saved views and keyboard support have no surface to be true of, and this is a P0 M1 requirement whose entire subject is missing. The package revalidates it at M6, where the reporting and back-office surfaces are said to extend it — which a reviewer should read carefully, because M4-C builds role dashboards and those are the first back-office screens in the project.",
+      "buildable_now": true,
+      "buildable_why": "Buildable now: it is a surface, and three others exist to pattern it on.",
+      "closes_when": "A back-office surface exists with dense responsive layout, filters, saved views and keyboard navigation, measured rather than asserted.",
       "review_may_challenge": true
     },
     {
@@ -874,6 +1057,9 @@
         "M4"
       ],
       "why": "The locale registry holds exactly en, am and ar, staff surfaces launch in English, and M2-C proves Arabic renders true RTL by measuring computed layout in a real browser rather than by asserting a dir attribute. Ethiopic and Arabic are both rendered and measured. Nothing names the requirement.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -885,6 +1071,9 @@
       "completing_gate": "M6",
       "revalidated_at": [],
       "why": "Translated name, short and long description, customer-visible ingredients, images, preparation time and display order are all columns, and M2-A refuses publication when a required translation is absent in any of the three locales — NC-M2A-004 plants exactly that and requires REQUIRED_TRANSLATION_MISSING, red then green in this run.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -896,6 +1085,9 @@
       "completing_gate": "M6",
       "revalidated_at": [],
       "why": "menu.variant carries independent prices and availability, and NC-M2A-002 plants an inexact or currency-less price and requires INEXACT_PRICE_TYPE_ACCEPTED while NC-M2A-003 requires availability not to disclose an exact figure. Both red then green in this run.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -909,6 +1101,9 @@
         "M3"
       ],
       "why": "Modifier groups carry required and optional selection, minimum and maximum counts, defaults, included quantity, price deltas and incompatibility constraints, all validated at M2-A and consumed by M2-B's cart and M3-A's order snapshot.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -920,6 +1115,9 @@
       "completing_gate": "M6",
       "revalidated_at": [],
       "why": "Customer-visible ingredient text and allergen declarations are stored as customer content in the menu schema, and the absence of any operational recipe linkage is what the fenced scanner enforces across operational recipe, recipe yield, ingredient consumption and costing. Both halves run and can fail; neither names the requirement.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -931,6 +1129,9 @@
       "completing_gate": "M6",
       "revalidated_at": [],
       "why": "Publication is blocked on both counts. A missing safety translation raises REQUIRED_TRANSLATION_MISSING from menu.publish_menu(), planted by NC-M2A-004 and shown red then green in this run; the allergen review state is a precondition on the same function, and M2-B's allergen safety suite exercises it in all three locales.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -944,6 +1145,9 @@
         "M5a"
       ],
       "why": "Three of the seven states exist and are distinguishable on the customer surface — loading, stale and failed, which is the clause's own gate-local behaviour at M2. LOCALLY SAVED, QUEUED and SYNCHRONIZED cannot exist yet: they describe an outlet node holding writes and reconciling them, which is M5a's, and inventing a status for them would be FR-UX-014's fabricated analytics in a different costume. Blocked is a genuine gap with no such excuse. Recorded as absent so the four missing states are visible rather than folded into a partial pass.",
+      "buildable_now": false,
+      "buildable_why": "Three of the seven states are buildable now and exist. Locally saved, queued and synchronized describe an outlet node holding writes, which M5a introduces; inventing them would be fabricated status.",
+      "closes_when": "All seven states are distinguishable on the surface, including the three that require an outlet node to be real.",
       "review_may_challenge": true
     },
     {
@@ -958,6 +1162,9 @@
         "M4"
       ],
       "why": "No shared component or token system exists. The three surfaces are three independent TypeScript bundles — pwa, waiter, station — each with its own styling, and tenant branding reaches them through configuration rather than through a token layer. The package revalidates at M4 saying the staff surfaces consume the same system, and they do not; M4-C's dashboards would be the fourth surface built without one, which is the reason this is recorded now rather than at M6.",
+      "buildable_now": true,
+      "buildable_why": "Buildable now: a shared token layer across three existing bundles needs nothing deployed.",
+      "closes_when": "One shared component and token system drives every surface, with tenant branding applied through configuration rather than a fork.",
       "review_may_challenge": true
     },
     {
@@ -969,6 +1176,9 @@
       "completing_gate": "M6",
       "revalidated_at": [],
       "why": "Courses hold and fire: 0012 carries the course on the fulfillment ticket and the fire command is an authorized transition in the ticket state machine, which M3-B proves exhaustively — every ordered pair of states attempted, with the illegal ones required to be refused. Configured timing is the alternative trigger and is configuration, not a second path.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
       "review_may_challenge": true
     },
     {
@@ -982,6 +1192,9 @@
         "M4"
       ],
       "why": "Accessibility preferences do not exist on the staff surfaces. M2-C proved the CUSTOMER surface against measured computed layout — target sizes, contrast and text scaling — and neither the waiter nor the station bundle carries larger targets, reduced motion or high contrast. The package revalidates at M4 saying the POS terminal surface must honour the same preferences, and M4-C builds the POS terminal ordering path, so this comes due with it.",
+      "buildable_now": true,
+      "buildable_why": "Buildable now, and built by this slice for the POS terminal path.",
+      "closes_when": "Larger targets, reduced motion and high contrast apply on the waiter, station and POS surfaces where configured, measured rather than asserted.",
       "review_may_challenge": true
     }
   ]

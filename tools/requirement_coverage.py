@@ -255,7 +255,8 @@ def classifications() -> dict[str, dict]:
 
     keyed: dict[str, dict] = {}
     for entry in entries:
-        for field in ("requirement", "state", "category", "completing_gate", "why"):
+        for field in ("requirement", "state", "category", "completing_gate", "why",
+                      "buildable_why", "closes_when"):
             if not entry.get(field):
                 raise CoverageUnreadable(
                     f"a coverage gap is missing '{field}': {entry.get('requirement')}. "
@@ -276,7 +277,31 @@ def classifications() -> dict[str, dict]:
                 f"requirement that works and is merely not cited is a governance gap; only "
                 f"an ABSENT behaviour can be a money, security or authority absence. This "
                 f"pairing is how an urgent list gets inflated until nobody reads it")
+        if entry["state"] == "absent" and entry.get("buildable_now") is None:
+            raise CoverageUnreadable(
+                f"{entry['requirement']} is absent and does not say whether it is "
+                f"buildable now. A reviewer weighing a deferral needs that, because "
+                f"without it \"not due yet\" reads as \"not possible yet\", which is a "
+                f"different and more forgiving claim")
         keyed[entry["requirement"]] = entry
+
+    # NOT CLOSABLE AS A BATCH. Five security absences scheduled forward would otherwise be
+    # ticked together by whichever gate arrived first, which is how a scheduled gap becomes
+    # a disappeared one. Each absent entry states what specifically must become true for IT
+    # to close, and two entries at one gate may not state the same thing.
+    by_gate: dict[str, dict[str, str]] = {}
+    for entry in keyed.values():
+        if entry["state"] != "absent":
+            continue          # an uncited gap closes uniformly, by being cited
+        seen = by_gate.setdefault(entry["completing_gate"], {})
+        collision = seen.get(entry["closes_when"])
+        if collision:
+            raise CoverageUnreadable(
+                f"{entry['requirement']} and {collision} are both absent, both close at "
+                f"{entry['completing_gate']}, and both state the same closing test. Two "
+                f"entries a gate cannot tell apart are two entries that gate will close "
+                f"together, and one of them will not have been fixed")
+        seen[entry["closes_when"]] = entry["requirement"]
     return keyed
 
 

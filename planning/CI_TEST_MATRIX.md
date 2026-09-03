@@ -162,6 +162,7 @@ fails the build rather than being carried forward:
 - `evidence/M1_EVIDENCE_REPORT.md`
 - `planning/ARCHITECTURE_CONFORMANCE_PLAN.md`
 - `planning/CI_TEST_MATRIX.md`
+- `planning/M4_REVIEW_FINDINGS.md`
 - `planning/MIGRATION_AND_DOMAIN_OWNERSHIP_MAP.md`
 - `schema/SCHEMA_CATALOG.md`
 
