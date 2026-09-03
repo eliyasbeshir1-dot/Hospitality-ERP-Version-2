@@ -87,7 +87,7 @@ comment every migration in this repository carries.
 | `0022_payment_and_tip_artifacts.sql` | — | ordering | M4-B |
 | `0023_payment_capture_verification_and_reversal.sql` | payments | — | M4-B |
 | `0024_cash_shifts_movements_and_custody.sql` | cash | — | M4-B |
-| `0025_financial_acceptance_producers_and_the_chain.sql` | integration | notify · billing · payments · ordering | M4-B |
+| `0025_financial_acceptance_producers_and_the_chain.sql` | integration | notify · billing · ordering · payments | M4-B |
 
 ---
 

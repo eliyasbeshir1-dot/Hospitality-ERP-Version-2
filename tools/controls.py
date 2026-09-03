@@ -132,6 +132,7 @@ CONTROLS = [
     ("NC-M4B-007", "An incompatible peer version silently accepted", "UNKNOWN_SCHEMA_ACCEPTED", "m4b"),
     ("NC-M4B-008", "A closure resting on a completer that is itself incomplete", "PARTIAL_CLOSURE_COMPLETER_INCOMPLETE", "m4b"),
     ("NC-M4B-009", "A verification suite the evidence report does not count", "SUITE_UNACCOUNTED", "m4b"),
+    ("NC-M4B-010", "A correlation link kind no rebuild puts back", "CORRELATION_KIND_UNOWNED", "m4b"),
 ]
 
 

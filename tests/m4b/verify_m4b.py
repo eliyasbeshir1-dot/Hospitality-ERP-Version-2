@@ -1895,6 +1895,57 @@ def section_governance() -> None:
            f"two new schemas. A rebuild deletes projections wholesale before replaying, "
            f"and 0019 lost three of these before the rule was written down")
 
+    # EVERY KIND OF CORRELATION LINK HAS A REBUILD THAT PUTS IT BACK.
+    #
+    # ordering.rebuild_projections() used to empty ordering.correlation_link outright and
+    # replay three ledgers, which was a complete account of the table until this slice put
+    # a check, a bill and a tip in it. Those come back from billing's ledger, not
+    # ordering's, so the wipe removed them and nothing restored them — a bill silently
+    # left the chain, and only the reversed-order run could see it because the forward
+    # order reaches M3-C before there is a bill to lose.
+    #
+    # The kinds are read from the ENUM, so a kind added at M4-C appears here without
+    # anybody extending a list, and the assertion is that each one names a rebuild. NULL
+    # is the safe answer — an unowned kind is deleted by nobody — but it is not a silent
+    # one.
+    ownership = rows("""
+        SELECT e.enumlabel,
+               coalesce(ordering.correlation_link_rebuilt_by(
+                            e.enumlabel::ordering.artifact_kind), '')
+          FROM pg_enum e
+         WHERE e.enumtypid = 'ordering.artifact_kind'::regtype
+         ORDER BY e.enumsortorder;""", dsn=ADMIN)
+    unowned = [r[0] for r in ownership if not r[1]]
+    if len(ownership) < 2:
+        raise CommandUnreadable(
+            f"only {len(ownership)} artifact kind(s) came back from the enum, so this "
+            f"check would be asserting over nothing")
+    record("every kind of correlation link names the rebuild that restores it",
+           not unowned,
+           f"{len(ownership)} kind(s), owned by "
+           f"{sorted({r[1] for r in ownership if r[1]})}; unowned: {unowned or 'none'}. "
+           f"Read from the enum rather than a list, so a kind added later is asserted "
+           f"about the moment it exists")
+
+    owners = {r[0]: r[1] for r in ownership}
+    record("and the financial kinds belong to billing's rebuild, not ordering's",
+           all(owners.get(k) == "billing.rebuild_projections"
+               for k in ("check", "bill", "tip", "payment")),
+           f"check/bill/tip/payment -> "
+           f"{[owners.get(k) for k in ('check', 'bill', 'tip', 'payment')]}. A link is "
+           f"what HAPPENED, not what is currently true: a check whose allocation was "
+           f"later removed still joined this correlation, so it cannot be re-derived from "
+           f"the rows that remain and must not be deleted by a rebuild that cannot "
+           f"replay it")
+
+    deleted_by_ordering = definition("ordering.rebuild_projections(uuid)")
+    record("and the rebuild deletes links by ownership rather than wholesale",
+           "correlation_link_rebuilt_by" in deleted_by_ordering,
+           "ordering.rebuild_projections() scopes its correlation-link delete by "
+           "ordering.correlation_link_rebuilt_by(). The delete stays TOTAL for the kinds "
+           "it does own, which is what lets M3-C keep catching a link the live path "
+           "writes and the fold does not")
+
     # ROW LEVEL SECURITY, enumerated from the catalog rather than from a list.
     unprotected = [r[0] for r in rows("""
         SELECT n.nspname || '.' || c.relname
@@ -2662,6 +2713,55 @@ def section_controls() -> None:
 
     control("NC-M4B-009  a verification suite the evidence report does not count",
             red_suite, green_suite)
+
+    # ---------------------------------------------------------------- NC-M4B-010
+    # A kind of correlation link that no rebuild puts back. This is the shape of the
+    # defect this slice shipped and the reversed-order run caught: 'bill' was written by a
+    # trigger on a billing projection, deleted by ordering's rebuild, and restored by
+    # nobody. The assertion in section 16 says every kind names an owner; without this it
+    # would be an assertion over a mapping nobody had shown could be incomplete.
+    #
+    # Planted by REPLACING the mapping function, and reverted from the definition read out
+    # of the catalog first — NC-M4-002's lesson, where a revert that wrote a hardcoded copy
+    # silently undid a later gate's work.
+    def ownership_gate() -> tuple[bool, str, str]:
+        unowned = [r[0] for r in rows("""
+            SELECT e.enumlabel FROM pg_enum e
+             WHERE e.enumtypid = 'ordering.artifact_kind'::regtype
+               AND ordering.correlation_link_rebuilt_by(
+                       e.enumlabel::ordering.artifact_kind) IS NULL
+             ORDER BY e.enumsortorder;""", dsn=ADMIN)]
+        if unowned:
+            return (False, "CORRELATION_KIND_UNOWNED", ", ".join(unowned))
+        return (True, "", "every kind names the rebuild that restores it")
+
+    def red_ownership():
+        CONTEXT["nc4b010_original"] = definition(
+            "ordering.correlation_link_rebuilt_by(ordering.artifact_kind)")
+        # By pattern rather than by exact spacing: the mapping is aligned for reading and
+        # a control that depended on the number of spaces would break on a reformat and
+        # look like a defect in the thing it is testing.
+        poisoned = re.sub(r"\n\s*WHEN 'bill'\s+THEN\s+'[a-z_.]+'", "",
+                          CONTEXT["nc4b010_original"], count=1)
+        if poisoned == CONTEXT["nc4b010_original"]:
+            raise CommandUnreadable(
+                "could not remove 'bill' from the ownership mapping; the anchor this "
+                "control edits has moved, and a plant that changed nothing would make "
+                "the assertion below pass for the wrong reason")
+        replace_function(poisoned)
+        ok, sig, detail = ownership_gate()
+        return (not ok and sig == "CORRELATION_KIND_UNOWNED",
+                f"{sig}: {detail}. A kind with no owner is a link ordering's rebuild "
+                f"would delete and nothing would put back, which is exactly what "
+                f"happened to a bill before this mapping existed")
+
+    def green_ownership():
+        replace_function(CONTEXT["nc4b010_original"])
+        ok, _sig, detail = ownership_gate()
+        return (ok, detail)
+
+    control("NC-M4B-010  a correlation link kind no rebuild puts back",
+            red_ownership, green_ownership)
 
 
 # ===========================================================================

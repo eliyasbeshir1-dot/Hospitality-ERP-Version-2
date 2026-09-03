@@ -179,6 +179,145 @@ CREATE TRIGGER tip_joins_the_chain
     FOR EACH ROW EXECUTE FUNCTION billing.link_tip_to_the_chain();
 
 
+-- ===========================================================================
+-- Which rebuild owns which link (FR-INT-014)
+-- ===========================================================================
+-- ordering.rebuild_projections() emptied ordering.correlation_link for the tenant and
+-- then replayed the ordering, fulfillment and service ledgers. Until this gate that was a
+-- complete account of the table, because every link in it came from one of those three.
+-- The links added above do not. They are written by triggers on billing's folded tables
+-- and restored by billing.rebuild_projections(), which that function neither calls nor
+-- should — so the wipe destroyed a bill's place in the chain and nothing put it back. It
+-- was invisible in the forward order, where M3-C runs before there is a bill to lose, and
+-- the reversed-order run found it on the first attempt.
+--
+-- A LINK IS NOT A FUNCTION OF THE ROWS THAT ARE STILL THERE. The first repair tried was
+-- to re-derive billing's links from billing's surviving rows, and it was wrong in a way
+-- worth recording: a check whose allocation has since been removed is still a check that
+-- joined this correlation, and re-deriving invented a link for one allocation while
+-- losing another. The chain records what happened, not what is currently true, which is
+-- the whole reason it survives a disposition.
+--
+-- So the rebuild deletes only what it puts back. Which kinds those are is declared here,
+-- once, as a total function over the enum — a FUNCTION rather than a table because every
+-- table in this schema carries a tenant and is scoped by app.row_in_scope(), and this is
+-- not anybody's data. An unlisted kind maps to NULL, which is owned by no rebuild and
+-- therefore deleted by none: the default is to keep, and the assertion below turns that
+-- safe default into a loud one at migration time. tests/m4b re-asserts it from the enum
+-- on every run, so a kind added at a later gate cannot quietly acquire an owner either.
+--
+-- The delete stays TOTAL for the kinds ordering does own. That is what lets M3-C catch a
+-- link the live path writes and the fold does not — the defect M3-B found in this same
+-- table — and narrowing it further would have bought this gate's correctness with the
+-- next gate's detection.
+
+CREATE FUNCTION ordering.correlation_link_rebuilt_by(p_kind ordering.artifact_kind)
+RETURNS text
+LANGUAGE sql IMMUTABLE
+AS $$
+    SELECT CASE p_kind
+        WHEN 'request'            THEN 'ordering.rebuild_projections'
+        WHEN 'cart'               THEN 'ordering.rebuild_projections'
+        WHEN 'table_session'      THEN 'ordering.rebuild_projections'
+        WHEN 'order'              THEN 'ordering.rebuild_projections'
+        WHEN 'fulfillment_ticket' THEN 'ordering.rebuild_projections'
+        WHEN 'service_request'    THEN 'ordering.rebuild_projections'
+        WHEN 'check'              THEN 'billing.rebuild_projections'
+        WHEN 'bill'               THEN 'billing.rebuild_projections'
+        WHEN 'tip'                THEN 'billing.rebuild_projections'
+        WHEN 'payment'            THEN 'billing.rebuild_projections'
+    END;
+$$;
+
+COMMENT ON FUNCTION ordering.correlation_link_rebuilt_by(ordering.artifact_kind) IS
+    'FR-INT-014. Which rebuild is responsible for putting a kind of correlation link back '
+    'after deleting it. A rebuild deletes only the kinds it owns, so no rebuild destroys '
+    'a link another one writes. NULL means no rebuild owns the kind, which is the safe '
+    'answer because nothing then deletes it.';
+
+-- EVERY KIND, OR THIS MIGRATION DOES NOT APPLY. Read out of the enum rather than counted,
+-- so it stays true as the enum grows and is not a number somebody has to remember.
+DO $$
+DECLARE
+    v_unowned text;
+BEGIN
+    SELECT string_agg(e.enumlabel, ', ' ORDER BY e.enumsortorder) INTO v_unowned
+      FROM pg_enum e
+     WHERE e.enumtypid = 'ordering.artifact_kind'::regtype
+       AND ordering.correlation_link_rebuilt_by(e.enumlabel::ordering.artifact_kind)
+           IS NULL;
+    IF v_unowned IS NOT NULL THEN
+        RAISE EXCEPTION
+            'CORRELATION_KIND_UNOWNED: % has no rebuild responsible for restoring it. A '
+            'kind nobody owns is a link nobody puts back', v_unowned;
+    END IF;
+END;
+$$;
+
+-- The rebuild, with one clause changed: it deletes the links it owns instead of all of
+-- them. The rest is 0014's body, which a forward-only migration has to restate in order
+-- to replace it.
+CREATE OR REPLACE FUNCTION ordering.rebuild_projections(p_tenant_id uuid) RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = pg_catalog, ordering, public
+AS $$
+DECLARE
+    v_event bigint;
+    v_count integer := 0;
+BEGIN
+    PERFORM set_config('ordering.applying_event', 'yes', true);
+
+    DELETE FROM ordering.duplicate_signal WHERE tenant_id = p_tenant_id;
+    DELETE FROM ordering.order_timeline_entry WHERE tenant_id = p_tenant_id;
+    -- Only the kinds this function replays. A check, a bill or a tip is written by a
+    -- trigger on a billing projection and restored by billing.rebuild_projections();
+    -- deleting one here would take it out of the chain with nothing to put it back.
+    DELETE FROM ordering.correlation_link l
+     WHERE l.tenant_id = p_tenant_id
+       AND ordering.correlation_link_rebuilt_by(l.artifact_kind)
+           = 'ordering.rebuild_projections';
+    DELETE FROM ordering.order_note WHERE tenant_id = p_tenant_id;
+    DELETE FROM ordering.order_charge_component WHERE tenant_id = p_tenant_id;
+    DELETE FROM ordering.order_line_modifier WHERE tenant_id = p_tenant_id;
+    -- Tickets reference order lines and service requests reference orders, so both come
+    -- down first and are rebuilt below. The three ledgers are untouched throughout; only
+    -- projections move.
+    PERFORM fulfillment.drop_projections_for_rebuild(p_tenant_id);
+    PERFORM service.drop_projections_for_rebuild(p_tenant_id);
+    DELETE FROM ordering.order_line WHERE tenant_id = p_tenant_id;
+    DELETE FROM ordering.customer_order WHERE tenant_id = p_tenant_id;
+
+    PERFORM set_config('ordering.applying_event', '', true);
+
+    FOR v_event IN
+        SELECT id FROM ordering.order_event WHERE tenant_id = p_tenant_id ORDER BY id
+    LOOP
+        PERFORM ordering.apply_event(v_event);
+        v_count := v_count + 1;
+    END LOOP;
+
+    FOR v_event IN
+        SELECT id FROM fulfillment.ticket_event WHERE tenant_id = p_tenant_id ORDER BY id
+    LOOP
+        PERFORM fulfillment.apply_ticket_event(v_event);
+        v_count := v_count + 1;
+    END LOOP;
+
+    -- And the service ledger, which restores the service_request links in the
+    -- correlation chain (FR-INT-014).
+    FOR v_event IN
+        SELECT id FROM service.service_request_event
+         WHERE tenant_id = p_tenant_id ORDER BY id
+    LOOP
+        PERFORM service.apply_request_event(v_event);
+        v_count := v_count + 1;
+    END LOOP;
+
+    RETURN v_count;
+END;
+$$;
+
+
 CREATE FUNCTION payments.announce_payment() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = pg_catalog, payments, billing, ordering, service, notify, public
