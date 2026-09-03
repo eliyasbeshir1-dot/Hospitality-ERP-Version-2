@@ -961,17 +961,25 @@ def section_allocation() -> None:
                                        WHERE payment_id = '{payment}'
                                          AND target = 'bill_balance';"""),
                            reason, "reissued to prove the allocation does not follow it")
+    # THE ARGUMENT ORDER IS THE FUNCTION'S, not the one a reader would guess:
+    # (tenant, outlet, bill, override, reason_code, reason_text, actor). Passing the actor
+    # fourth put the reason code where the actor belongs and failed on a foreign key — and
+    # the check below still passed, because a bill that was never reissued cannot have
+    # moved an allocation. A probe whose setup failed silently proves nothing, so the
+    # reissue is now required to succeed before the comparison is believed.
     reissued = run(APP, f"""
         SELECT billing.reissue_bill('{fx.TENANT}', '{fx.OUTLET_H1}', '{bill["bill"]}',
-            '{fx.USER}', '{override}', 'reissued to a corrected check', '{reason}');""",
+            '{override}', '{reason}', 'reissued to a corrected check', '{fx.USER}');""",
         tx=True, **CTX)
+    if not reissued.ok:
+        raise ProbeFailed("reissue_bill", reissued.err)
     after = int(scalar(f"""
         SELECT amount_minor FROM payments.allocation
          WHERE payment_id = '{payment}' AND target = 'bill_balance';"""))
     record("an allocation does not follow the bill it was made against",
            before == after,
-           f"{before} before the bill was reissued and {after} after "
-           f"({'reissued' if reissued.ok else reissued.why()}). This is what "
+           f"{before} before the bill was reissued and {after} after, and the reissue "
+           f"is required to have succeeded before this is believed. This is what "
            f"'no hidden recomputation' means in practice: a figure derived at read time "
            f"would agree with today's document rather than with what the guest handed "
            f"over, and the two differ exactly when somebody is disputing a bill")

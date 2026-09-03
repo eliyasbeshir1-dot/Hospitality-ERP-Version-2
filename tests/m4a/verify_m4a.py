@@ -1654,18 +1654,20 @@ def section_controls() -> None:
         return (True, "", f"no balance function reads a tip, and {outstanding} is owed "
                           f"against a total of {total} despite the tips attached to it")
 
-    ORIGINAL_BALANCE = """
-CREATE OR REPLACE FUNCTION billing.outstanding_balance(p_tenant_id uuid, p_bill_id uuid)
-RETURNS money.amount_minor
-LANGUAGE sql STABLE
-AS $$
-    SELECT b.bill_total_minor
-           - coalesce((SELECT sum(d.amount_minor)
-                         FROM billing.bill_disposition d
-                        WHERE d.tenant_id = b.tenant_id AND d.bill_id = b.id), 0)
-      FROM billing.bill b
-     WHERE b.tenant_id = p_tenant_id AND b.id = p_bill_id;
-$$;"""
+    # READ OUT OF THE CATALOG, never written here.
+    #
+    # This was a hardcoded copy of the definition as it stood at M4-A, and reverting to it
+    # silently replaced whatever the database actually had. M4-B extended
+    # billing.outstanding_balance() to subtract what has been PAID — FR-BIL-008's
+    # settlement by tender — and this control quietly put the M4-A version back, so every
+    # suite that ran afterwards saw a bill that could be paid in full and still be owed in
+    # full. It cost a whole-chain run to find, and the M4-B suite is what found it.
+    #
+    # It is the defect this project refuses everywhere else: a fact stated in two places,
+    # one of which stops being updated. The guard control immediately below already did it
+    # the right way with definition(); this one did not. Capturing the live definition also
+    # makes the revert correct for every future gate without anybody editing this file.
+    ORIGINAL_BALANCE = definition("billing.outstanding_balance(uuid, uuid)")
 
     def red_commingled():
         replace_function("""
