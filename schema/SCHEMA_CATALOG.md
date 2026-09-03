@@ -4,7 +4,7 @@
 Do not edit by hand: the verification suite regenerates this file and fails on any
 difference, so a hand edit is reported as drift (FR-DAT-015).
 
-Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `fulfillment`, `identity`, `integration`, `menu`, `money`, `notify`, `ordering`, `org`, `payments`, `pos`, `safety`, `service`, discovered from the database rather than listed here.
+Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `docs`, `fulfillment`, `identity`, `integration`, `menu`, `money`, `notify`, `ordering`, `org`, `payments`, `pos`, `safety`, `service`, discovered from the database rather than listed here.
 
 ---
 
@@ -36,6 +36,12 @@ Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `fulfillment`, `id
 | `config.reason_code_category` | order_cancellation, void, refund, discount, complimentary_item, payment_reversal, tip_correction, service_failure, printer_failure, manager_override |
 | `config.retention_action` | archive, purge, anonymize |
 | `config.scope_kind` | tenant, legal_entity, outlet |
+| `docs.connection_kind` | character_device, network_socket, file |
+| `docs.document_kind` | receipt, kitchen_ticket, label, operational |
+| `docs.print_outcome` | printed, failed |
+| `docs.receipt_line_kind` | bill_component, bill_total, tip, total_paid, payment_method |
+| `docs.render_outcome` | rendered, failed |
+| `docs.sink_kind` | device, preview |
 | `fulfillment.document_trigger` | kds_unavailable, policy_requires_paper |
 | `fulfillment.priority_level` | ordinary, rush, service_access |
 | `fulfillment.serve_exception` | missing_item, wrong_item |
@@ -54,7 +60,7 @@ Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `fulfillment`, `id
 | `menu.availability_state` | available, limited, temporarily_unavailable, scheduled_later, hidden |
 | `menu.customer_locale` | en, am, ar |
 | `menu.image_format` | webp, avif, jpeg, png |
-| `menu.menu_entity` | menu, category, item_group, item, variant, modifier_group, modifier, image, allergen, dietary_claim, service_request_type, notification_template, order_status_wording, bill_component_wording |
+| `menu.menu_entity` | menu, category, item_group, item, variant, modifier_group, modifier, image, allergen, dietary_claim, service_request_type, notification_template, order_status_wording, bill_component_wording, receipt_line_wording |
 | `menu.publication_state` | draft, review, scheduled, published, paused, archived |
 | `menu.sales_channel` | dine_in, counter, room_service, kiosk |
 | `menu.translation_provenance` | human, machine_assisted |
@@ -67,7 +73,7 @@ Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `fulfillment`, `id
 | `notify.notice_state` | pending, sent, read, failed, dead_lettered |
 | `ordering.acceptance_mode` | automatic, staff_confirmed, payment_dependent |
 | `ordering.actor_kind` | guest, staff, system |
-| `ordering.artifact_kind` | request, cart, table_session, order, fulfillment_ticket, service_request, check, bill, payment, tip |
+| `ordering.artifact_kind` | request, cart, table_session, order, fulfillment_ticket, service_request, check, bill, payment, tip, receipt |
 | `ordering.charge_kind` | item_subtotal, discount, tax, fee |
 | `ordering.charge_source_kind` | menu_price, tax_configuration, discount_policy, service_configuration |
 | `ordering.event_kind` | submitted, accepted, rejected, amended, cancelled, voided, note_added, allergy_declared, session_merged, session_moved, tickets_released, station_acknowledged, station_preparing, station_ready, items_collected, items_served, station_exception |
@@ -148,6 +154,14 @@ graph LR
   identity_governed_action["identity.governed_action"]
   config_reason_code_label["config.reason_code_label"]
   config_retention_policy["config.retention_policy"]
+  docs_line_wording["docs.line_wording"]
+  docs_print_attempt["docs.print_attempt"]
+  docs_printer["docs.printer"]
+  docs_receipt["docs.receipt"]
+  docs_printer_test["docs.printer_test"]
+  money_currency["money.currency"]
+  docs_receipt_line["docs.receipt_line"]
+  docs_render_attempt["docs.render_attempt"]
   fulfillment_priority_change["fulfillment.priority_change"]
   fulfillment_ticket["fulfillment.ticket"]
   fulfillment_ready_notice["fulfillment.ready_notice"]
@@ -195,7 +209,6 @@ graph LR
   menu_modifier_group["menu.modifier_group"]
   menu_modifier_incompatibility["menu.modifier_incompatibility"]
   menu_price["menu.price"]
-  money_currency["money.currency"]
   menu_publication_snapshot["menu.publication_snapshot"]
   menu_publication_snapshot_line["menu.publication_snapshot_line"]
   menu_translation["menu.translation"]
@@ -341,6 +354,31 @@ graph LR
   config_reason_code_label --> config_reason_code
   config_retention_policy --> org_org_node
   config_retention_policy --> org_tenant
+  docs_line_wording --> org_tenant
+  docs_print_attempt --> config_reason_code
+  docs_print_attempt --> docs_printer
+  docs_print_attempt --> docs_receipt
+  docs_print_attempt --> identity_user_account
+  docs_print_attempt --> org_org_node
+  docs_print_attempt --> org_tenant
+  docs_printer --> identity_user_account
+  docs_printer --> org_org_node
+  docs_printer --> org_tenant
+  docs_printer_test --> docs_printer
+  docs_printer_test --> identity_user_account
+  docs_printer_test --> org_org_node
+  docs_printer_test --> org_tenant
+  docs_receipt --> identity_user_account
+  docs_receipt --> money_currency
+  docs_receipt --> org_org_node
+  docs_receipt --> org_tenant
+  docs_receipt_line --> docs_receipt
+  docs_receipt_line --> org_tenant
+  docs_render_attempt --> docs_printer
+  docs_render_attempt --> docs_receipt
+  docs_render_attempt --> identity_user_account
+  docs_render_attempt --> org_org_node
+  docs_render_attempt --> org_tenant
   fulfillment_priority_change --> config_reason_code
   fulfillment_priority_change --> fulfillment_ticket
   fulfillment_priority_change --> identity_user_account
@@ -1768,6 +1806,7 @@ Constraints:
 
 - `retention_policy_age_column_not_blank` — `CHECK ((btrim(age_column) <> ''::text))`
 - `retention_policy_never_targets_audit` — `CHECK ((lower(target_schema) <> 'audit'::text))`
+- `retention_policy_never_targets_financial_ledgers` — `CHECK ((target_schema <> ALL (ARRAY['billing'::text, 'payments'::text, 'cash'::text, 'docs'::text])))`
 - `retention_policy_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
 - `retention_policy_pkey` — `PRIMARY KEY (id)`
 - `retention_policy_retain_for_positive` — `CHECK ((retain_for > '00:00:00'::interval))`
@@ -1777,6 +1816,267 @@ Constraints:
 Policies:
 
 - `retention_policy_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+### `docs`
+
+Documents this system produces for somebody outside it to read: receipts now, and the previews FR-UX-018 asks for of the kitchen, label and operational documents that already exist. Its own schema rather than a corner of billing because a bill states what is owed and a receipt states what happened, and the second must not become editable by living beside the first.
+
+#### `docs.line_wording`
+
+The English source text for the four receipt lines that are not charge components, translated through menu.translation under entity receipt_line_wording — M2-A's approval workflow unchanged, because a second store for safety-relevant text is how two copies come to disagree (M2-B's finding). The component lines take their wording from billing.component_wording_for(), which already exists and is already proved.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `kind` | `docs.receipt_line_kind` | NOT NULL |  |  |
+| `source_text` | `text` | NOT NULL |  |  |
+| `status` | `org.lifecycle_status` | NOT NULL | `'active'::org.lifecycle_status` |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `line_wording_one_per_kind` — `UNIQUE (tenant_id, kind, status)`
+- `line_wording_pkey` — `PRIMARY KEY (id)`
+- `line_wording_source_not_blank` — `CHECK ((btrim(source_text) <> ''::text))`
+- `line_wording_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `line_wording_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `line_wording_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `docs.print_attempt`
+
+FR-BIL-017's physical print, recorded, and FR-BIL-011's reprint. Its outcome is docs.print_outcome so only a device can produce one; a partial unique index permits exactly one non-reprint per receipt; and a reprint must carry an operator and a reason code. The bytes are recorded by DIGEST, never stored: a receipt names a person and what they bought, and a print log is a log.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `receipt_id` | `uuid` | NOT NULL |  |  |
+| `printer_id` | `uuid` | NOT NULL |  |  |
+| `outcome` | `docs.print_outcome` | NOT NULL |  |  |
+| `is_reprint` | `boolean` | NOT NULL | `false` |  |
+| `reason_code_id` | `uuid` |  |  |  |
+| `reason_text` | `text` |  |  |  |
+| `operator_user_id` | `uuid` | NOT NULL |  |  |
+| `bytes_sha256` | `character(64)` | NOT NULL |  |  |
+| `byte_count` | `integer` | NOT NULL |  |  |
+| `detail` | `text` |  |  |  |
+| `attempted_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `print_attempt_byte_count_positive` — `CHECK ((byte_count > 0))`
+- `print_attempt_digest_is_a_digest` — `CHECK ((bytes_sha256 ~ '^[0-9a-f]{64}$'::text))`
+- `print_attempt_operator_fk` — `FOREIGN KEY (tenant_id, operator_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `print_attempt_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `print_attempt_pkey` — `PRIMARY KEY (id)`
+- `print_attempt_printer_fk` — `FOREIGN KEY (tenant_id, printer_id) REFERENCES docs.printer(tenant_id, id) ON DELETE RESTRICT`
+- `print_attempt_reason_fk` — `FOREIGN KEY (tenant_id, reason_code_id) REFERENCES config.reason_code(tenant_id, id) ON DELETE RESTRICT`
+- `print_attempt_receipt_fk` — `FOREIGN KEY (tenant_id, receipt_id) REFERENCES docs.receipt(tenant_id, id) ON DELETE RESTRICT`
+- `print_attempt_reprint_carries_its_reason` — `CHECK (((is_reprint AND (reason_code_id IS NOT NULL) AND (btrim(COALESCE(reason_text, ''::text)) <> ''::text)) OR ((NOT is_reprint) AND (reason_code_id IS NULL) AND (reason_text IS NULL))))`
+- `print_attempt_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `print_attempt_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `print_attempt_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `docs.printer`
+
+FR-CFG-001D's registered printer. Its SINK is derived from its connection by CHECK and its identity is immutable by trigger, so a preview cannot be promoted into a device by an UPDATE — the two locks payments.payment_adapter carries, for the same reason. command_set records what the bytes are written for: generic ESC/POS, because no pilot device has been chosen, and that is a gap this build states rather than hides.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `display_name` | `text` | NOT NULL |  |  |
+| `connection` | `docs.connection_kind` | NOT NULL |  |  |
+| `sink` | `docs.sink_kind` | NOT NULL |  |  |
+| `device_path` | `text` |  |  |  |
+| `host_and_port` | `text` |  |  |  |
+| `command_set` | `text` | NOT NULL | `'esc_pos_generic'::text` |  |
+| `status` | `org.lifecycle_status` | NOT NULL | `'active'::org.lifecycle_status` |  |
+| `registered_by_user_id` | `uuid` | NOT NULL |  |  |
+| `registered_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `row_version` | `bigint` | NOT NULL | `1` |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `printer_destination_matches_the_connection` — `CHECK ((((connection = 'network_socket'::docs.connection_kind) AND (host_and_port IS NOT NULL) AND (device_path IS NULL)) OR ((connection = ANY (ARRAY['character_device'::docs.connection_kind, 'file'::docs.connection_kind])) AND (device_path IS NOT NULL) AND (host_and_port IS NULL))))`
+- `printer_name_not_blank` — `CHECK ((btrim(display_name) <> ''::text))`
+- `printer_name_unique_per_outlet` — `UNIQUE (tenant_id, outlet_id, display_name, status)`
+- `printer_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `printer_pkey` — `PRIMARY KEY (id)`
+- `printer_registrar_fk` — `FOREIGN KEY (tenant_id, registered_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `printer_sink_is_derived_from_the_connection` — `CHECK ((((connection = ANY (ARRAY['character_device'::docs.connection_kind, 'network_socket'::docs.connection_kind])) AND (sink = 'device'::docs.sink_kind)) OR ((connection = 'file'::docs.connection_kind) AND (sink = 'preview'::docs.sink_kind))))`
+- `printer_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `printer_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `printer_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `docs.printer_test`
+
+FR-CFG-001D's test, recorded. Its outcome is docs.print_outcome, so only a device sink can produce a row here at all — a preview cannot be tested into looking like a printer, because the value would not fit the column.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `printer_id` | `uuid` | NOT NULL |  |  |
+| `outcome` | `docs.print_outcome` | NOT NULL |  |  |
+| `bytes_sha256` | `character(64)` | NOT NULL |  |  |
+| `byte_count` | `integer` | NOT NULL |  |  |
+| `detail` | `text` |  |  |  |
+| `tested_by_user_id` | `uuid` | NOT NULL |  |  |
+| `tested_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `printer_test_actor_fk` — `FOREIGN KEY (tenant_id, tested_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `printer_test_byte_count_positive` — `CHECK ((byte_count > 0))`
+- `printer_test_digest_is_a_digest` — `CHECK ((bytes_sha256 ~ '^[0-9a-f]{64}$'::text))`
+- `printer_test_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `printer_test_pkey` — `PRIMARY KEY (id)`
+- `printer_test_printer_fk` — `FOREIGN KEY (tenant_id, printer_id) REFERENCES docs.printer(tenant_id, id) ON DELETE RESTRICT`
+- `printer_test_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `printer_test_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `printer_test_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `docs.receipt`
+
+FR-BIL-010's digital receipt and the record of FR-BIL-017's physical one. Durable, append-only, and snapshotted: it holds no key into billing.bill because that is a projection, and it stores its own figures because paper does not change when a row does. Its locale is the BILL'S, never the reader's — M4-A's rule, which is why a reprint for a manager is in the customer's language.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `bill_id` | `uuid` | NOT NULL |  |  |
+| `receipt_number` | `text` | NOT NULL |  |  |
+| `revision` | `integer` | NOT NULL | `1` |  |
+| `locale` | `menu.customer_locale` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `bill_total_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `tip_total_minor` | `money.amount_minor` | NOT NULL | `0` |  |
+| `paid_total_minor` | `money.amount_minor` | NOT NULL |  |  |
+| `payment_method` | `text` | NOT NULL |  |  |
+| `calculation_version` | `text` | NOT NULL |  |  |
+| `generated_by_user_id` | `uuid` | NOT NULL |  |  |
+| `generated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `receipt_currency_fk` — `FOREIGN KEY (currency_code) REFERENCES money.currency(code) ON DELETE RESTRICT`
+- `receipt_generator_fk` — `FOREIGN KEY (tenant_id, generated_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `receipt_method_not_blank` — `CHECK ((btrim(payment_method) <> ''::text))`
+- `receipt_number_not_blank` — `CHECK ((btrim(receipt_number) <> ''::text))`
+- `receipt_number_unique` — `UNIQUE (tenant_id, receipt_number)`
+- `receipt_one_per_bill_revision` — `UNIQUE (tenant_id, bill_id, revision)`
+- `receipt_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `receipt_pkey` — `PRIMARY KEY (id)`
+- `receipt_revision_positive` — `CHECK ((revision >= 1))`
+- `receipt_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `receipt_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `receipt_totals_not_negative` — `CHECK ((((bill_total_minor)::bigint >= 0) AND ((tip_total_minor)::bigint >= 0) AND ((paid_total_minor)::bigint >= 0)))`
+
+Policies:
+
+- `receipt_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `docs.receipt_line`
+
+The receipt as printed, one row per line. FR-BIL-010 requires bill total, optional tip and total paid to be SEPARATE lines and FR-BIL-017 adds the payment method; the kinds are separate values and the singleton kinds are unique per receipt, so a merged line is a structural impossibility rather than a style guideline.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `receipt_id` | `uuid` | NOT NULL |  |  |
+| `kind` | `docs.receipt_line_kind` | NOT NULL |  |  |
+| `display_order` | `integer` | NOT NULL |  |  |
+| `label` | `text` | NOT NULL |  |  |
+| `amount_minor` | `money.amount_minor` |  |  |  |
+
+Constraints:
+
+- `receipt_line_amount_present_unless_method` — `CHECK ((((kind = 'payment_method'::docs.receipt_line_kind) AND (amount_minor IS NULL)) OR ((kind <> 'payment_method'::docs.receipt_line_kind) AND (amount_minor IS NOT NULL))))`
+- `receipt_line_is_complete_in_its_locale` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
+- `receipt_line_is_faithful` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
+- `receipt_line_label_not_blank` — `CHECK ((btrim(label) <> ''::text))`
+- `receipt_line_order_unique` — `UNIQUE (tenant_id, receipt_id, display_order)`
+- `receipt_line_pkey` — `PRIMARY KEY (id)`
+- `receipt_line_receipt_fk` — `FOREIGN KEY (tenant_id, receipt_id) REFERENCES docs.receipt(tenant_id, id) ON DELETE RESTRICT`
+- `receipt_line_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `receipt_line_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `receipt_line_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `docs.render_attempt`
+
+FR-UX-018's preview. Bytes reached a file, and that is all this records — its outcome type says rendered, not printed, and no value of it fits the column a print is recorded in. A preview can be taken as often as anybody likes, so nothing here is unique.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `kind` | `docs.document_kind` | NOT NULL |  |  |
+| `receipt_id` | `uuid` |  |  |  |
+| `printer_id` | `uuid` | NOT NULL |  |  |
+| `outcome` | `docs.render_outcome` | NOT NULL |  |  |
+| `bytes_sha256` | `character(64)` | NOT NULL |  |  |
+| `byte_count` | `integer` | NOT NULL |  |  |
+| `requested_by_user_id` | `uuid` | NOT NULL |  |  |
+| `rendered_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `render_attempt_actor_fk` — `FOREIGN KEY (tenant_id, requested_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `render_attempt_byte_count_positive` — `CHECK ((byte_count > 0))`
+- `render_attempt_digest_is_a_digest` — `CHECK ((bytes_sha256 ~ '^[0-9a-f]{64}$'::text))`
+- `render_attempt_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `render_attempt_pkey` — `PRIMARY KEY (id)`
+- `render_attempt_printer_fk` — `FOREIGN KEY (tenant_id, printer_id) REFERENCES docs.printer(tenant_id, id) ON DELETE RESTRICT`
+- `render_attempt_receipt_fk` — `FOREIGN KEY (tenant_id, receipt_id) REFERENCES docs.receipt(tenant_id, id) ON DELETE RESTRICT`
+- `render_attempt_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `render_attempt_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `render_attempt_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
 ### `fulfillment`
 
