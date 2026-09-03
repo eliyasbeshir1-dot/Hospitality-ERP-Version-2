@@ -138,10 +138,28 @@ position is to write fresh.
 | `evidence/` | `M1_EVIDENCE_REPORT.md`, generated from the repository, database and suite logs |
 | `migrations/` | ordered, checksum-locked SQL history beginning at `0001` |
 | `planning/` | architecture conformance, migration ownership, CI matrix, known limitations |
+| `print/` | the print agent: the receipt rasteriser, the ESC/POS encoder, and the font it ships rather than resolves from the host |
 | `schema/` | `SCHEMA_CATALOG.md`, generated from the live database, never hand-written |
 | `seeds/` | demonstration tenants and reason-code sets, with their own ordered record |
 | `tests/` | verification suites — 13 that each verify one slice, and 2 that cut across gates |
 | `tools/` | migration and seed runners, generators, and the forbidden-surface verifier |
+
+## Third-party assets, and what shipping them obliges
+
+This repository writes fresh rather than reusing, and one binary is the exception. The
+printer path ships the font it renders with, because a receipt's glyphs must not depend on
+which machine printed it — no Ethiopic font exists on the build container or on either CI
+runner, and the two runners differ from each other.
+
+**The SIL Open Font License requires the copyright notice and the licence to accompany
+every copy of the font software.** The licence text and a provenance record naming the
+source, the version and the checksum sit beside the binary in `print/fonts/`, and the
+checksum below is read from that record rather than written here. `tests/m4c` asserts it
+against the file on every run, and the print agent refuses to render if the two disagree.
+
+| Asset | Licence | sha256 |
+|---|---|---|
+| `print/fonts/NotoSansEthiopic-Regular.ttf` | SIL Open Font License 1.1 — `OFL-1.1.txt` beside this file | `6d66ffc7a4a33f95…` |
 
 ## Migrations
 
@@ -172,6 +190,8 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0023_payment_capture_verification_and_reversal.sql`
 - `0024_cash_shifts_movements_and_custody.sql`
 - `0025_financial_acceptance_producers_and_the_chain.sql`
+- `0026_translatable_receipt_wording.sql`
+- `0027_receipts_printing_and_the_document_path.sql`
 
 ## Seeds
 

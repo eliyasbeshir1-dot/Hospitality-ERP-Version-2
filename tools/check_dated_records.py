@@ -61,6 +61,7 @@ DATED_RECORDS = [
     "planning/KNOWN_LIMITATIONS.md",
     "docs-local/CROSS_PLATFORM_COMMANDS.md",
     "planning/M0R_MIGRATION_RECORD.md",
+    "planning/M4C_LIMITATIONS.md",
 ]
 
 DECLARATION = "<!-- dated-record -->"

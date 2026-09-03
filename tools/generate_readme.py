@@ -106,6 +106,34 @@ GATE_DELIVERS = {
 # The tokens below are substituted from the repository. A value that spells a gate out
 # instead raises DescriptionNamesADerivableFact, which is why "M1 surface only" cannot
 # come back.
+def vendored_assets() -> list[str]:
+    """Third-party binaries this repository ships, read from their provenance records.
+
+    DERIVED, because the alternative is a README that states a checksum. OFL-1.1 requires
+    the licence to travel with the font, and a licence line that has quietly stopped
+    describing the file beside it is worse than none: somebody would rely on it.
+    """
+    rows = ["| Asset | Licence | sha256 |", "|---|---|---|"]
+    found = False
+    for record in sorted(REPO.glob("*/fonts/PROVENANCE.md")):
+        text = record.read_text(encoding="utf-8")
+        fields = dict(re.findall(r"^\|\s*([A-Za-z0-9 ]+?)\s*\|\s*(.+?)\s*\|\s*$",
+                                 text, re.M))
+        digest = (fields.get("sha256") or "").strip("`")
+        licence = fields.get("Licence") or fields.get("License") or ""
+        name = fields.get("File", "").strip("`")
+        if not (name and digest):
+            raise DescriptionNamesADerivableFact(
+                f"{record.relative_to(REPO)} states no file name or no sha256, so the "
+                f"README cannot describe what this repository ships")
+        found = True
+        rows.append(f"| `{record.parent.relative_to(REPO).as_posix()}/{name}` "
+                    f"| {licence} | `{digest[:16]}…` |")
+    if not found:
+        return ["*No third-party binary is vendored in this repository.*"]
+    return rows
+
+
 DIRECTORY_PURPOSE = {
     "api": "the cloud API — Fastify and TypeScript, two runtime dependencies, "
            "serving {api_routes}",
@@ -114,6 +142,8 @@ DIRECTORY_PURPOSE = {
     "evidence": "`M1_EVIDENCE_REPORT.md`, generated from the repository, database and suite logs",
     "migrations": "ordered, checksum-locked SQL history beginning at `0001`",
     "planning": "architecture conformance, migration ownership, CI matrix, known limitations",
+    "print": "the print agent: the receipt rasteriser, the ESC/POS encoder, and the "
+             "font it ships rather than resolves from the host",
     "schema": "`SCHEMA_CATALOG.md`, generated from the live database, never hand-written",
     "seeds": "demonstration tenants and reason-code sets, with their own ordered record",
     "tests": "verification suites — {suite_shape}",
@@ -372,6 +402,8 @@ def build() -> str:
                         f"{len(cross_cutting_suites)} that cut across gates"),
     }
 
+    vendored = vendored_assets()
+
     layout = ["| Path | Contents |", "|---|---|"]
     for name in sorted(DIRECTORY_PURPOSE):
         if not (REPO / name).is_dir():
@@ -450,6 +482,7 @@ def build() -> str:
         "{{PARTIAL_CLOSURES}}": "\n".join(closure_table),
         "{{GATE_SEQUENCE}}": " → ".join(sequence) + ".",
         "{{LAYOUT_TABLE}}": "\n".join(layout),
+        "{{VENDORED_ASSETS}}": "\n".join(vendored),
         "{{MIGRATIONS}}": "\n".join(f"- `{p.name}`" for p in migrations),
         "{{SEEDS}}": "\n".join(f"- `{p.name}`" for p in seeds),
         "{{SUITES}}": "\n".join(suite_table),

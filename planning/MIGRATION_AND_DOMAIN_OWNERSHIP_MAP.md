@@ -56,8 +56,8 @@ Counted from `active_requirements` in the pinned package, by `introduced_at`.
 
 ## The migrations this repository has
 
-25 of them, `0001_organizational_model_and_rls.sql` through `0025_financial_acceptance_producers_and_the_chain.sql`, across
-17 domains. The owning domain of each is read out of its own SQL — the
+27 of them, `0001_organizational_model_and_rls.sql` through `0027_receipts_printing_and_the_document_path.sql`, across
+18 domains. The owning domain of each is read out of its own SQL — the
 schemas it creates and the schemas it creates tables in — and the gate from the header
 comment every migration in this repository carries.
 
@@ -88,6 +88,8 @@ comment every migration in this repository carries.
 | `0023_payment_capture_verification_and_reversal.sql` | payments | — | M4-B |
 | `0024_cash_shifts_movements_and_custody.sql` | cash | — | M4-B |
 | `0025_financial_acceptance_producers_and_the_chain.sql` | integration | notify · billing · ordering · payments | M4-B |
+| `0026_translatable_receipt_wording.sql` | — | menu · ordering | M4-C |
+| `0027_receipts_printing_and_the_document_path.sql` | docs | billing · payments · ordering · config | M4-C |
 
 ---
 
@@ -98,6 +100,7 @@ comment every migration in this repository carries.
 - **`billing`** — checks, allocation, bills, splitting, dispositions and tips
 - **`cash`** — drawer shifts, movements, counts, custody and exceptions
 - **`config`** — policies, configuration versions, numbering and retention
+- **`docs`** — documents somebody outside this system reads: receipts, their revisions and reprints, the registered printers and what was put on paper
 - **`fulfillment`** — routing, station tickets and the fulfillment state machine
 - **`identity`** — users, roles, memberships, sessions and step-up
 - **`integration`** — outbound integration runtime and the dead-letter queue

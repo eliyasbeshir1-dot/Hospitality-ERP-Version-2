@@ -82,6 +82,21 @@ position is to write fresh.
 
 {{LAYOUT_TABLE}}
 
+## Third-party assets, and what shipping them obliges
+
+This repository writes fresh rather than reusing, and one binary is the exception. The
+printer path ships the font it renders with, because a receipt's glyphs must not depend on
+which machine printed it — no Ethiopic font exists on the build container or on either CI
+runner, and the two runners differ from each other.
+
+**The SIL Open Font License requires the copyright notice and the licence to accompany
+every copy of the font software.** The licence text and a provenance record naming the
+source, the version and the checksum sit beside the binary in `print/fonts/`, and the
+checksum below is read from that record rather than written here. `tests/m4c` asserts it
+against the file on every run, and the print agent refuses to render if the two disagree.
+
+{{VENDORED_ASSETS}}
+
 ## Migrations
 
 Forward-only and checksum-locked. An edited applied migration fails preflight.
