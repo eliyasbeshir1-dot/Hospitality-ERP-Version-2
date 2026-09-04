@@ -263,9 +263,10 @@ export function registerDocumentRoutes(
             billId: UUID,
             // FR-BIL-017: the method ACTUALLY used. Free text of bounded length rather
             // than an enum, because the method is what the cashier and the customer both
-            // saw happen — "cash", "Telebirr", "card terminal" — and constraining it to a
-            // list here would be a third copy of a vocabulary that lives in
-            // payments.provider and on a merchant slip.
+            // saw happen, and constraining it to a list here would be a third copy of a
+            // vocabulary that already lives in payments.provider and on a merchant slip.
+            // M1-D's forbidden-surface rule keeps provider names out of API source, and
+            // it caught the first draft of this comment naming one as an example.
             paymentMethod: { type: 'string', minLength: 1, maxLength: 80 },
           },
         },

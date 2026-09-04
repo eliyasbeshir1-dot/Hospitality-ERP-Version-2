@@ -33,7 +33,7 @@
 import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
 
-const [, , documentPath, fontPath, dotsWide] = process.argv;
+const [, , documentPath, fontPaths, dotsWide] = process.argv;
 
 const WIDTH = Number.parseInt(dotsWide, 10);
 if (!Number.isInteger(WIDTH) || WIDTH < 8 || WIDTH % 8 !== 0) {
@@ -51,30 +51,46 @@ const doc = JSON.parse(readFileSync(documentPath, 'utf8'));
 // something else could answer. Reading the file here and constructing the FontFace from
 // the buffer means the glyphs come from THIS FILE, with no resolution step in between
 // that a host font could win.
-const fontBase64 = readFileSync(fontPath).toString('base64');
+//
+// A SET OF FONTS, NOT ONE. FR-I18N-001C names three locales and the third is Arabic; no
+// single Noto face covers Ethiopic and Arabic, and the Ethiopic face alone rendered every
+// Arabic codepoint through the platform's fallback — which the coverage check below
+// caught, correctly, as the vendored fonts having drawn nothing. So the path takes a
+// comma-separated list and registers each face under its own family; the CSS font stack
+// below names all of them, and coverage asks whether ANY vendored face drew the character
+// rather than whether one particular face did.
+const fonts = fontPaths.split(',').map((path) => readFileSync(path.trim()).toString('base64'));
 
 const browser = await chromium.launch({ args: ['--font-render-hinting=none'] });
 try {
   const page = await browser.newPage({ viewport: { width: WIDTH, height: 200 } });
 
-  const measured = await page.evaluate(async ({ doc, fontBase64, WIDTH }) => {
-    const FAMILY = 'VendoredReceipt';
+  const measured = await page.evaluate(async ({ doc, fonts, WIDTH }) => {
+    // One family per vendored face, and a STACK naming every one of them. A stack rather
+    // than a single family because the characters on one receipt can span two scripts —
+    // an Arabic label beside a Latin currency code — and the browser picks per character.
+    const FAMILIES = fonts.map((_f, i) => `VendoredReceipt${i}`);
+    const FAMILY = FAMILIES.map((f) => `"${f}"`).join(', ');
     // A family name nothing can resolve. Drawing in it is what the platform does with a
     // font it does not have, which is exactly the baseline the coverage test needs.
-    const ABSENT_FAMILY = 'NoSuchFamily-2f9d41c8';
+    const ABSENT_FAMILY = '"NoSuchFamily-2f9d41c8"';
     const SIZE = 24;
 
-    const raw = Uint8Array.from(atob(fontBase64), (c) => c.charCodeAt(0));
-    const face = new FontFace(FAMILY, raw.buffer);
     let loaded = false;
     try {
-      await face.load();
-      document.fonts.add(face);
-      loaded = document.fonts.check(`${SIZE}px ${FAMILY}`);
+      for (let i = 0; i < fonts.length; i += 1) {
+        const raw = Uint8Array.from(atob(fonts[i]), (c) => c.charCodeAt(0));
+        const face = new FontFace(FAMILIES[i], raw.buffer);
+        await face.load();
+        document.fonts.add(face);
+      }
+      loaded = FAMILIES.every((f) => document.fonts.check(`${SIZE}px "${f}"`));
     } catch (e) {
       return { fontLoaded: false, fontError: String(e && e.message ? e.message : e) };
     }
-    if (!loaded) return { fontLoaded: false, fontError: 'the face loaded and did not register' };
+    if (!loaded) {
+      return { fontLoaded: false, fontError: 'a face loaded and did not register' };
+    }
 
     const cell = document.createElement('canvas');
     cell.width = SIZE * 2;
@@ -86,7 +102,7 @@ try {
       cx.fillStyle = '#fff';
       cx.fillRect(0, 0, cell.width, cell.height);
       cx.fillStyle = '#000';
-      cx.font = `${SIZE}px "${family}"`;
+      cx.font = `${SIZE}px ${family}`;
       cx.textBaseline = 'alphabetic';
       cx.fillText(ch, 2, SIZE + 4);
       const d = cx.getImageData(0, 0, cell.width, cell.height).data;
@@ -131,7 +147,7 @@ try {
     sx.textBaseline = 'alphabetic';
 
     doc.lines.forEach((line, i) => {
-      sx.font = `${line.emphasis ? 'bold ' : ''}${SIZE}px "${FAMILY}"`;
+      sx.font = `${line.emphasis ? 'bold ' : ''}${SIZE}px ${FAMILY}`;
       const y = LINE_HEIGHT * i + SIZE;
       if (line.align === 'right') {
         sx.textAlign = 'right';
@@ -169,7 +185,7 @@ try {
       bitsBase64: btoa(binary),
       coverage,
     };
-  }, { doc, fontBase64, WIDTH });
+  }, { doc, fonts, WIDTH });
 
   console.log(JSON.stringify(measured));
 } finally {

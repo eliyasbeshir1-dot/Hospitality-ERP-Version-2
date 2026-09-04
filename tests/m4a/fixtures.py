@@ -73,6 +73,7 @@ ADMIN = os.environ["M1A_ADMIN_DSN"]
 
 SERVICE_CONFIG_VERSION = "3333e401-0000-4000-8000-0000000e0401"
 COUNTER_NODE = "3333e402-0000-4000-8000-0000000e0402"
+COUNTER_TERMINAL_DEVICE = "3333e403-0000-4000-8000-0000000e0403"
 ROLE_CASHIER_MANAGER = "3333e403-0000-4000-8000-0000000e0403"
 USER_CASHIER_MANAGER = "3333e404-0000-4000-8000-0000000e0404"
 MEMBERSHIP_CASHIER_MANAGER = "3333e405-0000-4000-8000-0000000e0405"
@@ -157,6 +158,7 @@ def seed() -> None:
     _seed_tip_configuration()
     _seed_component_wording()
     _seed_counter_service_point()
+    _seed_counter_terminal()
     _seed_counter_channel()
     _seed_billing_authority()
     _seed_billing_reason_codes()
@@ -333,6 +335,61 @@ def _seed_counter_service_point() -> None:
         ON CONFLICT DO NOTHING;
     """, tx=True, **CTX)
     _fail("counter service point", res)
+
+
+def _seed_counter_terminal() -> None:
+    """FR-POS-003B, arriving at M4-C and reaching back to here.
+
+    M4-C made "a counter order is created AT THE POS TERMINAL" a property of the schema:
+    a counter order that names no terminal is refused at commit. M4-A's counter order was
+    written before that rule existed and named none, so it broke — correctly, and this is
+    the fix the rule asks for rather than a relaxation of it. A counter that is a channel
+    label and not a place was exactly what FR-POS-003B says a counter is not.
+
+    Registered through pos.register_terminal(), for the reason M3-D's own fixture records:
+    a fixture that wrote the pos.terminal row itself would prove the table accepts rows
+    and nothing about FR-POS-001.
+    """
+    res = run(APP, f"""
+        INSERT INTO org.org_node
+            (id, tenant_id, parent_id, kind, reference_code, display_name)
+        VALUES ('{COUNTER_TERMINAL_DEVICE}', '{TENANT}', '{OUTLET_H1}', 'device',
+                'M4A-COUNTER-TILL', 'The till at the front counter')
+        ON CONFLICT (id) DO NOTHING;
+
+        INSERT INTO org.device_registration
+            (device_id, tenant_id, outlet_id, registration_code)
+        VALUES ('{COUNTER_TERMINAL_DEVICE}', '{TENANT}', '{OUTLET_H1}', 'M4A-REG-COUNTER')
+        ON CONFLICT (device_id) DO NOTHING;
+    """, **CTX)
+    _fail("counter till device node", res)
+
+    res = run(APP, f"""
+        SELECT pos.register_terminal('{TENANT}', '{OUTLET_H1}',
+                                     '{COUNTER_TERMINAL_DEVICE}', 'point_of_sale',
+                                     '{USER_MANAGER}')
+        WHERE NOT EXISTS (SELECT 1 FROM pos.terminal
+                           WHERE device_id = '{COUNTER_TERMINAL_DEVICE}');
+    """, **CTX)
+    _fail("counter till terminal", res)
+
+
+def session_at_the_counter_terminal(user_id: str = None) -> str:
+    """A live staff session bound to the counter till.
+
+    pos.record_counter_order() resolves the terminal from the SESSION rather than from a
+    parameter, so a fixture cannot hand it one: it has to put a real session on the real
+    device, exactly as an operator authenticating at the till does.
+    """
+    session_id, _token = staff_session(user_id or USER)
+    res = run(ADMIN, f"""
+        SELECT set_config('app.tenant_id', '{TENANT}', false);
+        SELECT set_config('app.outlet_id', '{OUTLET_H1}', false);
+        UPDATE identity.session SET device_id = '{COUNTER_TERMINAL_DEVICE}'
+         WHERE id = '{session_id}' AND tenant_id = '{TENANT}';
+    """, tx=True)
+    _fail("binding a session to the counter till", res)
+    return session_id
 
 
 def _seed_billing_authority() -> None:

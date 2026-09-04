@@ -176,14 +176,36 @@ def an_accepted_order(lines, *, table: str = fx.TABLE_ONE, origin: str = "guest_
     guest = fx.guest_on(table_session)
     cart = fx.cart_with(table_session, guest, lines)
     view = preview(cart, locale, channel)
-    submitted = run(APP, f"""
+
+    # A COUNTER ORDER IS ENTERED AT A TILL, and since M4-C that is a property rather than
+    # a label: 0030's deferred trigger refuses a counter order that names no POS terminal
+    # at commit. So the submission and the terminal record are ONE transaction — they have
+    # to be, because the check fires at its end — and the terminal is resolved from the
+    # session in context rather than passed, which is why the session is established here
+    # instead of a device id being handed to the function.
+    #
+    # A CTE rather than two statements: the data dependency is what orders them, and a
+    # second statement would need the order id the first produced.
+    submission = f"""
         SELECT ordering.submit_order(
             '{fx.TENANT}', '{fx.OUTLET_H1}', '{cart}', '{idem("order-" + os.urandom(4).hex())}',
             decode('{view["pricing_digest"]}', 'hex'), {view["total_amount_minor"]},
             '{locale}', gen_random_uuid(), gen_random_uuid(), '{origin}',
             {"'" + fx.USER + "'" if origin != "guest_qr" else "NULL"},
             {"'" + guest + "'" if origin == "guest_qr" else "NULL"},
-            false, '[]'::jsonb, '[]'::jsonb, '{channel}');""", **CTX)
+            false, '[]'::jsonb, '[]'::jsonb, '{channel}')"""
+    if origin == "counter":
+        till_session = fx.session_at_the_counter_terminal()
+        submitted = run(APP, f"""
+            WITH placed AS ({submission} AS id)
+            SELECT placed.id
+              FROM placed,
+                   LATERAL (SELECT pos.record_counter_order(
+                              '{fx.TENANT}', '{fx.OUTLET_H1}', placed.id,
+                              '{fx.USER}')) AS bound;""",
+            tx=True, session=till_session, **CTX)
+    else:
+        submitted = run(APP, f"{submission};", **CTX)
     if not submitted.ok:
         raise ProbeFailed("submit_order", submitted.err)
     order = (submitted.scalar or "").strip()
@@ -688,11 +710,28 @@ def section_tip_separation_structurally() -> None:
     # and everything in the schemas that record what was ordered and served. A tip column
     # on any of those is the defect; a tip column on a payment's allocation is the
     # requirement.
+    #
+    # ITS NINTH FORM, AND THE EXCLUSION IS A PROPERTY. M4-C added docs.receipt, which
+    # carries bill_total_minor and tip_total_minor side by side — and FR-BIL-016 REQUIRES
+    # exactly that: "receipts display bill and tip separately" is a demand that both
+    # appear on one document. The doctrine here is not "no table holds both", it is that a
+    # tip is never part of what a guest OWES. A receipt is a record of what was PAID, and
+    # a table that knows what was paid is not a statement of what is owed.
+    #
+    # So a table carrying a settled total is excluded, by that property rather than by
+    # name — the same distinction that lets payments.allocation.tip_id stand. What keeps
+    # the receipt honest is not this fence but 0027's faithfulness trigger, which compares
+    # its bill_total line against the bill and raises TIP_MERGED_ON_RECEIPT when the
+    # difference is exactly the tip; tests/m4c proves that red then green.
     columns = rows("""
         WITH owes AS (
             SELECT c.relname, n.nspname
               FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
              WHERE c.relkind = 'r'
+               AND NOT EXISTS (SELECT 1 FROM pg_attribute p
+                                WHERE p.attrelid = c.oid AND p.attnum > 0
+                                  AND NOT p.attisdropped
+                                  AND p.attname = 'paid_total_minor')
                AND (n.nspname IN ('ordering', 'service', 'fulfillment', 'menu')
                  OR EXISTS (SELECT 1 FROM pg_attribute a
                              WHERE a.attrelid = c.oid AND a.attnum > 0

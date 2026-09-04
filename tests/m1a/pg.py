@@ -93,20 +93,32 @@ def _looks_like_sqlstate(reason: str) -> bool:
 
 
 def run(dsn: str, sql: str, *, tenant: str | None = None, outlet: str | None = None,
-        tx: bool = False, rollback: bool = False) -> Result:
-    """Execute SQL, optionally under a tenant/outlet context.
+        session: str | None = None, tx: bool = False, rollback: bool = False) -> Result:
+    """Execute SQL, optionally under a tenant/outlet/session context.
 
     tx=True wraps the script in BEGIN/COMMIT. Required whenever one statement
     establishes request context and a later statement depends on it: since 0005 that
     context is transaction-local, so in psql's autocommit mode it would be gone by the
     next statement. Running those sequences in a transaction is also how the API uses
     the function, so the test exercises the real path rather than a looser one.
+
+    THE SESSION IS PART OF REQUEST CONTEXT, and it is here for the same reason the tenant
+    and the outlet are: the functions that read WHO is acting — cash.transition_shift()'s
+    verifier, payments.verify_proof()'s attributor, pos.record_counter_order()'s terminal
+    — read it from app.current_session_id() rather than from a parameter, precisely so
+    that a caller cannot claim to be somebody or somewhere they are not. A probe that
+    could not set it could only exercise those paths through the HTTP surface, which
+    would make every database-level assertion about them depend on a running service.
+    It is set in the prelude, whose output is discarded, so it never becomes a row a
+    caller reads back as a result.
     """
     prelude = ""
     if tenant is not None:
         prelude += f"SELECT set_config('app.tenant_id', '{tenant}', false);\n"
     if outlet is not None:
         prelude += f"SELECT set_config('app.outlet_id', '{outlet}', false);\n"
+    if session is not None:
+        prelude += f"SELECT set_config('app.session_id', '{session}', false);\n"
 
     # VERBOSITY verbose makes psql print the SQLSTATE. Without it an assertion on a
     # specific error code silently degrades into "some error happened", which is how a

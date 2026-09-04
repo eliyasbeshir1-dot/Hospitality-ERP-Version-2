@@ -55,8 +55,14 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "tools"))
 from console import use_utf8_output  # noqa: E402
 
-FONT = HERE / "fonts" / "NotoSansEthiopic-Regular.ttf"
-PROVENANCE = HERE / "fonts" / "PROVENANCE.md"
+# THE FONTS ARE A SET, AND THE SET IS DISCOVERED. FR-I18N-001C names three locales and
+# the third is Arabic; no single Noto face covers Ethiopic and Arabic, and the Ethiopic
+# face alone drew nothing for any Arabic codepoint — the coverage check caught that,
+# which is what it is for. A hardcoded list of two would be a list that goes stale on the
+# day a fourth locale arrives, so the fonts are every .ttf in print/fonts/ and
+# PROVENANCE.md must record a checksum for each of them by name.
+FONT_DIRECTORY = HERE / "fonts"
+PROVENANCE = FONT_DIRECTORY / "PROVENANCE.md"
 RENDERER = HERE / "render.mjs"
 
 # 80mm paper at 203 dots per inch. A whole number of bytes per row, which escpos.encode()
@@ -68,48 +74,70 @@ class PrintRefused(RuntimeError):
     """Nothing was printed, and the reason names what was checked."""
 
 
-def recorded_font_digest() -> str:
-    """The sha256 print/fonts/PROVENANCE.md records for the vendored font.
+def recorded_font_digests() -> dict[str, str]:
+    """The sha256 print/fonts/PROVENANCE.md records, keyed by file name.
 
     Read from the record rather than written here, so that the agent and the provenance
-    cannot disagree: if somebody replaces the font and updates the record, tests/m4c
-    still fails, because the suite asserts the record against the file independently.
-    Two locks on one fact, from opposite directions.
+    cannot disagree: if somebody replaces a font and updates the record, tests/m4c still
+    fails, because the suite asserts the record against the files independently. Two
+    locks on one fact, from opposite directions.
     """
     if not PROVENANCE.is_file():
         raise PrintRefused(
             f"RECEIPT_FONT_UNPROVENANCED: {PROVENANCE} does not exist, so there is no "
-            f"recorded checksum to hold the font to. A vendored binary nothing verifies "
+            f"recorded checksum to hold the fonts to. A vendored binary nothing verifies "
             f"is a binary that can change without anybody noticing")
-    found = re.search(r"^\|\s*sha256\s*\|\s*`([0-9a-f]{64})`\s*\|",
-                      PROVENANCE.read_text(encoding="utf-8"), re.M)
-    if not found:
+    text = PROVENANCE.read_text(encoding="utf-8")
+    # A DIGEST BESIDE A FILE NAME, in one row. Keyed by the file rather than by position,
+    # because a record that said "the first checksum is the first font" would be a record
+    # that broke the day somebody reordered the table.
+    digests = {name: digest for digest, name in re.findall(
+        r"`([0-9a-f]{64})`\s*\|\s*`([^`]+\.ttf)`", text)}
+    if not digests:
         raise PrintRefused(
-            f"RECEIPT_FONT_UNPROVENANCED: {PROVENANCE.name} states no sha256. Refusing "
-            f"rather than printing with a font nothing vouches for")
-    return found.group(1)
+            f"RECEIPT_FONT_UNPROVENANCED: {PROVENANCE.name} states no sha256 against a "
+            f"file name. Refusing rather than printing with a font nothing vouches for")
+    return digests
 
 
-def verified_font() -> Path:
-    """The vendored font, or a refusal. Never a host font."""
-    if not FONT.is_file():
+def verified_fonts() -> list[Path]:
+    """Every vendored font, or a refusal. Never a host font.
+
+    DISCOVERED FROM THE DIRECTORY AND CHECKED BOTH WAYS. A font on disk the record does
+    not name is a binary nobody reviewed or licensed; a font the record names and the
+    directory does not have is a receipt that will print boxes for one script. Either is
+    a refusal, and neither can be reached by adding a file or by editing the record alone.
+    """
+    present = sorted(p for p in FONT_DIRECTORY.glob("*.ttf") if p.is_file())
+    if not present:
         raise PrintRefused(
-            f"RECEIPT_FONT_ABSENT: {FONT} is not there. This path does NOT fall back to a "
-            f"font the operating system happens to provide: a receipt's glyphs must not "
-            f"depend on which machine printed it, and a fallback would print correctly "
-            f"here and print boxes in an outlet")
-    digest = hashlib.sha256(FONT.read_bytes()).hexdigest()
-    expected = recorded_font_digest()
-    if digest != expected:
+            f"RECEIPT_FONT_ABSENT: {FONT_DIRECTORY} holds no font. This path does NOT "
+            f"fall back to a font the operating system happens to provide: a receipt's "
+            f"glyphs must not depend on which machine printed it, and a fallback would "
+            f"print correctly here and print boxes in an outlet")
+
+    expected = recorded_font_digests()
+    unrecorded = [p.name for p in present if p.name not in expected]
+    missing = sorted(set(expected) - {p.name for p in present})
+    if unrecorded or missing:
         raise PrintRefused(
-            f"RECEIPT_FONT_ALTERED: {FONT.name} hashes {digest[:16]}… and "
-            f"print/fonts/PROVENANCE.md records {expected[:16]}…. The font that would "
-            f"have drawn this receipt is not the font that was reviewed and licensed")
-    return FONT
+            f"RECEIPT_FONT_UNPROVENANCED: print/fonts/ and PROVENANCE.md disagree about "
+            f"which fonts this path ships. On disk and unrecorded: {unrecorded or 'none'}; "
+            f"recorded and absent: {missing or 'none'}")
+
+    for path in present:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        if digest != expected[path.name]:
+            raise PrintRefused(
+                f"RECEIPT_FONT_ALTERED: {path.name} hashes {digest[:16]}… and "
+                f"print/fonts/PROVENANCE.md records {expected[path.name][:16]}…. The font "
+                f"that would have drawn this receipt is not the font that was reviewed "
+                f"and licensed")
+    return present
 
 
 def rasterise(document: dict, *, dots_wide: int, workspace: Path,
-              font: Path | None = None) -> dict:
+              font: str | None = None) -> dict:
     """Drive Chromium through print/render.mjs and return what it measured.
 
     THE RENDERER IS COPIED INTO THE WORKSPACE, for the reason tests/m2c copies its probe:
@@ -124,7 +152,8 @@ def rasterise(document: dict, *, dots_wide: int, workspace: Path,
     document_path.write_text(json.dumps(document), encoding="utf-8")
 
     proc = subprocess.run(
-        ["node", str(target), str(document_path), str(font or verified_font()),
+        ["node", str(target), str(document_path),
+         font or ",".join(str(p) for p in verified_fonts()),
          str(dots_wide)],
         cwd=str(workspace), capture_output=True, text=True, encoding="utf-8")
     if proc.stdout is None or proc.stderr is None:
@@ -140,7 +169,7 @@ def rasterise(document: dict, *, dots_wide: int, workspace: Path,
             f"{proc.returncode}): {(proc.stdout or proc.stderr)[:400]}")
     if not measured.get("fontLoaded"):
         raise PrintRefused(
-            f"RECEIPT_FONT_ABSENT: the renderer could not load the vendored font: "
+            f"RECEIPT_FONT_ABSENT: the renderer could not load a vendored font: "
             f"{measured.get('fontError', 'no reason given')}")
     return measured
 
@@ -214,12 +243,12 @@ def write_to_preview(payload: bytes, *, device_path: str) -> dict:
 
 def produce(document: dict, *, sink: str, device_path: str | None = None,
             host_and_port: str | None = None, dots_wide: int = DEFAULT_DOTS_WIDE,
-            workspace: Path | None = None, font: Path | None = None) -> dict:
+            workspace: Path | None = None, font: str | None = None) -> dict:
     """The whole path: verify, rasterise, check coverage, encode, write."""
     from escpos import encode  # noqa: PLC0415 — same directory, imported once used
 
     workspace = workspace or Path(os.environ.get("M1D_WORKSPACE", "/var/lib/m1d-workspace"))
-    verified = font or verified_font()
+    verified = font or ",".join(str(p) for p in verified_fonts())
     measured = rasterise(document, dots_wide=dots_wide, workspace=workspace, font=verified)
     assert_every_glyph_came_from_the_vendored_font(measured)
 
@@ -242,7 +271,15 @@ def produce(document: dict, *, sink: str, device_path: str | None = None,
         "width_dots": measured["width"],
         "height_dots": measured["height"],
         "characters_checked": len(measured["coverage"]),
-        "font_sha256": hashlib.sha256(verified.read_bytes()).hexdigest(),
+        # ONE DIGEST OVER THE WHOLE SET, in the order the paths were given. Two receipts
+        # printed with different fonts must not be able to record the same font digest,
+        # and a per-file list would make the record's shape depend on how many locales
+        # the build happens to ship.
+        "font_set_sha256": hashlib.sha256(
+            "\n".join(
+                hashlib.sha256(Path(p).read_bytes()).hexdigest()
+                for p in verified.split(",")).encode("utf-8")).hexdigest(),
+        "fonts": [Path(p).name for p in verified.split(",")],
     })
     return result
 
@@ -258,13 +295,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--host-and-port")
     parser.add_argument("--dots-wide", type=int, default=DEFAULT_DOTS_WIDE)
     parser.add_argument("--workspace", type=Path)
-    parser.add_argument("--font-under-test", dest="font", type=Path,
-                        help="RENDER WITH A DIFFERENT FONT AND SKIP THE CHECKSUM. Exists "
-                             "for NC-M4-005, which proves the coverage check goes red on "
-                             "a real missing glyph by rendering Amharic through a "
-                             "Latin-only font. Named at length so that nothing reaches "
-                             "for it by accident: the production path takes no font "
-                             "argument and always verifies the vendored one")
+    parser.add_argument("--font-set-under-test", dest="font",
+                        help="RENDER WITH A DIFFERENT FONT SET AND SKIP THE CHECKSUM. A "
+                             "comma-separated list of paths. Exists for NC-M4-005, which "
+                             "proves the coverage check goes red on a real missing glyph "
+                             "by rendering an Arabic receipt through the Ethiopic face "
+                             "alone — a real .notdef from a real font, needing no planted "
+                             "binary and no host path. Named at length so that nothing "
+                             "reaches for it by accident: the production path takes no "
+                             "font argument and always verifies the vendored set")
     args = parser.parse_args(argv)
 
     try:

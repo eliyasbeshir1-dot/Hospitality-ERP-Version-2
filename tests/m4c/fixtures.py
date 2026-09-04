@@ -78,13 +78,12 @@ WORDING_TOTAL_PAID     = "4444c303-0000-4000-8000-0000000c0303"
 WORDING_PAYMENT_METHOD = "4444c304-0000-4000-8000-0000000c0304"
 WORDING_BILL_COMPONENT = "4444c305-0000-4000-8000-0000000c0305"
 
-# THE DEVICE PATH IS A CHARACTER DEVICE THAT EXISTS ON BOTH PLATFORMS. /dev/null is a
-# character device on Linux and the print agent's stat() check accepts it; on Windows the
-# agent is not exercised against a device at all, and this row exists so that the SCHEMA
-# claims about a device sink are still made there. The path is not a POSIX literal chosen
-# by habit — print/agent.py refuses anything that is not S_ISCHR, and a regular file here
-# would make every device-sink assertion in this suite pass for the wrong reason.
-DEVICE_PATH = os.environ.get("M4C_DEVICE_PATH", "/dev/null")
+# os.devnull, NEVER a POSIX literal. M1-A's rule, and it caught this file: the null
+# device is /dev/null on Linux and NUL on Windows, and a hardcoded POSIX path makes a
+# suite that cannot run on the other platform. It is a CHARACTER DEVICE on Linux, which
+# is what print/agent.py's stat() check requires — a regular file here would make every
+# device-sink assertion in this suite pass for the wrong reason.
+DEVICE_PATH = os.environ.get("M4C_DEVICE_PATH", os.devnull)
 
 # FR-BIL-011's reprint needs a reason with an author. Category 'manager_override' because
 # a reprint of a customer's receipt is a deliberate act somebody authorizes.

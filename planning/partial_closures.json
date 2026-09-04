@@ -388,7 +388,7 @@
       "aspect": "receipt communications",
       "opened_at": "M3-C",
       "completing_gate": "M4-C",
-      "state": "open",
+      "state": "closed",
       "completed_by": "FR-BIL-010",
       "why": "Receipts are the third thing this clause names and they arrive at M4. The other two were recorded here at M3-C as done, and only one of them was: SERVICE communications render in the language snapshotted on the table session, through notify.render_for() and an approved template, and tests/m3c measures that in a browser. ORDER STATUS did not. Every customer summary in ordering.order_timeline_entry was an English literal written by the fold, and ordering.customer_order.customer_locale — the snapshot FR-I18N-005 requires — was never read by the thing a guest reads. The golden journeys found it at M3-D and 0016/0017 fixed it; this entry is corrected rather than left overstating, because a register that claims more than was proved is worse than no register.",
       "completer_moved": {
@@ -396,7 +396,9 @@
         "to": "M4-C",
         "at": "M4-A",
         "why": "MOVED LATER, from M4 to M4-C. Receipts are the third thing this clause names, and receipts are M4-C's — M4-A is explicitly forbidden to build one. Naming the bare gate M4 made this come due at M4-A, where the only way to satisfy it would be to build the thing the slice is fenced against."
-      }
+      },
+      "closed_at": "M4-C",
+      "closed_by_evidence": "docs.issue_receipt() composes a receipt in the BILL'S locale and takes no locale parameter at all, so a manager reprinting a customer's copy has no argument by which to change its language — M4-A's rule made structural rather than remembered. Every line's wording resolves through menu.translation under the entity 0026 added, which is M2-A's approval workflow unchanged rather than a second store for text a customer reads. 0027's deferred trigger refuses a non-English receipt carrying the English source text, which is what a missing approved translation falls back to, so a partial translation cannot reach paper. tests/m4c issues receipts against English and Amharic bills, requires every Amharic line to carry Ethiopic script, and NC-M4C-003 withdraws one approved translation and requires RECEIPT_INCOMPLETE_IN_LOCALE."
     },
     {
       "requirement": "FR-POS-004",
@@ -504,9 +506,11 @@
       "aspect": "the printed bill",
       "opened_at": "M4-A",
       "completing_gate": "M4-C",
-      "state": "open",
+      "state": "closed",
       "completed_by": "FR-RCP-001",
-      "why": "The translated bill summary renders on the customer surface in all three launch locales, with the optional tip box after or beside it and never inside it — measured in Chromium as DOM containment and as the two rectangles the layout produced. What is not here is the printed artifact: paper, the fiscal adapter and the receipt are M4-C, and a bill on a screen and a bill on paper are the same document rendered by different means."
+      "why": "The translated bill summary renders on the customer surface in all three launch locales, with the optional tip box after or beside it and never inside it — measured in Chromium as DOM containment and as the two rectangles the layout produced. What is not here is the printed artifact: paper, the fiscal adapter and the receipt are M4-C, and a bill on a screen and a bill on paper are the same document rendered by different means.",
+      "closed_at": "M4-C",
+      "closed_by_evidence": "TWO THINGS, AND THE FIRST IS A CORRECTION. FR-BIL-007's clause asks for a translated bill summary showing items, discounts, tax, service charge and bill total, with the optional tip box after or beside it and never inside it, and its later_behavior is 'None beyond M4 for this clause'. It does not ask for paper. This entry's aspect — 'the printed bill' — was a gloss M4-A put on it, and M4-A had already delivered and measured what the clause actually asks: DOM containment and two rectangles, in Chromium, in all three launch locales. Recorded here rather than left standing, because an entry that claims a gap the requirement does not have keeps a delivered requirement looking half-built. SECOND, and independently: M4-C did build the document half anyway. docs.compose_document() is the one function that turns lines into a print document and both the receipt path and FR-UX-018's preview call it, print/render.mjs rasterises what it produces at printer width, and print/escpos.py encodes that raster. What is still unproved is paper out of a physical machine, and that is FR-BIL-017's own entry, opened at this gate against M5a — so this closure claims a document and not a sheet."
     },
     {
       "requirement": "FR-CFG-001C",
@@ -524,9 +528,11 @@
       "aspect": "receipts in the financial ledgers",
       "opened_at": "M4-B",
       "completing_gate": "M4-C",
-      "state": "open",
+      "state": "closed",
       "why": "Bills, payments, tips and cash movements are append-only or reversal-based with no destructive correction: billing.bill_event and payments.payment_event are append-only by trigger and by grant, their projections are written only by a fold, billing.tip_correction and payments.reversal are separate linked records, and cash.movement and cash.shift_transition refuse UPDATE and DELETE. RECEIPTS are the one artifact the requirement names that does not exist yet; they are M4-C's, and no zero-row table stands in for them.",
-      "completed_by": "FR-BIL-010"
+      "completed_by": "FR-BIL-010",
+      "closed_at": "M4-C",
+      "closed_by_evidence": "docs.receipt and docs.receipt_line are append-only by trigger and hold no UPDATE or DELETE grant; a correction is a further revision through docs.reissue_receipt(), which issues a new document with its own number rather than editing the one the customer is holding. They are not the only thing this closure rests on. 0028 asks the live schema a question nobody had asked — which tables in a financial schema are ledgers — and app.financial_table_class() answers it as a DECLARATION that the migration refuses to apply without: FINANCIAL_TABLE_UNCLASSIFIED names any table the classification does not cover. Ten unguarded financial tables were found that way and the five that are ledgers now carry the trigger. 0029 extends the same declaration to the reporting snapshots. tests/m4c enumerates every declared ledger from the catalog and requires each to carry app.refuse_financial_mutation(), so a financial table a later gate adds fails the build rather than sliding past an audit. 0027's retention constraint — restated in 0029 over the six schemas app.financial_schemas() names — closes the one path that deletes rows without passing a trigger on the table it deletes from."
     },
     {
       "requirement": "FR-INT-011",
@@ -551,18 +557,31 @@
       "aspect": "remittance back through a provider",
       "opened_at": "M4-B",
       "completing_gate": "M4-C",
-      "state": "open",
+      "state": "closed",
       "why": "A refund is a complete, authorized, linked RECORD: it names one allocation, its reason code, the approval its amount required and the override that gave it, and payments.assert_reversal_is_authorized() refuses one whose approval belongs to somebody else or to a different refund. What it cannot do is move money back to a card or a wallet, because no provider is contracted — FR-PAY-015 keeps the direct APIs simulated. Cash refunds are complete today: they are a movement out of the drawer.",
-      "completed_by": "FR-BIL-012"
+      "completed_by": "FR-PAY-015",
+      "closed_at": "M4-C",
+      "closed_by_evidence": "A CORRECTION, AND THE ENTRY WAS STRICTER THAN THE CLAUSE. FR-PAY-009 asks to 'refund bill payments and tip payments through separate linked reversal records, permissions, reason codes and approval thresholds', and its later_behavior is 'None beyond M4 for this clause'. Moving money back through a provider is not in it. Every element the clause does name was delivered at M4-B: payments.reversal and billing.tip_correction are separate linked records naming one allocation or one tip, payments.assert_reversal_is_authorized() refuses an approval that belongs to somebody else or to a different refund, the threshold comes from configuration, and NC-M4-004 proves a cashier cannot approve their own. What this entry described as the missing half — remittance through a contracted provider — is FR-PAY-015's subject, and FR-PAY-015 carries its own open entry against M5a where the outlet node exists to exercise it. Left standing, this entry would have kept a delivered requirement looking half-built and made the register's count of open work wrong in the direction that matters least visibly. Corrected rather than left overstating, which is the same decision FR-I18N-008's entry recorded at M3-C in the other direction."
     },
     {
       "requirement": "FR-GOV-004",
       "aspect": "every landed requirement audited, not only named completers",
       "opened_at": "M4-B",
       "completing_gate": "M4-C",
-      "state": "open",
+      "state": "closed",
       "why": "PARTIAL_CLOSURE_COMPLETER_INCOMPLETE checks that no closed entry rests on a requirement carrying an open entry of its own, and the rule states its own boundary: it checks NAMED COMPLETERS, not every requirement whose gate has landed. A requirement that is partly built and that no entry points at is still invisible. The larger audit — every landed requirement either delivered in full or carrying an entry — is the correct rule in general and is deliberately not this slice's: it would expand the highest-consequence slice in the project while payment capture was being written, which is how a money defect slips through while everyone is reading a register. It comes due at M4-C, where a gate is closing rather than where money is being taken.",
-      "completed_by": "FR-GOV-004"
+      "completed_by": "FR-GOV-004",
+      "closed_at": "M4-C",
+      "closed_by_evidence": "tools/requirement_coverage.py is the wider audit. It derives the landed gates from the package's own gate order rather than from a list, grades every requirement whose gate has landed as proved-red, ran or cited-in-CI from THIS RUN'S logs, and refuses to report at all if no requirement can be shown delivered — an audit that could not see its own evidence would report every requirement missing and look like a catastrophe rather than a broken reader. It refuses an absent entry with no statement of what would make it buildable, refuses an urgent category paired with an uncited state, and refuses two absent entries that share a completing gate and a closing test, because a gate cannot tell those apart and would close both while fixing one. It runs in CI on both platforms and in tests/m4c, and REQUIREMENT_UNACCOUNTED fails the build. What it surfaced is the point rather than a side effect: 71 gaps across M1 to M3, of which 20 are absent and five are security requirements, each classified in planning/requirement_coverage.json with its reasoning, its buildability and the test that would close it, and published in planning/M4_REVIEW_FINDINGS.md for the M4 review to challenge as readily as a fix. The classifications are findings, not bookkeeping."
+    },
+    {
+      "requirement": "FR-BIL-017",
+      "aspect": "paper out of a physical machine",
+      "opened_at": "M4-C",
+      "completing_gate": "M5a",
+      "state": "open",
+      "completed_by": "FR-CFG-001E",
+      "why": "FR-BIL-017 asks that a completed settlement produces a real physical customer receipt through a supported minimum production printer path, and M4-C built all of that path except its last inch. The receipt is composed from the bill's own figures in the bill's own locale, rasterised at 576 dots by the printer path's own rendering engine, checked per glyph against the font this repository ships, encoded into ESC/POS and written to a sink that refuses anything which is not a character device. One settlement produces one original print, refused twice over by a partial unique index and by a trigger. WHAT IS NOT PROVED is that a physical machine took those bytes and produced legible paper: no printer exists in the build container or on either CI runner and no pilot device has been chosen, so the command set is the published generic one and no vendor's extension. This is recorded here rather than in a footnote because it is the difference between a path and an artifact, and planning/M4C_LIMITATIONS.md states it against the commit it was true at. It closes at M5a, which is the first gate that has hardware — and if M5a selects a different rasteriser, NC-M4-005 must be run against that engine, because glyph coverage is a property of the rasteriser and of the font together and does not transfer."
     }
   ],
   "gate_decomposition": {
