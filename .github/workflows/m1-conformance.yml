@@ -854,6 +854,19 @@ jobs:
           export M1A_MIGRATOR_DSN="postgresql://hospitality_migrator@$PGTCP_HOST:$PGPORT/$DB"
           export M1A_PRIVILEGED_DSN="postgresql://hospitality_bypassrls@$PGTCP_HOST:$PGPORT/$DB"
           mkdir -p "$LOG_DIR/reorder"
+          # THE REGISTER AUDIT NEEDS ITS EVIDENCE HERE TOO, and this is the third place —
+          # the M4-C step exports it inside its own `run:`, which does not carry to a later
+          # step, so this loop ran tests/m4c with no log directory and got
+          # M4C_VERIFICATION_UNUSABLE. That is the audit refusing rather than reporting a
+          # catastrophe it had not verified, and the directory is what was missing.
+          #
+          # It points at $LOG_DIR, the FORWARD run's per-suite logs, not at reorder/:
+          # tests/m4c runs FIRST in reverse order, so reorder/ holds nothing when the audit
+          # reads it, and an empty directory is exactly the case the audit refuses. The
+          # forward logs are this same CI run's recorded output. tools/requirement_coverage
+          # globs "*.log" and not "**/*.log", so reorder/ is not read back into it and the
+          # suite cannot read its own half-written output.
+          export M4C_LOG_DIR="$LOG_DIR"
           # Reverse order, same database, no rebuild. A suite that only passes when it runs
           # first is depending on state another suite left behind.
           for suite in m4c m4b m4a m3d m3c m3b m3a m2c m2b m2a m1d m1c m1b m1a; do
