@@ -950,20 +950,48 @@ def section_printer() -> None:
 
     # A DEVICE SINK REFUSES A FILE, AND A FILE SINK REFUSES A DEVICE. Both directions, so
     # neither is a rule that happens to hold in one of them.
-    wrong_sink = run(APP, f"""
+    #
+    # AND THE TWO LOCKS ON THE PRINT SIDE ARE ASKED SEPARATELY, because they hide each
+    # other. A preview printer can never pass a printer test — printer_test_needs_a_device
+    # refuses the row — so docs.record_receipt_print() against one is always stopped by
+    # FR-CFG-001D's precondition BEFORE the sink trigger is reached. A single check here
+    # would go green on PRINTER_NEVER_TESTED and report it as proof of the sink rule,
+    # which is a check taking the wrong refusal for its own. So: the function is required
+    # to refuse by the name it actually refuses with, and the sink rule is then proved
+    # where it lives, at the table, by an INSERT that gets past the first lock.
+    through_the_function = run(APP, f"""
         SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}',
             '{fx.PRINTER_PREVIEW}', 'printed', repeat('e', 64)::char(64), 64,
             '{fx.USER_CASHIER}');""", tx=True, **CTX)
-    record("a print cannot be recorded against a preview sink",
-           not wrong_sink.ok,
-           wrong_sink.why() or "bytes written to a file were recorded as a print")
+    record("a preview printer is refused a print before the sink rule is even reached",
+           through_the_function.failed_with("PRINTER_NEVER_TESTED"),
+           through_the_function.why() or "bytes written to a file were recorded as a "
+                                         "print")
+
+    # PAST THE FIRST LOCK. Marked as a reprint with its reason, so the duplicate trigger
+    # (which fires first, being alphabetically earlier) returns early and the sink trigger
+    # is the one that has to speak. Straight at the table, because the function cannot
+    # get here.
+    at_the_table = run(APP, f"""
+        INSERT INTO docs.print_attempt
+            (tenant_id, outlet_id, receipt_id, printer_id, outcome, is_reprint,
+             reason_code_id, reason_text, operator_user_id, bytes_sha256, byte_count)
+        VALUES ('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}', '{fx.PRINTER_PREVIEW}',
+                'printed', true, '{fx.reason_code("M4C_RECEIPT_REPRINT")}',
+                'a reprint aimed at a file', '{fx.USER_CASHIER}',
+                repeat('e', 64)::char(64), 64);""", tx=True, **CTX)
+    record("and the table refuses a print against a preview sink by name",
+           at_the_table.failed_with("SINK_MISMATCH"),
+           at_the_table.why() or "bytes written to a file were recorded as a print. The "
+                                 "insert got past FR-CFG-001D's precondition, so this is "
+                                 "the sink trigger's refusal or nothing")
 
     wrong_way = run(APP, f"""
         SELECT docs.record_receipt_render('{fx.TENANT}', '{fx.OUTLET_H1}', 'receipt',
             '{receipt}', '{fx.PRINTER_DEVICE}', 'rendered', repeat('f', 64)::char(64),
             64, '{fx.USER_CASHIER}');""", tx=True, **CTX)
-    record("and a render cannot be recorded against a device",
-           not wrong_way.ok,
+    record("and a render cannot be recorded against a device, by the same name",
+           wrong_way.failed_with("SINK_MISMATCH"),
            wrong_way.why() or "a preview was recorded against a real printer")
 
     promoted = run(ADMIN, f"""
