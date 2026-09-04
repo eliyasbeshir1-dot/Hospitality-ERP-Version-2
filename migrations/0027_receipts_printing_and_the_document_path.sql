@@ -564,12 +564,20 @@ CREATE FUNCTION app.refuse_financial_mutation() RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
+    -- IT NAMES THE OPERATION IT SAW, AND NOTHING ELSE. An earlier version of this said
+    -- 'a receipt is the record of a document a customer is holding' — true of the two
+    -- tables it was attached to when it was written, and a cause it had not verified by
+    -- the time 0028 attached it to a drawer count and 0029 to a metric snapshot. A
+    -- diagnostic that explains the wrong row is worse than one that explains nothing,
+    -- because somebody acts on it. What is true of every table this guards is the
+    -- sentence below, so that is the sentence.
     RAISE EXCEPTION
-        'LEDGER_ROW_DELETED_NOT_REVERSED: %.% is append-only. A receipt is the record of '
-        'a document a customer is holding, and it cannot be corrected by changing it — '
-        'issue a further revision, or record the reversal that undoes what it says. '
-        'FR-DAT-008B: no destructive correction',
-        TG_TABLE_SCHEMA, TG_TABLE_NAME USING ERRCODE = 'HS409';
+        'LEDGER_ROW_DELETED_NOT_REVERSED: % on %.% was refused. It is an append-only '
+        'financial ledger — app.financial_table_class() says so — and a row here is the '
+        'record of something that happened. Correct it by adding the row that reverses, '
+        'supersedes or supplements it, never by changing this one. FR-DAT-008B: no '
+        'destructive correction',
+        TG_OP, TG_TABLE_SCHEMA, TG_TABLE_NAME USING ERRCODE = 'HS409';
 END;
 $$;
 

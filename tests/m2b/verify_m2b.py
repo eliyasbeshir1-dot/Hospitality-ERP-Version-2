@@ -40,7 +40,7 @@ sys.path.insert(0, str(HERE))
 
 import fixtures as fx                                   # noqa: E402
 from fenced import fenced_identifier_pattern            # noqa: E402
-from pg import count, count_or, run                     # noqa: E402
+from pg import CommandUnreadable, count, count_or, run  # noqa: E402
 
 assert fx.__file__ == str(HERE / "fixtures.py"), (
     f"the wrong fixtures module was imported: {fx.__file__}")
@@ -1451,16 +1451,37 @@ def section_boundary() -> None:
            f"names an order at all is refuse_change_to_submitted_cart(), and it only "
            f"raises: it freezes a cart once an order exists and creates nothing")
 
-    pwa = count(ADMIN, """
-        SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+    # ITS FIRST FORM — "no customer PWA, rendering or accessibility surface exists
+    # ANYWHERE" — retired at M4-C, and it is worth saying why it survived M2-C, the gate
+    # it was fencing. M2-C built the rendering surface in the pwa/ directory and needed no
+    # table for it, so a criterion about tables stayed true through the gate that was
+    # supposed to retire it. It first went red at M4-C against docs.render_attempt: the
+    # record of rasterising a receipt to a file for preview, which is not a customer
+    # rendering surface in any sense M2-B was fencing.
+    #
+    # That is the shape M1-B's print fence had at this same gate, and it gets the same
+    # answer: the criterion is replaced rather than the assertion removed, and it is
+    # replaced with the property that outlives every gate. M2-B owns menu, safety and
+    # service. THE CUSTOMER RENDERING SURFACE IS NOT ITS, and that stays true whatever
+    # later slices build in their own schemas. A check that could only fail by another
+    # slice's work was never asserting anything about this one.
+    pwa = run(ADMIN, """
+        SELECT coalesce(string_agg(n.nspname || '.' || c.relname, ', ' ORDER BY 1), '')
+        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind = 'r' AND n.nspname IN ('menu', 'safety', 'service')
           AND c.relname ~* '(^|_)(rtl|render|layout|theme|accessibility|pwa)($|_)';
     """)
-    record("no customer PWA, rendering or accessibility surface exists",
-           pwa == 0,
-           f"{pwa} such table(s); the rendering surface and its RTL and accessibility "
-           f"assertions are M2-C, and building them before a surface exists would "
-           f"produce unfalsifiable green")
+    if not pwa.ok:
+        raise CommandUnreadable(
+            f"the rendering-surface scan did not run: {pwa.why()}")
+    record("no customer rendering or accessibility surface is this slice's",
+           not (pwa.scalar or "").strip(),
+           f"such tables in menu, safety or service: "
+           f"{(pwa.scalar or '').strip() or 'none'}. The rendering surface and its RTL and "
+           f"accessibility assertions are M2-C''s, and they are built in pwa/ rather than "
+           f"in a table — which is why the older form of this check, which scanned every "
+           f"schema, outlived the gate it was fencing and first went red at M4-C against "
+           f"a receipt raster record that has nothing to do with a customer surface")
 
     weakened = count(ADMIN, """
         SELECT count(*) FROM pg_policies

@@ -462,12 +462,26 @@ GRANT EXECUTE ON FUNCTION app.financial_table_class(text, text) TO hospitality_a
 -- Complete, or this migration does not apply. The same shape 0025 used on
 -- ordering.correlation_link_rebuilt_by(): a classification with a hole in it is a
 -- classification nobody can rely on, and the hole is always the table somebody forgot.
-DO $$
+--
+-- A FUNCTION RATHER THAN A DO BLOCK, because a later migration adds a financial schema
+-- and has to run the same check again after it exists. A DO block would have to be
+-- copied, and a copied rule is how two lists come to disagree — the defect this
+-- repository has now repaired six times.
+
+CREATE FUNCTION app.financial_schemas() RETURNS text[] LANGUAGE sql IMMUTABLE
+AS $$ SELECT ARRAY['billing', 'payments', 'cash', 'docs', 'fiscal']; $$;
+
+COMMENT ON FUNCTION app.financial_schemas() IS
+    'The schemas app.financial_table_class() must be complete over. Replaced, not '
+    'copied, when a later gate adds one.';
+
+CREATE FUNCTION app.assert_financial_tables_are_classified() RETURNS void
+LANGUAGE plpgsql AS $$
 DECLARE unclassified text[];
 BEGIN
     SELECT array_agg(n.nspname || '.' || c.relname ORDER BY 1) INTO unclassified
       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-     WHERE n.nspname IN ('billing', 'payments', 'cash', 'docs', 'fiscal')
+     WHERE n.nspname = ANY (app.financial_schemas())
        AND c.relkind = 'r'
        AND app.financial_table_class(n.nspname, c.relname) IS NULL;
     IF unclassified IS NOT NULL THEN
@@ -480,3 +494,10 @@ BEGIN
     END IF;
 END;
 $$;
+
+COMMENT ON FUNCTION app.assert_financial_tables_are_classified() IS
+    'FR-DAT-008B. Raises FINANCIAL_TABLE_UNCLASSIFIED if any table in a financial schema '
+    'is unclassified. Called at the foot of every migration that adds one, so the hole '
+    'is found by the migration that opened it rather than by a later reader.';
+
+DO $$ BEGIN PERFORM app.assert_financial_tables_are_classified(); END; $$;

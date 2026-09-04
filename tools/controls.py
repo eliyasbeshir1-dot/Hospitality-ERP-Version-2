@@ -139,6 +139,15 @@ CONTROLS = [
     ("NC-M4B-009", "A verification suite the evidence report does not count", "SUITE_UNACCOUNTED", "m4b"),
     ("NC-M4B-010", "A correlation link kind no rebuild puts back", "CORRELATION_KIND_UNOWNED", "m4b"),
     ("NC-M4B-011", "A suite's controls searched for in logs that cannot contain them", "CONTROL_LOG_ABSENT", "m4b"),
+    ("NC-M4-005", "The packaged Ethiopic font gone from the receipt print path", "ETHIOPIC_FONT_FALLBACK_ON_RECEIPT", "m4c"),
+    ("NC-M4C-001", "One settlement printed as two original receipts", "RECEIPT_ALREADY_PRINTED", "m4c"),
+    ("NC-M4C-002", "A bill total line on a receipt carrying the tip", "TIP_MERGED_ON_RECEIPT", "m4c"),
+    ("NC-M4C-003", "A non-English receipt falling back to English on paper", "RECEIPT_INCOMPLETE_IN_LOCALE", "m4c"),
+    ("NC-M4C-004", "A summary of an empty window reported as a figure", "FABRICATED_METRIC", "m4c"),
+    ("NC-M4C-005", "A recomputation writing over a signed-off shift result", "LEDGER_ROW_DELETED_NOT_REVERSED", "m4c"),
+    ("NC-M4C-006", "Money on a bill that no sales classification claims", "SALES_COMPONENT_UNCLASSIFIED", "m4c"),
+    ("NC-M4C-007", "A counter order that can name no POS terminal", "COUNTER_ORDER_WITHOUT_A_TERMINAL", "m4c"),
+    ("NC-M4C-008", "A customer receipt printed on a printer nobody tested", "PRINTER_NEVER_TESTED", "m4c"),
 ]
 
 

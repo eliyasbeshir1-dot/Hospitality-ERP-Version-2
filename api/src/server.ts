@@ -20,6 +20,8 @@ import { guestContext, registerCustomerRoutes } from './routes/customer';
 import { registerServiceRoutes } from './routes/service';
 import { registerBillingRoutes } from './routes/billing';
 import { registerPaymentRoutes } from './routes/payments';
+import { registerDocumentRoutes } from './routes/documents';
+import { registerReportRoutes } from './routes/reports';
 import { registerStaffRoutes } from './routes/staff';
 import { registerStationRoutes } from './routes/station';
 import { registerSurfaceRoutes } from './routes/surface';
@@ -112,6 +114,8 @@ export async function start(): Promise<{ close(): Promise<void>; port: number }>
   registerServiceRoutes(app, { db, logger, asGuest: guestContext({ db, logger }) });
   registerBillingRoutes(app, { db, logger, asGuest: guestContext({ db, logger }) });
   registerPaymentRoutes(app, { db, logger });
+  registerDocumentRoutes(app, { db, logger });
+  registerReportRoutes(app, { db, logger });
   // The compiled surface sits beside the compiled server, so one build produces both and
   // there is no second artefact to deploy or forget.
   registerSurfaceRoutes(app, join(__dirname, 'public'));

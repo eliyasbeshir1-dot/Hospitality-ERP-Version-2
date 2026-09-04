@@ -385,7 +385,21 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
              JSON.stringify(request.body.notes ?? []),
              origin, ORIGIN_CHANNEL[origin]],
           );
-          return { orderId: rows[0].id as string };
+          const orderId = rows[0].id as string;
+
+          // FR-POS-003B. A COUNTER ORDER IS CREATED AT THE POS TERMINAL, and this is
+          // where that becomes true rather than claimed. pos.record_counter_order()
+          // resolves the terminal from the session in context — there is no body field,
+          // header or query string here by which a request from anywhere could assert it
+          // came from the counter. If the session is not on an active point-of-sale
+          // terminal in this outlet the call refuses, and 0030's deferred trigger would
+          // refuse the transaction at commit even if this line were deleted.
+          if (origin === 'counter') {
+            await client.query(
+              'SELECT pos.record_counter_order($1::uuid, $2::uuid, $3::uuid, $4::uuid)',
+              [tenantId, outletId, orderId, userId]);
+          }
+          return { orderId };
         } catch (error) {
           const signature = refusal(error);
           if (signature) {

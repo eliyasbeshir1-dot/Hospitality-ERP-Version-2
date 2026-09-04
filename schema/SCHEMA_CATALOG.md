@@ -4,7 +4,7 @@
 Do not edit by hand: the verification suite regenerates this file and fails on any
 difference, so a hand edit is reported as drift (FR-DAT-015).
 
-Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `docs`, `fiscal`, `fulfillment`, `identity`, `integration`, `menu`, `money`, `notify`, `ordering`, `org`, `payments`, `pos`, `safety`, `service`, discovered from the database rather than listed here.
+Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `docs`, `fiscal`, `fulfillment`, `identity`, `integration`, `menu`, `money`, `notify`, `ordering`, `org`, `payments`, `pos`, `report`, `safety`, `service`, discovered from the database rather than listed here.
 
 ---
 
@@ -98,6 +98,11 @@ Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `docs`, `fiscal`, 
 | `pos.handover_item_kind` | table_session, service_request |
 | `pos.handover_state` | proposed, acknowledged, cancelled |
 | `pos.terminal_profile` | point_of_sale, waiter_handheld, kitchen_display |
+| `report.dashboard_role` | outlet_manager, waiter, cashier, kitchen_expo |
+| `report.export_kind` | metrics, sales |
+| `report.metric_key` | orders_placed, item_sales_minor, discounts_minor, service_charges_minor, taxes_minor, bill_payments_minor, tips_minor, tip_reversals_minor, service_requests_raised, service_acknowledgement_seconds_p50, service_completion_seconds_p50, table_session_seconds_p50, service_exceptions_unresolved, kitchen_queue_depth, kitchen_preparation_seconds_p50, kitchen_ready_to_serve_seconds_p50, kitchen_rework_events, kitchen_exceptions |
+| `report.metric_unit` | minor_currency, count, seconds |
+| `report.sales_classification` | orders, item_sales, discounts, service_charges, taxes, bill_payments, tips |
 | `safety.declaration_class` | contains, may_contain, cross_contact |
 | `safety.reference_context` | publication_snapshot, cart_line |
 | `safety.review_state` | draft, in_review, approved |
@@ -251,9 +256,18 @@ graph LR
   payments_reversal["payments.reversal"]
   payments_simulated_attempt["payments.simulated_attempt"]
   pos_confirmation_requirement["pos.confirmation_requirement"]
+  pos_counter_order_entry["pos.counter_order_entry"]
   pos_fast_pick["pos.fast_pick"]
   pos_handover["pos.handover"]
   pos_handover_item["pos.handover_item"]
+  report_dashboard_panel["report.dashboard_panel"]
+  report_dashboard["report.dashboard"]
+  report_metric["report.metric"]
+  report_export["report.export"]
+  report_recomputation["report.recomputation"]
+  report_shift_snapshot["report.shift_snapshot"]
+  report_shift_snapshot_value["report.shift_snapshot_value"]
+  report_snapshot_divergence["report.snapshot_divergence"]
   safety_jurisdiction["safety.jurisdiction"]
   safety_declaration["safety.declaration"]
   safety_declaration_reference["safety.declaration_reference"]
@@ -666,6 +680,10 @@ graph LR
   payments_terminal_result --> org_org_node
   payments_terminal_result --> org_tenant
   pos_confirmation_requirement --> org_tenant
+  pos_counter_order_entry --> identity_user_account
+  pos_counter_order_entry --> org_org_node
+  pos_counter_order_entry --> org_tenant
+  pos_counter_order_entry --> pos_terminal
   pos_fast_pick --> identity_user_account
   pos_fast_pick --> menu_sellable_item
   pos_fast_pick --> org_org_node
@@ -686,6 +704,26 @@ graph LR
   pos_terminal --> org_device_registration
   pos_terminal --> org_org_node
   pos_terminal --> org_tenant
+  report_dashboard_panel --> report_dashboard
+  report_dashboard_panel --> report_metric
+  report_export --> identity_user_account
+  report_export --> money_currency
+  report_export --> org_org_node
+  report_export --> org_tenant
+  report_recomputation --> identity_user_account
+  report_recomputation --> org_tenant
+  report_recomputation --> report_shift_snapshot
+  report_shift_snapshot --> cash_shift
+  report_shift_snapshot --> identity_user_account
+  report_shift_snapshot --> money_currency
+  report_shift_snapshot --> org_org_node
+  report_shift_snapshot --> org_tenant
+  report_shift_snapshot_value --> org_tenant
+  report_shift_snapshot_value --> report_metric
+  report_shift_snapshot_value --> report_shift_snapshot
+  report_snapshot_divergence --> org_tenant
+  report_snapshot_divergence --> report_metric
+  report_snapshot_divergence --> report_recomputation
   safety_allergen --> org_org_node
   safety_allergen --> org_tenant
   safety_allergen --> safety_jurisdiction
@@ -1822,7 +1860,7 @@ Constraints:
 
 - `retention_policy_age_column_not_blank` — `CHECK ((btrim(age_column) <> ''::text))`
 - `retention_policy_never_targets_audit` — `CHECK ((lower(target_schema) <> 'audit'::text))`
-- `retention_policy_never_targets_financial_ledgers` — `CHECK ((target_schema <> ALL (ARRAY['billing'::text, 'payments'::text, 'cash'::text, 'docs'::text])))`
+- `retention_policy_never_targets_financial_ledgers` — `CHECK ((target_schema <> ALL (ARRAY['billing'::text, 'payments'::text, 'cash'::text, 'docs'::text, 'fiscal'::text, 'report'::text])))`
 - `retention_policy_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
 - `retention_policy_pkey` — `PRIMARY KEY (id)`
 - `retention_policy_retain_for_positive` — `CHECK ((retain_for > '00:00:00'::interval))`
@@ -4202,6 +4240,7 @@ Row level security: **enabled**, **forced**.
 
 Constraints:
 
+- `counter_order_names_its_terminal` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
 - `customer_order_acceptance_recorded_together` — `CHECK (((accepted_at IS NULL) = (acceptance_mode IS NULL)))`
 - `customer_order_accepted_and_voided_name_the_acceptance` — `CHECK (((state <> ALL (ARRAY['accepted'::ordering.order_state, 'voided'::ordering.order_state])) OR (accepted_at IS NOT NULL)))`
 - `customer_order_accepter_fk` — `FOREIGN KEY (tenant_id, accepted_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
@@ -5076,6 +5115,37 @@ Policies:
 
 - `confirmation_requirement_isolation` — `app.row_in_scope(tenant_id, NULL::uuid)`
 
+#### `pos.counter_order_entry`
+
+FR-POS-003B. Which POS terminal a counter order was entered at, and by whom in which session. It holds no foreign key into ordering.customer_order because that is a projection; it records what happened rather than what is currently true.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `order_id` | `uuid` | NOT NULL |  |  |
+| `terminal_device_id` | `uuid` | NOT NULL |  |  |
+| `entered_by_user_id` | `uuid` | NOT NULL |  |  |
+| `entered_in_session_id` | `uuid` | NOT NULL |  |  |
+| `entered_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `counter_order_entry_actor_fk` — `FOREIGN KEY (tenant_id, entered_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `counter_order_entry_one_per_order` — `UNIQUE (tenant_id, order_id)`
+- `counter_order_entry_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `counter_order_entry_pkey` — `PRIMARY KEY (id)`
+- `counter_order_entry_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `counter_order_entry_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `counter_order_entry_terminal_fk` — `FOREIGN KEY (tenant_id, terminal_device_id) REFERENCES pos.terminal(tenant_id, device_id) ON DELETE RESTRICT`
+
+Policies:
+
+- `counter_order_entry_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
 #### `pos.fast_pick`
 
 FR-POS-005. Favourites for fast entry. A row with no user is the outlet's shared set; a row with one is personal.
@@ -5252,6 +5322,254 @@ Constraints:
 Policies:
 
 - `terminal_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+### `report`
+
+FR-RPT. Metric definitions, the readings computed from them, the snapshots taken at shift sign-off, and the exports. It owns no operational fact: every figure here is derived from a table in another schema, and every reading names the relation it came from.
+
+#### `report.dashboard`
+
+FR-RPT-001. One row per Phase 1 role. Global rather than per tenant: which metrics a manager sees is a product decision, not a tenant setting, and a per-tenant dashboard table is where a tenant would eventually be able to add a panel naming anything.
+
+Row level security: **DISABLED**, **not forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `role` | `report.dashboard_role` | NOT NULL |  |  |
+| `title` | `text` | NOT NULL |  |  |
+| `audience` | `text` | NOT NULL |  |  |
+
+Constraints:
+
+- `dashboard_audience_not_blank` — `CHECK ((btrim(audience) <> ''::text))`
+- `dashboard_pkey` — `PRIMARY KEY (role)`
+- `dashboard_title_not_blank` — `CHECK ((btrim(title) <> ''::text))`
+
+#### `report.dashboard_panel`
+
+FR-RPT-001. Which catalogued metrics a role sees, in what order. The foreign key into report.metric is what makes FR-RPT-015 a prerequisite in fact and not only in the register: a panel cannot show a figure nobody has defined.
+
+Row level security: **DISABLED**, **not forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `role` | `report.dashboard_role` | NOT NULL |  |  |
+| `display_order` | `integer` | NOT NULL |  |  |
+| `metric` | `report.metric_key` | NOT NULL |  |  |
+
+Constraints:
+
+- `dashboard_panel_dashboard_fk` — `FOREIGN KEY (role) REFERENCES report.dashboard(role) ON DELETE RESTRICT`
+- `dashboard_panel_metric_fk` — `FOREIGN KEY (metric) REFERENCES report.metric(key) ON DELETE RESTRICT`
+- `dashboard_panel_one_place_per_metric` — `UNIQUE (role, metric)`
+- `dashboard_panel_order_positive` — `CHECK ((display_order >= 1))`
+- `dashboard_panel_pkey` — `PRIMARY KEY (role, display_order)`
+
+#### `report.export`
+
+FR-RPT-013. Every export, with the scope it was taken at. The tenant and outlet on this row are the scope the data was read under, not a label somebody chose: the export functions are SECURITY INVOKER and row level security is what bounded them.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `kind` | `report.export_kind` | NOT NULL |  |  |
+| `window_from` | `timestamp with time zone` | NOT NULL |  |  |
+| `window_to` | `timestamp with time zone` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `catalog_version` | `integer` | NOT NULL |  |  |
+| `requested_by_user_id` | `uuid` | NOT NULL |  |  |
+| `row_count` | `integer` | NOT NULL |  |  |
+| `requested_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `export_currency_fk` — `FOREIGN KEY (currency_code) REFERENCES money.currency(code) ON DELETE RESTRICT`
+- `export_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `export_pkey` — `PRIMARY KEY (id)`
+- `export_requester_fk` — `FOREIGN KEY (tenant_id, requested_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `export_row_count_not_negative` — `CHECK ((row_count >= 0))`
+- `export_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `export_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `export_window_ordered` — `CHECK ((window_to > window_from))`
+
+Policies:
+
+- `export_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `report.metric`
+
+FR-RPT-015. One row per label of report.metric_key, with the formula, timezone rule, currency rule, inclusion rule and data source the requirement names. The DO block at the foot of this migration refuses an uncatalogued label, so the two cannot drift.
+
+Row level security: **DISABLED**, **not forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `key` | `report.metric_key` | NOT NULL |  |  |
+| `unit` | `report.metric_unit` | NOT NULL |  |  |
+| `title` | `text` | NOT NULL |  |  |
+| `formula` | `text` | NOT NULL |  |  |
+| `timezone_rule` | `text` | NOT NULL |  |  |
+| `currency_rule` | `text` | NOT NULL |  |  |
+| `inclusion_rule` | `text` | NOT NULL |  |  |
+| `source_relation` | `regclass` | NOT NULL |  |  |
+| `empty_window_is_zero` | `boolean` | NOT NULL |  |  |
+| `empty_window_reason` | `text` | NOT NULL |  |  |
+
+Constraints:
+
+- `metric_currency_rule_not_blank` — `CHECK ((btrim(currency_rule) <> ''::text))`
+- `metric_empty_window_reason_not_blank` — `CHECK ((btrim(empty_window_reason) <> ''::text))`
+- `metric_formula_not_blank` — `CHECK ((btrim(formula) <> ''::text))`
+- `metric_inclusion_rule_not_blank` — `CHECK ((btrim(inclusion_rule) <> ''::text))`
+- `metric_pkey` — `PRIMARY KEY (key)`
+- `metric_timezone_rule_not_blank` — `CHECK ((btrim(timezone_rule) <> ''::text))`
+- `metric_title_not_blank` — `CHECK ((btrim(title) <> ''::text))`
+- `metric_unit_anchor` — `UNIQUE (key, unit)`
+
+#### `report.recomputation`
+
+FR-RPT-014. Every recomputation of a signed-off shift, whether or not it agreed. The agreeing ones are recorded too: a record only of disagreements cannot distinguish "checked and fine" from "never checked".
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `snapshot_id` | `uuid` | NOT NULL |  |  |
+| `catalog_version` | `integer` | NOT NULL |  |  |
+| `content_digest` | `character(64)` | NOT NULL |  |  |
+| `diverged` | `boolean` | NOT NULL |  |  |
+| `recomputed_by_user_id` | `uuid` | NOT NULL |  |  |
+| `recomputed_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `recomputation_actor_fk` — `FOREIGN KEY (tenant_id, recomputed_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `recomputation_digest_is_a_digest` — `CHECK ((content_digest ~ '^[0-9a-f]{64}$'::text))`
+- `recomputation_pkey` — `PRIMARY KEY (id)`
+- `recomputation_snapshot_fk` — `FOREIGN KEY (tenant_id, snapshot_id) REFERENCES report.shift_snapshot(tenant_id, id) ON DELETE RESTRICT`
+- `recomputation_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `recomputation_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `recomputation_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `report.shift_snapshot`
+
+FR-RPT-014. The operational metrics as they stood when a shift was signed off. Append-only by trigger, classified as a ledger by app.financial_table_class(), and granted INSERT and SELECT only — there is no path by which a recomputation reaches it. report.recompute_shift_snapshot() writes a divergence record instead, which is the difference between a recomputation that cannot rewrite a result and one that merely does not.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `shift_id` | `uuid` | NOT NULL |  |  |
+| `catalog_version` | `integer` | NOT NULL |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `window_from` | `timestamp with time zone` | NOT NULL |  |  |
+| `window_to` | `timestamp with time zone` | NOT NULL |  |  |
+| `signed_off_by_user_id` | `uuid` | NOT NULL |  |  |
+| `signed_off_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `content_digest` | `character(64)` | NOT NULL |  |  |
+| `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `shift_snapshot_currency_anchor` — `UNIQUE (tenant_id, id, currency_code)`
+- `shift_snapshot_currency_fk` — `FOREIGN KEY (currency_code) REFERENCES money.currency(code) ON DELETE RESTRICT`
+- `shift_snapshot_digest_is_a_digest` — `CHECK ((content_digest ~ '^[0-9a-f]{64}$'::text))`
+- `shift_snapshot_one_per_shift` — `UNIQUE (tenant_id, shift_id)`
+- `shift_snapshot_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `shift_snapshot_pkey` — `PRIMARY KEY (id)`
+- `shift_snapshot_shift_fk` — `FOREIGN KEY (tenant_id, shift_id) REFERENCES cash.shift(tenant_id, id) ON DELETE RESTRICT`
+- `shift_snapshot_signer_fk` — `FOREIGN KEY (tenant_id, signed_off_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `shift_snapshot_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `shift_snapshot_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `shift_snapshot_window_ordered` — `CHECK ((window_to > window_from))`
+
+Policies:
+
+- `shift_snapshot_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `report.shift_snapshot_value`
+
+One catalogued metric as it stood at sign-off. The deferred trigger below refuses a snapshot that does not carry every metric in the catalog, so a metric added later cannot make an old snapshot look complete or a new one arrive short.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `snapshot_id` | `uuid` | NOT NULL |  |  |
+| `metric` | `report.metric_key` | NOT NULL |  |  |
+| `unit` | `report.metric_unit` | NOT NULL |  |  |
+| `value` | `bigint` |  |  |  |
+| `currency_code` | `character(3)` |  |  |  |
+| `observation_count` | `bigint` | NOT NULL |  |  |
+| `source_relation` | `text` | NOT NULL |  |  |
+| `latest_source_row_at` | `timestamp with time zone` |  |  |  |
+
+Constraints:
+
+- `shift_snapshot_is_complete` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
+- `shift_snapshot_matches_its_seal` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
+- `shift_snapshot_value_currency_iff_monetary` — `CHECK (((unit = 'minor_currency'::report.metric_unit) = (currency_code IS NOT NULL)))`
+- `shift_snapshot_value_currency_matches_the_snapshot` — `FOREIGN KEY (tenant_id, snapshot_id, currency_code) REFERENCES report.shift_snapshot(tenant_id, id, currency_code) ON DELETE RESTRICT`
+- `shift_snapshot_value_metric_fk` — `FOREIGN KEY (metric, unit) REFERENCES report.metric(key, unit) ON DELETE RESTRICT`
+- `shift_snapshot_value_observations_not_negative` — `CHECK ((observation_count >= 0))`
+- `shift_snapshot_value_one_per_metric` — `UNIQUE (tenant_id, snapshot_id, metric)`
+- `shift_snapshot_value_pkey` — `PRIMARY KEY (id)`
+- `shift_snapshot_value_snapshot_fk` — `FOREIGN KEY (tenant_id, snapshot_id) REFERENCES report.shift_snapshot(tenant_id, id) ON DELETE RESTRICT`
+- `shift_snapshot_value_source_not_blank` — `CHECK ((btrim(source_relation) <> ''::text))`
+- `shift_snapshot_value_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `shift_snapshot_value_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `shift_snapshot_value_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `report.snapshot_divergence`
+
+FR-RPT-014. One row per metric where a recomputation disagreed with the signed-off figure, naming both numbers. This is where a recomputation's answer goes, and it is the reason the snapshot needs no protection beyond being append-only: there is no code path that writes a recomputed figure into it.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `recomputation_id` | `uuid` | NOT NULL |  |  |
+| `metric` | `report.metric_key` | NOT NULL |  |  |
+| `snapshot_value` | `bigint` |  |  |  |
+| `recomputed_value` | `bigint` |  |  |  |
+| `snapshot_observation_count` | `bigint` | NOT NULL |  |  |
+| `recomputed_observation_count` | `bigint` | NOT NULL |  |  |
+
+Constraints:
+
+- `snapshot_divergence_actually_diverges` — `CHECK (((snapshot_value IS DISTINCT FROM recomputed_value) OR (snapshot_observation_count <> recomputed_observation_count)))`
+- `snapshot_divergence_metric_fk` — `FOREIGN KEY (metric) REFERENCES report.metric(key) ON DELETE RESTRICT`
+- `snapshot_divergence_one_per_metric` — `UNIQUE (tenant_id, recomputation_id, metric)`
+- `snapshot_divergence_pkey` — `PRIMARY KEY (id)`
+- `snapshot_divergence_recomputation_fk` — `FOREIGN KEY (tenant_id, recomputation_id) REFERENCES report.recomputation(tenant_id, id) ON DELETE RESTRICT`
+- `snapshot_divergence_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `snapshot_divergence_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `snapshot_divergence_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
 ### `safety`
 

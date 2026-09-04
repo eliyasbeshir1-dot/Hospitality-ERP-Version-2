@@ -1,0 +1,222 @@
+#!/usr/bin/env python3
+"""Generate FR-RPT-015's metric catalog from the live database.
+
+NOTHING HERE IS HAND-WRITTEN, and that is the requirement rather than a convenience.
+FR-RPT-015 asks for a versioned catalog defining each Phase 1 metric's formula, timezone,
+currency rule, inclusion rule and data source. A catalog maintained beside the metrics is
+a document that describes them on the day it was written; this one is a RENDERING of
+report.metric, which is the same table report.reading() refuses to build a metric without.
+
+The document therefore cannot describe a metric that does not exist, cannot omit one that
+does — migration 0029 refuses to apply if report.metric_key has a label report.metric has
+no row for — and cannot disagree about a formula, because there is only one place the
+formula is written.
+
+It also renders the DASHBOARDS, because FR-RPT-001's "without exposing deferred modules"
+is a claim a reader should be able to check: every panel of every role, in one list, each
+naming a metric this same document defines.
+
+Usage:
+    python3 tools/generate_metric_catalog.py --dsn <dsn> --out planning/METRIC_CATALOG.md
+    python3 tools/generate_metric_catalog.py --dsn <dsn> --check planning/METRIC_CATALOG.md
+
+--check regenerates and compares without writing, exiting 1 on any difference.
+"""
+from __future__ import annotations
+
+import argparse
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from console import use_utf8_output  # noqa: E402
+
+
+UNIT = "\x1f"
+
+
+def query(dsn: str, sql: str) -> list[list[str]]:
+    # encoding="utf-8" rather than the machine's locale, for the reason
+    # generate_schema_catalog.py records: the catalog rows contain non-ASCII punctuation,
+    # and cp1252 on Windows would decode an em-dash as three characters and report drift
+    # against a database that had not drifted.
+    proc = subprocess.run(
+        ["psql", dsn, "-v", "ON_ERROR_STOP=1", "--no-psqlrc", "-X",
+         "-t", "-A", "-F", UNIT],
+        input=sql, capture_output=True, text=True, encoding="utf-8",
+        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+    )
+    if proc.returncode != 0:
+        raise SystemExit(f"metric catalog query failed: {proc.stderr.strip()}")
+    return [line.split(UNIT) for line in proc.stdout.splitlines() if line.strip()]
+
+
+def md(text: str) -> str:
+    """Escape a value for a Markdown table cell."""
+    return text.replace("|", "\\|").replace("\n", " ")
+
+
+def build(dsn: str) -> str:
+    version = query(dsn, "SELECT report.catalog_version();")
+    if not version or not version[0] or not version[0][0].strip():
+        raise SystemExit(
+            "metric catalog refused: report.catalog_version() returned nothing. A catalog "
+            "with no version is not a versioned catalog, and FR-RPT-015 asks for one.")
+    catalog_version = version[0][0].strip()
+
+    metrics = query(dsn, """
+        SELECT m.key::text, m.unit::text, m.title, m.formula, m.timezone_rule,
+               m.currency_rule, m.inclusion_rule, m.source_relation::text,
+               CASE WHEN m.empty_window_is_zero THEN 'zero' ELSE 'no value' END,
+               m.empty_window_reason
+        FROM report.metric m
+        ORDER BY m.key::text;
+    """)
+    if not metrics:
+        raise SystemExit(
+            "metric catalog refused: report.metric is empty. An empty catalog would "
+            "render as a document claiming this build computes no metrics, which is a "
+            "false statement rather than an absent one.")
+
+    labels = query(dsn, """
+        SELECT k::text FROM unnest(enum_range(NULL::report.metric_key)) k ORDER BY 1;
+    """)
+    # THE CHECK 0029 ALREADY MAKES, MADE AGAIN HERE. Two locks, and this one is the lock
+    # that survives somebody editing the migration: the generator refuses to write a
+    # document that would be silently short a metric.
+    catalogued = {r[0] for r in metrics}
+    computable = {r[0] for r in labels}
+    if catalogued != computable:
+        raise SystemExit(
+            f"metric catalog refused: report.metric_key and report.metric disagree. "
+            f"Computable and undefined: {sorted(computable - catalogued)}. Defined and "
+            f"not computable: {sorted(catalogued - computable)}.")
+
+    panels = query(dsn, """
+        SELECT d.role::text, d.title, d.audience, p.display_order::text, p.metric::text,
+               m.title, m.unit::text
+        FROM report.dashboard d
+        JOIN report.dashboard_panel p ON p.role = d.role
+        JOIN report.metric m ON m.key = p.metric
+        ORDER BY d.role::text, p.display_order;
+    """)
+    if not panels:
+        raise SystemExit(
+            "metric catalog refused: no dashboard panel exists. FR-RPT-001 asks for "
+            "role dashboards, and a catalog rendering none would say they are absent.")
+
+    out: list[str] = []
+    w = out.append
+
+    w("<!-- generated by tools/generate_metric_catalog.py — do not edit -->")
+    w(f"# Metric catalog, version {catalog_version}")
+    w("")
+    w("FR-RPT-015. Generated from `report.metric` in a live database, which is the same "
+      "table `report.reading()` refuses to build a metric without. This document cannot "
+      "define a metric this build does not compute, and cannot omit one it does: "
+      "migration 0029 refuses to apply while `report.metric_key` has a label "
+      "`report.metric` has no row for, and this generator refuses to write while the two "
+      "disagree.")
+    w("")
+    w(f"**{len(metrics)} metrics.** The version is `report.catalog_version()`. Every "
+      "snapshot and every export records the version it was computed under, so a figure "
+      "taken before a definition changed can be recognised as answering a different "
+      "question rather than as disagreeing about the same one.")
+    w("")
+    w("## Empty windows (FR-UX-014)")
+    w("")
+    w("`report.reading()` refuses a value that disagrees with the *empty window* column "
+      "below, in both directions. **zero** means an empty window has a defined value and "
+      "that value is exactly zero — no orders in a quiet hour is a true count. **no "
+      "value** means an empty window has no summary at all, and reporting one would be "
+      "an invention: the median preparation time over no tickets is not zero seconds. A "
+      "surface renders the second as FR-UX-014's instructive empty state.")
+    w("")
+
+    for (key, unit, title, formula, tz, currency, inclusion, source,
+         empty, empty_reason) in metrics:
+        w(f"### `{key}`")
+        w("")
+        w(f"{title}.")
+        w("")
+        w("| | |")
+        w("| --- | --- |")
+        w(f"| unit | {md(unit)} |")
+        w(f"| formula | {md(formula)} |")
+        w(f"| timezone | {md(tz)} |")
+        w(f"| currency | {md(currency)} |")
+        w(f"| inclusion | {md(inclusion)} |")
+        w(f"| data source | `{md(source)}` |")
+        w(f"| empty window | {md(empty)} — {md(empty_reason)} |")
+        w("")
+
+    w("## Dashboards (FR-RPT-001)")
+    w("")
+    w("Every panel of every Phase 1 role. A panel names a label of `report.metric_key` "
+      "and nothing else — there is no free-text panel and no panel that names a table — "
+      "so a deferred module cannot reach the reporting surface through a data row.")
+    w("")
+
+    current_role = None
+    for role, role_title, audience, order, metric, metric_title, unit in panels:
+        if role != current_role:
+            current_role = role
+            w("")
+            w(f"### `{role}` — {role_title}")
+            w("")
+            w(f"For {audience}.")
+            w("")
+            w("| # | metric | | unit |")
+            w("| --- | --- | --- | --- |")
+        w(f"| {order} | `{md(metric)}` | {md(metric_title)} | {md(unit)} |")
+    w("")
+
+    return "\n".join(out) + "\n"
+
+
+def main() -> int:
+    use_utf8_output()
+    ap = argparse.ArgumentParser(
+        description="Generate FR-RPT-015's metric catalog from a live database.")
+    ap.add_argument("--dsn", required=True)
+    ap.add_argument("--out")
+    ap.add_argument("--check")
+    args = ap.parse_args()
+
+    generated = build(args.dsn)
+
+    if args.check:
+        path = Path(args.check)
+        if not path.exists():
+            print(f"FAIL METRIC_CATALOG_ABSENT — {path} does not exist", file=sys.stderr)
+            return 1
+        current = path.read_text(encoding="utf-8")
+        if current != generated:
+            print("FAIL METRIC_CATALOG_DRIFT — the catalog does not match the live metrics",
+                  file=sys.stderr)
+            import difflib
+            diff = list(difflib.unified_diff(
+                current.splitlines(), generated.splitlines(),
+                fromfile="committed", tofile="live", lineterm="", n=1))
+            for line in diff[:40]:
+                print(f"  {line}", file=sys.stderr)
+            if len(diff) > 40:
+                print(f"  … {len(diff) - 40} more line(s) of difference", file=sys.stderr)
+            return 1
+        print("PASS METRIC_CATALOG_MATCHES_LIVE_METRICS")
+        print(f"  {len(generated.splitlines())} lines verified against the running database")
+        return 0
+
+    if not args.out:
+        print(generated, end="")
+        return 0
+
+    Path(args.out).write_text(generated, encoding="utf-8", newline="\n")
+    print(f"wrote {args.out} ({len(generated.splitlines())} lines)")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

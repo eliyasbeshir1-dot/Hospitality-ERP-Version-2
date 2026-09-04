@@ -80,6 +80,8 @@ DOMAIN_PURPOSE = {
     "payments": "adapters and the live/simulated boundary, intents, capture, "
                 "verification, dual allocation and reversal",
     "cash": "drawer shifts, movements, counts, custody and exceptions",
+    "report": "the metric catalog, the readings computed from it, the snapshots taken "
+              "when a shift is signed off, and the exports",
     "migration": "the migration history table itself",
     "seed_history": "the seed history table itself",
     "security": "security events and storage allocation",
@@ -183,7 +185,7 @@ MIGRATION_SLICE = {
     "0015": "M3-D", "0016": "M3-D", "0017": "M3-D",
     "0018": "M4-A", "0019": "M4-A", "0020": "M4-A", "0021": "M4-A",
     "0022": "M4-B", "0023": "M4-B", "0024": "M4-B", "0025": "M4-B",
-    "0026": "M4-C", "0027": "M4-C", "0028": "M4-C",
+    "0026": "M4-C", "0027": "M4-C", "0028": "M4-C", "0029": "M4-C", "0030": "M4-C",
 }
 
 
