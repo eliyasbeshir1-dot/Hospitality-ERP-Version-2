@@ -122,7 +122,18 @@ def section_money() -> None:
     # same correction M1-C already had to make to two M1-B boundary checks: an assertion
     # that was true at its own gate and becomes legitimately false at a later one is
     # rewritten to state what actually matters, so it stays true permanently.
-    paired = count(ADMIN, "SELECT count(*) FROM money.assert_currency_paired();")
+    #
+    # THE FAILING BRANCH NAMES THE COLUMNS. This detail line said "found none unpaired"
+    # in both directions until M4-C, where it reported 35 columns, 1 of them unpaired,
+    # and then asserted in the same sentence that none were — a diagnostic contradicting
+    # its own count. The offenders come out of the same function the count came from, so
+    # the message cannot disagree with the assertion.
+    unpaired_rows = run(ADMIN, "SELECT * FROM money.assert_currency_paired();")
+    if not unpaired_rows.ok:
+        raise CommandUnreadable(
+            f"the currency-pairing scan did not run: {unpaired_rows.why()}")
+    offenders = [".".join(r) for r in unpaired_rows.rows]
+    paired = len(offenders)
     population = count(ADMIN, "SELECT money.currency_pairing_population();")
     record("every money column that exists sits beside an explicit currency",
            paired == 0,
@@ -132,7 +143,11 @@ def section_money() -> None:
               "nothing on its own; it becomes live when the first money column is created."
               if population == 0 else
               f"The population is non-empty, so the check is LIVE: it examined "
-              f"{population} real column(s) and found none unpaired."))
+              f"{population} real column(s) and found none unpaired."
+              if paired == 0 else
+              f"Unpaired: {offenders}. An amount without a currency beside it is read "
+              f"alone and misread; inheriting one from a header is an assumption the row "
+              f"cannot carry."))
 
     # And the mechanism is proved against a real column rather than trusted. Measured as a
     # DIFFERENCE from whatever the schema already holds, so a later gate adding legitimate
@@ -616,6 +631,21 @@ def section_reason_codes() -> None:
     # — the same sentence service.close_table_session() raises when an exception carries
     # a code and no note. Derived from information_schema, so the payment reasons M4-B
     # adds are covered without anybody extending anything.
+    #
+    # WHAT COUNTS AS AN AUTHOR IS A LIST OF NAMES, NOT A SHAPE. `operator_user_id` was
+    # added to it at M4-C, when docs.print_attempt recorded the person who pressed print
+    # on a reprint and this rule called the table anonymous. Renaming that column to
+    # satisfy the pattern would have been fixing the check; widening the pattern to any
+    # `%_user_id` would have been worse, because it would pass a table whose named user is
+    # the SUBJECT of the reason rather than its author — a suspension carrying
+    # `suspended_user_id` and nobody who suspended them reads as accountable and is not.
+    #
+    # So the widening names one column and states its semantic: an OPERATOR is the person
+    # who performed the recorded act at the instrument. `actor`, `%_by_user_id` (invoked_by,
+    # approved_by, voided_by) and `user_account_id` are the three that were already here,
+    # and each is authorship by the same test. Adding a fourth name is a decision about
+    # vocabulary; adding a fourth SHAPE would be a decision to stop checking.
+    AUTHORSHIP_COLUMNS = r'(actor|_by_user_id|user_account_id|^operator_user_id$)'
     unaccountable = run(ADMIN, """
         SELECT c.table_schema || '.' || c.table_name
         FROM information_schema.columns c
@@ -624,7 +654,7 @@ def section_reason_codes() -> None:
           AND NOT EXISTS (
                 SELECT 1 FROM information_schema.columns a
                  WHERE a.table_schema = c.table_schema AND a.table_name = c.table_name
-                   AND a.column_name ~ '(actor|_by_user_id|user_account_id)')
+                   AND a.column_name ~ '""" + AUTHORSHIP_COLUMNS + """')
         ORDER BY 1;""")
     if not unaccountable.ok:
         raise CommandUnreadable(

@@ -379,6 +379,7 @@ graph LR
   docs_receipt --> org_org_node
   docs_receipt --> org_tenant
   docs_receipt_line --> docs_receipt
+  docs_receipt_line --> money_currency
   docs_receipt_line --> org_tenant
   docs_render_attempt --> docs_printer
   docs_render_attempt --> docs_receipt
@@ -2007,6 +2008,7 @@ Row level security: **enabled**, **forced**.
 
 Constraints:
 
+- `receipt_currency_anchor` — `UNIQUE (tenant_id, id, currency_code)`
 - `receipt_currency_fk` — `FOREIGN KEY (currency_code) REFERENCES money.currency(code) ON DELETE RESTRICT`
 - `receipt_generator_fk` — `FOREIGN KEY (tenant_id, generated_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
 - `receipt_method_not_blank` — `CHECK ((btrim(payment_method) <> ''::text))`
@@ -2040,16 +2042,18 @@ Row level security: **enabled**, **forced**.
 | `display_order` | `integer` | NOT NULL |  |  |
 | `label` | `text` | NOT NULL |  |  |
 | `amount_minor` | `money.amount_minor` |  |  |  |
+| `currency_code` | `character(3)` | NOT NULL |  |  |
 
 Constraints:
 
 - `receipt_line_amount_present_unless_method` — `CHECK ((((kind = 'payment_method'::docs.receipt_line_kind) AND (amount_minor IS NULL)) OR ((kind <> 'payment_method'::docs.receipt_line_kind) AND (amount_minor IS NOT NULL))))`
+- `receipt_line_currency_fk` — `FOREIGN KEY (currency_code) REFERENCES money.currency(code) ON DELETE RESTRICT`
 - `receipt_line_is_complete_in_its_locale` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
 - `receipt_line_is_faithful` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
 - `receipt_line_label_not_blank` — `CHECK ((btrim(label) <> ''::text))`
 - `receipt_line_order_unique` — `UNIQUE (tenant_id, receipt_id, display_order)`
 - `receipt_line_pkey` — `PRIMARY KEY (id)`
-- `receipt_line_receipt_fk` — `FOREIGN KEY (tenant_id, receipt_id) REFERENCES docs.receipt(tenant_id, id) ON DELETE RESTRICT`
+- `receipt_line_receipt_fk` — `FOREIGN KEY (tenant_id, receipt_id, currency_code) REFERENCES docs.receipt(tenant_id, id, currency_code) ON DELETE RESTRICT`
 - `receipt_line_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
 - `receipt_line_tenant_id_unique` — `UNIQUE (tenant_id, id)`
 

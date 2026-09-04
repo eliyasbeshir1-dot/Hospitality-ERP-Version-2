@@ -350,7 +350,12 @@ CREATE TABLE docs.receipt (
     -- document. M3-B's lesson: the index refuses the duplicate even when the function
     -- forgets to look.
     CONSTRAINT receipt_one_per_bill_revision UNIQUE (tenant_id, bill_id, revision),
-    CONSTRAINT receipt_number_unique UNIQUE (tenant_id, receipt_number)
+    CONSTRAINT receipt_number_unique UNIQUE (tenant_id, receipt_number),
+
+    -- NOT A SECOND IDENTITY. (tenant_id, id) is already unique above; this adds the
+    -- currency to that key so a line can reference the pair and inherit the currency
+    -- THROUGH the foreign key rather than by assumption. See docs.receipt_line below.
+    CONSTRAINT receipt_currency_anchor UNIQUE (tenant_id, id, currency_code)
 );
 
 COMMENT ON TABLE docs.receipt IS
@@ -378,11 +383,26 @@ CREATE TABLE docs.receipt_line (
     -- NULL only for payment_method, which is a word rather than a figure.
     amount_minor money.amount_minor,
 
+    -- THE CURRENCY SITS BESIDE THE FIGURE, on the row that carries the figure. A line
+    -- reading "1250" is read alone — in an export, in a support ticket, in a query
+    -- somebody wrote against one table — and 1250 birr and 1250 dollars are the same
+    -- integer. Inheriting the currency from the header is an assumption the row itself
+    -- cannot carry, and M2-A made that rule load-bearing precisely so it would catch a
+    -- table like this one.
+    --
+    -- IT CANNOT DISAGREE WITH THE HEADER, and not because a trigger checks. The foreign
+    -- key below names (tenant_id, receipt_id, currency_code) against the receipt's
+    -- currency anchor, so a line in a currency its receipt is not in has no parent row
+    -- to point at. A constraint carries it; nothing has to remember to look.
+    currency_code char(3) NOT NULL,
+
     CONSTRAINT receipt_line_tenant_id_unique UNIQUE (tenant_id, id),
     CONSTRAINT receipt_line_tenant_fk FOREIGN KEY (tenant_id)
         REFERENCES org.tenant (id) ON DELETE RESTRICT,
-    CONSTRAINT receipt_line_receipt_fk FOREIGN KEY (tenant_id, receipt_id)
-        REFERENCES docs.receipt (tenant_id, id) ON DELETE RESTRICT,
+    CONSTRAINT receipt_line_receipt_fk FOREIGN KEY (tenant_id, receipt_id, currency_code)
+        REFERENCES docs.receipt (tenant_id, id, currency_code) ON DELETE RESTRICT,
+    CONSTRAINT receipt_line_currency_fk FOREIGN KEY (currency_code)
+        REFERENCES money.currency (code) ON DELETE RESTRICT,
     CONSTRAINT receipt_line_label_not_blank CHECK (btrim(label) <> ''),
     CONSTRAINT receipt_line_amount_present_unless_method CHECK (
         (kind = 'payment_method' AND amount_minor IS NULL)
