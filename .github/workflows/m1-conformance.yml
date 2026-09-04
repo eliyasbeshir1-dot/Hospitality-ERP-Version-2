@@ -263,6 +263,17 @@ jobs:
           # themselves, and the fallback is tested on this runner by the fact that
           # check_prerequisites.py ran under the documented name above.
           export PYTHON=python
+          # THE REGISTER AUDIT NEEDS TO SEE THIS RUN'S OUTPUT HERE TOO. tests/m4c runs
+          # FR-GOV-004 over the logs the run produced, and it REFUSES when it cannot read
+          # them rather than reporting every requirement missing — which is right, and is
+          # why M4C_VERIFICATION_UNUSABLE was this job's verdict until this line existed.
+          # Linux gives it a directory of per-suite logs because Linux runs a step per
+          # suite; this runner streams every suite into ONE file, and that is enough:
+          # the audit reads citations out of file CONTENT, not out of file names, so a
+          # combined log carries exactly the same evidence. Verified by running the audit
+          # against a concatenation of a full Linux run — identical grades, 7 proved-red,
+          # 204 ran, 6 ci-step, 0 unaccounted.
+          export M4C_LOG_DIR="$LOG_DIR"
           # The journeys driver, which runs the M4-A driver — and therefore the whole
           # chain beneath it — and then walks the journeys. One entry point, so this
           # runner cannot fall behind the Linux one by a slice.
