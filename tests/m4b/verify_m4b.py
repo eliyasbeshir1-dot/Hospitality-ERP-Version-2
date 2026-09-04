@@ -1926,8 +1926,13 @@ def section_event_shape() -> None:
         SELECT n.nspname || '.' || p.proname
           FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
          WHERE n.nspname NOT IN ('pg_catalog', 'information_schema') AND p.prokind = 'f'
-           AND pg_get_functiondef(p.oid) ~ 'payments\\.payment_event'
-           AND pg_get_functiondef(p.oid) ~* '(publish|emit_to|subscribe|webhook|export)'
+           -- READS IT, rather than merely names it. The first form of this matched
+           -- app.financial_table_class(), which is a CASE over table names and mentions
+           -- both 'payments.payment_event' and 'report.export' as labels — a scan that
+           -- counted a name as a use would report the classification function as a
+           -- subscriber, which is a diagnostic naming something that is not happening.
+           AND pg_get_functiondef(p.oid) ~ '(FROM|JOIN)\\s+payments\\.payment_event'
+           AND pg_get_functiondef(p.oid) ~* '\\m(publish|emit_to|subscribe|webhook)\\M'
          ORDER BY 1;""", dsn=ADMIN)
     record("and nothing in this build consumes them",
            not subscribers,
@@ -2425,8 +2430,21 @@ def section_controls() -> None:
 
     def green_card():
         replace_function(CONTEXT["nc4b001_original"])
-        run(ADMIN, "DELETE FROM payments.terminal_result "
-                   "WHERE terminal_reference = '5555444433332222';")
+        # THE GUARD COMES OFF FOR THE CLEANUP AND GOES STRAIGHT BACK ON. M4-C's
+        # classification found payments.terminal_result append-only in fact and
+        # unenforced, and gave it the trigger it should always have had — which then
+        # refused this DELETE and left the planted card number in the database. A control
+        # that cannot undo itself is a control that damages the run, and the answer is
+        # not to leave a ledger unguarded so a test can tidy up.
+        removed = run(ADMIN, """
+            ALTER TABLE payments.terminal_result
+                DISABLE TRIGGER terminal_result_is_append_only;
+            DELETE FROM payments.terminal_result
+             WHERE terminal_reference = '5555444433332222';
+            ALTER TABLE payments.terminal_result
+                ENABLE TRIGGER terminal_result_is_append_only;""", tx=True)
+        if not removed.ok:
+            raise ProbeFailed("removing NC-M4B-001's planted card number", removed.err)
         ok, _sig, detail = card_gate()
         return (ok, detail)
 

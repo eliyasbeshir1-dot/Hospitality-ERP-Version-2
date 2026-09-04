@@ -506,7 +506,8 @@ def section_snapshot() -> None:
                (SELECT count(*)::text FROM report.shift_snapshot_value v
                  WHERE v.tenant_id = s.tenant_id AND v.snapshot_id = s.id)
           FROM report.shift_snapshot s
-         WHERE s.tenant_id = '{fx.TENANT}' AND s.shift_id = '{shift}';""")
+         WHERE s.tenant_id = '{fx.TENANT}' AND s.shift_id = '{shift}'
+         ORDER BY s.sign_off_number DESC LIMIT 1;""")
     if not snapshot:
         raise CommandUnreadable(
             f"shift {shift} was verified and no snapshot exists. Every check in this "
@@ -620,7 +621,8 @@ def section_recomputation() -> None:
     # correctly, and the control was measuring nothing.
     window = rows(f"""
         SELECT s.window_from::text, s.window_to::text FROM report.shift_snapshot s
-         WHERE s.tenant_id = '{fx.TENANT}' AND s.shift_id = '{shift}';""")
+         WHERE s.tenant_id = '{fx.TENANT}' AND s.shift_id = '{shift}'
+         ORDER BY s.sign_off_number DESC LIMIT 1;""")
     correction = run(APP, f"""
         INSERT INTO billing.tip_correction
             (tenant_id, outlet_id, tip_id, kind, currency_code, amount_minor,
@@ -695,16 +697,24 @@ def section_exports_and_dashboards() -> None:
            and header.startswith("metric,unit,value,currency_code,observation_count"),
            f"status {exported.get('status')}, header {header!r}")
 
-    # THE FR-UX-014 DISTINCTION SURVIVES THE EXPORT. An absent figure is an empty field,
-    # not a zero — a reader opening this in a spreadsheet must be able to tell them apart.
-    empties = [line for line in body.splitlines()[1:]
-               if line.split(",")[2] == "" and '"seconds"' in line]
-    zeroes = [line for line in body.splitlines()[1:] if line.split(",")[2] == "0"]
-    record("and an absent figure exports as an empty field, not as zero",
-           bool(empties) and bool(zeroes),
-           f"{len(empties)} line(s) with no value and {len(zeroes)} with a real zero. "
-           f"A median over no observations and a count of nothing are different facts, "
-           f"and a spreadsheet that showed both as 0 would erase the difference")
+    # THE FR-UX-014 DISTINCTION SURVIVES THE EXPORT, and it is asked over a window where
+    # the distinction actually arises. An export of a busy evening has a value for every
+    # metric — truthfully — so requiring an empty field there would be requiring the data
+    # to be absent. The empty window is where a median has nothing to summarise and a
+    # count still has a real zero, and that is the pair a spreadsheet must be able to tell
+    # apart.
+    quiet = call("GET", "/s/v1/reports/exports/metrics.csv?from=2020-01-01T00:00:00Z"
+                        "&to=2020-01-02T00:00:00Z", token)
+    quiet_lines = (quiet.get("text") or "").splitlines()[1:]
+    empty = [line for line in quiet_lines if line.split(",")[2] == ""]
+    zero = [line for line in quiet_lines if line.split(",")[2] == "0"]
+    record("and over an empty window a median exports as nothing and a count as zero",
+           bool(empty) and bool(zero),
+           f"{len(empty)} line(s) with no value and {len(zero)} with a real zero, out of "
+           f"{len(quiet_lines)}. A median over no observations and a count of nothing are "
+           f"different facts, and a spreadsheet showing both as 0 would erase the "
+           f"difference. Over the live window above, every metric has a value — which is "
+           f"why the distinction is asked here")
 
     recorded = rows(f"""
         SELECT kind::text, row_count::text, catalog_version::text
@@ -1422,8 +1432,8 @@ def section_register_audit() -> None:
            f"judgement the review may overturn as readily as a fix")
 
     proc = run_command([sys.executable,
-                        str(REPO / "tools" / "generate_review_findings.py"), "--check"],
-                       cwd=str(REPO))
+                        str(REPO / "tools" / "generate_review_findings.py"),
+                        "--check", str(findings)], cwd=str(REPO))
     record("and the published findings are a rendering of the audit, not a copy",
            proc.returncode == 0,
            (proc.stdout.strip() or proc.stderr.strip() or "").splitlines()[0]

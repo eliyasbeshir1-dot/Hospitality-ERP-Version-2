@@ -43,6 +43,20 @@ sys.path.insert(0, str(HERE.parent / "m3d"))
 
 import fixtures as fx                                            # noqa: E402
 from pg import ProbeFailed, count, run                           # noqa: E402
+
+# M4-C'S FIXTURES TOO, loaded by path under their own name. The five M4 journeys settle
+# bills, print receipts and read reports, and none of that furniture is M3-D's. An
+# ordinary import would bind whichever "fixtures" module is earliest on sys.path, which
+# is the wall every slice has hit; loading by path is how each of them got past it.
+import importlib.util                                            # noqa: E402
+_m4c_spec = importlib.util.spec_from_file_location(
+    "m4c_fixtures", HERE.parent / "m4c" / "fixtures.py")
+m4c = importlib.util.module_from_spec(_m4c_spec)
+sys.modules["m4c_fixtures"] = m4c
+_m4c_spec.loader.exec_module(m4c)
+
+sys.path.insert(0, str(REPO / "print"))
+import agent as printer                                          # noqa: E402
 from service import Service, WORKSPACE, sync_and_build           # noqa: E402
 
 assert fx.__file__ == str(HERE.parent / "m3d" / "fixtures.py"), \
@@ -251,6 +265,13 @@ def gj_01a() -> None:
 
     placed = seen.get("place the order", {})
     order_id = placed.get("orderId")
+    # WHAT THE M4 JOURNEY CONTINUES. GJ-01B settles THIS session rather than seating a
+    # new guest, because "open the served English table session from GJ-01A" is the step
+    # its brief names, and a fresh table would prove a different thing.
+    if order_id:
+        CONTEXT["GJ-01A"] = {"order": order_id, "session": scalar(
+            f"SELECT table_session_id FROM ordering.customer_order "
+            f"WHERE id = '{order_id}';")}
     record(journey, "the order the guest placed exists in the database",
            bool(order_id) and count(APP, f"""
                SELECT count(*) FROM ordering.customer_order
@@ -334,6 +355,11 @@ def gj_02() -> None:
 
     placed = seen.get("place the order", {})
     order_id = placed.get("orderId")
+    # GJ-02B settles THIS Amharic session, for the reason GJ-01A records above.
+    if order_id:
+        CONTEXT["GJ-02"] = {"order": order_id, "session": scalar(
+            f"SELECT table_session_id FROM ordering.customer_order "
+            f"WHERE id = '{order_id}';")}
     record(journey, "the order carries the language the guest chose",
            bool(order_id) and scalar(f"""
                SELECT customer_locale::text FROM ordering.customer_order
@@ -422,6 +448,11 @@ def gj_03a() -> None:
 
     placed = seen.get("place the order", {})
     order_id = placed.get("orderId")
+    # GJ-03B settles THIS Arabic session.
+    if order_id:
+        CONTEXT["GJ-03A"] = {"order": order_id, "session": scalar(
+            f"SELECT table_session_id FROM ordering.customer_order "
+            f"WHERE id = '{order_id}';")}
     if order_id:
         kitchen = take_order_through_the_kitchen(order_id)
         record(journey, "the kitchen prepares it and the Arabic timeline follows it",
@@ -821,6 +852,583 @@ def concurrency() -> None:
 
 
 # ===========================================================================
+# The M4 journeys: settlement, the receipt, and the paper it goes on
+# ===========================================================================
+# EACH ONE CONTINUES ITS PREDECESSOR'S SESSION rather than opening a fresh one. GJ-01B's
+# steps say "open the served English table session from GJ-01A", and a journey that seated
+# a new guest to settle a bill would be proving that a bill can be settled — not that the
+# guest who walked GJ-01A can pay and leave with paper.
+#
+# THE PRINT IS THE REAL PATH, END TO END: docs.receipt_document() composes, print/agent.py
+# verifies the vendored fonts by checksum, Chromium rasterises at 576 dots, every glyph is
+# checked against the fonts this repository ships, print/escpos.py encodes, and the bytes
+# are written to a CHARACTER DEVICE. What is not proved is the last inch — that a physical
+# machine turned those bytes into legible paper — and that is carried as FR-BIL-017's own
+# open register entry against M5a rather than claimed here.
+
+
+def a_settled_check(journey: str, session: str, *, locale: str, tip_minor: int,
+                    method: str, provider: str) -> dict:
+    """Open a check over a served session, bill it, take the money, and say what happened.
+
+    Through the delivered writers at every step. A bill assembled by hand would be a bill
+    no earlier gate agrees exists, and a receipt issued against it would prove only that
+    docs.receipt accepts rows.
+    """
+    check = scalar(f"""
+        SELECT billing.open_check('{fx.TENANT}', '{fx.OUTLET_H1}', '{session}',
+                                  '{fx.USER}');""")
+    allocated = run(APP, f"""
+        SELECT billing.allocate_to_check('{fx.TENANT}', '{fx.OUTLET_H1}', '{check}',
+                                         l.id, l.quantity::integer)
+          FROM ordering.order_line l
+          JOIN ordering.customer_order o ON o.id = l.order_id
+         WHERE o.table_session_id = '{session}'
+           AND NOT EXISTS (SELECT 1 FROM billing.check_allocation a
+                            WHERE a.order_line_id = l.id);""", **CTX)
+    if not allocated.ok:
+        raise ProbeFailed("allocate_to_check", allocated.err)
+
+    bill = scalar(f"""
+        SELECT billing.issue_bill('{fx.TENANT}', '{fx.OUTLET_H1}', '{check}',
+                                  '{fx.USER}', '{locale}');""")
+    total = int(scalar(f"SELECT bill_total_minor FROM billing.bill WHERE id = '{bill}';"))
+
+    tip_id = None
+    if tip_minor:
+        made = run(APP, f"""
+            SELECT billing.split_equally('{fx.TENANT}', '{bill}', 1);""", tx=True, **CTX)
+        if not made.ok:
+            raise ProbeFailed("billing.split_equally", made.err)
+        share = scalar(f"""
+            SELECT id FROM billing.bill_share WHERE bill_id = '{bill}'
+             ORDER BY share_number LIMIT 1;""")
+        tip_id = scalar(f"""
+            INSERT INTO billing.tip
+                (tenant_id, outlet_id, bill_share_id, currency_code, amount_minor)
+            VALUES ('{fx.TENANT}', '{fx.OUTLET_H1}', '{share}', 'ETB', {tip_minor})
+            RETURNING id;""")
+
+    intent = scalar(f"""
+        SELECT payments.create_intent('{fx.TENANT}', '{fx.OUTLET_H1}', '{bill}',
+            '{journey}-{RUN_NONCE}-intent', {total}, '{m4c.USER_CASHIER}', {tip_minor},
+            {"'" + tip_id + "'" if tip_id else "NULL"});""")
+    return {"check": check, "bill": bill, "total": total, "tip": tip_minor,
+            "tip_id": tip_id, "intent": intent, "method": method, "provider": provider}
+
+
+def print_the_receipt(journey: str, receipt: str, *, is_reprint: bool = False,
+                      reason_code: str | None = None,
+                      reason_text: str | None = None) -> dict:
+    """Compose, rasterise, check every glyph, encode, and write to a character device.
+
+    os.devnull, never a POSIX literal: it is /dev/null on Linux and NUL on Windows, and
+    both are character devices — which is what print/agent.py requires and what makes this
+    a device sink rather than a file that received bytes.
+    """
+    document = json.loads(scalar(
+        f"SELECT docs.receipt_document('{fx.TENANT}', '{receipt}')::text;"))
+    produced = printer.produce(document, sink="device", device_path=os.devnull,
+                               workspace=WORKSPACE)
+    recorded = run(APP, f"""
+        SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}',
+            '{m4c.PRINTER_DEVICE}', 'printed', '{produced["bytes_sha256"]}',
+            {produced["byte_count"]}, '{m4c.USER_CASHIER}', {str(is_reprint).lower()},
+            {"'" + reason_code + "'" if reason_code else "NULL"},
+            {"$r$" + reason_text + "$r$" if reason_text else "NULL"});""",
+        tx=True, **CTX)
+    return {"produced": produced, "recorded": recorded, "document": document}
+
+
+def script_coverage(document: dict, is_script) -> tuple[int, int]:
+    """How many characters of one script the document carries, and how many are covered.
+
+    Read off the RASTER rather than off the string, because a string that contains an
+    Ethiopic codepoint proves nothing about what came out of the rasteriser — which is
+    the whole reason NC-M4-005 exists.
+    """
+    measured = printer.rasterise(document, dots_wide=576, workspace=WORKSPACE)
+    of_the_script = [c for c in measured.get("coverage", [])
+                     if is_script(c["character"])]
+    return (len(of_the_script),
+            sum(1 for c in of_the_script if c["drawnByTheVendoredFont"]))
+
+
+def chain_for(journey: str, order: str) -> list[str]:
+    """Which artifact kinds the correlation chain holds for this order's correlation."""
+    return [r[0] for r in rows(f"""
+        SELECT DISTINCT l.artifact_kind::text
+          FROM ordering.correlation_link l
+         WHERE l.correlation_id = (SELECT correlation_id FROM ordering.customer_order
+                                    WHERE id = '{order}')
+         ORDER BY 1;""", dsn=ADMIN)]
+
+
+def gj_01b() -> None:
+    print("\n--- GJ-01B: English — bill, cash settlement, no tip, receipt, paper ---")
+    journey = "GJ-01B"
+    predecessor = CONTEXT.get("GJ-01A")
+    if not predecessor:
+        raise ProbeFailed("GJ-01B's predecessor",
+                          "GJ-01A left no served session, so there is nothing to settle. "
+                          "A journey that seated a new guest here would be proving that "
+                          "a bill can be settled, not that this guest can pay and leave")
+
+    settled = a_settled_check(journey, predecessor["session"], locale="en",
+                              tip_minor=0, method="cash", provider="cash")
+    captured = run(APP, f"""
+        SELECT payments.record_cash_payment('{fx.TENANT}', '{fx.OUTLET_H1}',
+            '{settled["intent"]}', {settled["total"]}, '{m4c.USER_CASHIER}');""",
+        tx=True, **CTX)
+    record(journey, "the cashier presents the check and settles it in cash",
+           captured.ok,
+           captured.why() or f"bill {settled['bill'][:8]} of {settled['total']} minor "
+                             f"units, tendered exactly, through payments.record_cash_payment()")
+
+    no_tip = count(APP, f"""
+        SELECT count(*) FROM billing.tip t
+          JOIN billing.bill_share s ON s.id = t.bill_share_id
+         WHERE s.bill_id = '{settled["bill"]}';""", **CTX)
+    record(journey, "and the guest left no tip, which is a decision rather than an absence",
+           no_tip == 0,
+           f"{no_tip} tip(s) against this bill. No tip is preselected anywhere — "
+           f"NC-M4-001 — so a guest who chooses nothing has chosen nothing")
+
+    receipt = scalar(f"""
+        SELECT docs.issue_receipt('{fx.TENANT}', '{fx.OUTLET_H1}', '{settled["bill"]}',
+                                  'cash', '{m4c.USER_CASHIER}');""")
+    lines = {r[0]: r[1] for r in rows(f"""
+        SELECT l.kind::text, coalesce(l.amount_minor::text, '-')
+          FROM docs.receipt_line l WHERE l.receipt_id = '{receipt}';""")}
+    record(journey, "the English digital receipt shows bill, tip and total paid separately",
+           lines.get("bill_total") == str(settled["total"])
+           and lines.get("tip") == "0"
+           and lines.get("total_paid") == str(settled["total"])
+           and lines.get("payment_method") == "-",
+           f"{lines}. Three figures, three lines, and the method actually used on a "
+           f"fourth — FR-BIL-010 with FR-BIL-017")
+
+    printed = print_the_receipt(journey, receipt)
+    record(journey, "and it goes on paper through the printer path, once",
+           printed["recorded"].ok
+           and printed["produced"]["outcome"] == "printed"
+           and printed["produced"]["byte_count"] > 0,
+           f"{printed['produced']['byte_count']} ESC/POS bytes to a character device, "
+           f"{printed['produced']['characters_checked']} character(s) each checked "
+           f"against the vendored fonts. What is NOT proved here is that a machine turned "
+           f"them into legible paper: no printer exists on this runner, and that half is "
+           f"FR-BIL-017's own open register entry against M5a")
+
+    again = print_the_receipt(journey, receipt)
+    record(journey, "and a second original print of the same settlement is refused",
+           not again["recorded"].ok,
+           again["recorded"].why() or "one settlement printed twice as an original. A "
+                                      "customer holding two records of one payment is "
+                                      "two payments as far as anybody reading them can "
+                                      "tell")
+
+    kinds = chain_for(journey, predecessor["order"])
+    record(journey, "and check, bill, payment and receipt all hang off the guest's order",
+           {"order", "check", "bill", "payment", "receipt"}.issubset(set(kinds)),
+           f"{kinds}. The audit timeline links back to the order GJ-01A placed, which is "
+           f"what makes this a continuation rather than a second evening")
+
+
+def gj_02b() -> None:
+    print("\n--- GJ-02B: Amharic — bill, tip, verified proof, Ethiopic on paper ---")
+    journey = "GJ-02B"
+    predecessor = CONTEXT.get("GJ-02")
+    if not predecessor:
+        raise ProbeFailed("GJ-02B's predecessor",
+                          "GJ-02 left no served Amharic session to settle")
+
+    settled = a_settled_check(journey, predecessor["session"], locale="am",
+                              tip_minor=2500, method="telebirr_proof",
+                              provider="telebirr_proof")
+    record(journey, "the Amharic check offers a tip box and the guest adds a tip",
+           settled["tip"] > 0 and bool(settled["tip_id"]),
+           f"tip {settled['tip']} minor units on its own share, separate from the bill "
+           f"total of {settled['total']}. FR-BIL-013 keeps the box beside the summary "
+           f"and never inside it, and nothing is preselected")
+
+    # THE PROOF IS PENDING UNTIL A PERSON VERIFIES IT, and the person is read from the
+    # session rather than passed — M4-B's NC-M4-004, reached here through settlement.
+    proof = scalar(f"""
+        SELECT payments.raise_proof('{fx.TENANT}', '{fx.OUTLET_H1}', 'telebirr_proof',
+            'ETB', {settled["total"] + settled["tip"]}, '{journey}-{RUN_NONCE}');""")
+    premature = run(APP, f"""
+        SELECT payments.record_proof_payment('{fx.TENANT}', '{fx.OUTLET_H1}',
+            '{settled["intent"]}', '{proof}', {settled["total"] + settled["tip"]},
+            '{m4c.USER_CASHIER}');""", tx=True, **CTX)
+    record(journey, "an unverified proof cannot settle anything",
+           not premature.ok,
+           premature.why() or "money was recorded as received on a claim nobody had "
+                              "checked in the provider's own app")
+
+    verifier, _token = m4c.staff_session(m4c.USER_FINANCE_MANAGER)
+    verified = run(APP, f"""
+        SELECT payments.verify_proof('{fx.TENANT}', '{proof}',
+            $w$the amount and the reference matched the provider app on my own screen$w$);""",
+        tx=True, session=verifier, **CTX)
+    captured = run(APP, f"""
+        SELECT payments.record_proof_payment('{fx.TENANT}', '{fx.OUTLET_H1}',
+            '{settled["intent"]}', '{proof}', {settled["total"] + settled["tip"]},
+            '{m4c.USER_CASHIER}');""", tx=True, **CTX)
+    record(journey, "and once a named person verifies it in the provider's app, it settles",
+           verified.ok and captured.ok,
+           f"{verified.why() or 'verified'}; {captured.why() or 'captured'}. The "
+           f"verifier is whoever owns the session in context, so there is no parameter "
+           f"by which somebody could attest on another person's behalf")
+
+    receipt = scalar(f"""
+        SELECT docs.issue_receipt('{fx.TENANT}', '{fx.OUTLET_H1}', '{settled["bill"]}',
+                                  'telebirr_proof', '{m4c.USER_CASHIER}');""")
+    labels = [r[0] for r in rows(f"""
+        SELECT l.label FROM docs.receipt_line l WHERE l.receipt_id = '{receipt}';""")]
+    record(journey, "the receipt is in Amharic, every line",
+           bool(labels) and all(any(is_ethiopic(ch) for ch in label) for label in labels),
+           f"{len(labels)} line(s), all carrying Ethiopic script. 0027 refuses a "
+           f"non-English receipt whose label is the English source text, so a partial "
+           f"translation cannot reach paper")
+
+    printed = print_the_receipt(journey, receipt)
+    present, covered = script_coverage(printed["document"], is_ethiopic)
+    record(journey, "and every Ethiopic glyph on the paper came from the packaged font",
+           present > 0 and covered == present,
+           f"{covered} of {present} Ethiopic codepoint(s) drawn by the vendored fonts, "
+           f"read off the RASTER the printer receives rather than off the string. A "
+           f"receipt is paper: a customer cannot ask it to render again")
+    record(journey, "and the bytes reached a character device",
+           printed["recorded"].ok and printed["produced"]["outcome"] == "printed",
+           f"{printed['produced']['byte_count']} bytes. The M4 print proves a real path "
+           f"to a device and claims no durable queue, no retry and no outage resilience — "
+           f"all of which are M5a's")
+
+
+def gj_03b() -> None:
+    print("\n--- GJ-03B: Arabic RTL — bill, tip, terminal payment, Arabic on paper ---")
+    journey = "GJ-03B"
+    predecessor = CONTEXT.get("GJ-03A")
+    if not predecessor:
+        raise ProbeFailed("GJ-03B's predecessor",
+                          "GJ-03A left no served Arabic session to settle")
+
+    settled = a_settled_check(journey, predecessor["session"], locale="ar",
+                              tip_minor=1800, method="external_terminal",
+                              provider="external_terminal")
+    slip = scalar(f"""
+        SELECT payments.record_terminal_result('{fx.TENANT}', '{fx.OUTLET_H1}',
+            '{journey}-{RUN_NONCE}', 'visa', 'ETB', {settled["total"] + settled["tip"]},
+            'approved', '{m4c.USER_CASHIER}', '4242', 'A{RUN_NONCE[:5]}');""")
+    captured = run(APP, f"""
+        SELECT payments.record_terminal_payment('{fx.TENANT}', '{fx.OUTLET_H1}',
+            '{settled["intent"]}', '{slip}', {settled["total"] + settled["tip"]},
+            '{m4c.USER_CASHIER}');""", tx=True, **CTX)
+    record(journey, "the guest chooses a tip and pays on a permitted live method",
+           captured.ok and settled["tip"] > 0,
+           f"{captured.why() or 'captured'} against an external terminal slip carrying a "
+           f"scheme and four digits and no card number anywhere")
+
+    receipt = scalar(f"""
+        SELECT docs.issue_receipt('{fx.TENANT}', '{fx.OUTLET_H1}', '{settled["bill"]}',
+                                  'external_terminal', '{m4c.USER_CASHIER}');""")
+    figures = {r[0]: r[1] for r in rows(f"""
+        SELECT l.kind::text, coalesce(l.amount_minor::text, '-')
+          FROM docs.receipt_line l WHERE l.receipt_id = '{receipt}';""")}
+    record(journey, "the Arabic receipt keeps bill, tip and total paid apart",
+           figures.get("bill_total") == str(settled["total"])
+           and figures.get("tip") == str(settled["tip"])
+           and figures.get("total_paid") == str(settled["total"] + settled["tip"]),
+           f"{figures}. Total paid is the one line that adds the two, because it is the "
+           f"figure describing the money that changed hands")
+
+    printed = print_the_receipt(journey, receipt)
+    arabic_present, arabic_covered = script_coverage(printed["document"], is_arabic)
+    latin = [c for c in printer.rasterise(printed["document"], dots_wide=576,
+                                          workspace=WORKSPACE)["coverage"]
+             if c["character"].isascii() and c["character"].isalnum()]
+    record(journey, "Arabic and the Latin currency code are both drawn by the packaged fonts",
+           arabic_present > 0 and arabic_covered == arabic_present
+           and bool(latin) and all(c["drawnByTheVendoredFont"] for c in latin),
+           f"{arabic_covered} of {arabic_present} Arabic codepoint(s) and {len(latin)} "
+           f"Latin one(s), none falling back. Mixed script on one receipt is the case "
+           f"that found the Ethiopic-only font set: the coverage check reported the "
+           f"vendored font as having drawn nothing for every Arabic character, which is "
+           f"exactly what it exists to report")
+    record(journey, "and the bytes reached a character device",
+           printed["recorded"].ok,
+           printed["recorded"].why() or f"{printed['produced']['byte_count']} bytes. "
+                                        f"Durable local print recovery is reserved for "
+                                        f"M5a and is not claimed here")
+
+
+def gj_06() -> None:
+    print("\n--- GJ-06: a check split by item, two payers, two tips, two receipts ---")
+    journey = "GJ-06"
+    predecessor = CONTEXT.get("GJ-01A")
+    if not predecessor:
+        raise ProbeFailed("GJ-06's predecessor",
+                          "no served order exists to split. GJ-06 needs at least one")
+
+    # A FRESH SERVED TABLE with two dishes, because a split by item needs two items to
+    # split. Built through the same helpers every earlier journey uses.
+    session = m4c.m4a.fresh_occupancy(m4c.m4b.PAY_TABLE)
+    guest = m4c.m4a.guest_on(session)
+    cart = m4c.m4a.cart_with(session, guest,
+                             ((m4c.VARIANT_DORO_FULL, m4c.ITEM_DORO, 1),
+                              (m4c.m4b.VARIANT_TIBS_ONE, m4c.m4b.ITEM_TIBS, 1)))
+    view = json.loads(scalar(f"""
+        SELECT ordering.preview_cart('{fx.TENANT}', '{fx.OUTLET_H1}', '{cart}',
+                                     'en', 'dine_in');"""))
+    order = scalar(f"""
+        SELECT ordering.submit_order(
+            '{fx.TENANT}', '{fx.OUTLET_H1}', '{cart}', '{journey}-{RUN_NONCE}',
+            decode('{view["pricing_digest"]}', 'hex'), {view["total_amount_minor"]},
+            'en', gen_random_uuid(), gen_random_uuid(), 'guest_qr',
+            NULL, '{guest}', false, '[]'::jsonb, '[]'::jsonb, 'dine_in');""")
+    accepted = run(APP, f"""
+        SELECT ordering.accept_order('{fx.TENANT}', '{order}', '{fx.USER}');""", **CTX)
+    if not accepted.ok:
+        raise ProbeFailed("accept_order", accepted.err)
+
+    check = scalar(f"""
+        SELECT billing.open_check('{fx.TENANT}', '{fx.OUTLET_H1}', '{session}',
+                                  '{fx.USER}');""")
+    allocated = run(APP, f"""
+        SELECT billing.allocate_to_check('{fx.TENANT}', '{fx.OUTLET_H1}', '{check}',
+                                         l.id, l.quantity::integer)
+          FROM ordering.order_line l WHERE l.order_id = '{order}';""", **CTX)
+    if not allocated.ok:
+        raise ProbeFailed("allocate_to_check", allocated.err)
+
+    # SPLIT THE CHECK BY ITEM, which is what gives each payer a document of their own.
+    # One bill cannot carry two receipts — docs.receipt is unique on (bill, revision) —
+    # and that is correct: two receipts for one bill would be two records of one payment.
+    first_line = scalar(f"""
+        SELECT l.id FROM ordering.order_line l WHERE l.order_id = '{order}'
+         ORDER BY l.line_number LIMIT 1;""")
+    second_check = scalar(f"""
+        SELECT billing.split_check('{fx.TENANT}', '{fx.OUTLET_H1}', '{check}',
+            ARRAY['{first_line}']::uuid[], '{fx.USER}');""")
+    record(journey, "the check splits by item into one document per payer",
+           bool(second_check) and second_check != check,
+           f"checks {check[:8]} and {second_check[:8]}, each holding the lines its payer "
+           f"is settling. FR-BIL-004's by-item split, through the delivered writer")
+
+    payers = []
+    for label, source, tip_minor, method in (("A", check, 0, "cash"),
+                                             ("B", second_check, 1500, "external_terminal")):
+        bill = scalar(f"""
+            SELECT billing.issue_bill('{fx.TENANT}', '{fx.OUTLET_H1}', '{source}',
+                                      '{fx.USER}', 'en');""")
+        total = int(scalar(
+            f"SELECT bill_total_minor FROM billing.bill WHERE id = '{bill}';"))
+        tip_id = None
+        if tip_minor:
+            made = run(APP, f"""
+                SELECT billing.split_equally('{fx.TENANT}', '{bill}', 1);""",
+                tx=True, **CTX)
+            if not made.ok:
+                raise ProbeFailed("billing.split_equally", made.err)
+            share = scalar(f"""
+                SELECT id FROM billing.bill_share WHERE bill_id = '{bill}'
+                 ORDER BY share_number LIMIT 1;""")
+            tip_id = scalar(f"""
+                INSERT INTO billing.tip
+                    (tenant_id, outlet_id, bill_share_id, currency_code, amount_minor)
+                VALUES ('{fx.TENANT}', '{fx.OUTLET_H1}', '{share}', 'ETB', {tip_minor})
+                RETURNING id;""")
+        intent = scalar(f"""
+            SELECT payments.create_intent('{fx.TENANT}', '{fx.OUTLET_H1}', '{bill}',
+                '{journey}-{RUN_NONCE}-{label}', {total}, '{m4c.USER_CASHIER}',
+                {tip_minor}, {"'" + tip_id + "'" if tip_id else "NULL"});""")
+        if method == "cash":
+            paid = run(APP, f"""
+                SELECT payments.record_cash_payment('{fx.TENANT}', '{fx.OUTLET_H1}',
+                    '{intent}', {total + tip_minor}, '{m4c.USER_CASHIER}');""",
+                tx=True, **CTX)
+        else:
+            slip = scalar(f"""
+                SELECT payments.record_terminal_result('{fx.TENANT}', '{fx.OUTLET_H1}',
+                    '{journey}-{RUN_NONCE}-{label}', 'visa', 'ETB', {total + tip_minor},
+                    'approved', '{m4c.USER_CASHIER}', '4242', 'B{RUN_NONCE[:5]}');""")
+            paid = run(APP, f"""
+                SELECT payments.record_terminal_payment('{fx.TENANT}', '{fx.OUTLET_H1}',
+                    '{intent}', '{slip}', {total + tip_minor}, '{m4c.USER_CASHIER}');""",
+                tx=True, **CTX)
+        if not paid.ok:
+            raise ProbeFailed(f"payer {label} settling", paid.err)
+        receipt = scalar(f"""
+            SELECT docs.issue_receipt('{fx.TENANT}', '{fx.OUTLET_H1}', '{bill}',
+                                      '{method}', '{m4c.USER_CASHIER}');""")
+        payers.append({"label": label, "bill": bill, "total": total, "tip": tip_minor,
+                       "method": method, "receipt": receipt})
+
+    allocations = rows(f"""
+        SELECT a.target::text, a.amount_minor::text
+          FROM payments.allocation a
+          JOIN billing.bill b ON b.id = a.bill_id
+         WHERE b.check_id IN ('{check}', '{second_check}')
+         UNION ALL
+        SELECT a.target::text, a.amount_minor::text
+          FROM payments.allocation a
+          JOIN billing.tip t ON t.id = a.tip_id
+          JOIN billing.bill_share s ON s.id = t.bill_share_id
+          JOIN billing.bill b ON b.id = s.bill_id
+         WHERE b.check_id IN ('{check}', '{second_check}')
+         ORDER BY 1, 2;""")
+    to_balance = sum(int(a[1]) for a in allocations if a[0] == "bill_balance")
+    to_tip = sum(int(a[1]) for a in allocations if a[0] == "tip")
+    record(journey, "each payment allocates to the bill and to the tip independently",
+           to_balance == sum(p["total"] for p in payers)
+           and to_tip == sum(p["tip"] for p in payers),
+           f"{to_balance} to bill balances against {sum(p['total'] for p in payers)} "
+           f"billed, and {to_tip} to tips against {sum(p['tip'] for p in payers)} given. "
+           f"Two allocations per payment, stored rather than recomputed")
+
+    record(journey, "and payer A left no tip while payer B chose one",
+           payers[0]["tip"] == 0 and payers[1]["tip"] > 0,
+           f"A: {payers[0]['tip']}, B: {payers[1]['tip']}. Nothing is selected by "
+           f"default, so the difference is two decisions rather than one setting")
+
+    for payer in payers:
+        printed = print_the_receipt(journey, payer["receipt"])
+        again = print_the_receipt(journey, payer["receipt"])
+        record(journey, f"payer {payer['label']}'s receipt is produced exactly once",
+               printed["recorded"].ok and not again["recorded"].ok,
+               f"{printed['produced']['byte_count']} bytes printed; a second original "
+               f"was refused: {again['recorded'].why() or 'IT WAS NOT'}. Each payer "
+               f"holds one record of their own payment")
+
+
+def gj_07() -> None:
+    print("\n--- GJ-07: self-approval refused, step-up, reversal, refund, reprint ---")
+    journey = "GJ-07"
+
+    # A SETTLED BILL WITH A TIP, on its own table, because this journey takes money back
+    # and must not unwind a bill another journey is asserting about.
+    session = m4c.m4a.fresh_occupancy(m4c.RECEIPT_TABLE)
+    guest = m4c.m4a.guest_on(session)
+    cart = m4c.m4a.cart_with(session, guest, ((m4c.VARIANT_DORO_FULL, m4c.ITEM_DORO, 1),))
+    view = json.loads(scalar(f"""
+        SELECT ordering.preview_cart('{fx.TENANT}', '{fx.OUTLET_H1}', '{cart}',
+                                     'en', 'dine_in');"""))
+    order = scalar(f"""
+        SELECT ordering.submit_order(
+            '{fx.TENANT}', '{fx.OUTLET_H1}', '{cart}', '{journey}-{RUN_NONCE}',
+            decode('{view["pricing_digest"]}', 'hex'), {view["total_amount_minor"]},
+            'en', gen_random_uuid(), gen_random_uuid(), 'guest_qr',
+            NULL, '{guest}', false, '[]'::jsonb, '[]'::jsonb, 'dine_in');""")
+    accepted = run(APP, f"""
+        SELECT ordering.accept_order('{fx.TENANT}', '{order}', '{fx.USER}');""", **CTX)
+    if not accepted.ok:
+        raise ProbeFailed("accept_order", accepted.err)
+
+    settled = a_settled_check(journey, session, locale="en", tip_minor=2000,
+                              method="cash", provider="cash")
+    paid = run(APP, f"""
+        SELECT payments.record_cash_payment('{fx.TENANT}', '{fx.OUTLET_H1}',
+            '{settled["intent"]}', {settled["total"] + settled["tip"]},
+            '{m4c.USER_CASHIER}');""", tx=True, **CTX)
+    if not paid.ok:
+        raise ProbeFailed("settling GJ-07's bill", paid.err)
+
+    receipt = scalar(f"""
+        SELECT docs.issue_receipt('{fx.TENANT}', '{fx.OUTLET_H1}', '{settled["bill"]}',
+                                  'cash', '{m4c.USER_CASHIER}');""")
+    print_the_receipt(journey, receipt)
+
+    # THE CASHIER TRIES TO APPROVE THEIR OWN REFUND, from their own session.
+    cashier_session, _t = m4c.staff_session(m4c.USER_CASHIER)
+    reason = m4c.reason_code("M4B_REFUND_AUTHORIZED")
+    self_approved = run(APP, f"""
+        SELECT set_config('app.auth_strength', 'strong', false);
+        SELECT pos.approve_override('{fx.TENANT}', '{fx.OUTLET_H1}', 'payment.refund',
+            '{cashier_session}', '{reason}', 'bill', '{settled["bill"]}',
+            $r$I am refunding this myself$r$);""",
+        tx=True, session=cashier_session, **CTX)
+    record(journey, "a cashier cannot approve their own refund",
+           not self_approved.ok,
+           self_approved.why() or "the cashier authorized their own refund. Maker-checker "
+                                  "is the whole of NC-M4-004, and an audit trail in which "
+                                  "the compliant case and the violation are identical is "
+                                  "no audit trail")
+
+    # THE MANAGER STEPS UP, from their own session, for this purpose.
+    manager_session, _t = m4c.staff_session(m4c.USER_FINANCE_MANAGER)
+    m4c.step_up(manager_session, "payment.refund")
+    override = run(APP, f"""
+        SELECT set_config('app.auth_strength', 'strong', false);
+        SELECT pos.approve_override('{fx.TENANT}', '{fx.OUTLET_H1}', 'payment.refund',
+            '{manager_session}', '{reason}', 'bill', '{settled["bill"]}',
+            $r$the guest was charged for a dish they returned$r$);""",
+        tx=True, session=cashier_session, **CTX)
+    approval = (override.rows[-1][0] if override.ok and override.rows else "").strip()
+    record(journey, "and a manager's purpose-specific step-up authorizes it",
+           override.ok and bool(approval),
+           override.why() or f"override {approval[:8]} for payment.refund on this bill, "
+                             f"granted from the manager's own session after a step-up "
+                             f"that names the action")
+
+    # THE BILL ALLOCATION AND THE TIP ARE REVERSED SEPARATELY, which is FR-BIL-016's
+    # sharp edge: a tip given back is not a smaller tip.
+    allocation = scalar(f"""
+        SELECT a.id FROM payments.allocation a
+         WHERE a.bill_id = '{settled["bill"]}' AND a.target = 'bill_balance' LIMIT 1;""")
+    reversed_bill = run(APP, f"""
+        SELECT payments.reverse_allocation('{fx.TENANT}', '{fx.OUTLET_H1}',
+            '{allocation}', 'refund', 500,
+            '{m4c.reason_code("M4B_GUEST_REFUNDED")}', $r$a dish was returned$r$,
+            '{m4c.USER_CASHIER}', '{approval}');""", tx=True, **CTX)
+    corrected_tip = run(APP, f"""
+        INSERT INTO billing.tip_correction
+            (tenant_id, outlet_id, tip_id, kind, currency_code, amount_minor,
+             override_id, reason_code_id, reason_text, actor_user_id)
+        VALUES ('{fx.TENANT}', '{fx.OUTLET_H1}', '{settled["tip_id"]}', 'refund', 'ETB',
+                500, '{approval}', '{m4c.reason_code("M4B_TIP_RETURNED")}',
+                $r$the guest asked for part of the tip back$r$, '{m4c.USER_CASHIER}');""",
+        tx=True, **CTX)
+    record(journey, "the bill and the tip are corrected as two independent records",
+           reversed_bill.ok and corrected_tip.ok,
+           f"{reversed_bill.why() or 'allocation partly reversed'}; "
+           f"{corrected_tip.why() or 'tip partly refunded'}. Each names its own reason "
+           f"code and the one approval that authorized it, and neither touches the other")
+
+    # THE CORRECTED RECEIPT: a new REVISION, not an edit, printed and marked.
+    reissued = scalar(f"""
+        SELECT docs.reissue_receipt('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}',
+                                    '{m4c.USER_CASHIER}');""")
+    revisions = rows(f"""
+        SELECT r.revision::text, r.receipt_number FROM docs.receipt r
+         WHERE r.bill_id = '{settled["bill"]}' ORDER BY r.revision;""")
+    record(journey, "the corrected receipt is a new revision with its own number",
+           len(revisions) == 2 and revisions[0][1] != revisions[1][1],
+           f"{revisions}. docs.receipt is append-only: a correction is a further document "
+           f"rather than an edit of the one the customer is holding")
+
+    marked = print_the_receipt(journey, reissued, is_reprint=True,
+                              reason_code=m4c.reason_code("M4C_RECEIPT_REISSUE"),
+                              reason_text="the settlement was corrected after printing")
+    audit = rows(f"""
+        SELECT a.is_reprint::text, (a.reason_code_id IS NOT NULL)::text,
+               (a.operator_user_id IS NOT NULL)::text
+          FROM docs.print_attempt a WHERE a.receipt_id = '{reissued}';""")
+    record(journey, "and its print is marked, with an operator and a reason",
+           marked["recorded"].ok and audit and audit[0] == ["true", "true", "true"],
+           f"{audit}. FR-BIL-011: a reprint carries both, and the CHECK forbids a reason "
+           f"on an original — so 'reprint' cannot be a word somebody typed")
+
+    untouched = rows(f"""
+        SELECT count(*)::text FROM docs.print_attempt a
+         WHERE a.receipt_id = '{receipt}' AND NOT a.is_reprint;""")
+    record(journey, "and the first receipt's own record is unchanged",
+           untouched and untouched[0][0] == "1",
+           f"{untouched[0][0] if untouched else '?'} original print against the first "
+           f"revision. The customer's copy is still what it was; the correction is a "
+           f"second document and a second print, both auditable")
+
+
+# ===========================================================================
 # main
 # ===========================================================================
 
@@ -830,6 +1438,11 @@ JOURNEYS = (
     ("GJ-03A", gj_03a),
     ("GJ-04", gj_04),
     ("GJ-05", gj_05),
+    ("GJ-01B", gj_01b),
+    ("GJ-02B", gj_02b),
+    ("GJ-03B", gj_03b),
+    ("GJ-06", gj_06),
+    ("GJ-07", gj_07),
     ("FR-TST-007A", concurrency),
 )
 
@@ -847,8 +1460,12 @@ def main() -> int:
     print()
     print("=" * 74)
 
-    fx.seed()
-    print("fixtures seeded: the M3-D floor, on the whole chain beneath it")
+    # M4-C'S SEED, WHICH CHAINS THE WHOLE FLOOR BENEATH IT — M4-B, M4-A, M3-D and down.
+    # The five M4 journeys need a registered printer, receipt wording in three locales and
+    # a till; the five before them need what they always needed, and get it from the same
+    # call because every fixture in the chain is idempotent.
+    m4c.seed()
+    print("fixtures seeded: the M4-C floor, on the whole chain beneath it")
 
     sync_and_build()
 

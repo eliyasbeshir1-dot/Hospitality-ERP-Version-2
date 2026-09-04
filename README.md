@@ -22,6 +22,7 @@
 | **M3-D** | the waiter surface: terminals, role home and table view, waiter-entered ordering on the one order aggregate, operational search, manager override without shared credentials, and handover | `40f86ca` |
 | **M4-A** | checks and allocation that cannot bill a unit twice, exact calculation carrying a persisted version, five split modes with deterministic rounding, merge and split of checks, tips kept structurally out of every bill balance, and the counter channel on the same order aggregate | `7593357` |
 | **M4-B** | payment capture, verification and reversal: a live/simulated boundary held by a derived mode, two distinct outcome types and a refusal at the write; cash with change computed in the database; an external terminal's result with no card data anywhere; Telebirr and CBE Birr proof attested by a named person on their own session; separate bill and tip allocations that are stored rather than recomputed; independently reversible refunds under maker-checker; and cash shifts a reopened drawer cannot quietly close | `184a008` |
+| **M4-C** | the receipt and the report: a digital receipt in the bill's own language showing bill total, optional tip and total paid as three lines; a printer path that composes, rasterises and encodes to ESC/POS with every glyph checked against the fonts this repository ships; one original print per settlement and a reprint that carries its operator and its reason; a print preview built by the same composer as the receipt; a printer that must be tested before it can print for a customer; a fiscal-document port with no provider's schema inside it; counter orders bound to the POS terminal they were entered at; a metric catalog that IS the metrics, readings that carry their source and their freshness, a shift snapshot no recomputation can rewrite, and the FR-GOV-004 audit of every requirement whose gate has landed | `unreleased` |
 
 The M1 evidence report is at `evidence/M1_EVIDENCE_REPORT.md`.
 
@@ -73,6 +74,7 @@ not have, or is still open after its completing gate has landed.
 | **FR-BIL-008** | settlement by tender | M4-B |
 | **FR-BIL-014** | total tendered | M4-B |
 | **FR-BIL-016** | tip refund through a provider | M4-B |
+| **FR-BIL-017** | paper out of a physical machine | M5a |
 | **FR-CFG-001C** | permitted payment methods | M4-B |
 | **FR-DAT-008B** | receipts in the financial ledgers | M4-C |
 | **FR-DAT-010** | financial projections | M4-A |
@@ -132,7 +134,7 @@ position is to write fresh.
 
 | Path | Contents |
 |---|---|
-| `api/` | the cloud API — Fastify and TypeScript, two runtime dependencies, serving `api`, `billing`, `customer`, `health`, `payments`, `service`, `staff`, `station` and `surface` |
+| `api/` | the cloud API — Fastify and TypeScript, two runtime dependencies, serving `api`, `billing`, `customer`, `documents`, `health`, `payments`, `reports`, `service`, `staff`, `station` and `surface` |
 | `docs/` | the approved v2.0.9 package, byte-identical and verified by its own `SHA256SUMS.txt` |
 | `docs-local/` | cross-platform command reference |
 | `evidence/` | `M1_EVIDENCE_REPORT.md`, generated from the repository, database and suite logs |
@@ -141,7 +143,7 @@ position is to write fresh.
 | `print/` | the print agent: the receipt rasteriser, the ESC/POS encoder, and the font it ships rather than resolves from the host |
 | `schema/` | `SCHEMA_CATALOG.md`, generated from the live database, never hand-written |
 | `seeds/` | demonstration tenants and reason-code sets, with their own ordered record |
-| `tests/` | verification suites — 13 that each verify one slice, and 2 that cut across gates |
+| `tests/` | verification suites — 14 that each verify one slice, and 2 that cut across gates |
 | `tools/` | migration and seed runners, generators, and the forbidden-surface verifier |
 
 ## Third-party assets, and what shipping them obliges
@@ -159,7 +161,8 @@ against the file on every run, and the print agent refuses to render if the two 
 
 | Asset | Licence | sha256 |
 |---|---|---|
-| `print/fonts/NotoSansEthiopic-Regular.ttf` | SIL Open Font License 1.1 — `OFL-1.1.txt` beside this file | `6d66ffc7a4a33f95…` |
+| `print/fonts/NotoSansArabic-Regular.ttf` | SIL Open Font License 1.1 | `146b2193f4aee343…` |
+| `print/fonts/NotoSansEthiopic-Regular.ttf` | SIL Open Font License 1.1 | `6d66ffc7a4a33f95…` |
 
 ## Migrations
 
@@ -193,6 +196,8 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0026_translatable_receipt_wording.sql`
 - `0027_receipts_printing_and_the_document_path.sql`
 - `0028_financial_table_classification_and_the_fiscal_port.sql`
+- `0029_reporting_metrics_snapshots_and_exports.sql`
+- `0030_receipt_composition_preview_and_the_counter_terminal.sql`
 
 ## Seeds
 
@@ -227,6 +232,7 @@ bash tests/m1d/run_verification.sh         # rebuilds from empty, runs every sli
 | `tests/m3d/verify_m3d.py` | the waiter surface rendered in a real browser: terminals and their revocation, role home ordered by what is overdue, waiter-entered ordering proved to be the same code path as QR ordering rather than a second one that agrees, manager override that cannot be obtained by sharing a credential, handover that cannot lose a table, and confirmation friction graded by consequence and measured by pressing the buttons |
 | `tests/m4a/verify_m4a.py` | checks, bills and tips: allocation that cannot bill a unit twice across a set of checks, every component recomputed independently and compared, five split modes exercised at payer counts that do not divide evenly, tip separation proved from the catalog before it is proved by behaviour, and the bill summary and tip box measured as two rectangles in a real browser |
 | `tests/m4b/verify_m4b.py` | payment and the drawer: a simulated result proved unable to become a live one from the catalog before it is attempted through the real route, change and allocations recomputed in Python and required to match, card data refused at the write on every textual column the catalog knows about, the cash path proved to have no outbound dependency anywhere in its transitive call graph, and a reopened cash shift that cannot reach a terminal state without a recount and somebody else's approval |
+| `tests/m4c/verify_m4c.py` | the receipt and the report: every figure on a receipt compared against its own source at the write, an Amharic and an Arabic receipt rasterised by the printer path and checked per glyph against the fonts this repository ships, one original print per settlement refused twice over, a preview proved to be the same composer as the receipt, a signed-off shift snapshot proved unrewritable by a grant, by the source and by the attempt, an empty window proved to report nothing rather than zero where zero would be an invention, and the FR-GOV-004 audit of every requirement whose gate has landed |
 
 Every suite runs against a real PostgreSQL through the least-privileged application role,
 and every negative control is proved red with a defect planted before it is trusted green.

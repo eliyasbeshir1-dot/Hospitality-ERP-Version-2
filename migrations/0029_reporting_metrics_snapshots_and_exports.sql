@@ -775,11 +775,21 @@ CREATE TABLE report.shift_snapshot (
     CONSTRAINT shift_snapshot_window_ordered CHECK (window_to > window_from),
     CONSTRAINT shift_snapshot_digest_is_a_digest CHECK (content_digest ~ '^[0-9a-f]{64}$'),
 
-    -- ONE SNAPSHOT PER SHIFT. A shift that is reopened and signed off again does not get
-    -- a second snapshot silently: this refuses it, and the recomputation record below is
-    -- where the second reading goes. A second snapshot would mean two signed-off answers
-    -- with no statement of which one was signed.
-    CONSTRAINT shift_snapshot_one_per_shift UNIQUE (tenant_id, shift_id),
+    -- ONE SNAPSHOT PER SIGN-OFF, NOT PER SHIFT, and the difference is FR-CSH-006's.
+    -- A drawer that is reopened is verified AGAIN, by somebody, at a later instant, and
+    -- that second verification is a second signed-off answer — it does not overwrite the
+    -- first and it is not an error. An earlier version of this made it UNIQUE per shift,
+    -- and the reopen-and-resolve path stopped working: the second verification was
+    -- refused by the snapshot, which is a reporting table deciding whether a cash shift
+    -- may close. NC-M4-006 caught it.
+    --
+    -- What must be impossible is two signed-off answers with nothing saying which was
+    -- signed, and the ordinal is what says: sign-off 1 and sign-off 2, each with its own
+    -- signer and its own instant, in order.
+    sign_off_number integer NOT NULL,
+    CONSTRAINT shift_snapshot_sign_off_positive CHECK (sign_off_number >= 1),
+    CONSTRAINT shift_snapshot_one_per_sign_off
+        UNIQUE (tenant_id, shift_id, sign_off_number),
 
     -- The currency anchor a value row keys to, so a value cannot be denominated in a
     -- currency its snapshot is not in. Not a second identity: (tenant_id, id) is unique
@@ -989,6 +999,7 @@ DECLARE
     v_snapshot_id uuid := gen_random_uuid();
     v_readings report.reading[];
     v_digest char(64);
+    v_sign_off integer;
     r report.reading;
 BEGIN
     -- The window is the shift: from when the drawer was opened to the instant it was
@@ -1005,10 +1016,15 @@ BEGIN
       INTO v_digest
       FROM unnest(v_readings) v;
 
+    SELECT coalesce(max(s.sign_off_number), 0) + 1 INTO v_sign_off
+      FROM report.shift_snapshot s
+     WHERE s.tenant_id = NEW.tenant_id AND s.shift_id = NEW.id;
+
     INSERT INTO report.shift_snapshot
-        (id, tenant_id, outlet_id, shift_id, catalog_version, currency_code,
-         window_from, window_to, signed_off_by_user_id, signed_off_at, content_digest)
-    VALUES (v_snapshot_id, NEW.tenant_id, NEW.outlet_id, NEW.id,
+        (id, tenant_id, outlet_id, shift_id, sign_off_number, catalog_version,
+         currency_code, window_from, window_to, signed_off_by_user_id, signed_off_at,
+         content_digest)
+    VALUES (v_snapshot_id, NEW.tenant_id, NEW.outlet_id, NEW.id, v_sign_off,
             report.catalog_version(), NEW.currency_code,
             NEW.opened_at, NEW.verified_at,
             NEW.verified_by_user_id, NEW.verified_at, v_digest);
@@ -1034,10 +1050,10 @@ COMMENT ON FUNCTION report.take_shift_snapshot() IS
     'is short a metric or does not match its seal.';
 
 -- WHEN, precisely. Only on the edge INTO 'verified', so a shift that is finalized or
--- resolved afterwards does not take a second one. A reopened shift's re-verification is
--- refused by shift_snapshot_one_per_shift — deliberately, because two signed-off answers
--- with nothing saying which was signed is the ambiguity FR-RPT-014 exists to prevent, and
--- the second reading belongs in the recomputation record below.
+-- resolved afterwards does not take a second one. A REOPENED shift that is verified again
+-- DOES take another, numbered one higher: that is a second sign-off by a second person at
+-- a second instant, and refusing it would make a reporting table decide whether a cash
+-- drawer may close.
 CREATE TRIGGER shift_snapshot_taken_at_sign_off
     AFTER UPDATE OF state ON cash.shift
     FOR EACH ROW
@@ -1133,8 +1149,11 @@ DECLARE
     v_diverged boolean;
     v_readings report.reading[];
 BEGIN
+    -- THE LATEST SIGN-OFF. A reopened drawer has more than one, and the question
+    -- "was this shift's result quietly rewritten" is about the answer that stands.
     SELECT * INTO s FROM report.shift_snapshot
-     WHERE tenant_id = p_tenant_id AND shift_id = p_shift_id;
+     WHERE tenant_id = p_tenant_id AND shift_id = p_shift_id
+     ORDER BY sign_off_number DESC LIMIT 1;
     IF NOT FOUND THEN
         RAISE EXCEPTION
             'SNAPSHOT_NOT_FOUND: shift % has no signed-off snapshot to recompute against. '

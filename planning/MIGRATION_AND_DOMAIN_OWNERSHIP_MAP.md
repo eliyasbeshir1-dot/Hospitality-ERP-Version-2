@@ -56,8 +56,8 @@ Counted from `active_requirements` in the pinned package, by `introduced_at`.
 
 ## The migrations this repository has
 
-28 of them, `0001_organizational_model_and_rls.sql` through `0028_financial_table_classification_and_the_fiscal_port.sql`, across
-19 domains. The owning domain of each is read out of its own SQL — the
+30 of them, `0001_organizational_model_and_rls.sql` through `0030_receipt_composition_preview_and_the_counter_terminal.sql`, across
+20 domains. The owning domain of each is read out of its own SQL — the
 schemas it creates and the schemas it creates tables in — and the gate from the header
 comment every migration in this repository carries.
 
@@ -91,6 +91,8 @@ comment every migration in this repository carries.
 | `0026_translatable_receipt_wording.sql` | — | menu · ordering | M4-C |
 | `0027_receipts_printing_and_the_document_path.sql` | docs | billing · payments · app · ordering · config | M4-C |
 | `0028_financial_table_classification_and_the_fiscal_port.sql` | fiscal · org | app | M4-C |
+| `0029_reporting_metrics_snapshots_and_exports.sql` | report | app · config | M4-C |
+| `0030_receipt_composition_preview_and_the_counter_terminal.sql` | pos | config · docs · ordering | M4-C |
 
 ---
 
@@ -113,6 +115,7 @@ comment every migration in this repository carries.
 - **`org`** — tenants, outlets, the node tree and device registration
 - **`payments`** — adapters and the live/simulated boundary, intents, capture, verification, dual allocation and reversal
 - **`pos`** — terminals, override approval, handover and the staff read models
+- **`report`** — the metric catalog, the readings computed from it, the snapshots taken when a shift is signed off, and the exports
 - **`safety`** — allergens, dietary tags and the warnings a guest is shown
 - **`service`** — tables, QR resolution, guest sessions, carts and service requests
 

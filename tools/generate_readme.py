@@ -79,6 +79,17 @@ SLICE_DELIVERS = {
             "person on their own session; separate bill and tip allocations that are "
             "stored rather than recomputed; independently reversible refunds under "
             "maker-checker; and cash shifts a reopened drawer cannot quietly close",
+    "M4-C": "the receipt and the report: a digital receipt in the bill's own language "
+            "showing bill total, optional tip and total paid as three lines; a printer "
+            "path that composes, rasterises and encodes to ESC/POS with every glyph "
+            "checked against the fonts this repository ships; one original print per "
+            "settlement and a reprint that carries its operator and its reason; a print "
+            "preview built by the same composer as the receipt; a printer that must be "
+            "tested before it can print for a customer; a fiscal-document port with no "
+            "provider's schema inside it; counter orders bound to the POS terminal they "
+            "were entered at; a metric catalog that IS the metrics, readings that carry "
+            "their source and their freshness, a shift snapshot no recomputation can "
+            "rewrite, and the FR-GOV-004 audit of every requirement whose gate has landed",
 }
 
 # The gates in order, and what each one brings that does not exist yet. Rows are emitted
@@ -117,18 +128,32 @@ def vendored_assets() -> list[str]:
     found = False
     for record in sorted(REPO.glob("*/fonts/PROVENANCE.md")):
         text = record.read_text(encoding="utf-8")
-        fields = dict(re.findall(r"^\|\s*([A-Za-z0-9 ]+?)\s*\|\s*(.+?)\s*\|\s*$",
-                                 text, re.M))
-        digest = (fields.get("sha256") or "").strip("`")
-        licence = fields.get("Licence") or fields.get("License") or ""
-        name = fields.get("File", "").strip("`")
-        if not (name and digest):
+        # A DIGEST BESIDE A FILE NAME, IN ONE ROW, and as many rows as there are binaries.
+        # The first version of this read a single "File" and a single "sha256" field, and
+        # it stopped describing the repository the day a second font was vendored — which
+        # is the failure this function exists to prevent, arriving through the function
+        # itself. Keyed on the pair rather than on position, because a record that said
+        # "the first checksum belongs to the first font" would break on a reordering.
+        binaries = re.findall(r"`([0-9a-f]{64})`\s*\|\s*`([^`]+\.[a-z0-9]+)`", text)
+        licence = "SIL Open Font License 1.1" if "OPEN FONT LICENSE" in text.upper() else ""
+        licence = licence or (dict(re.findall(
+            r"^\|\s*([A-Za-z0-9 ]+?)\s*\|\s*(.+?)\s*\|\s*$", text, re.M))
+            .get("Licence", ""))
+        if not binaries:
             raise DescriptionNamesADerivableFact(
-                f"{record.relative_to(REPO)} states no file name or no sha256, so the "
-                f"README cannot describe what this repository ships")
-        found = True
-        rows.append(f"| `{record.parent.relative_to(REPO).as_posix()}/{name}` "
-                    f"| {licence} | `{digest[:16]}…` |")
+                f"{record.relative_to(REPO)} names no file with a sha256 beside it, so "
+                f"the README cannot describe what this repository ships")
+        for digest, name in sorted(binaries, key=lambda pair: pair[1]):
+            on_disk = record.parent / name
+            if not on_disk.is_file():
+                raise DescriptionNamesADerivableFact(
+                    f"{record.relative_to(REPO)} names {name}, which is not there. A "
+                    f"licence line describing a file that does not exist is worse than "
+                    f"none, because somebody would rely on it")
+            found = True
+            rows.append(
+                f"| `{record.parent.relative_to(REPO).as_posix()}/{name}` "
+                f"| {licence} | `{digest[:16]}…` |")
     if not found:
         return ["*No third-party binary is vendored in this repository.*"]
     return rows
@@ -211,6 +236,14 @@ SUITE_PURPOSE = {
            "cash path proved to have no outbound dependency anywhere in its transitive "
            "call graph, and a reopened cash shift that cannot reach a terminal state "
            "without a recount and somebody else's approval",
+    "m4c": "the receipt and the report: every figure on a receipt compared against its "
+           "own source at the write, an Amharic and an Arabic receipt rasterised by the "
+           "printer path and checked per glyph against the fonts this repository ships, "
+           "one original print per settlement refused twice over, a preview proved to be "
+           "the same composer as the receipt, a signed-off shift snapshot proved "
+           "unrewritable by a grant, by the source and by the attempt, an empty window "
+           "proved to report nothing rather than zero where zero would be an invention, "
+           "and the FR-GOV-004 audit of every requirement whose gate has landed",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
     "journeys": "the five golden journeys end to end in a browser against real "
                 "persistence, plus the duplicate-submit race: what a guest and a waiter "

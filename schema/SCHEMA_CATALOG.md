@@ -2080,12 +2080,13 @@ Row level security: **enabled**, **forced**.
 | `display_order` | `integer` | NOT NULL |  |  |
 | `label` | `text` | NOT NULL |  |  |
 | `amount_minor` | `money.amount_minor` |  |  |  |
-| `currency_code` | `character(3)` | NOT NULL |  |  |
+| `currency_code` | `character(3)` |  |  |  |
 
 Constraints:
 
 - `receipt_line_amount_present_unless_method` — `CHECK ((((kind = 'payment_method'::docs.receipt_line_kind) AND (amount_minor IS NULL)) OR ((kind <> 'payment_method'::docs.receipt_line_kind) AND (amount_minor IS NOT NULL))))`
 - `receipt_line_currency_fk` — `FOREIGN KEY (currency_code) REFERENCES money.currency(code) ON DELETE RESTRICT`
+- `receipt_line_currency_iff_amount` — `CHECK (((amount_minor IS NULL) = (currency_code IS NULL)))`
 - `receipt_line_is_complete_in_its_locale` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
 - `receipt_line_is_faithful` — `TRIGGER DEFERRABLE INITIALLY DEFERRED`
 - `receipt_line_label_not_blank` — `CHECK ((btrim(label) <> ''::text))`
@@ -5481,16 +5482,18 @@ Row level security: **enabled**, **forced**.
 | `signed_off_at` | `timestamp with time zone` | NOT NULL |  |  |
 | `content_digest` | `character(64)` | NOT NULL |  |  |
 | `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `sign_off_number` | `integer` | NOT NULL |  |  |
 
 Constraints:
 
 - `shift_snapshot_currency_anchor` — `UNIQUE (tenant_id, id, currency_code)`
 - `shift_snapshot_currency_fk` — `FOREIGN KEY (currency_code) REFERENCES money.currency(code) ON DELETE RESTRICT`
 - `shift_snapshot_digest_is_a_digest` — `CHECK ((content_digest ~ '^[0-9a-f]{64}$'::text))`
-- `shift_snapshot_one_per_shift` — `UNIQUE (tenant_id, shift_id)`
+- `shift_snapshot_one_per_sign_off` — `UNIQUE (tenant_id, shift_id, sign_off_number)`
 - `shift_snapshot_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
 - `shift_snapshot_pkey` — `PRIMARY KEY (id)`
 - `shift_snapshot_shift_fk` — `FOREIGN KEY (tenant_id, shift_id) REFERENCES cash.shift(tenant_id, id) ON DELETE RESTRICT`
+- `shift_snapshot_sign_off_positive` — `CHECK ((sign_off_number >= 1))`
 - `shift_snapshot_signer_fk` — `FOREIGN KEY (tenant_id, signed_off_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
 - `shift_snapshot_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
 - `shift_snapshot_tenant_id_unique` — `UNIQUE (tenant_id, id)`
