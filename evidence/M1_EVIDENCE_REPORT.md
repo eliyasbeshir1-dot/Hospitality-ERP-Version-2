@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `23c94d1f98f3ae9b1fb0553d442b96ae2da6dfe0` |
-| Short | `23c94d1` |
+| Commit | `2fa65e1b1948218e13887a172ee34b32a5f7e744` |
+| Short | `2fa65e1` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation |
@@ -64,6 +64,11 @@ Ordered, forward-only and checksum-locked. An edited applied migration fails pre
 | `0023` | `0023_payment_capture_verification_and_reversal.sql` | `2a4e63ac331eb936…` | applied |
 | `0024` | `0024_cash_shifts_movements_and_custody.sql` | `80c6a2445b4ed519…` | applied |
 | `0025` | `0025_financial_acceptance_producers_and_the_chain.sql` | `ee0c428b36298be9…` | applied |
+| `0026` | `0026_translatable_receipt_wording.sql` | `7fd083beb1b92a33…` | applied |
+| `0027` | `0027_receipts_printing_and_the_document_path.sql` | `dcb045e980e950ee…` | applied |
+| `0028` | `0028_financial_table_classification_and_the_fiscal_port.sql` | `759735f3dcfb2a2e…` | applied |
+| `0029` | `0029_reporting_metrics_snapshots_and_exports.sql` | `d801aad60ba7a5f6…` | applied |
+| `0030` | `0030_receipt_composition_preview_and_the_counter_terminal.sql` | `42715d944a8d6831…` | applied |
 
 ## Seeds applied
 
@@ -85,7 +90,7 @@ least-privileged application role.
 | `config` | 9 | 8 | 8 |
 | `identity` | 17 | 17 | 17 |
 | `money` | 1 | 0 | 0 |
-| `org` | 5 | 5 | 5 |
+| `org` | 6 | 6 | 6 |
 
 Binary floating point columns anywhere in the database: **0**.
 Money is stored as integer minor units beside an explicit currency.
@@ -106,12 +111,13 @@ Money is stored as integer minor units beside an explicit currency.
 | M3-C service requests, notifications, integration | **PASS** | 126 | 0 |
 | M3-D terminals, override, handover, the waiter surface | **PASS** | 95 | 0 |
 | M4-A checks, bills, splitting, tip separation | **PASS** | 105 | 0 |
-| M4-B payment capture, verification, cash, reversal | **PASS** | 148 | 0 |
+| M4-B payment capture, verification, cash, reversal | **PASS** | 151 | 0 |
+| M4-C receipts, the printer path, reporting, the register audit | **PASS** | 97 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
-| The five golden journeys, end to end | **PASS** | 61 | 0 |
-| **Total** | | **1268** | |
+| The golden journeys, end to end | **PASS** | 88 | 0 |
+| **Total** | | **1395** | |
 
-## The five golden journeys (FR-TST-005A)
+## The golden journeys (FR-TST-005A)
 
 Browser automation against real persistence — the journey a person walks, not an API
 sequence. Each journey names the gates it reaches, because these are not any one
@@ -134,7 +140,7 @@ mistaken for one that mostly worked.
 
 ## Negative controls
 
-**103** controls — M1 22, M2 22, M3 35, M4 24 — each planted as a real
+**112** controls — M1 22, M2 22, M3 35, M4 33 — each planted as a real
 defect, required to produce its exact registered signature, then reverted and
 required to pass again. A control that never went red is a coverage gap wearing a
 green badge, and CI fails the build when one is missing. The registry is
@@ -247,6 +253,15 @@ build, and so does one described and never proved.
 | `NC-M4B-009` | A verification suite the evidence report does not count | `SUITE_UNACCOUNTED` | red, then green |
 | `NC-M4B-010` | A correlation link kind no rebuild puts back | `CORRELATION_KIND_UNOWNED` | red, then green |
 | `NC-M4B-011` | A suite's controls searched for in logs that cannot contain them | `CONTROL_LOG_ABSENT` | red, then green |
+| `NC-M4-005` | The packaged Ethiopic font gone from the receipt print path | `ETHIOPIC_FONT_FALLBACK_ON_RECEIPT` | red, then green |
+| `NC-M4C-001` | One settlement printed as two original receipts | `DUPLICATE_RECEIPT_PRINTED` | red, then green |
+| `NC-M4C-002` | A bill total line on a receipt carrying the tip | `TIP_MERGED_ON_RECEIPT` | red, then green |
+| `NC-M4C-003` | A non-English receipt falling back to English on paper | `RECEIPT_INCOMPLETE_IN_LOCALE` | red, then green |
+| `NC-M4C-004` | A summary of an empty window reported as a figure | `FABRICATED_METRIC` | red, then green |
+| `NC-M4C-005` | A recomputation writing over a signed-off shift result | `LEDGER_ROW_DELETED_NOT_REVERSED` | red, then green |
+| `NC-M4C-006` | Money on a bill that no sales classification claims | `SALES_COMPONENT_UNCLASSIFIED` | red, then green |
+| `NC-M4C-007` | A counter order that can name no POS terminal | `COUNTER_ORDER_WITHOUT_A_TERMINAL` | red, then green |
+| `NC-M4C-008` | A customer receipt printed on a printer nobody tested | `PRINTER_NEVER_TESTED` | red, then green |
 
 ## Design decision: the ledger is the record, everything else is a projection (M3-A)
 
