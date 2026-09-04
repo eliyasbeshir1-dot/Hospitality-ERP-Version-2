@@ -39,7 +39,7 @@ Each runs on push, on pull request, and on manual dispatch.
 | `forbidden-surface` | `ubuntu-latest` | no fenced Phase 2/3 surface, no v1.1 inheritance, no bypass role in a deployment path, no drift in `/docs`, and the generated README equals a fresh generation |
 | `windows-verification` | `windows-latest` | every suite and every golden journey again on Windows, through the same drivers, and the generators must emit identical bytes on both platforms |
 | `docs-package-integrity` | `ubuntu-latest` | the pinned package is byte-identical: 92 files, 91 checksum lines, 91 `OK` results, 0 failures |
-| `database-verification` | `ubuntu-latest` | every suite in order against a `postgres:16` service and again in reverse, then the five golden journeys, then the generated artifacts and the negative controls |
+| `database-verification` | `ubuntu-latest` | every suite in order against a `postgres:16` service and again in reverse, then the golden journeys, then the generated artifacts and the negative controls |
 | `occurrence-registry` | `ubuntu-latest` | the package's own frozen validator emits exactly `PASS FORBIDDEN_OCCURRENCE_REGISTRY_VALID` with `passed: true` and `failure_count: 0` |
 | `mechanism-suite` | `ubuntu-latest` | the package's occurrence mechanism suite emits `28/28 correct` |
 
