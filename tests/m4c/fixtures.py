@@ -213,14 +213,31 @@ def _seed_line_wording() -> None:
 
 
 def _seed_reason_codes() -> None:
-    values = ",\n".join(
-        f"('{TENANT}', '{code}', '{category}', $d${detail}$d$)"
-        for code, category, detail in REASON_CODES)
-    res = run(APP, f"""
-        INSERT INTO config.reason_code (tenant_id, code, category, description)
-        VALUES {values}
+    """The reasons a reprint or a reissue names, with their English labels.
+
+    A code and a label are separate rows because M1-C requires every reason code to carry
+    a localized label and to keep the structure and the content apart — the lesson M3-D's
+    fixture cost two findings to learn, once in each direction.
+    """
+    codes = ",\n".join(
+        f"('{TENANT}', '{category}', '{code}', 'active')"
+        for code, category, _label in REASON_CODES)
+    labels = ",\n".join(
+        f"('{code}', $l${label}$l$)" for code, _category, label in REASON_CODES)
+    res = run(ADMIN, f"""
+        SELECT set_config('app.tenant_id', '{TENANT}', false);
+        SELECT set_config('app.outlet_id', '{OUTLET_H1}', false);
+        INSERT INTO config.reason_code (tenant_id, category, code, status)
+        VALUES {codes}
         ON CONFLICT (tenant_id, category, code) DO NOTHING;
-    """, **CTX)
+
+        INSERT INTO config.reason_code_label (tenant_id, reason_code_id, locale, label)
+        SELECT rc.tenant_id, rc.id, 'en', v.label
+        FROM config.reason_code rc
+        JOIN (VALUES {labels}) AS v(code, label) ON v.code = rc.code
+        WHERE rc.tenant_id = '{TENANT}'
+        ON CONFLICT DO NOTHING;
+    """, tx=True)
     _fail("m4c reason codes", res)
 
 

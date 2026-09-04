@@ -1880,6 +1880,63 @@ def section_health_and_versions() -> None:
 # 16. Governance: the register, the catalog rules, the closures
 # ===========================================================================
 
+def section_event_shape() -> None:
+    print("\n--- 15b. The payment and tip event shape, with nothing subscribing "
+          "(FR-PAY-010A) ---")
+
+    # THE SHAPE EXISTS AND IS DOCUMENTED. FR-PAY-010A asks for events "in a documented
+    # shape that a future consumer could subscribe to, with no consumer in Phase 1", and
+    # the M4-C register audit found nothing in this repository checking it by name — which
+    # is what an uncited delivery looks like from the outside. The shape is the ledger's
+    # own columns, and what documents it is the generated schema catalog plus the table's
+    # comment, both of which are read from the live database rather than written by hand.
+    shape = {r[0]: r[1] for r in rows("""
+        SELECT c.relname, coalesce(obj_description(c.oid, 'pg_class'), '')
+          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE n.nspname = 'payments' AND c.relname = 'payment_event';""", dsn=ADMIN)}
+    columns = [r[0] for r in rows("""
+        SELECT a.attname FROM pg_attribute a
+         WHERE a.attrelid = 'payments.payment_event'::regclass
+           AND a.attnum > 0 AND NOT a.attisdropped ORDER BY a.attnum;""", dsn=ADMIN)]
+    required = {"kind", "before", "after", "occurred_at", "sequence_number"}
+    record("the payment event carries a described shape a consumer could read",
+           bool(shape.get("payment_event", "").strip())
+           and required.issubset(set(columns)),
+           f"payments.payment_event has {len(columns)} column(s) including "
+           f"{sorted(required & set(columns))}, and a table comment of "
+           f"{len(shape.get('payment_event', ''))} characters. A before/after pair with a "
+           f"kind and a sequence is what a subscriber needs; the catalog documents it "
+           f"because the catalog is generated from this table")
+
+    tips = [r[0] for r in rows("""
+        SELECT a.attname FROM pg_attribute a
+         WHERE a.attrelid = 'billing.tip_correction'::regclass
+           AND a.attnum > 0 AND NOT a.attisdropped ORDER BY a.attnum;""", dsn=ADMIN)]
+    record("and a tip and its correction are separate linked records with the same shape",
+           {"tip_id", "kind", "amount_minor", "reason_code_id", "actor_user_id"}
+           .issubset(set(tips)),
+           f"billing.tip_correction names the tip it corrects, its kind, its amount, its "
+           f"reason and its author. FR-BIL-016 makes a correction a linked record rather "
+           f"than an edit, which is also what makes it emittable")
+
+    # AND NOTHING SUBSCRIBES. The requirement's second half is that there is no consumer
+    # in Phase 1, and that half is as real as the first: a consumer built here would be a
+    # fenced domain arriving early. Asked of the integration runtime rather than asserted.
+    subscribers = rows("""
+        SELECT n.nspname || '.' || p.proname
+          FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+         WHERE n.nspname NOT IN ('pg_catalog', 'information_schema') AND p.prokind = 'f'
+           AND pg_get_functiondef(p.oid) ~ 'payments\\.payment_event'
+           AND pg_get_functiondef(p.oid) ~* '(publish|emit_to|subscribe|webhook|export)'
+         ORDER BY 1;""", dsn=ADMIN)
+    record("and nothing in this build consumes them",
+           not subscribers,
+           f"functions that would publish a payment event outside this system: "
+           f"{[r[0] for r in subscribers] or 'none'}. FR-PAY-010A says the shape exists "
+           f"and no consumer does; a consumer here would be a deferred domain arriving "
+           f"through a subscription")
+
+
 def section_governance() -> None:
     print("\n--- 16. Governance ---")
 
@@ -2924,6 +2981,7 @@ def main() -> int:
         section_reconciliation()
         section_outage()
         section_health_and_versions()
+        section_event_shape()
         section_governance()
         section_controls()
     except (CommandUnreadable, DifferentialUnusable, ProbeFailed) as error:

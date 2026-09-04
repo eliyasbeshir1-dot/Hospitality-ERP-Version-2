@@ -906,7 +906,7 @@ def section_tip_separation_behaviourally() -> None:
 
 
 # ===========================================================================
-# 7. The bill preview and the tip box, MEASURED (FR-BIL-007, NC-M4-001)
+# 7. The bill preview and the tip box, MEASURED (FR-BIL-007, FR-BIL-013, NC-M4-001)
 # ===========================================================================
 
 def render(cases: list[dict], tap: str | None = "en") -> dict:
@@ -959,6 +959,7 @@ def a_guest_looking_at_a_bill(locale: str) -> dict:
 
 def section_bill_preview() -> None:
     print("\n--- 7. The bill summary, and the tip box beside it (FR-BIL-007, "
+          "FR-BIL-013, "
           "NC-M4-001) ---")
 
     probe = CONTEXT["render"]

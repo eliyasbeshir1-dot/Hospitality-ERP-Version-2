@@ -24,7 +24,7 @@ fi
 export PYTHON="$PY_BIN"
 
 slice_status=0
-bash "$REPO/tests/m4b/run_verification.sh" || slice_status=$?
+bash "$REPO/tests/m4c/run_verification.sh" || slice_status=$?
 
 PGHOST_DIR="${PGHOST_DIR:-/var/lib/m1apg/run}"
 PGPORT="${PGPORT:-5433}"

@@ -394,7 +394,12 @@ CREATE TABLE docs.receipt_line (
     -- key below names (tenant_id, receipt_id, currency_code) against the receipt's
     -- currency anchor, so a line in a currency its receipt is not in has no parent row
     -- to point at. A constraint carries it; nothing has to remember to look.
-    currency_code char(3) NOT NULL,
+    --
+    -- NULLABLE, AND EXACTLY WHEN THE AMOUNT IS. The payment_method line is a word rather
+    -- than a figure and there is nothing for a currency to denominate; a NOT NULL here
+    -- would have forced a currency onto a line that carries no money, which is its own
+    -- small lie. The CHECK below makes the two absences one fact rather than two.
+    currency_code char(3),
 
     CONSTRAINT receipt_line_tenant_id_unique UNIQUE (tenant_id, id),
     CONSTRAINT receipt_line_tenant_fk FOREIGN KEY (tenant_id)
@@ -407,6 +412,8 @@ CREATE TABLE docs.receipt_line (
     CONSTRAINT receipt_line_amount_present_unless_method CHECK (
         (kind = 'payment_method' AND amount_minor IS NULL)
      OR (kind <> 'payment_method' AND amount_minor IS NOT NULL)),
+    CONSTRAINT receipt_line_currency_iff_amount CHECK (
+        (amount_minor IS NULL) = (currency_code IS NULL)),
     CONSTRAINT receipt_line_order_unique UNIQUE (tenant_id, receipt_id, display_order)
 );
 

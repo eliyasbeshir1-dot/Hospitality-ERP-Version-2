@@ -52,8 +52,6 @@ AS $$
         -- changing one.
         WHEN 'billing.bill_disposition'   THEN 'ledger'
         WHEN 'billing.bill_event'         THEN 'ledger'
-        WHEN 'billing.check'              THEN 'ledger'
-        WHEN 'billing.check_allocation'   THEN 'ledger'
         WHEN 'billing.tip'                THEN 'ledger'
         WHEN 'billing.tip_correction'     THEN 'ledger'
         WHEN 'cash.custody_transfer'      THEN 'ledger'
@@ -68,7 +66,6 @@ AS $$
         WHEN 'docs.render_attempt'        THEN 'ledger'
         WHEN 'payments.payment_event'     THEN 'ledger'
         WHEN 'payments.payment_intent'    THEN 'ledger'
-        WHEN 'payments.proof_confirmation' THEN 'ledger'
         WHEN 'payments.reversal'          THEN 'ledger'
         WHEN 'payments.simulated_attempt' THEN 'ledger'
         WHEN 'payments.terminal_result'   THEN 'ledger'
@@ -91,6 +88,21 @@ AS $$
         -- refuses UPDATE and DELETE, and everything else says why it does not, in the
         -- table at the head of this file rather than in a class name that implies a rule
         -- nothing enforces.
+        -- THREE CORRECTIONS, FOUND BY ASKING THE QUESTION THE OTHER WAY ROUND. The
+        -- first version of this function called these three ledgers. tests/m4c then
+        -- asked, of every declared ledger, whether it actually refuses a destructive
+        -- correction — and these three do not, because they legitimately change:
+        -- billing.merge_checks(), billing.split_check(), billing.finalize_bill() and
+        -- billing.reissue_bill() all UPDATE a check or move its allocations, and
+        -- payments.verify_proof() moves a proof from pending to verified. A check has a
+        -- LIFECYCLE and its append-only record is billing.bill_event; a proof's is
+        -- payments.payment_event. Calling them ledgers made the append-only claim say
+        -- something about them that was not true, which is the exact failure the class
+        -- 'mutable' exists to prevent, and it was a judgement error rather than a
+        -- missing trigger.
+        WHEN 'billing.check'                   THEN 'mutable'
+        WHEN 'billing.check_allocation'        THEN 'mutable'
+        WHEN 'payments.proof_confirmation'     THEN 'mutable'
         WHEN 'billing.component_wording'       THEN 'mutable'
         WHEN 'billing.service_charge_setting'  THEN 'mutable'
         WHEN 'billing.tip_setting'             THEN 'mutable'
@@ -137,6 +149,29 @@ CREATE TRIGGER print_attempt_is_append_only
 
 CREATE TRIGGER render_attempt_is_append_only
     BEFORE UPDATE OR DELETE ON docs.render_attempt
+    FOR EACH ROW EXECUTE FUNCTION app.refuse_financial_mutation();
+
+-- AND FOUR MORE, found the same way the first five were: by asking the live schema which
+-- declared ledgers actually refuse a destructive correction rather than assuming the
+-- declaration and the guard agreed. Nothing in this build UPDATEs or DELETEs any of these
+-- — an intent is created and expires, a terminal slip is recorded as it was printed, a
+-- custody transfer and a denomination tally are what somebody counted — so each was
+-- append-only in fact and unenforced.
+
+CREATE TRIGGER payment_intent_is_append_only
+    BEFORE UPDATE OR DELETE ON payments.payment_intent
+    FOR EACH ROW EXECUTE FUNCTION app.refuse_financial_mutation();
+
+CREATE TRIGGER terminal_result_is_append_only
+    BEFORE UPDATE OR DELETE ON payments.terminal_result
+    FOR EACH ROW EXECUTE FUNCTION app.refuse_financial_mutation();
+
+CREATE TRIGGER custody_transfer_is_append_only
+    BEFORE UPDATE OR DELETE ON cash.custody_transfer
+    FOR EACH ROW EXECUTE FUNCTION app.refuse_financial_mutation();
+
+CREATE TRIGGER denomination_tally_is_append_only
+    BEFORE UPDATE OR DELETE ON cash.denomination_tally
     FOR EACH ROW EXECUTE FUNCTION app.refuse_financial_mutation();
 
 

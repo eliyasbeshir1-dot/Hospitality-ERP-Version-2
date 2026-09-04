@@ -70,6 +70,9 @@ import controls as registry                                      # noqa: E402
 import partial_closures                                          # noqa: E402
 import requirement_coverage as coverage                           # noqa: E402
 
+sys.path.insert(0, str(REPO / "print"))
+import agent as printer                                          # noqa: E402
+
 assert fx.__file__ == str(HERE / "fixtures.py"), f"wrong fixtures module: {fx.__file__}"
 
 ADMIN = os.environ["M1A_ADMIN_DSN"]
@@ -218,12 +221,28 @@ def a_settled_bill(locale: str = "en", *, tip_minor: int = 0,
 
     tip_id = None
     if tip_minor:
+        # ONE SHARE, THROUGH THE SPLITTER. billing.split_equally() returns how many shares
+        # it made, not their ids, so the share is read back afterwards — a tip attaches to
+        # a SHARE because FR-BIL-015 makes a per-payer tip the ordinary case, and a bill
+        # with no share has nowhere for one to hang.
         share = scalar(f"""
             SELECT id FROM billing.bill_share WHERE bill_id = '{bill}'
              ORDER BY share_number LIMIT 1;""")
         if not share:
+            made = run(APP, f"""
+                SELECT billing.split_equally('{fx.TENANT}', '{bill}', 1);""",
+                tx=True, **CTX)
+            if not made.ok:
+                raise ProbeFailed("billing.split_equally", made.err)
             share = scalar(f"""
-                SELECT (billing.split_equally('{fx.TENANT}', '{bill}', 1))[1];""")
+                SELECT id FROM billing.bill_share WHERE bill_id = '{bill}'
+                 ORDER BY share_number LIMIT 1;""")
+        if not share:
+            raise ProbeFailed(
+                "a bill share to hang a tip on",
+                f"bill {bill} has no share after an equal split of one. A tip attaches to "
+                f"a share, and a fixture that inserted one directly would be inventing "
+                f"the thing M4-A's splitter exists to produce")
         tip_id = scalar(f"""
             INSERT INTO billing.tip
                 (tenant_id, outlet_id, bill_share_id, currency_code, amount_minor)
@@ -243,6 +262,26 @@ def a_settled_bill(locale: str = "en", *, tip_minor: int = 0,
     return {"session": session, "guest": guest, "order": order, "check": check,
             "bill": bill, "total": total, "tip": tip_minor, "tip_id": tip_id,
             "locale": locale}
+
+
+def an_override(action: str, subject_kind: str, subject: str,
+                reason_code: str, reason: str) -> str:
+    """A real override: one person acting, a DIFFERENT person authorizing from their own
+    session. M3-D's function through M4-A's helper, unchanged, because a tip correction is
+    a governed action like any other and a second authority model would be a second thing
+    to get wrong. The manager is M4-B's finance manager, who holds payment.refund; the
+    actor is M4-B's cashier, who does not."""
+    actor_session, _ = fx.staff_session(fx.USER_CASHIER)
+    manager_session, _ = fx.staff_session(fx.USER_FINANCE_MANAGER)
+    fx.step_up(manager_session, action)
+    approved = run(APP, f"""
+        SELECT set_config('app.auth_strength', 'strong', false);
+        SELECT pos.approve_override('{fx.TENANT}', '{fx.OUTLET_H1}', '{action}',
+            '{manager_session}', '{reason_code}', '{subject_kind}', '{subject}',
+            $r${reason}$r$);""", tx=True, session=actor_session, **CTX)
+    if not approved.ok:
+        raise ProbeFailed("approve_override", approved.err)
+    return (approved.rows[-1][0] if approved.rows else "").strip()
 
 
 def a_receipt(settled: dict, method: str = "cash") -> str:
@@ -552,19 +591,47 @@ def section_recomputation() -> None:
            f"{state}. The agreeing runs are recorded too: a record only of "
            f"disagreements cannot tell 'checked and fine' from 'never checked'")
 
-    # NOW MOVE THE WORLD UNDER IT. A tip corrected after sign-off changes what the window
-    # would compute today and must not change what was signed.
+    # NOW MOVE THE WORLD UNDER IT. A tip corrected after sign-off, for a tip taken DURING
+    # the shift, is the case FR-RPT-014 is actually about: a recomputation of that window
+    # now produces a different answer, and the question is whether it can quietly become
+    # the answer somebody put their name to.
+    #
+    # THE CORRECTION IS DATED INSIDE THE WINDOW, and that is the point rather than a
+    # convenience. A correction stamped now would fall outside the shift entirely and the
+    # recomputation would agree — truthfully, and proving nothing. Corrections recorded
+    # after the fact for something that happened earlier are ordinary; what must not be
+    # ordinary is the signed-off figure moving with them.
+    tip = rows(f"""
+        SELECT t.id::text FROM billing.tip t
+         WHERE t.tenant_id = '{fx.TENANT}' AND t.outlet_id = '{fx.OUTLET_H1}'
+         ORDER BY t.chosen_at DESC LIMIT 1;""")
+    if not tip:
+        raise CommandUnreadable(
+            "no tip exists in this outlet, so there is nothing to correct and the "
+            "divergence check would report agreement over an empty change")
+
+    override = an_override("payment.refund", "bill",
+                           CONTEXT["tipped_settlement"]["bill"],
+                           fx.reason_code("M4C_RECEIPT_REISSUE"),
+                           "a tip corrected after the drawer was signed off")
+    # HALFWAY THROUGH THE WINDOW, computed from its two ends rather than by adding a
+    # fixed offset to one of them. A shift in a test can be milliseconds wide, and
+    # "window_from plus a second" landed AFTER window_to — the recomputation then agreed,
+    # correctly, and the control was measuring nothing.
+    window = rows(f"""
+        SELECT s.window_from::text, s.window_to::text FROM report.shift_snapshot s
+         WHERE s.tenant_id = '{fx.TENANT}' AND s.shift_id = '{shift}';""")
     correction = run(APP, f"""
         INSERT INTO billing.tip_correction
             (tenant_id, outlet_id, tip_id, kind, currency_code, amount_minor,
-             reason_code_id, reason_text, actor_user_id)
-        SELECT '{fx.TENANT}', '{fx.OUTLET_H1}', t.id, 'correction', 'ETB', 100,
-               '{fx.reason_code("M4C_RECEIPT_REISSUE")}',
-               'a tip corrected after the drawer was signed off', '{fx.USER_CASHIER}'
-          FROM billing.tip t
-          JOIN billing.bill_share s ON s.tenant_id = t.tenant_id AND s.id = t.bill_share_id
-         WHERE t.tenant_id = '{fx.TENANT}' AND t.outlet_id = '{fx.OUTLET_H1}'
-         ORDER BY t.chosen_at DESC LIMIT 1;""", tx=True, **CTX)
+             override_id, reason_code_id, reason_text, actor_user_id, corrected_at)
+        VALUES ('{fx.TENANT}', '{fx.OUTLET_H1}', '{tip[0][0]}', 'correction', 'ETB', 100,
+                '{override}', '{fx.reason_code("M4C_RECEIPT_REISSUE")}',
+                'a tip corrected after the drawer was signed off',
+                '{fx.USER_CASHIER}',
+                timestamptz '{window[0][0]}'
+                  + (timestamptz '{window[0][1]}' - timestamptz '{window[0][0]}') / 2);""",
+        tx=True, **CTX)
     if not correction.ok:
         raise ProbeFailed("a tip correction after sign-off", correction.err)
 
@@ -572,7 +639,7 @@ def section_recomputation() -> None:
         SELECT report.recompute_shift_snapshot('{fx.TENANT}', '{shift}',
                                                '{fx.USER_FINANCE_MANAGER}');""")
     found = rows(f"""
-        SELECT r.diverged::text, d.metric::text,
+        SELECT r.diverged::text, coalesce(d.metric::text, 'none'),
                coalesce(d.snapshot_value::text, 'null'),
                coalesce(d.recomputed_value::text, 'null')
           FROM report.recomputation r
@@ -581,7 +648,8 @@ def section_recomputation() -> None:
          WHERE r.tenant_id = '{fx.TENANT}' AND r.id = '{diverged}'
          ORDER BY 2;""")
     record("and a world that moved afterwards produces a divergence, loudly",
-           found and found[0][0] == "true" and any(r[1] for r in found),
+           bool(found) and found[0][0] == "true"
+           and any(r[1] != "none" for r in found),
            f"{found}. The divergence names both numbers. It is louder than the original, "
            f"which is the correct direction for this to fail in")
 
@@ -668,7 +736,7 @@ def section_exports_and_dashboards() -> None:
 
     # A PANEL NAMES A CATALOGUED METRIC OR NOTHING, which is how a deferred domain is kept
     # off the reporting surface — not by a reviewer reading the panel list.
-    fenced = fenced_identifier_pattern()
+    fenced, fenced_terms = fenced_identifier_pattern()
     panels = rows("""
         SELECT p.role::text, p.metric::text FROM report.dashboard_panel p ORDER BY 1, 2;""",
         dsn=ADMIN)
@@ -676,7 +744,8 @@ def section_exports_and_dashboards() -> None:
                  if re.search(fenced, metric)]
     record("and no panel names a fenced domain",
            bool(panels) and not offending,
-           f"{len(panels)} panel(s), {offending or 'none'} naming a fenced term. A panel "
+           f"{len(panels)} panel(s) against {fenced_terms} fenced term(s); "
+           f"{offending or 'none'} name one. A panel "
            f"is a label of report.metric_key with a foreign key into report.metric: "
            f"there is no free-text panel for a fenced word to arrive through")
 
@@ -840,7 +909,7 @@ def section_printer() -> None:
             '{fx.PRINTER_DEVICE}', 'printed', repeat('c', 64)::char(64), 512,
             '{fx.USER_CASHIER}');""", tx=True, **CTX)
     record("and a second original print of the same settlement is refused",
-           again.failed_with("RECEIPT_ALREADY_PRINTED", "print_attempt_one_original"),
+           again.failed_with("DUPLICATE_RECEIPT_PRINTED", "print_attempt_one_original"),
            again.why() or "one settlement produced two original receipts. A customer "
                           "holding two records of one payment is two payments as far as "
                           "anyone reading them can tell")
@@ -963,15 +1032,24 @@ def section_counter() -> None:
 
     # THE SAME AGGREGATE, asked of the source. M4-A proved there is one submitting
     # handler; this asks whether anything else writes a submitted order.
+    # THE SUBMITTED EVENT, not every order event. Acceptance, amendment, cancellation and
+    # a table move all write to the ledger and should; what must have exactly one writer
+    # is the event that BRINGS AN ORDER INTO EXISTENCE, because that is where the rules a
+    # counter order must obey are applied.
     writers = rows("""
         SELECT n.nspname || '.' || p.proname
           FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
          WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
-           AND pg_get_functiondef(p.oid) ~* 'INSERT\\s+INTO\\s+ordering\\.order_event'
+           -- prokind 'f', because pg_get_functiondef() refuses an aggregate and the
+           -- refusal would stop the scan rather than answer it. A scan that dies is not
+           -- "no offenders found".
+           AND p.prokind = 'f'
+           AND pg_get_functiondef(p.oid) ~
+               'INSERT INTO ordering\\.order_event[^;]*''submitted'''
          ORDER BY 1;""", dsn=ADMIN)
     record("a counter order goes through the one function every order goes through",
            [r[0] for r in writers] == ["ordering.submit_order"],
-           f"functions that write an order event: {[r[0] for r in writers]}. "
+           f"functions that write a SUBMITTED order event: {[r[0] for r in writers]}. "
            f"pos.record_counter_order() is not among them: it records WHERE an order was "
            f"entered and creates none")
 
@@ -1015,24 +1093,18 @@ def section_counter() -> None:
 # 11. Ethiopic at the printer, measured off the raster (FR-I18N-001C, NC-M4-005)
 # ===========================================================================
 
-def rasterise(document: dict, font: Path | None = None) -> dict:
+def rasterise(document: dict, font: str | None = None) -> dict:
     """Run the printer path's own renderer and read what it drew.
 
-    THIS IS THE PRINT PATH, NOT A PROBE. print/render.mjs is what turns a document into
-    the bitmap that becomes the ESC/POS raster; asking it is asking the printer. A second
-    renderer here would answer a question about itself.
+    THROUGH print/agent.py, NOT AROUND IT. agent.rasterise() is the production function:
+    it copies the renderer into the workspace (ES module resolution ignores NODE_PATH, so
+    a renderer left in the repository cannot find playwright, and node_modules must never
+    appear in the repository), passes the verified font set, and refuses when a face will
+    not load. A second copy of that plumbing here would be a second path, and the one this
+    suite measured would not be the one that prints.
     """
-    SCRATCH.mkdir(parents=True, exist_ok=True)
-    path = SCRATCH / f"document-{os.urandom(4).hex()}.json"
-    path.write_text(json.dumps(document), encoding="utf-8")
-    command = [str(shutil.which("node") or "node"),
-               str(REPO / "print" / "render.mjs"), str(path),
-               str(font or (REPO / "print" / "fonts" / "NotoSansEthiopic-Regular.ttf")),
-               "576"]
-    proc = run_command(command, cwd=str(CONTEXT["workspace"]))
-    if proc.returncode != 0 and not proc.stdout.strip():
-        raise ProbeFailed("print/render.mjs", proc.stderr[-2000:])
-    return json.loads(proc.stdout.strip().splitlines()[-1])
+    return printer.rasterise(document, dots_wide=576,
+                             workspace=CONTEXT["workspace"], font=font)
 
 
 def section_ethiopic_on_the_printer() -> None:
@@ -1174,6 +1246,18 @@ def section_ledgers() -> None:
             "app.financial_table_class() declares no ledger. The check below would then "
             "assert that every member of an empty set carries a trigger")
 
+    # BY THE PROPERTY, NOT BY THE FUNCTION NAME. The first form of this check asked
+    # whether each ledger carried app.refuse_financial_mutation() specifically, and
+    # reported fourteen of the twenty-seven unguarded — every one of which carries its own
+    # refusal, written by the slice that owns it: billing.refuse_ledger_mutation(),
+    # cash.refuse_movement_mutation(), and so on. A check that named one implementation
+    # was testing which function was used rather than whether the rule holds, and it would
+    # have been "fixed" by rewriting five slices to use one function for no reason.
+    #
+    # What FR-DAT-008B actually requires is that the table REFUSES a destructive
+    # correction. So: a row-level BEFORE UPDATE OR DELETE trigger whose function raises.
+    # Derived from pg_trigger's own bitmask rather than from a name, so a trigger that
+    # fires AFTER, or per statement, or does not raise, does not count.
     unguarded = rows("""
         SELECT n.nspname || '.' || c.relname
           FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -1181,15 +1265,38 @@ def section_ledgers() -> None:
            AND app.financial_table_class(n.nspname, c.relname) = 'ledger'
            AND NOT EXISTS (
                  SELECT 1 FROM pg_trigger tg
+                  JOIN pg_proc f ON f.oid = tg.tgfoid
                   WHERE tg.tgrelid = c.oid AND NOT tg.tgisinternal
-                    AND tg.tgfoid = 'app.refuse_financial_mutation'::regproc)
+                    AND (tg.tgtype & 1) = 1        -- FOR EACH ROW
+                    AND (tg.tgtype & 2) = 2        -- BEFORE
+                    AND (tg.tgtype & 16) = 16      -- UPDATE
+                    AND (tg.tgtype & 8) = 8        -- DELETE
+                    AND pg_get_functiondef(f.oid) ~* 'RAISE\\s+EXCEPTION')
          ORDER BY 1;""", dsn=ADMIN)
-    record("every table declared a ledger carries the append-only trigger",
+    record("every table declared a ledger refuses a destructive correction",
            not unguarded,
            f"{len(declared)} declared ledger(s); unguarded: "
            f"{[r[0] for r in unguarded] or 'none'}. Enumerated from the declaration "
            f"rather than from a list, so a financial table a later gate adds fails here "
-           f"rather than sliding past")
+           f"rather than sliding past — and asked as a property, so a slice that writes "
+           f"its own refusal satisfies it")
+
+    # AND NO GRANT MAKES IT MOOT. A trigger that refuses and a grant that never let the
+    # caller near it are two locks; either alone is the one somebody removes.
+    granted = rows("""
+        SELECT c.relname || ' ' || p.privilege_type
+          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+          JOIN information_schema.table_privileges p
+            ON p.table_schema = n.nspname AND p.table_name = c.relname
+         WHERE n.nspname = ANY (app.financial_schemas()) AND c.relkind = 'r'
+           AND app.financial_table_class(n.nspname, c.relname) = 'ledger'
+           AND p.grantee = 'hospitality_app'
+           AND p.privilege_type IN ('UPDATE', 'DELETE')
+         ORDER BY 1;""", dsn=ADMIN)
+    record("and no ledger grants the application role an UPDATE or a DELETE",
+           not granted,
+           f"{[r[0] for r in granted] or 'none'}. The trigger and the grant fail "
+           f"independently, which is what makes removing either one visible")
 
     unclassified = run(ADMIN, "SELECT app.assert_financial_tables_are_classified();")
     record("and no table in a financial schema is unclassified",
@@ -1264,7 +1371,7 @@ def section_boundary() -> None:
            f"synchronization status with nothing synchronizing would be showing a "
            f"fabricated one")
 
-    fenced = fenced_identifier_pattern()
+    fenced, fenced_terms = fenced_identifier_pattern()
     offending = rows(f"""
         SELECT n.nspname || '.' || c.relname
           FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -1273,9 +1380,9 @@ def section_boundary() -> None:
          ORDER BY 1;""", dsn=ADMIN)
     record("and no table this slice owns names a fenced domain",
            not offending,
-           f"{[r[0] for r in offending] or 'none'}. The 63 fenced terms are read from the "
-           f"package, so a term added to the fence covers this slice without anybody "
-           f"editing this file")
+           f"{[r[0] for r in offending] or 'none'}. The {fenced_terms} fenced terms "
+           f"are read from the package, so a term added to the fence covers this slice "
+           f"without anybody editing this file")
 
 
 # ===========================================================================
@@ -1297,12 +1404,14 @@ def section_register_audit() -> None:
 
     numbers = coverage.audit(CONTEXT["log_dir"])
     record("and its numbers are derived from the package, not typed",
-           numbers["landed"] > 0 and numbers["unaccounted"] == 0,
+           numbers["landed"] > 0 and not numbers["unclassified"],
            f"{numbers['landed']} requirement(s) whose gate has landed, "
-           f"{numbers['delivered']} delivered with evidence, "
-           f"{numbers['classified']} carrying a classification, "
-           f"{numbers['unaccounted']} unaccounted. The gates come from the package's own "
-           f"order and the evidence from this run's logs")
+           f"{len(numbers['delivered'])} delivered with evidence, "
+           f"{len(numbers['open_entries'])} covered by an open register entry, "
+           f"{len(numbers['unaccounted']) - len(numbers['unclassified'])} carrying a "
+           f"classification, {len(numbers['unclassified'])} unaccounted: "
+           f"{[r['id'] for r in numbers['unclassified']] or 'none'}. The gates come from "
+           f"the package's own order and the evidence from this run's logs")
 
     findings = (REPO / "planning" / "M4_REVIEW_FINDINGS.md")
     record("and what it surfaced across M1 to M3 is published for the review to challenge",
@@ -1319,3 +1428,728 @@ def section_register_audit() -> None:
            proc.returncode == 0,
            (proc.stdout.strip() or proc.stderr.strip() or "").splitlines()[0]
            if (proc.stdout or proc.stderr) else "")
+
+
+# ===========================================================================
+# 16. The control registry agrees with what this run proved
+# ===========================================================================
+
+def section_control_registry() -> None:
+    print("\n--- 16. Every control this gate owns is described and proved ---")
+
+    signatures = registry.signatures_for("M4")
+    fenced, fenced_terms = fenced_identifier_pattern()
+    offending = [s for s in signatures if re.search(fenced, s.lower())]
+    record("no M4 failure signature names a fenced domain",
+           bool(signatures) and not offending,
+           f"{len(signatures)} signature(s) owned by M4; {offending or 'none'} name a "
+           f"fenced term. Checked against the package's own {fenced_terms} terms "
+           f"programmatically, "
+           f"so a term added to the fence covers these without anybody editing a list")
+
+    described = registry.described()
+    mine = {k: v for k, v in described.items() if v[2] == "m4c"}
+    record("and this slice's controls are in the one registry every document reads from",
+           len(mine) == 9,
+           f"{sorted(mine)}. NC-M4-005 is the package's; the other eight are this "
+           f"slice's own")
+
+
+# ===========================================================================
+# 17. Negative controls: each proved RED with a real defect, then GREEN
+# ===========================================================================
+
+def control(name: str, red, green) -> None:
+    print(f"\n  {name}")
+    ok, detail = red()
+    record(f"{name} — RED with the defect planted", ok, detail)
+    ok, detail = green()
+    record(f"{name} — GREEN after revert", ok, detail)
+
+
+def replace_function(sql: str) -> None:
+    res = run(ADMIN, sql)
+    if not res.ok:
+        raise ProbeFailed("CREATE OR REPLACE", res.err)
+
+
+def section_controls() -> None:
+    print("\n--- 17. Negative controls: each proved RED with a real defect, then GREEN ---")
+
+    # ---------------------------------------------------------------- NC-M4-005
+    # The packaged font gone from the receipt print path. PLANTED AS THE REAL CASE
+    # RATHER THAN AS A BROKEN BINARY: an Arabic receipt rendered through the Ethiopic
+    # face alone is a genuine .notdef from a genuine font, and it is the defect this
+    # build actually shipped until the third locale was rasterised.
+    arabic_document = json.loads(scalar(
+        f"SELECT docs.receipt_document('{fx.TENANT}', "
+        f"'{CONTEXT['arabic_receipt']}')::text;"))
+
+    def red_font():
+        measured = rasterise(
+            arabic_document,
+            font=str(REPO / "print" / "fonts" / "NotoSansEthiopic-Regular.ttf"))
+        uncovered = [c for c in measured.get("coverage", [])
+                     if not c["drawnByTheVendoredFont"]]
+        return (bool(uncovered),
+                f"{len(uncovered)} character(s) the Ethiopic face did not draw: "
+                f"{[hex(c['codepoint']) for c in uncovered][:8]}. The check reads the "
+                f"BITMAP, per character, and compares against what the platform does "
+                f"with a font it cannot find — so this is a real missing glyph and not "
+                f"an assertion about a file that is not there")
+
+    def green_font():
+        measured = rasterise(arabic_document)
+        uncovered = [c for c in measured.get("coverage", [])
+                     if not c["drawnByTheVendoredFont"]]
+        return (not uncovered,
+                f"{len(measured.get('coverage', []))} character(s), none drawn by "
+                f"anything but the vendored set. Ethiopic, Arabic and Latin on one "
+                f"receipt, each from a face this repository ships and checksums")
+
+    control("NC-M4-005  the packaged Ethiopic font gone from the receipt print path",
+            red_font, green_font)
+
+    # ---------------------------------------------------------------- NC-M4C-001
+    # One settlement printed as two original receipts. PLANTED ON BOTH LOCKS, because
+    # planting on either alone leaves the other holding — and a control that reported red
+    # would then be reporting that the lock it did not touch works.
+    duplicate_settlement = a_settled_bill()
+    duplicate_receipt = a_receipt(duplicate_settlement)
+    scalar(f"""
+        SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}',
+            '{duplicate_receipt}', '{fx.PRINTER_DEVICE}', 'printed',
+            repeat('1', 64)::char(64), 256, '{fx.USER_CASHIER}');""")
+
+    trigger_body = definition("docs.refuse_duplicate_receipt_print()")
+
+    def print_it_again():
+        return run(APP, f"""
+            SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}',
+                '{duplicate_receipt}', '{fx.PRINTER_DEVICE}', 'printed',
+                repeat('2', 64)::char(64), 256, '{fx.USER_CASHIER}');""",
+            tx=True, **CTX)
+
+    def red_duplicate():
+        run(ADMIN, "DROP INDEX docs.print_attempt_one_original_per_receipt;")
+        replace_function("""
+            CREATE OR REPLACE FUNCTION docs.refuse_duplicate_receipt_print()
+            RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END; $$;""")
+        second = print_it_again()
+        return (second.ok,
+                "with the unique index dropped and the trigger emptied, a second "
+                "ORIGINAL print of one settlement succeeded. That is a customer holding "
+                "two records of one payment, and it is two payments as far as anybody "
+                "reading them can tell")
+
+    def green_duplicate():
+        run(ADMIN, """
+            DELETE FROM docs.print_attempt a
+             WHERE a.bytes_sha256 = repeat('2', 64)
+               AND EXISTS (SELECT 1 FROM docs.printer p
+                            WHERE p.id = a.printer_id);""")
+        replace_function(trigger_body)
+        run(ADMIN, """
+            CREATE UNIQUE INDEX print_attempt_one_original_per_receipt
+                ON docs.print_attempt (tenant_id, receipt_id) WHERE NOT is_reprint;""")
+        second = print_it_again()
+        return (second.failed_with("DUPLICATE_RECEIPT_PRINTED",
+                                   "print_attempt_one_original_per_receipt"),
+                second.why() or "a second original print succeeded after the revert")
+
+    control("NC-M4C-001  one settlement printed as two original receipts",
+            red_duplicate, green_duplicate)
+
+    # ---------------------------------------------------------------- NC-M4C-002
+    # A bill total line carrying the tip. THE DEFECT IS IN THE COMPOSER, which is where it
+    # would really be: docs.issue_receipt() is made to write the bill total as the bill
+    # PLUS the tip, exactly as somebody would who thought "total" meant "what they paid".
+    # The faithfulness trigger is the lock, so the RED leg removes it too — a control that
+    # planted only the composer defect would report red and be reporting that the trigger
+    # works, which is not what this control is named for.
+    #
+    # ITS FIRST FORM INSERTED A SECOND bill_total LINE onto a receipt that did not exist,
+    # matched no rows, and reported red for inserting nothing. The run caught it: the red
+    # leg passed and the green leg could not fail. Hence the read-back below — a control
+    # has to show that its defect did something.
+    faithful_body = definition("docs.assert_receipt_is_faithful()")
+    issue_body = definition("docs.issue_receipt(uuid, uuid, uuid, text, uuid, integer)")
+    MERGED = ("'bill_total', v_order,\n"
+              "            docs.wording_for(p_tenant_id, 'bill_total', b.locale),\n"
+              "            b.bill_total_minor")
+    merging_composer = issue_body.replace(MERGED, MERGED + " + v_tip")
+    if merging_composer == issue_body:
+        raise CommandUnreadable(
+            "the bill_total line could not be found in docs.issue_receipt(). This control "
+            "plants its defect in the composer, and a plant that silently changed nothing "
+            "would make the control report red for no reason at all")
+
+    def issue_with_a_tip():
+        settlement = a_settled_bill(tip_minor=2500)
+        issued = run(APP, f"""
+            SELECT docs.issue_receipt('{fx.TENANT}', '{fx.OUTLET_H1}',
+                '{settlement["bill"]}', 'cash', '{fx.USER_CASHIER}');""",
+            tx=True, **CTX)
+        return settlement, issued
+
+    def figures_on_the_latest_receipt_for(bill: str) -> list[str]:
+        return rows(f"""
+            SELECT l.amount_minor::text, r.bill_total_minor::text, r.tip_total_minor::text
+              FROM docs.receipt r
+              JOIN docs.receipt_line l
+                ON l.tenant_id = r.tenant_id AND l.receipt_id = r.id
+             WHERE r.tenant_id = '{fx.TENANT}' AND r.bill_id = '{bill}'
+               AND l.kind = 'bill_total'
+             ORDER BY r.revision DESC LIMIT 1;""")
+
+    def red_merge():
+        replace_function(merging_composer)
+        replace_function("""
+            CREATE OR REPLACE FUNCTION docs.assert_receipt_is_faithful()
+            RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END; $$;""")
+        settlement, issued = issue_with_a_tip()
+        figures = figures_on_the_latest_receipt_for(settlement["bill"])
+        line, bill_total, tip_total = figures[0] if figures else ("0", "0", "0")
+        return (issued.ok and bool(figures) and int(tip_total) > 0
+                and int(line) == int(bill_total) + int(tip_total),
+                f"{issued.why() or 'the receipt issued'}; its bill total line reads "
+                f"{line} against a bill of {bill_total} and a tip of {tip_total}. On "
+                f"paper that is a customer told they owed their own gratuity, and M4-A's "
+                f"proof that a tip cannot reach a balance undone where only the customer "
+                f"would notice")
+
+    def green_merge():
+        # THE COMPOSER IS STILL BROKEN HERE, deliberately. A green leg is not "the defect
+        # was removed", it is "the lock catches the defect". Reverting both at once would
+        # prove only that correct code passes.
+        replace_function(faithful_body)
+        _settlement, issued = issue_with_a_tip()
+        replace_function(issue_body)
+        clean_settlement, clean = issue_with_a_tip()
+        clean_figures = figures_on_the_latest_receipt_for(clean_settlement["bill"])
+        honest = (bool(clean_figures)
+                  and clean_figures[0][0] == clean_figures[0][1])
+        return (issued.failed_with("TIP_MERGED_ON_RECEIPT") and clean.ok and honest,
+                (issued.why()
+                 or f"a merged bill total was accepted with the trigger restored "
+                    f"(the issue reported ok={issued.ok})")
+                + f". The diagnostic names the tip only after VERIFYING that the excess "
+                  f"is exactly the tip, which is the shape M4-A's NC-M4A-006 had to be "
+                  f"corrected into. The composer was then reverted and a clean receipt "
+                  f"issued: {clean_figures or 'no bill total line'}")
+
+    control("NC-M4C-002  a bill total line on a receipt carrying the tip",
+            red_merge, green_merge)
+
+    # ---------------------------------------------------------------- NC-M4C-003
+    # A non-English receipt falling back to English on paper. THE DEFECT IS THE ABSENCE
+    # OF AN APPROVED TRANSLATION, which is what actually happens: somebody adds a line
+    # kind, nobody translates it, and the receipt prints half in English.
+    locale_body = definition("docs.assert_receipt_is_complete_in_its_locale()")
+    withdrawn = run(ADMIN, f"""
+        SELECT set_config('app.tenant_id', '{fx.TENANT}', false);
+        -- WITHDRAWN THE WAY M2-A WITHDRAWS ONE. A draft carries no reviewer and no
+        -- approval time — the CHECK on menu.translation says so — and setting only the
+        -- state would be asking the schema to hold a row that means two things at once.
+        UPDATE menu.translation
+           SET state = 'draft', reviewed_by_user_id = NULL, approved_at = NULL
+         WHERE tenant_id = '{fx.TENANT}' AND entity = 'receipt_line_wording'
+           AND locale = 'am' AND entity_id = '{fx.WORDING_TIP}';""", tx=True)
+    if not withdrawn.ok:
+        raise ProbeFailed("withdrawing an approved translation", withdrawn.err)
+
+    def issue_an_amharic_receipt():
+        settlement = a_settled_bill("am")
+        return run(APP, f"""
+            SELECT docs.issue_receipt('{fx.TENANT}', '{fx.OUTLET_H1}',
+                '{settlement["bill"]}', 'cash', '{fx.USER_CASHIER}');""",
+            tx=True, **CTX)
+
+    def red_locale():
+        replace_function("""
+            CREATE OR REPLACE FUNCTION docs.assert_receipt_is_complete_in_its_locale()
+            RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END; $$;""")
+        issued = issue_an_amharic_receipt()
+        return (issued.ok,
+                "with the completeness trigger emptied and one approved Amharic "
+                "translation withdrawn, an Amharic receipt was issued carrying the "
+                "English source text on its tip line. On a screen a missing string is a "
+                "bad afternoon; on paper it is a document the customer cannot read and "
+                "nobody can re-render")
+
+    def green_locale():
+        replace_function(locale_body)
+        issued = issue_an_amharic_receipt()
+        restored = run(ADMIN, f"""
+            SELECT set_config('app.tenant_id', '{fx.TENANT}', false);
+            UPDATE menu.translation
+               SET state = 'approved', reviewed_by_user_id = '{fx.USER_MANAGER}',
+                   approved_at = now()
+             WHERE tenant_id = '{fx.TENANT}' AND entity = 'receipt_line_wording'
+               AND locale = 'am' AND entity_id = '{fx.WORDING_TIP}';""", tx=True)
+        if not restored.ok:
+            raise ProbeFailed("restoring the approved translation", restored.err)
+        return (issued.failed_with("RECEIPT_INCOMPLETE_IN_LOCALE"),
+                issued.why() or "a half-English Amharic receipt was issued after the "
+                                "revert")
+
+    control("NC-M4C-003  a non-English receipt falling back to English on paper",
+            red_locale, green_locale)
+
+    # ---------------------------------------------------------------- NC-M4C-004
+    # A summary of an empty window reported as a figure. Planted in the CONSTRUCTOR,
+    # which is the only door into a reading — a defect in one metric's arithmetic would
+    # be caught by the constructor, so the control has to break the constructor to show
+    # what it is holding.
+    reading_body = definition(
+        "report.reading(report.metric_key, bigint, char, bigint, timestamptz)")
+
+    def fabricate():
+        return run(APP, """
+            SELECT report.reading('kitchen_preparation_seconds_p50', 0, NULL, 0, now());""",
+            tx=True, **CTX)
+
+    def red_fabricated():
+        replace_function("""
+            CREATE OR REPLACE FUNCTION report.reading(
+                p_metric report.metric_key, p_value bigint, p_currency_code char(3),
+                p_observation_count bigint, p_latest_source_row_at timestamptz)
+            RETURNS report.reading LANGUAGE plpgsql STABLE AS $$
+            DECLARE r report.reading;
+            BEGIN
+                r.metric := p_metric;
+                r.unit := (SELECT unit FROM report.metric WHERE key = p_metric);
+                r.value := p_value;
+                r.currency_code := p_currency_code;
+                r.observation_count := p_observation_count;
+                r.source := (SELECT source_relation FROM report.metric WHERE key = p_metric);
+                r.computed_at := now();
+                r.latest_source_row_at := p_latest_source_row_at;
+                RETURN r;
+            END; $$;""")
+        offered = fabricate()
+        return (offered.ok,
+                "with the constructor's honesty checks removed, a median preparation "
+                "time over ZERO tickets was reported as 0 seconds. A manager reading "
+                "that would conclude the kitchen was instant, and FR-UX-014 is the rule "
+                "against exactly this — not against showing zero, but against showing a "
+                "figure where there is nothing to summarise")
+
+    def green_fabricated():
+        replace_function(reading_body)
+        offered = fabricate()
+        return (offered.failed_with("FABRICATED_METRIC"),
+                offered.why() or "an invented median was accepted after the revert")
+
+    control("NC-M4C-004  a summary of an empty window reported as a figure",
+            red_fabricated, green_fabricated)
+
+    # ---------------------------------------------------------------- NC-M4C-005
+    # A recomputation writing over a signed-off shift result. PLANTED AS THE REAL DEFECT:
+    # the recomputation function is changed to do what a well-meaning author would do —
+    # update the snapshot to the current answer — and the ledger trigger is what has to
+    # stop it.
+    recompute_body = definition("report.recompute_shift_snapshot(uuid, uuid, uuid)")
+    shift = CONTEXT["snapshot_shift"]
+
+    def red_rewrite():
+        # BOTH LOCKS, because either alone holds and a control that planted one would be
+        # reporting that the other works. The trigger comes off and the function is
+        # replaced with the one a well-meaning author would write: update the snapshot to
+        # today's answer.
+        run(ADMIN, "DROP TRIGGER shift_snapshot_value_is_append_only "
+                   "ON report.shift_snapshot_value;")
+        replace_function("""
+            CREATE OR REPLACE FUNCTION report.recompute_shift_snapshot(
+                p_tenant_id uuid, p_shift_id uuid, p_actor_user_id uuid)
+            RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER AS $$
+            DECLARE s report.shift_snapshot%ROWTYPE;
+            BEGIN
+                SELECT * INTO s FROM report.shift_snapshot
+                 WHERE tenant_id = p_tenant_id AND shift_id = p_shift_id;
+                UPDATE report.shift_snapshot_value v
+                   SET value = n.value, observation_count = n.observations
+                  FROM (SELECT (r).metric AS metric, (r).value AS value,
+                               (r).observation_count AS observations
+                          FROM report.metric_values(s.tenant_id, s.outlet_id,
+                                 s.window_from, s.window_to, s.currency_code) r) n
+                 WHERE v.tenant_id = s.tenant_id AND v.snapshot_id = s.id
+                   AND v.metric = n.metric;
+                RETURN s.id;
+            END; $$;""")
+        before = CONTEXT["signed_tip_reversals"]
+        # UNDER THE TENANT'S CONTEXT. The first version of this leg called the planted
+        # function with no request context, and FORCE row level security hid the snapshot
+        # from it: the UPDATE matched nothing, the figure did not move, and the control
+        # reported that a rewrite had failed to happen. A control that plants a defect
+        # and then cannot reach the row is not a red leg.
+        rewritten = run(ADMIN, f"""
+            SELECT report.recompute_shift_snapshot('{fx.TENANT}', '{shift}',
+                                                   '{fx.USER_FINANCE_MANAGER}');""",
+            **CTX)
+        if not rewritten.ok:
+            raise ProbeFailed("the planted recomputation", rewritten.err)
+        after = scalar(f"""
+            SELECT coalesce(v.value::text, 'null') FROM report.shift_snapshot_value v
+              JOIN report.shift_snapshot s
+                ON s.tenant_id = v.tenant_id AND s.id = v.snapshot_id
+             WHERE s.shift_id = '{shift}' AND v.metric = 'tip_reversals_minor';""")
+        return (after != before,
+                f"with the append-only trigger dropped and the recomputation writing "
+                f"back, the signed-off tip_reversals_minor moved from {before} to "
+                f"{after}. Nobody was told: the shift still reads as verified, by the "
+                f"same person, with a different number under their name — which is what "
+                f"the word SILENTLY in FR-RPT-014 is about")
+
+    def green_rewrite():
+        # THE FIGURE IS PUT BACK FIRST, while the trigger is still off. A green leg that
+        # left the snapshot holding the rewritten number would leave every later check in
+        # this suite asserting against a document this control corrupted.
+        restored = run(ADMIN, f"""
+            UPDATE report.shift_snapshot_value v
+               SET value = {CONTEXT["signed_tip_reversals"]}
+              FROM report.shift_snapshot s
+             WHERE s.tenant_id = v.tenant_id AND s.id = v.snapshot_id
+               AND s.shift_id = '{shift}' AND v.metric = 'tip_reversals_minor';""",
+            **CTX)
+        if not restored.ok:
+            raise ProbeFailed("restoring the snapshot after NC-M4C-005", restored.err)
+        run(ADMIN, """
+            CREATE TRIGGER shift_snapshot_value_is_append_only
+                BEFORE UPDATE OR DELETE ON report.shift_snapshot_value
+                FOR EACH ROW EXECUTE FUNCTION app.refuse_financial_mutation();""")
+
+        # THE DEFECTIVE FUNCTION IS STILL IN PLACE HERE, deliberately: the green leg is
+        # not "the defect was removed", it is "the lock catches the defect".
+        blocked = run(ADMIN, f"""
+            SELECT report.recompute_shift_snapshot('{fx.TENANT}', '{shift}',
+                                                   '{fx.USER_FINANCE_MANAGER}');""",
+            tx=True, **CTX)
+        replace_function(recompute_body)
+        again = scalar(f"""
+            SELECT report.recompute_shift_snapshot('{fx.TENANT}', '{shift}',
+                                                   '{fx.USER_FINANCE_MANAGER}');""")
+        return (blocked.failed_with("LEDGER_ROW_DELETED_NOT_REVERSED") and bool(again),
+                (blocked.why() or "the rewriting recomputation succeeded with the "
+                                  "trigger restored")
+                + f". The real function was then put back and recomputation "
+                  f"{again[:8]} recorded what it found instead of writing it over the "
+                  f"snapshot")
+
+    control("NC-M4C-005  a recomputation writing over a signed-off shift result",
+            red_rewrite, green_rewrite)
+
+    # ---------------------------------------------------------------- NC-M4C-006
+    # Money on a bill that no sales classification claims. PLANTED AS THE DEFAULT
+    # SOMEBODY WOULD ADD: the classifier is given an ELSE branch returning item_sales,
+    # which is what a well-meaning author writes to stop an exception, and the report
+    # then balances while being wrong.
+    classifier_body = definition(
+        "report.classify_component(ordering.charge_kind, ordering.charge_source_kind)")
+
+    def classify_an_unknown_pair():
+        return run(APP, """
+            SELECT report.classify_component('fee'::ordering.charge_kind,
+                                             'menu_price'::ordering.charge_source_kind);""",
+            tx=True, **CTX)
+
+    def red_unclassified():
+        replace_function("""
+            CREATE OR REPLACE FUNCTION report.classify_component(
+                p_kind ordering.charge_kind, p_source_kind ordering.charge_source_kind)
+            RETURNS report.sales_classification LANGUAGE plpgsql IMMUTABLE AS $$
+            BEGIN
+                IF p_source_kind = 'service_configuration' THEN RETURN 'service_charges'; END IF;
+                CASE p_kind
+                    WHEN 'item_subtotal' THEN RETURN 'item_sales';
+                    WHEN 'discount'      THEN RETURN 'discounts';
+                    WHEN 'tax'           THEN RETURN 'taxes';
+                    ELSE RETURN 'item_sales';
+                END CASE;
+            END; $$;""")
+        answered = classify_an_unknown_pair()
+        return (answered.ok and (answered.scalar or "").strip() == "item_sales",
+                f"with a default branch added, a fee from a source nothing recognises was "
+                f"reported as {(answered.scalar or '').strip()!r}. The report would "
+                f"BALANCE and be wrong: the money is in a classification it does not "
+                f"belong to, and the total nobody would question is the total that hides "
+                f"it")
+
+    def green_unclassified():
+        replace_function(classifier_body)
+        answered = classify_an_unknown_pair()
+        return (answered.failed_with("SALES_COMPONENT_UNCLASSIFIED"),
+                answered.why() or "an unrecognised charge source was still classified "
+                                  "after the revert. A later gate adding one has to come "
+                                  "here and say where it goes")
+
+    control("NC-M4C-006  money on a bill that no sales classification claims",
+            red_unclassified, green_unclassified)
+
+    # ---------------------------------------------------------------- NC-M4C-007
+    # A counter order that can name no POS terminal. Planted on the constraint trigger,
+    # which is the lock; the route calling pos.record_counter_order() is the other half,
+    # and M4-A's NC-M4A-007 already proves there is no second order path for one to hide
+    # behind.
+    counter_trigger = definition("ordering.assert_counter_order_names_its_terminal()")
+
+    def a_counter_order_naming_nobody():
+        session = fx.m4a.fresh_occupancy(fx.m4a.COUNTER_NODE)
+        guest = fx.m4a.guest_on(session)
+        cart = fx.m4a.cart_with(session, guest, ((fx.VARIANT_DORO_FULL, fx.ITEM_DORO, 1),))
+        view = preview(cart, "en", "counter")
+        return run(APP, f"""
+            SELECT ordering.submit_order(
+                '{fx.TENANT}', '{fx.OUTLET_H1}', '{cart}', '{idem("nc007")}',
+                decode('{view["pricing_digest"]}', 'hex'), {view["total_amount_minor"]},
+                'en', gen_random_uuid(), gen_random_uuid(), 'counter',
+                '{fx.USER}', NULL, false, '[]'::jsonb, '[]'::jsonb, 'counter');""",
+            tx=True, **CTX)
+
+    def red_counter():
+        replace_function("""
+            CREATE OR REPLACE FUNCTION ordering.assert_counter_order_names_its_terminal()
+            RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NULL; END; $$;""")
+        placed = a_counter_order_naming_nobody()
+        return (placed.ok,
+                "with the constraint trigger emptied, an order marked 'counter' was "
+                "accepted from a session on no device at all. FR-POS-003B says a counter "
+                "order is created AT THE POS TERMINAL, and an order that claims the "
+                "counter and can name no terminal is a channel label rather than a place")
+
+    def green_counter():
+        replace_function(counter_trigger)
+        placed = a_counter_order_naming_nobody()
+        return (placed.failed_with("COUNTER_ORDER_WITHOUT_A_TERMINAL"),
+                placed.why() or "a terminal-less counter order was accepted after the "
+                                "revert")
+
+    control("NC-M4C-007  a counter order that can name no POS terminal",
+            red_counter, green_counter)
+
+    # ---------------------------------------------------------------- NC-M4C-008
+    # A customer receipt printed on a printer nobody tested. The precondition lives in
+    # docs.record_receipt_print(), and it is the only thing that function adds beyond the
+    # INSERT — so removing it is exactly the defect a reviewer would miss.
+    print_body = definition(
+        "docs.record_receipt_print(uuid, uuid, uuid, uuid, docs.print_outcome, char, "
+        "integer, uuid, boolean, uuid, text, text)")
+
+    def print_on_the_untested_one():
+        settlement = a_settled_bill()
+        receipt = a_receipt(settlement)
+        return run(APP, f"""
+            SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}',
+                '{receipt}', '{fx.PRINTER_UNTESTED}', 'printed',
+                repeat('3', 64)::char(64), 128, '{fx.USER_CASHIER}');""",
+            tx=True, **CTX)
+
+    def red_untested():
+        replace_function(print_body.replace(
+            "IF NOT docs.printer_has_passed_a_test(p_tenant_id, p_printer_id) THEN",
+            "IF false THEN"))
+        printed = print_on_the_untested_one()
+        return (printed.ok,
+                "with the precondition removed, a customer receipt was printed on a "
+                "printer that has never successfully printed anything. FR-CFG-001D says "
+                "setup registers AND TESTS, and a setup screen reporting a printer ready "
+                "because a row exists is FR-INT-011's most expensive kind of true "
+                "statement")
+
+    def green_untested():
+        replace_function(print_body)
+        printed = print_on_the_untested_one()
+        return (printed.failed_with("PRINTER_NEVER_TESTED"),
+                printed.why() or "an untested printer printed after the revert")
+
+    control("NC-M4C-008  a customer receipt printed on a printer nobody tested",
+            red_untested, green_untested)
+
+
+# ===========================================================================
+# Setting the stage: the settlements, the receipts, and one signed-off shift
+# ===========================================================================
+
+def establish() -> None:
+    """The facts every section reads. Built once, through the delivered writers.
+
+    THE SHIFT IS SIGNED OFF LAST, and after the receipts, because the snapshot is taken
+    at the instant of sign-off and must have something to summarise. A snapshot over an
+    empty window would make section 4 assert that nothing was rewritten, truthfully and
+    uselessly.
+    """
+    # THE SHIFT IS OPENED FIRST, and that is not ordering for its own sake: the snapshot
+    # summarises the window between opening and sign-off, and a shift opened after the
+    # settlements would snapshot an empty evening. A snapshot over nothing would let
+    # section 4 report that nothing was rewritten — truthfully, and about no figures.
+    shift = scalar(f"""
+        SELECT cash.open_shift('{fx.TENANT}', '{fx.OUTLET_H1}',
+            '{fx.m4b.TERMINAL_DEVICE}', '{fx.USER_CASHIER}', 'ETB', 100000);""")
+    CONTEXT["snapshot_shift"] = shift
+
+    english = a_settled_bill()
+    CONTEXT["english_settlement"] = english
+    CONTEXT["english_receipt"] = a_receipt(english)
+
+    CONTEXT["no_tip_receipt"] = CONTEXT["english_receipt"]
+
+    tipped = a_settled_bill(tip_minor=3000)
+    CONTEXT["tipped_settlement"] = tipped
+    CONTEXT["tipped_receipt"] = a_receipt(tipped)
+
+    amharic = a_settled_bill("am", tip_minor=1500)
+    CONTEXT["amharic_settlement"] = amharic
+    CONTEXT["amharic_receipt"] = a_receipt(amharic)
+
+    arabic = a_settled_bill("ar", tip_minor=1200)
+    CONTEXT["arabic_settlement"] = arabic
+    CONTEXT["arabic_receipt"] = a_receipt(arabic)
+
+    # A COUNTER ORDER AT A REAL TILL, and a guest's QR order beside it so that section 10
+    # can prove the terminal record refuses the one that was not entered at a counter.
+    till_session = fx.m4a.session_at_the_counter_terminal()
+    CONTEXT["counter_session"] = till_session
+    counter_session_id = fx.m4a.fresh_occupancy(fx.m4a.COUNTER_NODE)
+    guest = fx.m4a.guest_on(counter_session_id)
+    cart = fx.m4a.cart_with(counter_session_id, guest,
+                            ((fx.VARIANT_DORO_FULL, fx.ITEM_DORO, 1),))
+    view = preview(cart, "en", "counter")
+    placed = run(APP, f"""
+        WITH placed AS (
+            SELECT ordering.submit_order(
+                '{fx.TENANT}', '{fx.OUTLET_H1}', '{cart}', '{idem("counter")}',
+                decode('{view["pricing_digest"]}', 'hex'), {view["total_amount_minor"]},
+                'en', gen_random_uuid(), gen_random_uuid(), 'counter',
+                '{fx.USER}', NULL, false, '[]'::jsonb, '[]'::jsonb, 'counter') AS id)
+        SELECT placed.id
+          FROM placed,
+               LATERAL (SELECT pos.record_counter_order(
+                          '{fx.TENANT}', '{fx.OUTLET_H1}', placed.id, '{fx.USER}')) AS bound;
+        """, tx=True, session=till_session, **CTX)
+    if not placed.ok:
+        raise ProbeFailed("a counter order at the till", placed.err)
+    CONTEXT["counter_order"] = (placed.scalar or "").strip()
+    CONTEXT["qr_order"] = english["order"]
+
+    # THE DRAWER IS COUNTED, SUBMITTED AND VERIFIED by somebody who is not the cashier —
+    # which is the sign-off, and the instant the snapshot is taken.
+    #
+    # THE SNAKE_CASE KEYS THE FUNCTION READS, not the camelCase the HTTP route accepts.
+    # M4-B's tally_for() produces the route's shape because M4-B counts through the route;
+    # this suite counts through the function, and the two vocabularies meet at the route
+    # rather than in the database.
+    tally = [{"denomination_minor": row["denominationMinor"],
+              "piece_count": row["pieceCount"]}
+             for row in fx.m4b.tally_for(100000)]
+    counted = run(APP, f"""
+        SELECT cash.record_count('{fx.TENANT}', '{fx.OUTLET_H1}', '{shift}', 'closing',
+            '{json.dumps(tally)}'::jsonb, '{fx.USER_CASHIER}');""",
+        tx=True, **CTX)
+    if not counted.ok:
+        raise ProbeFailed("the closing count", counted.err)
+
+    submitted = run(APP, f"""
+        SELECT cash.transition_shift('{fx.TENANT}', '{shift}', 'submitted',
+                                     '{fx.USER_CASHIER}');""", tx=True, **CTX)
+    if not submitted.ok:
+        raise ProbeFailed("submitting the shift", submitted.err)
+
+    verifier_session, _token = fx.staff_session(fx.USER_FINANCE_MANAGER)
+    verified = run(APP, f"""
+        SELECT cash.transition_shift('{fx.TENANT}', '{shift}', 'verified',
+                                     '{fx.USER_FINANCE_MANAGER}');""",
+        tx=True, session=verifier_session, **CTX)
+    if not verified.ok:
+        raise ProbeFailed("verifying the shift", verified.err)
+
+    signed = run(APP, f"""
+        SELECT coalesce(v.value::text, 'null') FROM report.shift_snapshot_value v
+          JOIN report.shift_snapshot s ON s.tenant_id = v.tenant_id AND s.id = v.snapshot_id
+         WHERE s.shift_id = '{shift}' AND v.metric = 'tip_reversals_minor';""", **CTX)
+    if not signed.ok or not (signed.scalar or "").strip():
+        raise ProbeFailed(
+            "reading the signed-off figure",
+            signed.err or "the snapshot carries no tip_reversals_minor row, so section 5 "
+                          "would have nothing to compare a recomputation against")
+    CONTEXT["signed_tip_reversals"] = (signed.scalar or "").strip()
+
+
+def main() -> int:
+    print("M4-C verification — receipts, the printer path, reporting, the register audit")
+    print("real compiled service, real process, real database, real rasteriser")
+
+    fx.seed()
+
+    sync_and_build()
+    service = Service(os.environ["M1A_APP_DSN"])
+    if not service.start():
+        print(f"FAIL SERVICE_DID_NOT_START\n{service.logs()[-2000:]}")
+        return 1
+
+    CONTEXT["service"] = service
+    CONTEXT["base_url"] = f"http://127.0.0.1:{service.port}"
+    CONTEXT["restart"] = service.restart
+    CONTEXT["workspace"] = Path(
+        os.environ.get("M1D_WORKSPACE", str(Path(tempfile.gettempdir()) / "m1d-workspace")))
+    CONTEXT["log_dir"] = Path(os.environ.get("M4C_LOG_DIR", str(SCRATCH / "logs")))
+
+    try:
+        _manager_session, manager_token = fx.staff_session(fx.USER_FINANCE_MANAGER)
+        CONTEXT["manager_token"] = manager_token
+
+        establish()
+
+        section_catalog()
+        section_readings()
+        section_sales()
+        section_snapshot()
+        section_recomputation()
+        section_exports_and_dashboards()
+        section_receipt()
+        section_printer()
+        section_preview()
+        section_counter()
+        section_ethiopic_on_the_printer()
+        section_fiscal()
+        section_ledgers()
+        section_boundary()
+        section_control_registry()
+        section_controls()
+        section_register_audit()
+    except (CommandUnreadable, ProbeFailed, coverage.CoverageUnreadable) as error:
+        # FAIL CLOSED, for the reason every suite before this one records: a suite that
+        # cannot load its rules, cannot read a definition, or finds the set it was going
+        # to assert over empty must STOP rather than continue on a default. A sentinel is
+        # not a pass.
+        print(f"\nFAIL M4C_VERIFICATION_UNUSABLE: {error}")
+        return 1
+    finally:
+        service.stop()
+
+    failed = [(name, detail) for name, ok, detail, _e in results if not ok]
+    measured_count = sum(1 for _n, _o, _d, e in results if e == "measured")
+
+    print("\nM4-C summary")
+    print(f"  checks run    : {len(results)}")
+    print(f"  passed        : {len(results) - len(failed)}")
+    print(f"  failed        : {len(failed)}")
+    print(f"  measured      : {measured_count}   (read off a raster or a browser)")
+    print(f"  asserted      : {len(results) - measured_count}   (source, payload, or "
+          f"database)")
+    print(f"  controls      : "
+          f"{sum(1 for n, _o, _d, _e in results if ' — RED' in n)}   "
+          f"(each proved red with a real defect, then green after revert)")
+    for name, detail in failed:
+        print(f"  - {name}")
+        for line in (detail or "").splitlines():
+            print(f"      {line}")
+    print()
+    if failed:
+        print("FAIL M4C_VERIFICATION")
+        return 1
+    print("PASS M4C_VERIFICATION")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

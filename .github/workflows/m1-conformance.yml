@@ -271,7 +271,13 @@ jobs:
           # being updated: this loop said M1A..M3A while the driver beneath it had been
           # running through M3-C for a gate, so two suites were passing on Windows
           # without anybody requiring them to.
-          for verdict in M1A M1B M1C M1D M2A M2B M2C M3A M3B M3C M3D M4A; do
+          # THE LIST IS DERIVED FROM THE REPOSITORY, not typed. Its previous two forms
+          # were both stale — it said M1A..M3A while the driver ran through M3-C, and
+          # M1A..M4A while it ran through M4-B — and each time two suites were passing on
+          # Windows without anybody requiring them to. tests/ is where the suites are, so
+          # tests/ is what the loop reads.
+          for suite in $(ls -d tests/m[0-9]* | sed 's#tests/##' | sort); do
+            verdict="$(echo "$suite" | tr '[:lower:]' '[:upper:]')"
             grep -q "^PASS ${verdict}_VERIFICATION" "$LOG_DIR/windows-suites.log" || {
               echo "::error::${verdict} did not report PASS on Windows"; exit 1; }
           done
@@ -723,6 +729,54 @@ jobs:
             echo "::error::the outage call-graph assertion did not run"; exit 1; }
           echo "M4-B: $checks checks, 0 failures"
 
+      - name: "M4-C — receipts (FR-BIL-010, FR-BIL-011, FR-BIL-016, FR-BIL-017), the fiscal port (FR-BIL-012), the printer setup that tests (FR-CFG-001D), the preview (FR-UX-018), counter POS at the terminal (FR-POS-003B), receipt languages (FR-I18N-001C) and reporting (FR-RPT-001, FR-RPT-002, FR-RPT-003, FR-RPT-004, FR-RPT-005, FR-RPT-013, FR-RPT-014, FR-RPT-015)"
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Chains from the M4-B driver, which chains the whole history beneath it. A
+          # receipt is a claim about a settlement, which is a claim about a payment, a
+          # bill, a check, an accepted order and a seated guest reading a priced menu.
+          # Paper is the one artefact a customer takes away, so nothing under it may be
+          # assumed.
+          #
+          # THE LOG DIRECTORY IS PASSED IN, because the suite runs the FR-GOV-004 register
+          # audit over this run's own logs. An audit that could not see the evidence would
+          # report every requirement missing and look like a catastrophe rather than a
+          # broken reader — tools/requirement_coverage.py refuses in that case, and this
+          # is what stops it having to.
+          export M4C_LOG_DIR="$LOG_DIR"
+          bash tests/m4c/run_verification.sh 2>&1 | tee "$LOG_DIR/m4c.log"
+          grep -q '^PASS M4C_VERIFICATION' "$LOG_DIR/m4c.log" || {
+            echo "::error::M4-C suite did not report PASS"; exit 1; }
+          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' "$LOG_DIR/m4c.log" | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/m4c.log" | tail -1)"
+          test "${checks:-0}" -ge 60 || { echo "::error::only ${checks:-0} M4-C checks ran"; exit 1; }
+          test "${failed:-1}" -eq 0 || { echo "::error::${failed} M4-C check(s) failed"; exit 1; }
+          # NC-M4-005 MUST HAVE MEASURED A RASTER. The whole of FR-I18N-001C at the
+          # printer is that a receipt is checked where it is printed rather than where it
+          # is displayed, and a run in which the glyph check silently did not execute
+          # would be the weaker proof wearing the stronger one's badge — the same
+          # reasoning M4-A applied to tip separation and M4-B to the live boundary.
+          grep -q 'every Ethiopic character on the receipt was drawn by the packaged font' \
+            "$LOG_DIR/m4c.log" || {
+            echo "::error::the per-glyph raster assertion did not run"; exit 1; }
+          # And FR-RPT-014's three independent locks, which is the claim that a
+          # recomputation cannot SILENTLY rewrite a signed-off result.
+          grep -q 'the application role cannot write a snapshot at all' "$LOG_DIR/m4c.log" || {
+            echo "::error::the snapshot grant assertion did not run"; exit 1; }
+          echo "M4-C: $checks checks, 0 failures"
+
+      - name: FR-GOV-004 — every requirement whose gate has landed is delivered or classified
+        shell: bash
+        # Its own step as well as a check inside tests/m4c, and deliberately: the suite
+        # asks the question against the logs that existed when it ran, and this asks it
+        # again once every suite and every journey has written one. A gap that only
+        # appears in the complete picture is the gap a slice-local audit cannot see.
+        if: always()
+        run: |
+          set -euo pipefail
+          python3 tools/requirement_coverage.py --logs "$LOG_DIR"
+
       - name: The five golden journeys — end to end, in a browser (FR-TST-005A)
         shell: bash
         # `if: always()` on purpose. The journeys run AFTER the slice suites and report
@@ -781,11 +835,11 @@ jobs:
           mkdir -p "$LOG_DIR/reorder"
           # Reverse order, same database, no rebuild. A suite that only passes when it runs
           # first is depending on state another suite left behind.
-          for suite in m4b m4a m3d m3c m3b m3a m2c m2b m2a m1d m1c m1b m1a; do
+          for suite in m4c m4b m4a m3d m3c m3b m3a m2c m2b m2a m1d m1c m1b m1a; do
             python3 "tests/$suite/verify_${suite}.py" > "$LOG_DIR/reorder/$suite.log" 2>&1 || true
           done
           fail=0
-          for suite in m1a m1b m1c m1d m2a m2b m2c m3a m3b m3c m3d m4a m4b; do
+          for suite in m1a m1b m1c m1d m2a m2b m2c m3a m3b m3c m3d m4a m4b m4c; do
             tag="$(echo "$suite" | tr '[:lower:]' '[:upper:]')"
             declared="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/$suite.log" | tail -1)"
             reordered="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/reorder/$suite.log" | tail -1)"

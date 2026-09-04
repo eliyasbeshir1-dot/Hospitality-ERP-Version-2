@@ -1447,8 +1447,6 @@ AS $$
         -- changing one.
         WHEN 'billing.bill_disposition'   THEN 'ledger'
         WHEN 'billing.bill_event'         THEN 'ledger'
-        WHEN 'billing.check'              THEN 'ledger'
-        WHEN 'billing.check_allocation'   THEN 'ledger'
         WHEN 'billing.tip'                THEN 'ledger'
         WHEN 'billing.tip_correction'     THEN 'ledger'
         WHEN 'cash.custody_transfer'      THEN 'ledger'
@@ -1463,7 +1461,6 @@ AS $$
         WHEN 'docs.render_attempt'        THEN 'ledger'
         WHEN 'payments.payment_event'     THEN 'ledger'
         WHEN 'payments.payment_intent'    THEN 'ledger'
-        WHEN 'payments.proof_confirmation' THEN 'ledger'
         WHEN 'payments.reversal'          THEN 'ledger'
         WHEN 'payments.simulated_attempt' THEN 'ledger'
         WHEN 'payments.terminal_result'   THEN 'ledger'
@@ -1494,6 +1491,15 @@ AS $$
         -- refuses UPDATE and DELETE, and everything else says why it does not, in the
         -- table at the head of 0028 rather than in a class name that implies a rule
         -- nothing enforces.
+        -- The three 0028 corrected after tests/m4c asked, of every declared ledger,
+        -- whether it actually refuses a destructive correction. A check has a LIFECYCLE
+        -- and its append-only record is billing.bill_event; a proof moves from pending to
+        -- verified and its record is payments.payment_event. Repeated here because this
+        -- function is REPLACED rather than extended, and a replacement that dropped a
+        -- correction would put the wrong classification back without anybody editing it.
+        WHEN 'billing.check'                   THEN 'mutable'
+        WHEN 'billing.check_allocation'        THEN 'mutable'
+        WHEN 'payments.proof_confirmation'     THEN 'mutable'
         WHEN 'billing.component_wording'       THEN 'mutable'
         WHEN 'billing.service_charge_setting'  THEN 'mutable'
         WHEN 'billing.tip_setting'             THEN 'mutable'
