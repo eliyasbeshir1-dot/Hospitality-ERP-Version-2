@@ -218,7 +218,7 @@ bash tests/m1d/run_verification.sh         # rebuilds from empty, runs every sli
 | Suite | Covers |
 |---|---|
 | `tests/fenced_gate/verify_fenced_gate.py` | the forbidden-surface gate itself: vocabulary provenance and mutation coverage (spans M1 · M2 · M3) |
-| `tests/journeys/verify_journeys.py` | the five golden journeys end to end in a browser against real persistence, plus the duplicate-submit race: what a guest and a waiter actually walk through, across every gate that has landed (spans M1 · M2 · M3) |
+| `tests/journeys/verify_journeys.py` | the golden journeys end to end in a browser against real persistence, plus the duplicate-submit race: what a guest and a waiter actually walk through, across every gate that has landed (spans M1 · M2 · M3) |
 | `tests/m1a/verify_m1a.py` | database, organizational model, row level security, production roles |
 | `tests/m1b/verify_m1b.py` | identity, memberships, sessions, step-up authentication |
 | `tests/m1c/verify_m1c.py` | configuration, audit, money exactness, numbering, retention |
