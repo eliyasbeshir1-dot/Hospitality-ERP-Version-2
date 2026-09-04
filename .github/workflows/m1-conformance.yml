@@ -779,7 +779,7 @@ jobs:
           set -euo pipefail
           python3 tools/requirement_coverage.py --logs "$LOG_DIR"
 
-      - name: The golden journeys — end to end, in a browser (FR-TST-005A)
+      - name: The golden journeys and the duplicate-submit race — end to end, in a browser (FR-TST-005A, FR-TST-007A)
         shell: bash
         # `if: always()` on purpose. The journeys run AFTER the slice suites and report
         # their own outcome whether or not one of them failed: if a slice check and a
