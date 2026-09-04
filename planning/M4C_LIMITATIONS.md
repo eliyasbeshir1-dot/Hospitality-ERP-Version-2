@@ -108,3 +108,26 @@ right place.
 reconciliation answers is which documents are stuck; a single number hides the requested
 ones that never went anywhere.
 
+
+## 6. One font was not enough, and the way that was found is the point
+
+Recorded against `1a73b56` on 4 September 2026.
+
+Sections 1 to 4 above were written when `print/fonts/` held one face. It held one because
+NC-M4-005 names Ethiopic, and Ethiopic was the script the control was designed around.
+**The Arabic receipt printed boxes.** Nothing in the reasoning caught it; the per-glyph
+raster check caught it, on a locale the control was not written for, because the check
+reads the bitmap rather than the file list.
+
+So the path takes a font SET rather than a font. `print/agent.py` verifies every face in
+`print/fonts/` against `PROVENANCE.md` in both directions — a file with no recorded digest
+and a recorded digest with no file each raise `RECEIPT_FONT_UNPROVENANCED` — and passes
+the whole set to the renderer as one CSS stack. Section 4's obligation therefore covers
+both binaries: `OFL-1.1.txt` accompanies the directory, not a single file, and both faces
+are Noto under the same licence.
+
+**What this does not prove is that three locales are all the locales.** The set is
+complete for the three this phase supports and for nothing else. A fourth locale is a
+fourth face, a fourth provenance row and a fourth run of the coverage check — not a
+configuration change, and the reason it is not is section 3: coverage is a property of the
+rasteriser and the font together.
