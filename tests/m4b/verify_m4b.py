@@ -1887,7 +1887,8 @@ def section_event_shape() -> None:
     # THE SHAPE EXISTS AND IS DOCUMENTED. FR-PAY-010A asks for events "in a documented
     # shape that a future consumer could subscribe to, with no consumer in Phase 1", and
     # the M4-C register audit found nothing in this repository checking it by name — which
-    # is what an uncited delivery looks like from the outside. The shape is the ledger's
+    # is what a requirement that is built and uncited looks like from outside. The
+    # shape is the ledger's
     # own columns, and what documents it is the generated schema catalog plus the table's
     # comment, both of which are read from the live database rather than written by hand.
     shape = {r[0]: r[1] for r in rows("""
