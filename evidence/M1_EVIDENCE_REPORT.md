@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `333ecbaba1a87a2705205261d78798fec3b0fa46` |
-| Short | `333ecba` |
+| Commit | `f1250203765398bc6847d5f728c278c914a0bb5e` |
+| Short | `f125020` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation |
@@ -112,10 +112,10 @@ Money is stored as integer minor units beside an explicit currency.
 | M3-D terminals, override, handover, the waiter surface | **PASS** | 95 | 0 |
 | M4-A checks, bills, splitting, tip separation | **PASS** | 105 | 0 |
 | M4-B payment capture, verification, cash, reversal | **PASS** | 151 | 0 |
-| M4-C receipts, the printer path, reporting, the register audit | **PASS** | 97 | 0 |
+| M4-C receipts, the printer path, reporting, the register audit | **PASS** | 99 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
 | The golden journeys, end to end | **PASS** | 88 | 0 |
-| **Total** | | **1395** | |
+| **Total** | | **1397** | |
 
 ## The golden journeys (FR-TST-005A)
 
