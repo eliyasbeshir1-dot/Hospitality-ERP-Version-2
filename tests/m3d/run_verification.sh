@@ -7,7 +7,7 @@
 # from M3-A, a kitchen from M3-B and a service request from M3-C. A suite that started
 # here would be handing tables to waiters in a restaurant nobody had proved.
 #
-# The five golden journeys are NOT run from here. They are a separate suite with a
+# The golden journeys are NOT run from here. They are a separate suite with a
 # separate driver, because they walk M1 through M3-C rather than this slice, and because
 # "a journey failed" and "an M3-D check failed" must be distinguishable without reading
 # a log.

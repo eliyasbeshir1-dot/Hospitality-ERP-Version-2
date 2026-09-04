@@ -264,7 +264,7 @@ jobs:
           # check_prerequisites.py ran under the documented name above.
           export PYTHON=python
           # The journeys driver, which runs the M4-A driver — and therefore the whole
-          # chain beneath it — and then walks the five journeys. One entry point, so this
+          # chain beneath it — and then walks the journeys. One entry point, so this
           # runner cannot fall behind the Linux one by a slice.
           bash tests/journeys/run_verification.sh 2>&1 | tee "$LOG_DIR/windows-suites.log"
           # Enumerated from the drivers that actually ran, not from a list that stops
@@ -283,7 +283,9 @@ jobs:
           done
           grep -q '^PASS GOLDEN_JOURNEY_VERIFICATION' "$LOG_DIR/windows-suites.log" || {
             echo "::error::the golden journeys did not report PASS on Windows"; exit 1; }
-          for journey in GJ-01A GJ-02 GJ-03A GJ-04 GJ-05 FR-TST-007A; do
+          # Derived from the suite, for the reason the Linux job's copy of this records.
+          for journey in $(grep -oP '^\s+\("(\K[A-Z]+-[A-Z0-9-]+)(?="\,)' \
+                           tests/journeys/verify_journeys.py); do
             grep -qE "^\s+PASS\s+$journey\s" "$LOG_DIR/windows-suites.log" || {
               echo "::error::$journey did not pass on Windows, or did not run"; exit 1; }
           done
@@ -777,7 +779,7 @@ jobs:
           set -euo pipefail
           python3 tools/requirement_coverage.py --logs "$LOG_DIR"
 
-      - name: The five golden journeys — end to end, in a browser (FR-TST-005A)
+      - name: The golden journeys — end to end, in a browser (FR-TST-005A)
         shell: bash
         # `if: always()` on purpose. The journeys run AFTER the slice suites and report
         # their own outcome whether or not one of them failed: if a slice check and a
@@ -805,14 +807,22 @@ jobs:
           failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/journeys.log" | tail -1)"
           test "${steps:-0}" -ge 50 || { echo "::error::only ${steps:-0} journey steps ran"; exit 1; }
           test "${failed:-1}" -eq 0 || { echo "::error::${failed} journey step(s) failed"; exit 1; }
-          # Every journey the brief names must have RUN. A suite that quietly walked four
-          # of five would still report PASS on the four, and "journeys: 4/5" is exactly
-          # the report that is not actionable.
-          for journey in GJ-01A GJ-02 GJ-03A GJ-04 GJ-05 FR-TST-007A; do
+          # Every journey the suite knows about must have RUN. A suite that quietly
+          # walked four of five would still report PASS on the four, and "journeys: 4/5"
+          # is exactly the report that is not actionable.
+          #
+          # THE LIST IS DERIVED FROM THE SUITE, not typed here. Its first form named five
+          # journeys and a race; M4-C added five more, and a typed list would have gone on
+          # requiring the original five while five others passed or failed unwatched —
+          # which is the same staleness the Windows verdict loop had twice.
+          expected="$(grep -oP '^\s+\("(\K[A-Z]+-[A-Z0-9-]+)(?="\,)' tests/journeys/verify_journeys.py || true)"
+          test -n "$expected" || {
+            echo "::error::could not read the journey list out of the suite"; exit 1; }
+          for journey in $expected; do
             grep -qE "^\s+PASS\s+$journey\s" "$LOG_DIR/journeys.log" || {
               echo "::error::$journey did not pass, or did not run at all"; exit 1; }
           done
-          echo "the five golden journeys and the submit race: $steps steps, 0 failures"
+          echo "the golden journeys and the submit race: $steps steps, 0 failures"
 
       - name: The partial-closure register must agree with the repository
         shell: bash

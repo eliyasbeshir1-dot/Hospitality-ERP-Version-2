@@ -221,13 +221,30 @@ BEGIN
 
     -- SETTLED, OR THERE IS NO RECEIPT. A receipt for an unpaid bill is a document saying
     -- money changed hands when it did not.
-    IF v_paid < b.bill_total_minor - b.disposed_minor THEN
+    --
+    -- THE TEST IS DIFFERENT FOR A LATER REVISION, and GJ-07 is why. A partial refund
+    -- leaves the bill no longer fully paid — correctly — and the corrected receipt the
+    -- guest is owed is issued precisely BECAUSE of that refund. Applying the settlement
+    -- test to a reissue would leave a customer holding a document that no longer
+    -- describes their transaction and no way to give them one that does, which is the
+    -- opposite of what FR-BIL-011 asks for. So revision 1 requires a settlement, and a
+    -- later revision requires that one HAPPENED: a receipt for this bill already exists.
+    IF p_revision = 1 THEN
+        IF v_paid < b.bill_total_minor - b.disposed_minor THEN
+            RAISE EXCEPTION
+                'BILL_NOT_SETTLED: bill % totals %, % of it disposed, and % has been '
+                'allocated to its balance. FR-BIL-017 issues a receipt for a COMPLETED '
+                'settlement',
+                b.bill_number, b.bill_total_minor, b.disposed_minor, v_paid
+                USING ERRCODE = 'HS409';
+        END IF;
+    ELSIF NOT EXISTS (SELECT 1 FROM docs.receipt r
+                       WHERE r.tenant_id = p_tenant_id AND r.bill_id = p_bill_id) THEN
         RAISE EXCEPTION
-            'BILL_NOT_SETTLED: bill % totals %, % of it disposed, and % has been '
-            'allocated to its balance. FR-BIL-017 issues a receipt for a COMPLETED '
-            'settlement',
-            b.bill_number, b.bill_total_minor, b.disposed_minor, v_paid
-            USING ERRCODE = 'HS409';
+            'BILL_NOT_SETTLED: bill % has no receipt, so there is no earlier revision for '
+            'revision % to correct. A later revision restates a document the customer is '
+            'holding; without the first there is nothing to restate',
+            b.bill_number, p_revision USING ERRCODE = 'HS409';
     END IF;
 
     v_number := config.issue_document_number(

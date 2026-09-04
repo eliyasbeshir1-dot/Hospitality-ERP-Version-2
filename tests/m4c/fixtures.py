@@ -78,11 +78,13 @@ WORDING_TOTAL_PAID     = "4444c303-0000-4000-8000-0000000c0303"
 WORDING_PAYMENT_METHOD = "4444c304-0000-4000-8000-0000000c0304"
 WORDING_BILL_COMPONENT = "4444c305-0000-4000-8000-0000000c0305"
 
-# os.devnull, NEVER a POSIX literal. M1-A's rule, and it caught this file: the null
-# device is /dev/null on Linux and NUL on Windows, and a hardcoded POSIX path makes a
-# suite that cannot run on the other platform. It is a CHARACTER DEVICE on Linux, which
-# is what print/agent.py's stat() check requires — a regular file here would make every
-# device-sink assertion in this suite pass for the wrong reason.
+# os.devnull, NEVER a POSIX literal. M1-A's rule, and it caught this file twice — once
+# for the path itself and once for a comment that spelled it out, which the scanner
+# cannot tell from code and should not have to. The null device has a different name on
+# each platform and Python knows both; a hardcoded one makes a suite that cannot run on
+# the other. It is a CHARACTER DEVICE, which is what print/agent.py's stat() check
+# requires — a regular file here would make every device-sink assertion pass for the
+# wrong reason.
 DEVICE_PATH = os.environ.get("M4C_DEVICE_PATH", os.devnull)
 
 # FR-BIL-011's reprint needs a reason with an author. Category 'manager_override' because

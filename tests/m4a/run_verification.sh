@@ -7,7 +7,7 @@
 # from M3-A, a served ticket from M3-B, an override from M3-D. A suite that started here
 # would be charging people in a restaurant nobody had proved.
 #
-# The five golden journeys are NOT run from here, for the reason M3-D's driver records:
+# The golden journeys are NOT run from here, for the reason M3-D's driver records:
 # "a journey failed" and "an M4-A check failed" must be distinguishable without reading
 # a log.
 set -euo pipefail

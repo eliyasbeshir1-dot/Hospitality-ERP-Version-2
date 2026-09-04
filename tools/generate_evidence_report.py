@@ -70,8 +70,9 @@ SUITES = (
     ("m3d", "M3-D terminals, override, handover, the waiter surface"),
     ("m4a", "M4-A checks, bills, splitting, tip separation"),
     ("m4b", "M4-B payment capture, verification, cash, reversal"),
+    ("m4c", "M4-C receipts, the printer path, reporting, the register audit"),
     ("fenced_gate", "Fenced-domain gate, vocabulary and mutations"),
-    ("journeys", "The five golden journeys, end to end"),
+    ("journeys", "The golden journeys, end to end"),
 )
 REPORT_PATH = "evidence/M1_EVIDENCE_REPORT.md"
 
@@ -207,7 +208,7 @@ def journey_result(logs: Path, journey: str) -> tuple[str, str]:
     path = logs / "journeys.log"
     if not path.exists():
         raise SuiteLogMissing(
-            f"journeys.log is absent from {logs}. The five golden journeys are part of "
+            f"journeys.log is absent from {logs}. The golden journeys are part of "
             f"the evidence, not an optional extra; hand the log to this job rather than "
             f"omitting the rows")
     text = path.read_text(encoding="utf-8", errors="ignore")
@@ -382,7 +383,7 @@ def build(dsn: str, logs: Path) -> str:
     w(f"| **Total** | | **{total}** | |")
     w("")
 
-    w("## The five golden journeys (FR-TST-005A)")
+    w("## The golden journeys (FR-TST-005A)")
     w("")
     w("Browser automation against real persistence — the journey a person walks, not an API")
     w("sequence. Each journey names the gates it reaches, because these are not any one")

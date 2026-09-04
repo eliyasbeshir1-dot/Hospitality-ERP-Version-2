@@ -39,7 +39,7 @@ export M1A_APP_DSN="$(dsn hospitality_app "$DB")"
 export M1A_MIGRATOR_DSN="$(dsn hospitality_migrator "$DB")"
 
 echo
-echo "=== 16. The five golden journeys ==="
+echo "=== 17. The golden journeys ==="
 journey_status=0
 "$PY_BIN" "$REPO/tests/journeys/verify_journeys.py" || journey_status=$?
 

@@ -7,7 +7,7 @@
 # suite that started here would be printing paper for a restaurant nobody had proved
 # exists — and paper is the one artefact a customer takes away.
 #
-# The five golden journeys are NOT run from here, for the reason M3-D's driver records:
+# The golden journeys are NOT run from here, for the reason M3-D's driver records:
 # "a journey failed" and "an M4-C check failed" must be distinguishable without reading a
 # log.
 set -euo pipefail

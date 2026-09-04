@@ -181,7 +181,7 @@ DIRECTORY_PURPOSE = {
 # for anything matching m<digit><letter>. Everything else — tests/fenced_gate/ — fell
 # through the regex and was described only by SUITE_PURPOSE, which made "this suite is
 # not a slice" an accident of a pattern rather than a fact the generator modelled. The
-# five golden journeys are the second such suite and would have inherited that accident.
+# golden journeys are the second such suite and would have inherited that accident.
 #
 # So the distinction is now explicit. A CROSS-CUTTING suite must declare which gates it
 # exercises, and a suite that declares nothing stops the build exactly as an undescribed
@@ -245,7 +245,7 @@ SUITE_PURPOSE = {
            "proved to report nothing rather than zero where zero would be an invention, "
            "and the FR-GOV-004 audit of every requirement whose gate has landed",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
-    "journeys": "the five golden journeys end to end in a browser against real "
+    "journeys": "the golden journeys end to end in a browser against real "
                 "persistence, plus the duplicate-submit race: what a guest and a waiter "
                 "actually walk through, across every gate that has landed",
 }

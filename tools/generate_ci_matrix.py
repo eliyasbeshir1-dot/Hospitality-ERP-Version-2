@@ -80,7 +80,7 @@ JOB_PURPOSE = {
     "docs-package-integrity": "the pinned package is byte-identical: 92 files, 91 "
                               "checksum lines, 91 `OK` results, 0 failures",
     "database-verification": "every suite in order against a `postgres:16` service and "
-                             "again in reverse, then the five golden journeys, then the "
+                             "again in reverse, then the golden journeys, then the "
                              "generated artifacts and the negative controls",
     "occurrence-registry": "the package's own frozen validator emits exactly "
                            "`PASS FORBIDDEN_OCCURRENCE_REGISTRY_VALID` with "

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The five golden journeys, end to end in a browser against real persistence.
+"""The golden journeys, end to end in a browser against real persistence.
 
 THIS SUITE IS NOT A SLICE. It exercises M1 through M3-D as a customer and a waiter
 actually experience them, in sequence, and it is kept apart from tests/m3d/ for two
@@ -922,9 +922,9 @@ def print_the_receipt(journey: str, receipt: str, *, is_reprint: bool = False,
                       reason_text: str | None = None) -> dict:
     """Compose, rasterise, check every glyph, encode, and write to a character device.
 
-    os.devnull, never a POSIX literal: it is /dev/null on Linux and NUL on Windows, and
-    both are character devices — which is what print/agent.py requires and what makes this
-    a device sink rather than a file that received bytes.
+    os.devnull, never a POSIX literal. The null device has a different name on each
+    platform and both are CHARACTER DEVICES, which is what print/agent.py requires and
+    what makes this a device sink rather than a file that received bytes.
     """
     document = json.loads(scalar(
         f"SELECT docs.receipt_document('{fx.TENANT}', '{receipt}')::text;"))
@@ -1449,7 +1449,8 @@ JOURNEYS = (
 
 def main() -> int:
     print("=" * 74)
-    print("GOLDEN JOURNEY VERIFICATION — five journeys end to end, plus the submit race")
+    print(f"GOLDEN JOURNEY VERIFICATION — {len(JOURNEYS) - 1} journeys end to end, "
+          f"plus the submit race")
     print(f"real PostgreSQL, real compiled service, real Chromium "
           f"(running on {platform.system()})")
     print("evidence encoding: UTF-8")

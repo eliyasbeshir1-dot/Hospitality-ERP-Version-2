@@ -7,7 +7,7 @@
 # language they chose. A suite that started here would be taking money in a restaurant
 # nobody had proved exists.
 #
-# The five golden journeys are NOT run from here, for the reason M3-D's driver records:
+# The golden journeys are NOT run from here, for the reason M3-D's driver records:
 # "a journey failed" and "an M4-B check failed" must be distinguishable without reading
 # a log.
 set -euo pipefail
