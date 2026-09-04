@@ -1965,6 +1965,57 @@ def section_controls() -> None:
     control("NC-M4C-007  a counter order that can name no POS terminal",
             red_counter, green_counter)
 
+    # AND THE RED HALF'S ORDER IS TAKEN BACK OUT, because reverting the FUNCTION is only
+    # half a revert. The plant COMMITS a counter order naming no terminal — that is what
+    # makes it a real defect rather than a rehearsal — and the order's events stay in
+    # ordering.order_event, which is a ledger and outlives every projection. The next
+    # ordering.rebuild_projections() replays them into the RESTORED trigger and is
+    # refused, so the control left M3-A's recovery path unable to run. FR-TST-020 is
+    # what found it: the suites in reverse order put m4c before m3a, and m3a's rebuild
+    # died on this row.
+    #
+    # Removed BY THE PROPERTY the trigger forbids rather than by a remembered id, so a
+    # plant that plants twice, or an earlier residue, comes out too. The events go first
+    # because the ledger is what a rebuild reads; the projections then come back through
+    # ordering.rebuild_projections(), which is the delivered writer and the one m3a,
+    # m3b and m3c prove correct — hand-deleting a projection here would be a second
+    # rebuild that could disagree with it.
+    orphaned = """
+        SELECT o.id FROM ordering.customer_order o
+         WHERE o.tenant_id = '""" + fx.TENANT + """' AND o.origin = 'counter'
+           AND NOT EXISTS (SELECT 1 FROM pos.counter_order_entry e
+                            WHERE e.tenant_id = o.tenant_id AND e.order_id = o.id)"""
+    planted = rows(f"SELECT count(*)::text FROM ({orphaned}) planted;", dsn=ADMIN)
+    swept = run(ADMIN, f"""
+        ALTER TABLE ordering.order_event DISABLE TRIGGER order_event_append_only;
+        DELETE FROM ordering.order_event WHERE order_id IN ({orphaned});
+        ALTER TABLE ordering.order_event ENABLE TRIGGER order_event_append_only;
+        SELECT ordering.rebuild_projections('{fx.TENANT}');""", tx=True, **CTX)
+    left = rows(f"SELECT count(*)::text FROM ({orphaned}) planted;", dsn=ADMIN)
+    record("NC-M4C-007  and the order it planted is taken back out of the ledger",
+           swept.ok and planted and planted[0][0] != "0"
+           and left and left[0][0] == "0",
+           f"{planted[0][0] if planted else '?'} terminal-less counter order(s) after the "
+           f"plant, {left[0][0] if left else '?'} after the sweep. "
+           f"{swept.why() or 'The projections were rebuilt from the ledger the sweep left'}"
+           ". Both numbers are read back: a cleanup nobody checked is a cleanup that "
+           "silently stopped working, and the plant count proves the sweep had something "
+           "to do")
+
+    # AND THE LEDGER THIS SUITE LEAVES BEHIND CAN STILL BE REPLAYED. The check above
+    # removes one known plant; this one asks the property of the whole suite, because the
+    # defect that reached CI was not "NC-M4C-007 forgot to clean up" — it was "nothing
+    # here would have noticed". A rebuild is the recovery path, and a gate that leaves a
+    # database it cannot rebuild has broken something no assertion in this file was
+    # looking at.
+    replayable = run(ADMIN, f"SELECT ordering.rebuild_projections('{fx.TENANT}');",
+                     tx=True, **CTX)
+    record("and the ledger this suite leaves behind can still be replayed",
+           replayable.ok,
+           replayable.why() or "ordering.rebuild_projections() replayed the ledger this "
+                               "suite leaves behind. M3-A's recovery path is not "
+                               "something a later gate may quietly take away")
+
     # ---------------------------------------------------------------- NC-M4C-008
     # A customer receipt printed on a printer nobody tested. The precondition lives in
     # docs.record_receipt_print(), and it is the only thing that function adds beyond the
