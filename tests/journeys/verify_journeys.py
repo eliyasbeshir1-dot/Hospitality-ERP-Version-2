@@ -27,6 +27,8 @@ import os
 import platform
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -152,6 +154,82 @@ def walk(journey: str, args: dict) -> dict:
         raise ProbeFailed(f"journey {journey}",
                           proc.stderr.strip()[:600] or proc.stdout.strip()[:600])
     return json.loads(proc.stdout)
+
+
+# ---------------------------------------------------------------------------
+# The service tier: a user action goes through the route a surface would call
+# ---------------------------------------------------------------------------
+#
+# WHY THIS EXISTS. GJ-01A's lesson was that ordering.preview_cart() and
+# ordering.submit_order() were both proved against the database while no route called
+# either and no button reached one — every unit check passed and the feature was
+# unreachable. The M4 settlement journeys were written the same way: they called
+# billing, payments and docs functions directly, so a passing assertion said nothing
+# about whether a cashier could take a payment or a customer receive a receipt.
+#
+# So every user action in a journey now goes through the RUNNING SERVICE over HTTP,
+# exactly as a surface would issue it. That proves the route exists, is registered,
+# authorises the caller, validates the body, and returns what the caller needs. It does
+# NOT prove a person can reach it: no cashier settlement surface exists, and that is
+# recorded as its own partial closure rather than papered over here.
+#
+# Reads stay in SQL deliberately. Asking the database what the route did is EVIDENCE;
+# asking it to perform the action is the substitution this repair removes.
+
+def service(method: str, path: str, body: dict | None = None, *,
+            token: str, scheme: str = "Bearer", key: str | None = None) -> dict:
+    """One HTTP call to the running service, with its status and its parsed body."""
+    url = f"{CONTEXT['base_url']}{path}"
+    headers = {"authorization": f"{scheme} {token}"}
+    data = None
+    if body is not None:
+        headers["content-type"] = "application/json"
+        data = json.dumps(body).encode("utf-8")
+    if key:
+        headers["idempotency-key"] = key
+    request = urllib.request.Request(url, method=method, data=data, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            payload = response.read().decode("utf-8", "replace")
+            return {"status": response.status,
+                    **(json.loads(payload) if payload.strip() else {})}
+    except urllib.error.HTTPError as error:
+        raw = error.read().decode("utf-8", "replace")
+        try:
+            return {"status": error.code, **json.loads(raw)}
+        except json.JSONDecodeError:
+            return {"status": error.code, "body": raw[:400]}
+    except urllib.error.URLError as error:
+        raise ProbeFailed(f"{method} {path}", str(error))
+
+
+def ok(response: dict) -> bool:
+    """Whether the service accepted the action, by its own status code."""
+    return 200 <= int(response.get("status", 0)) < 300
+
+
+def why(response: dict) -> str:
+    """What the service said when it refused — its reason, not a guess at one."""
+    if ok(response):
+        return ""
+    return (f"HTTP {response.get('status')}: "
+            f"{response.get('reason') or response.get('error') or response.get('body') or ''}")
+
+
+def cashier() -> str:
+    """The cashier's own bearer token, minted once for the run."""
+    if "cashier_token" not in CONTEXT:
+        _session, token = m4c.staff_session(m4c.USER_CASHIER)
+        CONTEXT["cashier_token"] = token
+    return CONTEXT["cashier_token"]
+
+
+def as_manager() -> str:
+    """The finance manager's own bearer token."""
+    if "manager_token" not in CONTEXT:
+        _session, token = m4c.staff_session(m4c.USER_FINANCE_MANAGER)
+        CONTEXT["manager_token"] = token
+    return CONTEXT["manager_token"]
 
 
 def report_steps(journey: str, walked: dict) -> dict[str, dict]:
@@ -867,54 +945,102 @@ def concurrency() -> None:
 # open register entry against M5a rather than claimed here.
 
 
+def guest_at(session: str) -> str:
+    """A guest credential on the occupancy a bill belongs to, through the QR exchange.
+
+    THE TIP IS THE GUEST'S DECISION, so it goes through the guest's own route. That needs
+    a credential, and the only honest way to get one is the exchange a phone makes:
+    issue the table's code, POST it to the session route, and receive the token the route
+    mints. The journeys used to INSERT INTO billing.tip instead — a second copy of the
+    route's own SQL, proving that the table accepts rows.
+    """
+    table = scalar(f"""
+        SELECT table_node_id FROM service.table_session WHERE id = '{session}';""")
+    code = scalar(f"""
+        SELECT service.issue_table_qr('{fx.TENANT}', '{table}', '{fx.USER}');""")
+    opened = service("POST", f"/c/v1/{fx.TENANT}/{fx.OUTLET_H1}/session", {"code": code},
+                     token="", scheme="Guest")
+    if not ok(opened) or not opened.get("guestToken"):
+        raise ProbeFailed("the guest QR exchange", why(opened) or str(opened)[:200])
+    if opened.get("tableSessionId") != session:
+        raise ProbeFailed(
+            "the guest QR exchange",
+            f"the code for this table opened occupancy {opened.get('tableSessionId')} "
+            f"and the bill belongs to {session}. A tip added on another occupancy would "
+            f"be a different guest's money")
+    return opened["guestToken"]
+
+
 def a_settled_check(journey: str, session: str, *, locale: str, tip_minor: int,
                     method: str, provider: str) -> dict:
     """Open a check over a served session, bill it, take the money, and say what happened.
 
-    Through the delivered writers at every step. A bill assembled by hand would be a bill
-    no earlier gate agrees exists, and a receipt issued against it would prove only that
-    docs.receipt accepts rows.
+    EVERY WRITE HERE GOES THROUGH THE SERVICE. Staff actions carry the cashier's own
+    bearer token; the tip carries the guest's, because the guest is who decides it. The
+    reads that follow each write are SQL, because asking the database what the route did
+    is evidence and asking it to do the work is the substitution this repair removed.
     """
-    check = scalar(f"""
-        SELECT billing.open_check('{fx.TENANT}', '{fx.OUTLET_H1}', '{session}',
-                                  '{fx.USER}');""")
-    allocated = run(APP, f"""
-        SELECT billing.allocate_to_check('{fx.TENANT}', '{fx.OUTLET_H1}', '{check}',
-                                         l.id, l.quantity::integer)
-          FROM ordering.order_line l
+    token = cashier()
+    opened = service("POST", "/s/v1/checks", {"tableSessionId": session}, token=token)
+    if not ok(opened):
+        raise ProbeFailed("POST /s/v1/checks", why(opened))
+    check = opened["checkId"]
+
+    # One call per line, as a cashier tapping each item would make. The lines are READ
+    # from the order the predecessor placed; adding them is the route's work.
+    unbilled = [r[0] for r in rows(f"""
+        SELECT l.id::text FROM ordering.order_line l
           JOIN ordering.customer_order o ON o.id = l.order_id
          WHERE o.table_session_id = '{session}'
            AND NOT EXISTS (SELECT 1 FROM billing.check_allocation a
-                            WHERE a.order_line_id = l.id);""", **CTX)
-    if not allocated.ok:
-        raise ProbeFailed("allocate_to_check", allocated.err)
+                            WHERE a.order_line_id = l.id)
+         ORDER BY l.line_number;""")]
+    if not unbilled:
+        raise ProbeFailed("allocating the check",
+                          "the served session carries no unbilled order line, so there "
+                          "is nothing to put on a check")
+    for line in unbilled:
+        placed = service("POST", f"/s/v1/checks/{check}/allocations",
+                         {"orderLineId": line}, token=token)
+        if not ok(placed):
+            raise ProbeFailed(f"POST /s/v1/checks/{check[:8]}/allocations", why(placed))
 
-    bill = scalar(f"""
-        SELECT billing.issue_bill('{fx.TENANT}', '{fx.OUTLET_H1}', '{check}',
-                                  '{fx.USER}', '{locale}');""")
+    billed = service("POST", "/s/v1/bills", {"checkId": check, "locale": locale},
+                     token=token)
+    if not ok(billed):
+        raise ProbeFailed("POST /s/v1/bills", why(billed))
+    bill = billed["billId"]
     total = int(scalar(f"SELECT bill_total_minor FROM billing.bill WHERE id = '{bill}';"))
 
     tip_id = None
     if tip_minor:
-        made = run(APP, f"""
-            SELECT billing.split_equally('{fx.TENANT}', '{bill}', 1);""", tx=True, **CTX)
-        if not made.ok:
-            raise ProbeFailed("billing.split_equally", made.err)
+        split = service("POST", f"/s/v1/bills/{bill}/split",
+                        {"mode": "equal", "payers": 1}, token=token)
+        if not ok(split):
+            raise ProbeFailed(f"POST /s/v1/bills/{bill[:8]}/split", why(split))
         share = scalar(f"""
             SELECT id FROM billing.bill_share WHERE bill_id = '{bill}'
              ORDER BY share_number LIMIT 1;""")
+        tipped = service("POST", "/c/v1/bill/tip",
+                         {"shareId": share, "amountMinor": tip_minor},
+                         token=guest_at(session), scheme="Guest",
+                         key=f"{journey}-{RUN_NONCE}-tip")
+        if not ok(tipped):
+            raise ProbeFailed("POST /c/v1/bill/tip", why(tipped))
         tip_id = scalar(f"""
-            INSERT INTO billing.tip
-                (tenant_id, outlet_id, bill_share_id, currency_code, amount_minor)
-            VALUES ('{fx.TENANT}', '{fx.OUTLET_H1}', '{share}', 'ETB', {tip_minor})
-            RETURNING id;""")
+            SELECT id FROM billing.tip WHERE bill_share_id = '{share}'
+             ORDER BY chosen_at DESC LIMIT 1;""")
 
-    intent = scalar(f"""
-        SELECT payments.create_intent('{fx.TENANT}', '{fx.OUTLET_H1}', '{bill}',
-            '{journey}-{RUN_NONCE}-intent', {total}, '{m4c.USER_CASHIER}', {tip_minor},
-            {"'" + tip_id + "'" if tip_id else "NULL"});""")
+    intent = service("POST", "/s/v1/payments/intents",
+                     {"billId": bill, "billAmountMinor": total,
+                      "tipAmountMinor": tip_minor,
+                      **({"tipId": tip_id} if tip_id else {})},
+                     token=token, key=f"{journey}-{RUN_NONCE}-intent")
+    if not ok(intent):
+        raise ProbeFailed("POST /s/v1/payments/intents", why(intent))
     return {"check": check, "bill": bill, "total": total, "tip": tip_minor,
-            "tip_id": tip_id, "intent": intent, "method": method, "provider": provider}
+            "tip_id": tip_id, "intent": intent["intentId"],
+            "method": method, "provider": provider}
 
 
 def print_the_receipt(journey: str, receipt: str, *, is_reprint: bool = False,
@@ -976,14 +1102,14 @@ def gj_01b() -> None:
 
     settled = a_settled_check(journey, predecessor["session"], locale="en",
                               tip_minor=0, method="cash", provider="cash")
-    captured = run(APP, f"""
-        SELECT payments.record_cash_payment('{fx.TENANT}', '{fx.OUTLET_H1}',
-            '{settled["intent"]}', {settled["total"]}, '{m4c.USER_CASHIER}');""",
-        tx=True, **CTX)
+    captured = service("POST", f"/s/v1/payments/{settled['intent']}/cash",
+                       {"tenderedMinor": settled["total"]}, token=cashier(),
+                       key=f"{journey}-{RUN_NONCE}-cash")
     record(journey, "the cashier presents the check and settles it in cash",
-           captured.ok,
-           captured.why() or f"bill {settled['bill'][:8]} of {settled['total']} minor "
-                             f"units, tendered exactly, through payments.record_cash_payment()")
+           ok(captured),
+           why(captured) or f"bill {settled['bill'][:8]} of {settled['total']} minor "
+                            f"units, tendered exactly, through "
+                            f"POST /s/v1/payments/:intentId/cash on the running service")
 
     no_tip = count(APP, f"""
         SELECT count(*) FROM billing.tip t
@@ -994,9 +1120,12 @@ def gj_01b() -> None:
            f"{no_tip} tip(s) against this bill. No tip is preselected anywhere — "
            f"NC-M4-001 — so a guest who chooses nothing has chosen nothing")
 
-    receipt = scalar(f"""
-        SELECT docs.issue_receipt('{fx.TENANT}', '{fx.OUTLET_H1}', '{settled["bill"]}',
-                                  'cash', '{m4c.USER_CASHIER}');""")
+    issued = service("POST", "/s/v1/receipts",
+                     {"billId": settled["bill"], "paymentMethod": "cash"},
+                     token=cashier())
+    if not ok(issued):
+        raise ProbeFailed("POST /s/v1/receipts", why(issued))
+    receipt = issued["receiptId"]
     lines = {r[0]: r[1] for r in rows(f"""
         SELECT l.kind::text, coalesce(l.amount_minor::text, '-')
           FROM docs.receipt_line l WHERE l.receipt_id = '{receipt}';""")}
