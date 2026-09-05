@@ -523,13 +523,14 @@
       ],
       "why": "Branding is configurable — config.configuration_version carries a branding category and the API resolves it per tenant rather than from build-time constants — but the clause names receipt and footer text specifically, and the package places its revalidation at M4 because receipt text is only rendered on a real receipt. There is no receipt at M4-B, so that clause has never been exercised. M4-C's receipt renders it and closes this.",
       "buildable_now": true,
-      "buildable_why": "Buildable now, and built by this slice: receipt and footer text render on the M4-C receipt from tenant configuration.",
+      "buildable_why": "BUILDABLE NOW, AND NOT BUILT. An earlier draft of this entry said 'built by this slice', which was false: no branding is rendered onto a receipt. Tenant branding configuration exists and the receipt composer exists; nothing joins them.",
       "closes_when": "A receipt renders its footer and branding text from configuration rather than a constant, in all three locales.",
       "review_may_challenge": true,
       "moved_later": {
         "from": "M4-C",
         "why": "The receipt is the artifact this clause names, and M5a is the gate that next opens the receipt composition path — it owns the outlet node and the print stage the composer feeds. Branding text pulled from configuration is a change to that composer, and doing it inside a repair brief would be building a feature under the word 'repair'. It was NOT built at M4-C and this entry was stale, not satisfied."
-      }
+      },
+      "what_would_make_it_buildable": "docs.compose_document() would read the tenant's branding category from config.configuration_version and emit it as header and footer wording, and a control would prove one tenant's text appears on its own receipt and never on another's. Nothing blocks that today. Re-pointing this to M5a is a PREFERENCE, not a constraint — M5a is simply where the outlet node makes branding per-outlet."
     },
     {
       "requirement": "FR-CFG-007A",
@@ -558,13 +559,14 @@
       ],
       "why": "Per-tenant brand and template resolution exists and is consumed from configuration. The clause's template half is placed by the package at M4 — receipt templates render at M4 — and no template renders anything today. M4-C's receipt template closes that half; per-outlet public domains are M5b's and stay open there.",
       "buildable_now": true,
-      "buildable_why": "Buildable now, and built by this slice: the receipt template is the first template this project renders.",
+      "buildable_why": "BUILDABLE IN PART, AND NOT BUILT. The claim that this slice built it was false. The receipt is the first template this project renders, so the template half has a place to live; the surface half has nowhere to be configured from.",
       "closes_when": "A tenant-selected template renders a document, with platform attribution configurable, proved on the receipt.",
       "review_may_challenge": true,
       "moved_later": {
         "from": "M4-C",
         "why": "Template selection per tenant is product packaging rather than receipt plumbing: it needs a template store, a resolution order and an attribution rule, none of which exists. M4-C rendered ONE composition for every tenant. Moved because nothing at M4 or M5a is chartered to introduce a template engine."
-      }
+      },
+      "what_would_make_it_buildable": "A per-tenant template resolved from configuration and rendered by docs.compose_document() is buildable now — that half is a PREFERENCE. The rest of the clause needs a back-office surface on which a tenant's branding can be set and a customer surface that reads it, and no back-office surface exists: that half is a CONSTRAINT."
     },
     {
       "requirement": "FR-COM-007",
@@ -912,13 +914,14 @@
       ],
       "why": "No system-of-record registry exists — no table states, per tenant or legal entity, which system is authoritative for which Phase 1 concern. The package revalidates this at M4 because the registry governs actual fiscal-document and payment behaviour once those exist, and fiscal documents are M4-C's. Recorded as product rather than authority because nothing today makes an authority decision that a missing registry could get wrong; M4-C's fiscal port is the first thing that would.",
       "buildable_now": true,
-      "buildable_why": "Buildable now, and built by this slice: the registry is the thing M4-C's fiscal port needs in order to say which system is authoritative for a fiscal document.",
+      "buildable_why": "BUILDABLE NOW, AND NOT BUILT. The claim that this slice built it was false. No table states which system is authoritative for which Phase 1 concern, per tenant or legal entity.",
       "closes_when": "A system-of-record entry exists per tenant and legal entity carrying the Phase 1 enumeration only, and the fiscal port reads it.",
       "review_may_challenge": true,
       "moved_later": {
         "from": "M4-C",
         "why": "A system-of-record registry is a governance table with no dependency on anything M4 built, and the clause requires the fiscal port to READ it — which means it lands with the gate that makes the fiscal port real, not with the gate that defined its seam. M4-C shipped the port with one simulated adapter."
-      }
+      },
+      "what_would_make_it_buildable": "A registry table keyed by tenant and concern, a constraint that every fiscal document names the system of record it was issued under, and M4-C's fiscal port reading it rather than assuming. All three are ordinary schema work with nothing missing. This is a PREFERENCE, and a weak one: the fiscal port is the thing that needs it."
     },
     {
       "requirement": "FR-TST-001",
@@ -969,13 +972,14 @@
       ],
       "why": "Most of the clause is delivered — validation, auth, idempotency, concurrency and error contracts are all exercised against the built service, and M4-B proved idempotency by key on payment intents. PAGINATION IS NOT TESTED ANYWHERE, and no route implements it. The package revalidates at M4 because each gate adds route surface subject to the same suite, so M4-C's reporting routes are where pagination first genuinely matters: an export or a dashboard over a shift's orders is the first response too large to return whole. tests/m4c covers it for the routes this slice adds; the M1 routes stay open.",
       "buildable_now": true,
-      "buildable_why": "Buildable now for the routes that exist; this slice covers its own.",
+      "buildable_why": "PARTLY UNBUILDABLE, AND HONESTLY SO. Validation, authentication, idempotency, concurrency and error contracts are all exercised against the built service. The remaining half is pagination, and NO ROUTE IN THE SERVICE PAGINATES — there is no limit, offset or cursor parameter anywhere in api/src/routes.",
       "closes_when": "Pagination is implemented and tested on every route that can return an unbounded collection, error contracts included.",
       "review_may_challenge": true,
       "moved_later": {
         "from": "M4-C",
         "why": "Its named blocker is PAGINATION, which is absent as a FEATURE: no route that can return an unbounded collection accepts a cursor or a limit. A test cannot precede the thing it tests, so this moves with pagination. The rest of the clause — validation, auth, idempotency, concurrency, error contracts — is exercised, and M4-C's repair added thirty service-tier calls to that evidence."
-      }
+      },
+      "what_would_make_it_buildable": "A route would have to paginate before a test could prove it does. That makes this a genuine CONSTRAINT rather than a preference: the missing test is missing because the behaviour it would test does not exist, and building the behaviour is a feature this brief does not authorise. The listing routes that would need it — checks, terminals, notifications, the service queue — are named here so the gate that adds paging knows what it owes."
     },
     {
       "requirement": "FR-TST-004A",
@@ -1209,13 +1213,14 @@
       ],
       "why": "Accessibility preferences do not exist on the staff surfaces. M2-C proved the CUSTOMER surface against measured computed layout — target sizes, contrast and text scaling — and neither the waiter nor the station bundle carries larger targets, reduced motion or high contrast. The package revalidates at M4 saying the POS terminal surface must honour the same preferences, and M4-C builds the POS terminal ordering path, so this comes due with it.",
       "buildable_now": true,
-      "buildable_why": "Buildable now, and built by this slice for the POS terminal path.",
+      "buildable_why": "BUILDABLE NOW, AND NOT BUILT. The claim that this slice built it was false. No accessibility preference exists on any staff surface; M2-C proved the CUSTOMER surface against measured layout and neither the waiter nor the station surface has anything equivalent.",
       "closes_when": "Larger targets, reduced motion and high contrast apply on the waiter, station and POS surfaces where configured, measured rather than asserted.",
       "review_may_challenge": true,
       "moved_later": {
         "from": "M4-C",
         "why": "Accessibility preferences do not exist on any staff surface. M2-C proved the CUSTOMER surface against measured computed layout; doing the same for the waiter, station and POS surfaces means a preference store, three surfaces changed and a measured proof for each. That is a slice of work, not a repair."
-      }
+      },
+      "what_would_make_it_buildable": "A per-user accessibility preference, the waiter and station bundles honouring it, and M2-C's measuring instrument — target sizes, contrast, text scaling, read out of a real browser — pointed at those two surfaces. The instrument already exists and is the expensive half. This is a PREFERENCE."
     }
   ]
 }

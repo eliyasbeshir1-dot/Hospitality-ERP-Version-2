@@ -37,7 +37,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from console import use_utf8_output  # noqa: E402
 import partial_closures  # noqa: E402
-import requirement_coverage as coverage  # noqa: E402
+import requirement_coverage as coverage
+import uncalled_routes  # noqa: E402
 
 use_utf8_output()
 
@@ -121,6 +122,12 @@ def build() -> str:
         w(gap["why"])
         w("")
         w(f"**Buildable now:** {gap['buildable_why']}")
+
+        if gap.get("what_would_make_it_buildable"):
+
+            w("")
+
+            w(f"**What would have to be true:** {gap['what_would_make_it_buildable']}")
         w("")
         w(f"**This entry closes when:** {gap['closes_when']}")
         w("")
@@ -141,6 +148,29 @@ def build() -> str:
         w(f"| `{gap['requirement']}` {gap['title']} | {gap['introduced_at']} "
           f"| {gap['category']} | {gap['completing_gate']} | {buildable} | {first}. |")
     w("")
+
+    # THE RE-POINTED ONES ARE ARGUED, NOT LISTED.
+    #
+    # Five entries were re-pointed away from a landed gate in one pass, and none of them
+    # was built. That is the pattern the completer-moved-later control exists to catch, so
+    # each says what would have to be true for it to be buildable now — which is what
+    # separates a CONSTRAINT from a PREFERENCE. A reviewer can then judge the reason
+    # rather than the verdict.
+    argued = [g for g in other if g.get("what_would_make_it_buildable")]
+    if argued:
+        w(f"### Constraint or preference: the {len(argued)} entries re-pointed at M4-C")
+        w("")
+        w("Each was moved off a gate that has already landed. None was built. The "
+          "question a reviewer needs answered is not whether the gap is real — it is "
+          "whether the reason for deferring it is a constraint or a preference.")
+        w("")
+        for gap in sorted(argued, key=lambda g: g["requirement"]):
+            w(f"#### {gap['requirement']} — {gap['title']} → {gap['completing_gate']}")
+            w("")
+            w(gap["buildable_why"])
+            w("")
+            w(f"**What would have to be true:** {gap['what_would_make_it_buildable']}")
+            w("")
 
     # ---- the governance gaps ----------------------------------------------
     w(f"## {len(uncited)} requirements delivered with nothing naming them")
@@ -183,6 +213,37 @@ def build() -> str:
       f"{sum(1 for r in active if r['introduced_at'] in landed)} of them belong to a "
       f"landed gate.")
     w("")
+
+    # ---- The routes nobody has ever called -------------------------------------
+    survey = uncalled_routes.survey()
+    unreached = survey["uncalled"]
+    w("")
+    w(f"## {len(unreached)} routes the service exposes that nothing has ever called")
+    w("")
+    w("**This is a finding in its own right, not a footnote.** GJ-01A's lesson was that "
+      "`ordering.preview_cart()` and `ordering.submit_order()` were both proved against "
+      "the database while no route called either and no button reached one: every unit "
+      "check passed and the feature was unreachable. M4-A shipped its billing routes the "
+      "same way. The first HTTP call ever made to `POST /s/v1/checks` — made while "
+      "repairing the journeys, after the slice had closed — failed on two production "
+      "defects at once, because nothing had ever called it.")
+    w("")
+    w(f"Of {survey['total']} addressable routes, {survey['called']} are called by some "
+      f"suite, journey or surface and **{len(unreached)} are called by nothing**. A route "
+      "with no caller is not necessarily broken. It is unproved, which is the condition "
+      "both of those defects were hiding in.")
+    w("")
+    w("Derived by `tools/uncalled_routes.py` on every generation, so this list cannot go "
+      "stale the way a typed one would.")
+    by_file: dict[str, list[str]] = {}
+    for route in unreached:
+        by_file.setdefault(route["file"], []).append(f"{route['verb']} {route['path']}")
+    w("")
+    w("| Route file | Never called |")
+    w("|---|---|")
+    for source in sorted(by_file):
+        listed = "<br>".join(f"`{r}`" for r in sorted(by_file[source]))
+        w(f"| `{source}` | {listed} |")
 
     # ---- the package's own gap --------------------------------------------
     package_gaps = [g for g in absent

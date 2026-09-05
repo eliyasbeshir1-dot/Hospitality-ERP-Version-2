@@ -92,6 +92,40 @@ No runbook exists in planning/ or anywhere else, and the clause asks for more th
 | `FR-UX-020` Consistent design system | M2 | product | M6 | yes | No shared component or token system exists. |
 | `FR-POS-009` Accessibility mode | M3 | product | M6 | yes | Accessibility preferences do not exist on the staff surfaces. |
 
+### Constraint or preference: the 5 entries re-pointed at M4-C
+
+Each was moved off a gate that has already landed. None was built. The question a reviewer needs answered is not whether the gap is real — it is whether the reason for deferring it is a constraint or a preference.
+
+#### FR-CFG-006 — Branding → M5a
+
+BUILDABLE NOW, AND NOT BUILT. An earlier draft of this entry said 'built by this slice', which was false: no branding is rendered onto a receipt. Tenant branding configuration exists and the receipt composer exists; nothing joins them.
+
+**What would have to be true:** docs.compose_document() would read the tenant's branding category from config.configuration_version and emit it as header and footer wording, and a control would prove one tenant's text appears on its own receipt and never on another's. Nothing blocks that today. Re-pointing this to M5a is a PREFERENCE, not a constraint — M5a is simply where the outlet node makes branding per-outlet.
+
+#### FR-COM-002 — White labeling → M6
+
+BUILDABLE IN PART, AND NOT BUILT. The claim that this slice built it was false. The receipt is the first template this project renders, so the template half has a place to live; the surface half has nowhere to be configured from.
+
+**What would have to be true:** A per-tenant template resolved from configuration and rendered by docs.compose_document() is buildable now — that half is a PREFERENCE. The rest of the clause needs a back-office surface on which a tenant's branding can be set and a customer surface that reads it, and no back-office surface exists: that half is a CONSTRAINT.
+
+#### FR-POS-009 — Accessibility mode → M6
+
+BUILDABLE NOW, AND NOT BUILT. The claim that this slice built it was false. No accessibility preference exists on any staff surface; M2-C proved the CUSTOMER surface against measured layout and neither the waiter nor the station surface has anything equivalent.
+
+**What would have to be true:** A per-user accessibility preference, the waiter and station bundles honouring it, and M2-C's measuring instrument — target sizes, contrast, text scaling, read out of a real browser — pointed at those two surfaces. The instrument already exists and is the expensive half. This is a PREFERENCE.
+
+#### FR-TEN-009A — Phase 1 system-of-record registry → M6
+
+BUILDABLE NOW, AND NOT BUILT. The claim that this slice built it was false. No table states which system is authoritative for which Phase 1 concern, per tenant or legal entity.
+
+**What would have to be true:** A registry table keyed by tenant and concern, a constraint that every fiscal document names the system of record it was issued under, and M4-C's fiscal port reading it rather than assuming. All three are ordinary schema work with nothing missing. This is a PREFERENCE, and a weak one: the fiscal port is the thing that needs it.
+
+#### FR-TST-003 — API tests → M6
+
+PARTLY UNBUILDABLE, AND HONESTLY SO. Validation, authentication, idempotency, concurrency and error contracts are all exercised against the built service. The remaining half is pagination, and NO ROUTE IN THE SERVICE PAGINATES — there is no limit, offset or cursor parameter anywhere in api/src/routes.
+
+**What would have to be true:** A route would have to paginate before a test could prove it does. That makes this a genuine CONSTRAINT rather than a preference: the missing test is missing because the behaviour it would test does not exist, and building the behaviour is a feature this brief does not authorise. The listing routes that would need it — checks, terminals, notifications, the service queue — are named here so the gate that adds paging knows what it owes.
+
 ## 51 requirements delivered with nothing naming them
 
 **Uncited** means the behaviour exists, works, and no recorded output names the requirement — so the audit cannot see a proof that is genuinely there. This is a governance gap, not a product one, and the checker refuses to let one be filed as a money, security or authority absence: conflating the two inflates the urgent list until nobody reads it. Each closes the same way, by a check or a CI step citing the requirement so the audit can grade it.
@@ -162,6 +196,24 @@ The audit grades its own evidence rather than implying a strength it did not mea
 
 Gates that have landed: M0, M0R, M1, M2, M3, M4. The package carries 336 active requirements and 288 of them belong to a landed gate.
 
+
+## 25 routes the service exposes that nothing has ever called
+
+**This is a finding in its own right, not a footnote.** GJ-01A's lesson was that `ordering.preview_cart()` and `ordering.submit_order()` were both proved against the database while no route called either and no button reached one: every unit check passed and the feature was unreachable. M4-A shipped its billing routes the same way. The first HTTP call ever made to `POST /s/v1/checks` — made while repairing the journeys, after the slice had closed — failed on two production defects at once, because nothing had ever called it.
+
+Of 95 addressable routes, 70 are called by some suite, journey or surface and **25 are called by nothing**. A route with no caller is not necessarily broken. It is unproved, which is the condition both of those defects were hiding in.
+
+Derived by `tools/uncalled_routes.py` on every generation, so this list cannot go stale the way a typed one would.
+
+| Route file | Never called |
+|---|---|
+| `billing.ts` | `POST /s/v1/bills/:billId/corrections`<br>`POST /s/v1/bills/:billId/dispositions`<br>`POST /s/v1/bills/:billId/finalize`<br>`POST /s/v1/checks/merge` |
+| `customer.ts` | `POST /c/v1/allergy-concerns` |
+| `documents.ts` | `GET /s/v1/documents/preview`<br>`GET /s/v1/fiscal/reconciliation`<br>`GET /s/v1/printers`<br>`POST /s/v1/printers`<br>`POST /s/v1/printers/:printerId/test`<br>`POST /s/v1/receipts/:receiptId/prints`<br>`POST /s/v1/receipts/:receiptId/renders` |
+| `payments.ts` | `GET /s/v1/cash/shifts/:shiftId/reconciliation`<br>`GET /s/v1/payments/:paymentId/allocations` |
+| `reports.ts` | `GET /s/v1/reports/catalog`<br>`GET /s/v1/reports/metrics`<br>`GET /s/v1/reports/sales`<br>`GET /s/v1/reports/shifts/:shiftId/snapshot`<br>`POST /s/v1/reports/shifts/:shiftId/recomputations` |
+| `service.ts` | `GET /s/v1/service/queue` |
+| `staff.ts` | `GET /s/v1/fast-picks`<br>`GET /s/v1/terminals`<br>`POST /s/v1/handovers/:handoverId/acknowledge`<br>`POST /s/v1/terminals`<br>`POST /s/v1/terminals/:deviceId/revoke` |
 ## A requirement the pinned package itself cannot satisfy
 
 **FR-MNU-002B — No customer-segment targeting.** THE SCANNER CANNOT PROVE WHAT THIS REQUIREMENT CREDITS IT WITH. The clause demands a scan for a customer-segment field, assignment rule or screen, and no term for it exists among the 63 in the package's forbidden_surface_rules.json — loyalty_crm_promotions carries loyalty, reward, loyalty points, crm, campaign, promotion and marketing campaign, and none of them matches the word this requirement is about. No such field exists in the build, so the property holds; nothing proves it, and nothing in the repository can, because the vocabulary is the pinned package's and the build may not edit it. The correct disposition is a package amendment through amendment_register.json, not a build change, which is why this is recorded as absent rather than uncited: the scanning behaviour genuinely does not exist.
