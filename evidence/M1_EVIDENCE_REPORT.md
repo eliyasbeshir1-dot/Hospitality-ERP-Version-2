@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `f1250203765398bc6847d5f728c278c914a0bb5e` |
-| Short | `f125020` |
+| Commit | `c0a1c42ed13ca10e6b19c509bfa85a90485356b9` |
+| Short | `c0a1c42` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation |
@@ -105,7 +105,7 @@ Money is stored as integer minor units beside an explicit currency.
 | M1-D API, security, operations | **PASS** | 49 | 0 |
 | M2-A menu, pricing, translation storage | **PASS** | 75 | 0 |
 | M2-B tables, QR, guests, allergen safety | **PASS** | 107 | 0 |
-| M2-C customer surface, rendered | **PASS** | 63 | 0 |
+| M2-C customer surface, rendered | **PASS** | 65 | 0 |
 | M3-A orders, snapshots, session lifecycle | **PASS** | 136 | 0 |
 | M3-B fulfillment, tickets, stations, the KDS | **PASS** | 127 | 0 |
 | M3-C service requests, notifications, integration | **PASS** | 126 | 0 |
@@ -115,7 +115,7 @@ Money is stored as integer minor units beside an explicit currency.
 | M4-C receipts, the printer path, reporting, the register audit | **PASS** | 99 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
 | The golden journeys, end to end | **PASS** | 88 | 0 |
-| **Total** | | **1397** | |
+| **Total** | | **1399** | |
 
 ## The golden journeys (FR-TST-005A)
 
