@@ -27,7 +27,7 @@
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { PoolClient } from 'pg';
-import { ContextRefused, type Database } from '../db';
+import { ContextRefused, signatureOf, type Database } from '../db';
 import type { StructuredLogger } from '../logging';
 
 export interface BillingDependencies {
@@ -58,12 +58,6 @@ function idempotencyKey(request: FastifyRequest): string | null {
 }
 
 /** The signature a database refusal carries, so a route can answer with the reason. */
-function refusal(error: unknown): string | null {
-  const message = error instanceof Error ? error.message : '';
-  const matched = /\b([A-Z][A-Z_]{4,})\b/.exec(message);
-  return matched && matched[1] ? matched[1] : null;
-}
-
 /** The open occupancy this guest is sitting in, or null. */
 async function seatedAt(client: PoolClient, guestId: string): Promise<string | null> {
   const { rows } = await client.query(
@@ -271,7 +265,7 @@ export function registerBillingRoutes(app: FastifyInstance, deps: BillingDepende
             reply.code(409);
             return { error: 'refused', reason: 'TIP_ALREADY_CHOSEN' };
           }
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             reply.code(409);
             return { error: 'refused', reason: signature };
@@ -324,7 +318,7 @@ export function registerBillingRoutes(app: FastifyInstance, deps: BillingDepende
           );
           return { checkId: rows[0].id as string };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             reply.code(409);
             return { error: 'refused', reason: signature };
@@ -357,7 +351,7 @@ export function registerBillingRoutes(app: FastifyInstance, deps: BillingDepende
           );
           return { allocationId: rows[0].id as string };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             reply.code(409);
             return { error: 'refused', reason: signature };
@@ -386,7 +380,7 @@ export function registerBillingRoutes(app: FastifyInstance, deps: BillingDepende
           );
           return { movedAllocations: Number(rows[0].moved) };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             reply.code(409);
             return { error: 'refused', reason: signature };
@@ -416,7 +410,7 @@ export function registerBillingRoutes(app: FastifyInstance, deps: BillingDepende
           );
           return { checkId: rows[0].id as string };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             reply.code(409);
             return { error: 'refused', reason: signature };
@@ -447,7 +441,7 @@ export function registerBillingRoutes(app: FastifyInstance, deps: BillingDepende
           );
           return { billId: rows[0].id as string };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             reply.code(409);
             return { error: 'refused', reason: signature };
@@ -530,7 +524,7 @@ export function registerBillingRoutes(app: FastifyInstance, deps: BillingDepende
           const { rows } = await client.query(sql, params);
           return { shares: Number(rows[0].shares) };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             reply.code(409);
             return { error: 'refused', reason: signature };
@@ -575,7 +569,7 @@ export function registerBillingRoutes(app: FastifyInstance, deps: BillingDepende
           );
           return { dispositionId: rows[0].id as string };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             reply.code(409);
             return { error: 'refused', reason: signature };
@@ -597,7 +591,7 @@ export function registerBillingRoutes(app: FastifyInstance, deps: BillingDepende
           );
           return { finalized: true };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             reply.code(409);
             return { error: 'refused', reason: signature };
@@ -646,7 +640,7 @@ export function registerBillingRoutes(app: FastifyInstance, deps: BillingDepende
           );
           return { billId: rows[0].id as string };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             reply.code(409);
             return { error: 'refused', reason: signature };

@@ -28,7 +28,7 @@
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { PoolClient } from 'pg';
-import { ContextRefused, type Database } from '../db';
+import { ContextRefused, signatureOf, type Database } from '../db';
 import type { StructuredLogger } from '../logging';
 
 export interface ReportDependencies {
@@ -48,12 +48,6 @@ function staffToken(request: FastifyRequest): string | null {
   if (!header || !header.toLowerCase().startsWith('bearer ')) return null;
   const token = header.slice(7).trim();
   return token.length > 0 ? token : null;
-}
-
-function refusal(error: unknown): string | null {
-  const message = error instanceof Error ? error.message : '';
-  const matched = /\b([A-Z][A-Z_]{4,})\b/.exec(message);
-  return matched && matched[1] ? matched[1] : null;
 }
 
 const STATUS: Record<string, number> = {
@@ -104,7 +98,7 @@ export function registerReportRoutes(app: FastifyInstance, deps: ReportDependenc
 
   function answer(reply: FastifyReply, error: unknown):
       { error: string; reason: string; sqlstate?: string } {
-    const reason = refusal(error);
+    const reason = signatureOf(error);
     if (reason && STATUS[reason] !== undefined) {
       reply.code(STATUS[reason] as number);
       return { error: 'refused', reason };

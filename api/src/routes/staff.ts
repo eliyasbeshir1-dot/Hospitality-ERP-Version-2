@@ -34,7 +34,7 @@
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { PoolClient } from 'pg';
-import { ContextRefused, type Database } from '../db';
+import { ContextRefused, signatureOf, type Database } from '../db';
 import type { StructuredLogger } from '../logging';
 
 export interface StaffDependencies {
@@ -56,12 +56,6 @@ function idempotencyKey(request: FastifyRequest): string | null {
 }
 
 /** The signature a database refusal carries, so a route can answer with the reason. */
-function refusal(error: unknown): string | null {
-  const message = error instanceof Error ? error.message : '';
-  const matched = /\b([A-Z][A-Z_]{4,})\b/.exec(message);
-  return matched && matched[1] ? matched[1] : null;
-}
-
 /**
  * FR-ORD-001B. The counter is a value of the origin dimension M3-A built, and the channel
  * its menu is published on. Stated ONCE, here, so the preview and the submission cannot
@@ -182,7 +176,7 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
           );
           return { results: rows };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature === 'STAFF_SEARCH_CROSSES_SCOPE') {
             reply.code(403);
             return { error: 'not permitted', reason: signature };
@@ -269,7 +263,7 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
           );
           return { id: rows[0].id as string };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             reply.code(422);
             return { error: 'refused', reason: signature };
@@ -311,7 +305,7 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
           );
           return { preview: rows[0]?.preview ?? null };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             reply.code(422);
             return { error: 'refused', reason: signature };
@@ -401,7 +395,7 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
           }
           return { orderId };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             // The reason travels back verbatim. A staff surface that said only "refused"
             // would send a waiter to find a manager for a problem they could have fixed.
@@ -461,7 +455,7 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
           );
           return { amended: true, overrideId: request.body.overrideId };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             reply.code(409);
             return { error: 'refused', reason: signature };
@@ -515,7 +509,7 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
           );
           return { overrideId: rows[0].id as string };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             reply.code(403);
             return { error: 'not permitted', reason: signature };
@@ -570,7 +564,7 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
           );
           return { handoverId: rows[0].id as string };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             reply.code(409);
             return { error: 'refused', reason: signature };
@@ -591,7 +585,7 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
           );
           return { moved: Number(rows[0].moved) };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             reply.code(403);
             return { error: 'refused', reason: signature };
@@ -643,7 +637,7 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
           );
           return { deviceId: rows[0].id as string };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             reply.code(422);
             return { error: 'refused', reason: signature };
@@ -677,7 +671,7 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
           );
           return { sessionsEnded: Number(rows[0].ended) };
         } catch (error) {
-          const signature = refusal(error);
+          const signature = signatureOf(error);
           if (signature) {
             reply.code(422);
             return { error: 'refused', reason: signature };
