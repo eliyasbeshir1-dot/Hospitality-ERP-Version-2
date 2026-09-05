@@ -485,11 +485,6 @@ def gj_02() -> None:
                f"carry Ethiopic characters. Not 'a template existed' — the words that "
                f"were sent, to the person who called the waiter")
 
-    second = fx.a_seated_guest(table=fx.TABLE_TWO, locale="am")
-    record(journey, "a second order on the same table is a second order, not a duplicate",
-           bool(second["session"]),
-           f"the table can be ordered from again; FR-SRV-006's deliberate-repeat rule is "
-           f"about REQUESTS, and an order placed later is simply a later order")
 
 
 # ===========================================================================
@@ -1251,6 +1246,22 @@ def gj_02b() -> None:
            f"non-English receipt whose label is the English source text, so a partial "
            f"translation cannot reach paper")
 
+    # THE TABLE TURNS OVER, AND ONLY NOW. This step used to sit at the end of GJ-02,
+    # where seating the next guest closed the occupancy GJ-02B had not settled yet — and
+    # every step still passed, because every step called a database function directly.
+    # Driving the tip through the guest's own route found it in one call: the only path by
+    # which a guest may choose a tip requires an open occupancy, and it is right to
+    # require it. Phase 1's three live methods are cash at the table, a tip taken at the
+    # terminal, and a mobile-money proof confirmed while the guest is there; not one of
+    # them lets a guest tip after leaving, and there is no card on file. Settle first,
+    # then turn the table over.
+    turned = fx.a_seated_guest(table=fx.TABLE_TWO, locale="am")
+    record(journey, "and only once it is settled does the table take its next guest",
+           bool(turned["session"]) and turned["session"] != predecessor["session"],
+           f"a new occupancy on the same table, after settlement rather than before it. "
+           f"FR-SRV-006's deliberate-repeat rule is about REQUESTS; an order placed later "
+           f"is simply a later order")
+
     printed = print_the_receipt(journey, receipt)
     present, covered = script_coverage(printed["document"], is_ethiopic)
     record(journey, "and every Ethiopic glyph on the paper came from the packaged font",
@@ -1613,15 +1624,33 @@ def gj_07() -> None:
 # main
 # ===========================================================================
 
+# EACH SETTLEMENT RUNS WHILE ITS GUEST IS STILL AT THE TABLE, and that is the ordering a
+# restaurant has rather than a convenience for the harness.
+#
+# The five M4 journeys used to run in a block after all five M3 ones, so by the time
+# GJ-02B settled GJ-02's bill, a later journey had reused that table and closed the
+# occupancy. Every step still passed, because every step called a database function
+# directly. Driving them through the service found it in one call: POST /c/v1/bill/tip
+# refused with GUEST_NOT_SEATED, because the only route by which a guest may choose a tip
+# requires the occupancy to be open — and it is right to require it. Phase 1 has three
+# live methods and not one of them lets a guest tip after leaving: cash is given at the
+# table, a terminal tip is taken at the terminal, a mobile-money proof is confirmed while
+# the guest is there, and there is no card on file. M4-A's rule says the same thing from
+# the other side: a bill finalizes when the balance is settled, and the balance includes
+# the guest's optional tip.
+#
+# So the pairs are adjacent now: order, settle, pay, tip, receipt — then the table turns
+# over. FR-BIL-015's corrections are the staff-side path for anything after departure,
+# and GJ-07 is what exercises it.
 JOURNEYS = (
     ("GJ-01A", gj_01a),
+    ("GJ-01B", gj_01b),
     ("GJ-02", gj_02),
+    ("GJ-02B", gj_02b),
     ("GJ-03A", gj_03a),
+    ("GJ-03B", gj_03b),
     ("GJ-04", gj_04),
     ("GJ-05", gj_05),
-    ("GJ-01B", gj_01b),
-    ("GJ-02B", gj_02b),
-    ("GJ-03B", gj_03b),
     ("GJ-06", gj_06),
     ("GJ-07", gj_07),
     ("FR-TST-007A", concurrency),
