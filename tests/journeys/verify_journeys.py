@@ -971,6 +971,15 @@ def guest_at(session: str) -> str:
     return opened["guestToken"]
 
 
+def a_receipt(journey: str, bill: str, method: str) -> str:
+    """Issue the customer's receipt through the route a cashier's screen would call."""
+    issued = service("POST", "/s/v1/receipts",
+                     {"billId": bill, "paymentMethod": method}, token=cashier())
+    if not ok(issued):
+        raise ProbeFailed("POST /s/v1/receipts", why(issued))
+    return issued["receiptId"]
+
+
 def a_settled_check(journey: str, session: str, *, locale: str, tip_minor: int,
                     method: str, provider: str) -> dict:
     """Open a check over a served session, bill it, take the money, and say what happened.
@@ -1120,12 +1129,7 @@ def gj_01b() -> None:
            f"{no_tip} tip(s) against this bill. No tip is preselected anywhere — "
            f"NC-M4-001 — so a guest who chooses nothing has chosen nothing")
 
-    issued = service("POST", "/s/v1/receipts",
-                     {"billId": settled["bill"], "paymentMethod": "cash"},
-                     token=cashier())
-    if not ok(issued):
-        raise ProbeFailed("POST /s/v1/receipts", why(issued))
-    receipt = issued["receiptId"]
+    receipt = a_receipt(journey, settled["bill"], "cash")
     lines = {r[0]: r[1] for r in rows(f"""
         SELECT l.kind::text, coalesce(l.amount_minor::text, '-')
           FROM docs.receipt_line l WHERE l.receipt_id = '{receipt}';""")}
@@ -1182,36 +1186,41 @@ def gj_02b() -> None:
 
     # THE PROOF IS PENDING UNTIL A PERSON VERIFIES IT, and the person is read from the
     # session rather than passed — M4-B's NC-M4-004, reached here through settlement.
-    proof = scalar(f"""
-        SELECT payments.raise_proof('{fx.TENANT}', '{fx.OUTLET_H1}', 'telebirr_proof',
-            'ETB', {settled["total"] + settled["tip"]}, '{journey}-{RUN_NONCE}');""")
-    premature = run(APP, f"""
-        SELECT payments.record_proof_payment('{fx.TENANT}', '{fx.OUTLET_H1}',
-            '{settled["intent"]}', '{proof}', {settled["total"] + settled["tip"]},
-            '{m4c.USER_CASHIER}');""", tx=True, **CTX)
+    due = settled["total"] + settled["tip"]
+    raised = service("POST", "/s/v1/proofs",
+                     {"provider": "telebirr_proof", "currencyCode": "ETB",
+                      "amountMinor": due,
+                      "providerReference": f"{journey}-{RUN_NONCE}"},
+                     token=cashier())
+    if not ok(raised):
+        raise ProbeFailed("POST /s/v1/proofs", why(raised))
+    proof = raised["proofId"]
+
+    premature = service("POST", f"/s/v1/payments/{settled['intent']}/proof",
+                        {"proofId": proof, "tenderedMinor": due}, token=cashier(),
+                        key=f"{journey}-{RUN_NONCE}-early")
     record(journey, "an unverified proof cannot settle anything",
-           not premature.ok,
-           premature.why() or "money was recorded as received on a claim nobody had "
-                              "checked in the provider's own app")
+           not ok(premature),
+           why(premature) or "money was recorded as received on a claim nobody had "
+                             "checked in the provider's own app")
 
-    verifier, _token = m4c.staff_session(m4c.USER_FINANCE_MANAGER)
-    verified = run(APP, f"""
-        SELECT payments.verify_proof('{fx.TENANT}', '{proof}',
-            $w$the amount and the reference matched the provider app on my own screen$w$);""",
-        tx=True, session=verifier, **CTX)
-    captured = run(APP, f"""
-        SELECT payments.record_proof_payment('{fx.TENANT}', '{fx.OUTLET_H1}',
-            '{settled["intent"]}', '{proof}', {settled["total"] + settled["tip"]},
-            '{m4c.USER_CASHIER}');""", tx=True, **CTX)
+    # THE VERIFIER IS THE MANAGER'S OWN TOKEN, not a parameter. The route reads who is
+    # attesting from the session the bearer token establishes, so there is no field on
+    # this request by which one person could attest on another's behalf.
+    verified = service("POST", f"/s/v1/proofs/{proof}/verify",
+                       {"whatYouSaw": "the amount and the reference matched the provider "
+                                      "app on my own screen"},
+                       token=as_manager())
+    captured = service("POST", f"/s/v1/payments/{settled['intent']}/proof",
+                       {"proofId": proof, "tenderedMinor": due}, token=cashier(),
+                       key=f"{journey}-{RUN_NONCE}-proof")
     record(journey, "and once a named person verifies it in the provider's app, it settles",
-           verified.ok and captured.ok,
-           f"{verified.why() or 'verified'}; {captured.why() or 'captured'}. The "
-           f"verifier is whoever owns the session in context, so there is no parameter "
-           f"by which somebody could attest on another person's behalf")
+           ok(verified) and ok(captured),
+           f"{why(verified) or 'verified'}; {why(captured) or 'captured'}. The verifier "
+           f"is whoever owns the bearer token, so there is no parameter by which "
+           f"somebody could attest on another person's behalf")
 
-    receipt = scalar(f"""
-        SELECT docs.issue_receipt('{fx.TENANT}', '{fx.OUTLET_H1}', '{settled["bill"]}',
-                                  'telebirr_proof', '{m4c.USER_CASHIER}');""")
+    receipt = a_receipt(journey, settled["bill"], "telebirr_proof")
     labels = [r[0] for r in rows(f"""
         SELECT l.label FROM docs.receipt_line l WHERE l.receipt_id = '{receipt}';""")]
     record(journey, "the receipt is in Amharic, every line",
@@ -1245,22 +1254,24 @@ def gj_03b() -> None:
     settled = a_settled_check(journey, predecessor["session"], locale="ar",
                               tip_minor=1800, method="external_terminal",
                               provider="external_terminal")
-    slip = scalar(f"""
-        SELECT payments.record_terminal_result('{fx.TENANT}', '{fx.OUTLET_H1}',
-            '{journey}-{RUN_NONCE}', 'visa', 'ETB', {settled["total"] + settled["tip"]},
-            'approved', '{m4c.USER_CASHIER}', '4242', 'A{RUN_NONCE[:5]}');""")
-    captured = run(APP, f"""
-        SELECT payments.record_terminal_payment('{fx.TENANT}', '{fx.OUTLET_H1}',
-            '{settled["intent"]}', '{slip}', {settled["total"] + settled["tip"]},
-            '{m4c.USER_CASHIER}');""", tx=True, **CTX)
+    due = settled["total"] + settled["tip"]
+    slip = service("POST", "/s/v1/terminal-results",
+                   {"terminalReference": f"{journey}-{RUN_NONCE}", "scheme": "visa",
+                    "currencyCode": "ETB", "amountMinor": due, "outcome": "approved",
+                    "panLastFour": "4242", "authorizationCode": f"A{RUN_NONCE[:5]}"},
+                   token=cashier())
+    if not ok(slip):
+        raise ProbeFailed("POST /s/v1/terminal-results", why(slip))
+    captured = service("POST", f"/s/v1/payments/{settled['intent']}/terminal",
+                       {"terminalResultId": slip["terminalResultId"],
+                        "tenderedMinor": due}, token=cashier(),
+                       key=f"{journey}-{RUN_NONCE}-terminal")
     record(journey, "the guest chooses a tip and pays on a permitted live method",
-           captured.ok and settled["tip"] > 0,
-           f"{captured.why() or 'captured'} against an external terminal slip carrying a "
+           ok(captured) and settled["tip"] > 0,
+           f"{why(captured) or 'captured'} against an external terminal slip carrying a "
            f"scheme and four digits and no card number anywhere")
 
-    receipt = scalar(f"""
-        SELECT docs.issue_receipt('{fx.TENANT}', '{fx.OUTLET_H1}', '{settled["bill"]}',
-                                  'external_terminal', '{m4c.USER_CASHIER}');""")
+    receipt = a_receipt(journey, settled["bill"], "external_terminal")
     figures = {r[0]: r[1] for r in rows(f"""
         SELECT l.kind::text, coalesce(l.amount_minor::text, '-')
           FROM docs.receipt_line l WHERE l.receipt_id = '{receipt}';""")}
@@ -1320,15 +1331,17 @@ def gj_06() -> None:
     if not accepted.ok:
         raise ProbeFailed("accept_order", accepted.err)
 
-    check = scalar(f"""
-        SELECT billing.open_check('{fx.TENANT}', '{fx.OUTLET_H1}', '{session}',
-                                  '{fx.USER}');""")
-    allocated = run(APP, f"""
-        SELECT billing.allocate_to_check('{fx.TENANT}', '{fx.OUTLET_H1}', '{check}',
-                                         l.id, l.quantity::integer)
-          FROM ordering.order_line l WHERE l.order_id = '{order}';""", **CTX)
-    if not allocated.ok:
-        raise ProbeFailed("allocate_to_check", allocated.err)
+    opened = service("POST", "/s/v1/checks", {"tableSessionId": session}, token=cashier())
+    if not ok(opened):
+        raise ProbeFailed("POST /s/v1/checks", why(opened))
+    check = opened["checkId"]
+    for line in [r[0] for r in rows(f"""
+            SELECT l.id::text FROM ordering.order_line l
+             WHERE l.order_id = '{order}' ORDER BY l.line_number;""")]:
+        placed = service("POST", f"/s/v1/checks/{check}/allocations",
+                         {"orderLineId": line}, token=cashier())
+        if not ok(placed):
+            raise ProbeFailed(f"POST /s/v1/checks/{check[:8]}/allocations", why(placed))
 
     # SPLIT THE CHECK BY ITEM, which is what gives each payer a document of their own.
     # One bill cannot carry two receipts — docs.receipt is unique on (bill, revision) —
@@ -1336,9 +1349,11 @@ def gj_06() -> None:
     first_line = scalar(f"""
         SELECT l.id FROM ordering.order_line l WHERE l.order_id = '{order}'
          ORDER BY l.line_number LIMIT 1;""")
-    second_check = scalar(f"""
-        SELECT billing.split_check('{fx.TENANT}', '{fx.OUTLET_H1}', '{check}',
-            ARRAY['{first_line}']::uuid[], '{fx.USER}');""")
+    divided = service("POST", f"/s/v1/checks/{check}/split",
+                      {"orderLineIds": [first_line]}, token=cashier())
+    if not ok(divided):
+        raise ProbeFailed(f"POST /s/v1/checks/{check[:8]}/split", why(divided))
+    second_check = divided["checkId"]
     record(journey, "the check splits by item into one document per payer",
            bool(second_check) and second_check != check,
            f"checks {check[:8]} and {second_check[:8]}, each holding the lines its payer "
@@ -1347,49 +1362,60 @@ def gj_06() -> None:
     payers = []
     for label, source, tip_minor, method in (("A", check, 0, "cash"),
                                              ("B", second_check, 1500, "external_terminal")):
-        bill = scalar(f"""
-            SELECT billing.issue_bill('{fx.TENANT}', '{fx.OUTLET_H1}', '{source}',
-                                      '{fx.USER}', 'en');""")
+        billed = service("POST", "/s/v1/bills", {"checkId": source, "locale": "en"},
+                         token=cashier())
+        if not ok(billed):
+            raise ProbeFailed("POST /s/v1/bills", why(billed))
+        bill = billed["billId"]
         total = int(scalar(
             f"SELECT bill_total_minor FROM billing.bill WHERE id = '{bill}';"))
         tip_id = None
         if tip_minor:
-            made = run(APP, f"""
-                SELECT billing.split_equally('{fx.TENANT}', '{bill}', 1);""",
-                tx=True, **CTX)
-            if not made.ok:
-                raise ProbeFailed("billing.split_equally", made.err)
+            divided_bill = service("POST", f"/s/v1/bills/{bill}/split",
+                                   {"mode": "equal", "payers": 1}, token=cashier())
+            if not ok(divided_bill):
+                raise ProbeFailed(f"POST /s/v1/bills/{bill[:8]}/split", why(divided_bill))
             share = scalar(f"""
                 SELECT id FROM billing.bill_share WHERE bill_id = '{bill}'
                  ORDER BY share_number LIMIT 1;""")
+            tipped = service("POST", "/c/v1/bill/tip",
+                             {"shareId": share, "amountMinor": tip_minor},
+                             token=guest_at(session), scheme="Guest",
+                             key=f"{journey}-{RUN_NONCE}-{label}-tip")
+            if not ok(tipped):
+                raise ProbeFailed("POST /c/v1/bill/tip", why(tipped))
             tip_id = scalar(f"""
-                INSERT INTO billing.tip
-                    (tenant_id, outlet_id, bill_share_id, currency_code, amount_minor)
-                VALUES ('{fx.TENANT}', '{fx.OUTLET_H1}', '{share}', 'ETB', {tip_minor})
-                RETURNING id;""")
-        intent = scalar(f"""
-            SELECT payments.create_intent('{fx.TENANT}', '{fx.OUTLET_H1}', '{bill}',
-                '{journey}-{RUN_NONCE}-{label}', {total}, '{m4c.USER_CASHIER}',
-                {tip_minor}, {"'" + tip_id + "'" if tip_id else "NULL"});""")
+                SELECT id FROM billing.tip WHERE bill_share_id = '{share}'
+                 ORDER BY chosen_at DESC LIMIT 1;""")
+        intended = service("POST", "/s/v1/payments/intents",
+                           {"billId": bill, "billAmountMinor": total,
+                            "tipAmountMinor": tip_minor,
+                            **({"tipId": tip_id} if tip_id else {})},
+                           token=cashier(), key=f"{journey}-{RUN_NONCE}-{label}")
+        if not ok(intended):
+            raise ProbeFailed("POST /s/v1/payments/intents", why(intended))
+        intent = intended["intentId"]
         if method == "cash":
-            paid = run(APP, f"""
-                SELECT payments.record_cash_payment('{fx.TENANT}', '{fx.OUTLET_H1}',
-                    '{intent}', {total + tip_minor}, '{m4c.USER_CASHIER}');""",
-                tx=True, **CTX)
+            paid = service("POST", f"/s/v1/payments/{intent}/cash",
+                           {"tenderedMinor": total + tip_minor}, token=cashier(),
+                           key=f"{journey}-{RUN_NONCE}-{label}-cash")
         else:
-            slip = scalar(f"""
-                SELECT payments.record_terminal_result('{fx.TENANT}', '{fx.OUTLET_H1}',
-                    '{journey}-{RUN_NONCE}-{label}', 'visa', 'ETB', {total + tip_minor},
-                    'approved', '{m4c.USER_CASHIER}', '4242', 'B{RUN_NONCE[:5]}');""")
-            paid = run(APP, f"""
-                SELECT payments.record_terminal_payment('{fx.TENANT}', '{fx.OUTLET_H1}',
-                    '{intent}', '{slip}', {total + tip_minor}, '{m4c.USER_CASHIER}');""",
-                tx=True, **CTX)
-        if not paid.ok:
-            raise ProbeFailed(f"payer {label} settling", paid.err)
-        receipt = scalar(f"""
-            SELECT docs.issue_receipt('{fx.TENANT}', '{fx.OUTLET_H1}', '{bill}',
-                                      '{method}', '{m4c.USER_CASHIER}');""")
+            slip = service("POST", "/s/v1/terminal-results",
+                           {"terminalReference": f"{journey}-{RUN_NONCE}-{label}",
+                            "scheme": "visa", "currencyCode": "ETB",
+                            "amountMinor": total + tip_minor, "outcome": "approved",
+                            "panLastFour": "4242",
+                            "authorizationCode": f"B{RUN_NONCE[:5]}"},
+                           token=cashier())
+            if not ok(slip):
+                raise ProbeFailed("POST /s/v1/terminal-results", why(slip))
+            paid = service("POST", f"/s/v1/payments/{intent}/terminal",
+                           {"terminalResultId": slip["terminalResultId"],
+                            "tenderedMinor": total + tip_minor}, token=cashier(),
+                           key=f"{journey}-{RUN_NONCE}-{label}-term")
+        if not ok(paid):
+            raise ProbeFailed(f"payer {label} settling", why(paid))
+        receipt = a_receipt(journey, bill, method)
         payers.append({"label": label, "bill": bill, "total": total, "tip": tip_minor,
                        "method": method, "receipt": receipt})
 
@@ -1455,60 +1481,60 @@ def gj_07() -> None:
 
     settled = a_settled_check(journey, session, locale="en", tip_minor=2000,
                               method="cash", provider="cash")
-    paid = run(APP, f"""
-        SELECT payments.record_cash_payment('{fx.TENANT}', '{fx.OUTLET_H1}',
-            '{settled["intent"]}', {settled["total"] + settled["tip"]},
-            '{m4c.USER_CASHIER}');""", tx=True, **CTX)
-    if not paid.ok:
-        raise ProbeFailed("settling GJ-07's bill", paid.err)
+    paid = service("POST", f"/s/v1/payments/{settled['intent']}/cash",
+                   {"tenderedMinor": settled["total"] + settled["tip"]},
+                   token=cashier(), key=f"{journey}-{RUN_NONCE}-cash")
+    if not ok(paid):
+        raise ProbeFailed("settling GJ-07's bill", why(paid))
 
-    receipt = scalar(f"""
-        SELECT docs.issue_receipt('{fx.TENANT}', '{fx.OUTLET_H1}', '{settled["bill"]}',
-                                  'cash', '{m4c.USER_CASHIER}');""")
+    receipt = a_receipt(journey, settled["bill"], "cash")
     print_the_receipt(journey, receipt)
 
     # THE CASHIER TRIES TO APPROVE THEIR OWN REFUND, from their own session.
     cashier_session, _t = m4c.staff_session(m4c.USER_CASHIER)
     reason = m4c.reason_code("M4B_REFUND_AUTHORIZED")
-    self_approved = run(APP, f"""
-        SELECT set_config('app.auth_strength', 'strong', false);
-        SELECT pos.approve_override('{fx.TENANT}', '{fx.OUTLET_H1}', 'payment.refund',
-            '{cashier_session}', '{reason}', 'bill', '{settled["bill"]}',
-            $r$I am refunding this myself$r$);""",
-        tx=True, session=cashier_session, **CTX)
+    self_approved = service("POST", "/s/v1/overrides",
+                            {"actionCode": "payment.refund",
+                             "approverSessionId": cashier_session,
+                             "reasonCodeId": reason, "subjectKind": "bill",
+                             "subjectId": settled["bill"],
+                             "reasonText": "I am refunding this myself"},
+                            token=cashier())
     record(journey, "a cashier cannot approve their own refund",
-           not self_approved.ok,
-           self_approved.why() or "the cashier authorized their own refund. Maker-checker "
-                                  "is the whole of NC-M4-004, and an audit trail in which "
-                                  "the compliant case and the violation are identical is "
-                                  "no audit trail")
+           not ok(self_approved),
+           why(self_approved) or "the cashier authorized their own refund. Maker-checker "
+                                 "is the whole of NC-M4-004, and an audit trail in which "
+                                 "the compliant case and the violation are identical is "
+                                 "no audit trail")
 
     # THE MANAGER STEPS UP, from their own session, for this purpose.
     manager_session, _t = m4c.staff_session(m4c.USER_FINANCE_MANAGER)
     m4c.step_up(manager_session, "payment.refund")
-    override = run(APP, f"""
-        SELECT set_config('app.auth_strength', 'strong', false);
-        SELECT pos.approve_override('{fx.TENANT}', '{fx.OUTLET_H1}', 'payment.refund',
-            '{manager_session}', '{reason}', 'bill', '{settled["bill"]}',
-            $r$the guest was charged for a dish they returned$r$);""",
-        tx=True, session=cashier_session, **CTX)
-    approval = (override.rows[-1][0] if override.ok and override.rows else "").strip()
+    override = service("POST", "/s/v1/overrides",
+                       {"actionCode": "payment.refund",
+                        "approverSessionId": manager_session,
+                        "reasonCodeId": reason, "subjectKind": "bill",
+                        "subjectId": settled["bill"],
+                        "reasonText": "the guest was charged for a dish they returned"},
+                       token=cashier())
+    approval = str(override.get("overrideId") or override.get("approvalId") or "")
     record(journey, "and a manager's purpose-specific step-up authorizes it",
-           override.ok and bool(approval),
-           override.why() or f"override {approval[:8]} for payment.refund on this bill, "
-                             f"granted from the manager's own session after a step-up "
-                             f"that names the action")
+           ok(override) and bool(approval),
+           why(override) or f"override {approval[:8]} for payment.refund on this bill, "
+                            f"granted from the manager's own session after a step-up "
+                            f"that names the action")
 
     # THE BILL ALLOCATION AND THE TIP ARE REVERSED SEPARATELY, which is FR-BIL-016's
     # sharp edge: a tip given back is not a smaller tip.
     allocation = scalar(f"""
         SELECT a.id FROM payments.allocation a
          WHERE a.bill_id = '{settled["bill"]}' AND a.target = 'bill_balance' LIMIT 1;""")
-    reversed_bill = run(APP, f"""
-        SELECT payments.reverse_allocation('{fx.TENANT}', '{fx.OUTLET_H1}',
-            '{allocation}', 'refund', 500,
-            '{m4c.reason_code("M4B_GUEST_REFUNDED")}', $r$a dish was returned$r$,
-            '{m4c.USER_CASHIER}', '{approval}');""", tx=True, **CTX)
+    reversed_bill = service("POST", f"/s/v1/allocations/{allocation}/reversal",
+                            {"kind": "refund", "amountMinor": 500,
+                             "reasonCodeId": m4c.reason_code("M4B_GUEST_REFUNDED"),
+                             "reasonText": "a dish was returned",
+                             "overrideId": approval},
+                            token=cashier(), key=f"{journey}-{RUN_NONCE}-reversal")
     corrected_tip = run(APP, f"""
         INSERT INTO billing.tip_correction
             (tenant_id, outlet_id, tip_id, kind, currency_code, amount_minor,
@@ -1518,15 +1544,16 @@ def gj_07() -> None:
                 $r$the guest asked for part of the tip back$r$, '{m4c.USER_CASHIER}');""",
         tx=True, **CTX)
     record(journey, "the bill and the tip are corrected as two independent records",
-           reversed_bill.ok and corrected_tip.ok,
-           f"{reversed_bill.why() or 'allocation partly reversed'}; "
+           ok(reversed_bill) and corrected_tip.ok,
+           f"{why(reversed_bill) or 'allocation partly reversed'}; "
            f"{corrected_tip.why() or 'tip partly refunded'}. Each names its own reason "
            f"code and the one approval that authorized it, and neither touches the other")
 
     # THE CORRECTED RECEIPT: a new REVISION, not an edit, printed and marked.
-    reissued = scalar(f"""
-        SELECT docs.reissue_receipt('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}',
-                                    '{m4c.USER_CASHIER}');""")
+    revised = service("POST", f"/s/v1/receipts/{receipt}/revisions", {}, token=cashier())
+    if not ok(revised):
+        raise ProbeFailed(f"POST /s/v1/receipts/{receipt[:8]}/revisions", why(revised))
+    reissued = revised["receiptId"]
     revisions = rows(f"""
         SELECT r.revision::text, r.receipt_number FROM docs.receipt r
          WHERE r.bill_id = '{settled["bill"]}' ORDER BY r.revision;""")

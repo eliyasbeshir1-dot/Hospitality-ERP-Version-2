@@ -79,18 +79,18 @@ No runbook exists in planning/ or anywhere else, and the clause asks for more th
 | `FR-MNU-002B` No customer-segment targeting | M0R | governance | M6 | no | THE SCANNER CANNOT PROVE WHAT THIS REQUIREMENT CREDITS IT WITH. |
 | `FR-TST-013` Golden journeys | M0R | governance | M6 | yes | The journeys exist, run in CI on both platforms and fail the build: five golden journeys, 61 steps. |
 | `FR-TST-019` Independent milestone audit | M0R | governance | M6 | no | No audit branch exists in this repository, and no immutable command set, evidence bundle or merge decision against an exact commit is stored for any gate. |
-| `FR-CFG-006` Branding | M1 | product | M4-C | yes | Branding is configurable — config.configuration_version carries a branding category and the API resolves it per tenant rather than from build-time constants — but the clause names receipt and footer text specifically, and the package places its revalidation at M4 because receipt text is only rendered on a real receipt. |
+| `FR-CFG-006` Branding | M1 | product | M5a | yes | Branding is configurable — config.configuration_version carries a branding category and the API resolves it per tenant rather than from build-time constants — but the clause names receipt and footer text specifically, and the package places its revalidation at M4 because receipt text is only rendered on a real receipt. |
 | `FR-CFG-007A` Non-production demo fixtures | M1 | product | M6 | yes | No demo fixture is marked as one, and no reset capability exists to be restricted to non-production. |
-| `FR-COM-002` White labeling | M1 | product | M4-C | yes | Per-tenant brand and template resolution exists and is consumed from configuration. |
+| `FR-COM-002` White labeling | M1 | product | M6 | yes | Per-tenant brand and template resolution exists and is consumed from configuration. |
 | `FR-COM-009` Version support | M1 | product | M6 | yes | No application, schema, edge or connector version is tracked PER TENANT OR DEPLOYMENT. |
-| `FR-TEN-009A` Phase 1 system-of-record registry | M1 | product | M4-C | yes | No system-of-record registry exists — no table states, per tenant or legal entity, which system is authoritative for which Phase 1 concern. |
-| `FR-TST-003` API tests | M1 | product | M4-C | yes | Most of the clause is delivered — validation, auth, idempotency, concurrency and error contracts are all exercised against the built service, and M4-B proved idempotency by key on payment intents. |
+| `FR-TEN-009A` Phase 1 system-of-record registry | M1 | product | M6 | yes | No system-of-record registry exists — no table states, per tenant or legal entity, which system is authoritative for which Phase 1 concern. |
+| `FR-TST-003` API tests | M1 | product | M6 | yes | Most of the clause is delivered — validation, auth, idempotency, concurrency and error contracts are all exercised against the built service, and M4-B proved idempotency by key on payment intents. |
 | `FR-TST-004A` Phase 1 adapter contract tests | M1 | product | M6 | no | Two ports, and only one exists. |
 | `FR-TST-012` Migration and cross-platform upgrade | M1 | product | M6 | no | The fresh half is proved every run: twenty-five migrations applied to a database built from empty, checksum-locked, with M1-A planting an edit and requiring MIGRATION_CHECKSUM_MISMATCH, and line endings asserted pure LF across 42 checksum-locked files so the hashes are platform-independent. |
 | `FR-UX-003` Back office desktop first | M1 | product | M6 | yes | There is no back-office surface at all. |
 | `FR-UX-007` Loading/offline | M2 | product | M5a | no | Three of the seven states exist and are distinguishable on the customer surface — loading, stale and failed, which is the clause's own gate-local behaviour at M2. |
 | `FR-UX-020` Consistent design system | M2 | product | M6 | yes | No shared component or token system exists. |
-| `FR-POS-009` Accessibility mode | M3 | product | M4-C | yes | Accessibility preferences do not exist on the staff surfaces. |
+| `FR-POS-009` Accessibility mode | M3 | product | M6 | yes | Accessibility preferences do not exist on the staff surfaces. |
 
 ## 51 requirements delivered with nothing naming them
 

@@ -516,7 +516,7 @@
       "title": "Branding",
       "state": "absent",
       "category": "product",
-      "completing_gate": "M4-C",
+      "completing_gate": "M5a",
       "revalidated_at": [
         "M4",
         "M5b"
@@ -525,7 +525,11 @@
       "buildable_now": true,
       "buildable_why": "Buildable now, and built by this slice: receipt and footer text render on the M4-C receipt from tenant configuration.",
       "closes_when": "A receipt renders its footer and branding text from configuration rather than a constant, in all three locales.",
-      "review_may_challenge": true
+      "review_may_challenge": true,
+      "moved_later": {
+        "from": "M4-C",
+        "why": "The receipt is the artifact this clause names, and M5a is the gate that next opens the receipt composition path — it owns the outlet node and the print stage the composer feeds. Branding text pulled from configuration is a change to that composer, and doing it inside a repair brief would be building a feature under the word 'repair'. It was NOT built at M4-C and this entry was stale, not satisfied."
+      }
     },
     {
       "requirement": "FR-CFG-007A",
@@ -547,7 +551,7 @@
       "title": "White labeling",
       "state": "absent",
       "category": "product",
-      "completing_gate": "M4-C",
+      "completing_gate": "M6",
       "revalidated_at": [
         "M4",
         "M5b"
@@ -556,7 +560,11 @@
       "buildable_now": true,
       "buildable_why": "Buildable now, and built by this slice: the receipt template is the first template this project renders.",
       "closes_when": "A tenant-selected template renders a document, with platform attribution configurable, proved on the receipt.",
-      "review_may_challenge": true
+      "review_may_challenge": true,
+      "moved_later": {
+        "from": "M4-C",
+        "why": "Template selection per tenant is product packaging rather than receipt plumbing: it needs a template store, a resolution order and an attribution rule, none of which exists. M4-C rendered ONE composition for every tenant. Moved because nothing at M4 or M5a is chartered to introduce a template engine."
+      }
     },
     {
       "requirement": "FR-COM-007",
@@ -898,7 +906,7 @@
       "title": "Phase 1 system-of-record registry",
       "state": "absent",
       "category": "product",
-      "completing_gate": "M4-C",
+      "completing_gate": "M6",
       "revalidated_at": [
         "M4"
       ],
@@ -906,7 +914,11 @@
       "buildable_now": true,
       "buildable_why": "Buildable now, and built by this slice: the registry is the thing M4-C's fiscal port needs in order to say which system is authoritative for a fiscal document.",
       "closes_when": "A system-of-record entry exists per tenant and legal entity carrying the Phase 1 enumeration only, and the fiscal port reads it.",
-      "review_may_challenge": true
+      "review_may_challenge": true,
+      "moved_later": {
+        "from": "M4-C",
+        "why": "A system-of-record registry is a governance table with no dependency on anything M4 built, and the clause requires the fiscal port to READ it — which means it lands with the gate that makes the fiscal port real, not with the gate that defined its seam. M4-C shipped the port with one simulated adapter."
+      }
     },
     {
       "requirement": "FR-TST-001",
@@ -950,7 +962,7 @@
       "title": "API tests",
       "state": "absent",
       "category": "product",
-      "completing_gate": "M4-C",
+      "completing_gate": "M6",
       "revalidated_at": [
         "M3",
         "M4"
@@ -959,7 +971,11 @@
       "buildable_now": true,
       "buildable_why": "Buildable now for the routes that exist; this slice covers its own.",
       "closes_when": "Pagination is implemented and tested on every route that can return an unbounded collection, error contracts included.",
-      "review_may_challenge": true
+      "review_may_challenge": true,
+      "moved_later": {
+        "from": "M4-C",
+        "why": "Its named blocker is PAGINATION, which is absent as a FEATURE: no route that can return an unbounded collection accepts a cursor or a limit. A test cannot precede the thing it tests, so this moves with pagination. The rest of the clause — validation, auth, idempotency, concurrency, error contracts — is exercised, and M4-C's repair added thirty service-tier calls to that evidence."
+      }
     },
     {
       "requirement": "FR-TST-004A",
@@ -1187,7 +1203,7 @@
       "title": "Accessibility mode",
       "state": "absent",
       "category": "product",
-      "completing_gate": "M4-C",
+      "completing_gate": "M6",
       "revalidated_at": [
         "M4"
       ],
@@ -1195,7 +1211,11 @@
       "buildable_now": true,
       "buildable_why": "Buildable now, and built by this slice for the POS terminal path.",
       "closes_when": "Larger targets, reduced motion and high contrast apply on the waiter, station and POS surfaces where configured, measured rather than asserted.",
-      "review_may_challenge": true
+      "review_may_challenge": true,
+      "moved_later": {
+        "from": "M4-C",
+        "why": "Accessibility preferences do not exist on any staff surface. M2-C proved the CUSTOMER surface against measured computed layout; doing the same for the waiter, station and POS surfaces means a preference store, three surfaces changed and a measured proof for each. That is a slice of work, not a repair."
+      }
     }
   ]
 }

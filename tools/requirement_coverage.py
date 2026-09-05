@@ -283,6 +283,21 @@ def classifications() -> dict[str, dict]:
                 f"buildable now. A reviewer weighing a deferral needs that, because "
                 f"without it \"not due yet\" reads as \"not possible yet\", which is a "
                 f"different and more forgiving claim")
+        # A MOVE IS A JUDGEMENT AND CARRIES ITS REASONING, like every other field here.
+        # Re-pointing a gap at a later gate is the escape hatch this audit hands whoever
+        # cannot build the thing today, and an escape hatch nobody has to justify is how
+        # a gap walks forward one gate at a time until it is somebody else's problem.
+        move = entry.get("moved_later")
+        if move is not None:
+            for field in ("from", "why"):
+                if not move.get(field):
+                    raise CoverageUnreadable(
+                        f"{entry['requirement']} records a move with no {field!r}. The "
+                        f"gate it moved OFF is what makes the move reviewable")
+            if move["from"] == entry["completing_gate"]:
+                raise CoverageUnreadable(
+                    f"{entry['requirement']} records a move from {move['from']} to the "
+                    f"same gate, which is not a move")
         keyed[entry["requirement"]] = entry
 
     # NOT CLOSABLE AS A BATCH. Five security absences scheduled forward would otherwise be
@@ -343,15 +358,46 @@ def audit(logs: Path) -> dict:
 
 
 def check(logs: Path) -> list[tuple[str, str]]:
-    """REQUIREMENT_UNACCOUNTED for each landed requirement with nothing to show."""
+    """Every landed requirement accounted for, and every account still true."""
     finding = audit(logs)
-    return [("REQUIREMENT_UNACCOUNTED",
-             f"{r['id']} [{r['introduced_at']}] {r['title']} — nothing in this run cites "
-             f"it, no open partial closure covers it, and planning/"
-             f"{COVERAGE.name} does not classify it. Either it is not delivered, or it is "
-             f"delivered and nothing checks it by name; the audit cannot tell which, and "
-             f"guessing would name a cause it did not verify")
-            for r in finding["unclassified"]]
+    problems = [("REQUIREMENT_UNACCOUNTED",
+                 f"{r['id']} [{r['introduced_at']}] {r['title']} — nothing in this run "
+                 f"cites it, no open partial closure covers it, and planning/"
+                 f"{COVERAGE.name} does not classify it. Either it is not delivered, or "
+                 f"it is delivered and nothing checks it by name; the audit cannot tell "
+                 f"which, and guessing would name a cause it did not verify")
+                for r in finding["unclassified"]]
+
+    # AND A CLASSIFICATION EXPIRES WHEN ITS GATE LANDS.
+    #
+    # This audit used to clear a requirement the moment its id appeared in the register,
+    # and never asked whether the entry was still true. So five requirements sat ABSENT,
+    # buildable_now, against a completing gate that had already landed — and the audit
+    # reported zero unaccounted over the top of them. "Absent, due at M4-C" stops being a
+    # plan and becomes a false statement the moment M4-C lands.
+    #
+    # tools/partial_closures.py has enforced the same rule on the register since M4-A
+    # (PARTIAL_CLOSURE_CLOSED_FROM_THE_FUTURE: an entry still open after its completer
+    # landed is a defect). The coverage audit simply did not honour it. Same rule, second
+    # register.
+    # partial_closures.landed_gates(), not the one above: entries name a SLICE ("M4-C")
+    # and this module's landed_gates() closes over GATES ("M4"), so asking it whether
+    # M4-C has landed answers no about a slice that shipped three commits ago. The
+    # register's own reader knows both, and it is the reader the sibling rule uses.
+    landed = partial_closures.landed_gates()
+    for identifier, entry in sorted(finding["recorded"].items()):
+        if entry.get("state") != "absent":
+            continue
+        gate = entry.get("completing_gate")
+        if gate in landed:
+            problems.append((
+                "ABSENT_AT_A_LANDED_GATE",
+                f"{identifier} is classified ABSENT with {gate} as its completing gate, "
+                f"and {gate} has landed. Either it was built and this entry is stale, or "
+                f"it was not built and the gate closed over a hole. Build it, or move it "
+                f"to a gate that has not landed and record why — the completer-moved-"
+                f"later rule applies to that move"))
+    return problems
 
 
 def report(logs: Path) -> str:
