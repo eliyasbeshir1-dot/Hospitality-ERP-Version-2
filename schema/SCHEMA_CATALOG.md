@@ -36,12 +36,12 @@ Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `docs`, `fiscal`, 
 | `config.reason_code_category` | order_cancellation, void, refund, discount, complimentary_item, payment_reversal, tip_correction, service_failure, printer_failure, manager_override |
 | `config.retention_action` | archive, purge, anonymize |
 | `config.scope_kind` | tenant, legal_entity, outlet |
-| `docs.connection_kind` | character_device, network_socket, file |
+| `docs.connection_kind` | character_device, network_socket, file, null_device |
 | `docs.document_kind` | receipt, kitchen_ticket, label, operational |
-| `docs.print_outcome` | printed, failed |
+| `docs.print_outcome` | printed, failed, discarded |
 | `docs.receipt_line_kind` | bill_component, bill_total, tip, total_paid, payment_method |
 | `docs.render_outcome` | rendered, failed |
-| `docs.sink_kind` | device, preview |
+| `docs.sink_kind` | device, preview, discard |
 | `fiscal.adapter_mode` | live, simulated |
 | `fiscal.document_state` | requested, submitted, accepted, rejected, reconciled |
 | `fulfillment.document_trigger` | kds_unavailable, policy_requires_paper |
@@ -1972,13 +1972,14 @@ Row level security: **enabled**, **forced**.
 
 Constraints:
 
-- `printer_destination_matches_the_connection` — `CHECK ((((connection = 'network_socket'::docs.connection_kind) AND (host_and_port IS NOT NULL) AND (device_path IS NULL)) OR ((connection = ANY (ARRAY['character_device'::docs.connection_kind, 'file'::docs.connection_kind])) AND (device_path IS NOT NULL) AND (host_and_port IS NULL))))`
+- `printer_destination_matches_the_connection` — `CHECK ((((connection = 'network_socket'::docs.connection_kind) AND (host_and_port IS NOT NULL) AND (device_path IS NULL)) OR ((connection = ANY (ARRAY['character_device'::docs.connection_kind, 'file'::docs.connection_kind, 'null_device'::docs.connection_kind])) AND (device_path IS NOT NULL) AND (host_and_port IS NULL))))`
 - `printer_name_not_blank` — `CHECK ((btrim(display_name) <> ''::text))`
 - `printer_name_unique_per_outlet` — `UNIQUE (tenant_id, outlet_id, display_name, status)`
+- `printer_null_device_is_not_a_device_sink` — `CHECK (((device_path IS NULL) OR (lower(device_path) <> ALL (ARRAY['/dev/null'::text, 'nul'::text, 'nul:'::text])) OR (sink = 'discard'::docs.sink_kind)))`
 - `printer_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
 - `printer_pkey` — `PRIMARY KEY (id)`
 - `printer_registrar_fk` — `FOREIGN KEY (tenant_id, registered_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
-- `printer_sink_is_derived_from_the_connection` — `CHECK ((((connection = ANY (ARRAY['character_device'::docs.connection_kind, 'network_socket'::docs.connection_kind])) AND (sink = 'device'::docs.sink_kind)) OR ((connection = 'file'::docs.connection_kind) AND (sink = 'preview'::docs.sink_kind))))`
+- `printer_sink_is_derived_from_the_connection` — `CHECK ((((connection = ANY (ARRAY['character_device'::docs.connection_kind, 'network_socket'::docs.connection_kind])) AND (sink = 'device'::docs.sink_kind)) OR ((connection = 'file'::docs.connection_kind) AND (sink = 'preview'::docs.sink_kind)) OR ((connection = 'null_device'::docs.connection_kind) AND (sink = 'discard'::docs.sink_kind))))`
 - `printer_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
 - `printer_tenant_id_unique` — `UNIQUE (tenant_id, id)`
 

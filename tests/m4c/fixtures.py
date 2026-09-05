@@ -96,9 +96,14 @@ DEVICE_PATH = os.environ.get("M4C_DEVICE_PATH", os.devnull)
 # and the outcome it may carry is 'discarded', which is what happens to the bytes.
 #
 # The moment M4C_DEVICE_PATH names a real character device — a contracted printer on a
-# pilot machine — this becomes a device sink again and the outcome becomes 'printed',
+# pilot machine — this becomes a device sink again and the outcome becomes a real print,
 # derived rather than typed, so the day the hardware arrives nobody has to remember.
-_IS_NULL_DEVICE = DEVICE_PATH.lower() in ("/dev/null", "nul", "nul:")
+# os.devnull, and NOTHING ELSE. M1-A's F3 rule forbids a POSIX device path spelled out
+# in a cross-platform harness file, and it caught the first draft of this line naming
+# both spellings. It is right: os.devnull already IS the local one on either platform,
+# so naming the other adds nothing here and only a literal to go stale. The database
+# CHECK in 0032 does have to know both, because SQL has no os.devnull.
+_IS_NULL_DEVICE = os.path.normcase(DEVICE_PATH) == os.path.normcase(os.devnull)
 CONNECTION   = "null_device" if _IS_NULL_DEVICE else "character_device"
 SINK         = "discard" if _IS_NULL_DEVICE else "device"
 PRINT_OUTCOME = "discarded" if _IS_NULL_DEVICE else "printed"
@@ -316,7 +321,7 @@ def _seed_printers() -> None:
     # exists to refuse.
     res = run(APP, f"""
         SELECT docs.record_printer_test(
-                 '{TENANT}', '{OUTLET_H1}', '{PRINTER_DEVICE}', 'printed',
+                 '{TENANT}', '{OUTLET_H1}', '{PRINTER_DEVICE}', '{PRINT_OUTCOME}',
                  repeat('a', 64)::char(64), 128, 'fixture test page', '{USER_MANAGER}')
         WHERE NOT docs.printer_has_passed_a_test('{TENANT}', '{PRINTER_DEVICE}');
     """, **CTX)
