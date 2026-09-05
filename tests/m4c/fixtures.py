@@ -87,6 +87,22 @@ WORDING_BILL_COMPONENT = "4444c305-0000-4000-8000-0000000c0305"
 # wrong reason.
 DEVICE_PATH = os.environ.get("M4C_DEVICE_PATH", os.devnull)
 
+# WHAT THE FIXTURE PRINTER ACTUALLY IS, rather than what it was labelled.
+#
+# This row used to declare 'character_device'/'device' while pointing at os.devnull, so
+# the database believed a real printer was attached and every receipt in this suite and
+# in the golden journeys was recorded as PRINTED. Nothing was printed. 0032 makes that
+# row impossible — a printer whose path is the null device may not be a device sink —
+# and the outcome it may carry is 'discarded', which is what happens to the bytes.
+#
+# The moment M4C_DEVICE_PATH names a real character device — a contracted printer on a
+# pilot machine — this becomes a device sink again and the outcome becomes 'printed',
+# derived rather than typed, so the day the hardware arrives nobody has to remember.
+_IS_NULL_DEVICE = DEVICE_PATH.lower() in ("/dev/null", "nul", "nul:")
+CONNECTION   = "null_device" if _IS_NULL_DEVICE else "character_device"
+SINK         = "discard" if _IS_NULL_DEVICE else "device"
+PRINT_OUTCOME = "discarded" if _IS_NULL_DEVICE else "printed"
+
 # FR-BIL-011's reprint needs a reason with an author. Category 'manager_override' because
 # a reprint of a customer's receipt is a deliberate act somebody authorizes.
 REASON_CODES = (
@@ -257,9 +273,9 @@ def _seed_printers() -> None:
             (id, tenant_id, outlet_id, display_name, connection, sink, device_path,
              registered_by_user_id)
         VALUES ('{PRINTER_DEVICE}', '{TENANT}', '{OUTLET_H1}', 'M4C counter printer',
-                'character_device', 'device', '{DEVICE_PATH}', '{USER_MANAGER}'),
+                '{CONNECTION}', '{SINK}', '{DEVICE_PATH}', '{USER_MANAGER}'),
                ('{PRINTER_UNTESTED}', '{TENANT}', '{OUTLET_H1}', 'M4C printer untested',
-                'character_device', 'device', '{DEVICE_PATH}', '{USER_MANAGER}')
+                '{CONNECTION}', '{SINK}', '{DEVICE_PATH}', '{USER_MANAGER}')
         ON CONFLICT (id) DO NOTHING;
     """, **CTX)
     _fail("m4c device printers", res)

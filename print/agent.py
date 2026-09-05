@@ -194,6 +194,17 @@ def assert_every_glyph_came_from_the_vendored_font(measured: dict) -> None:
               "cannot ask it to render again")
 
 
+def _is_the_null_device(path: str) -> bool:
+    """Whether this destination throws the bytes away.
+
+    Both spellings, because the null device is /dev/null on POSIX and NUL on Windows and
+    this repository runs on both. os.devnull gives the local one; the other is named too,
+    so a path copied from the other platform is still recognised for what it is.
+    """
+    return os.path.normcase(path) in {os.path.normcase(os.devnull), "nul", "nul:",
+                                      "/dev/null"}
+
+
 def write_to_device(payload: bytes, *, device_path: str | None,
                     host_and_port: str | None) -> dict:
     """Bytes at hardware. Returns a DEVICE outcome, which the database types separately."""
@@ -225,6 +236,16 @@ def write_to_device(payload: bytes, *, device_path: str | None,
 
     with open(device_path, "wb") as fh:
         fh.write(payload)
+
+    # AND A CHARACTER DEVICE THAT DISCARDS IS NOT A PRINTER.
+    #
+    # The check above proves the destination is a character device, which /dev/null and
+    # NUL both are — so it passed them, and the agent reported "printed" for bytes that
+    # went nowhere. Every runner this repository has ever used has no printer attached,
+    # so every print it has ever recorded was that. The word the bytes earned is
+    # DISCARDED, and migration 0032 makes the database refuse any other for this sink.
+    if _is_the_null_device(device_path):
+        return {"sink": "discard", "outcome": "discarded", "destination": device_path}
     return {"sink": "device", "outcome": "printed", "destination": device_path}
 
 

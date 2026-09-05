@@ -1071,11 +1071,13 @@ def a_settled_check(journey: str, session: str, *, locale: str, tip_minor: int,
 def print_the_receipt(journey: str, receipt: str, *, is_reprint: bool = False,
                       reason_code: str | None = None,
                       reason_text: str | None = None) -> dict:
-    """Compose, rasterise, check every glyph, encode, and write to a character device.
+    """Compose, rasterise, check every glyph, encode, and DISCARD at the null device.
 
-    os.devnull, never a POSIX literal. The null device has a different name on each
-    platform and both are CHARACTER DEVICES, which is what print/agent.py requires and
-    what makes this a device sink rather than a file that received bytes.
+    os.devnull, never a POSIX literal — the null device has a different name on each
+    platform. Both are character devices, which is why this path used to pass the agent's
+    device check and report "printed" for bytes that went nowhere. It reports DISCARDED
+    now, and migration 0032 refuses any other outcome for a sink whose destination is the
+    null device, so the claim cannot come back by anybody forgetting.
     """
     document = json.loads(scalar(
         f"SELECT docs.receipt_document('{fx.TENANT}', '{receipt}')::text;"))
@@ -1083,7 +1085,7 @@ def print_the_receipt(journey: str, receipt: str, *, is_reprint: bool = False,
                                workspace=WORKSPACE)
     recorded = run(APP, f"""
         SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}',
-            '{m4c.PRINTER_DEVICE}', 'printed', '{produced["bytes_sha256"]}',
+            '{m4c.PRINTER_DEVICE}', '{m4c.PRINT_OUTCOME}', '{produced["bytes_sha256"]}',
             {produced["byte_count"]}, '{m4c.USER_CASHIER}', {str(is_reprint).lower()},
             {"'" + reason_code + "'" if reason_code else "NULL"},
             {"$r$" + reason_text + "$r$" if reason_text else "NULL"});""",
@@ -1158,15 +1160,19 @@ def gj_01b() -> None:
            f"fourth — FR-BIL-010 with FR-BIL-017")
 
     printed = print_the_receipt(journey, receipt)
-    record(journey, "and it goes on paper through the printer path, once",
+    record(journey, "and it goes down the printer path once, and is discarded there",
            printed["recorded"].ok
-           and printed["produced"]["outcome"] == "printed"
+           and printed["produced"]["outcome"] == m4c.PRINT_OUTCOME
            and printed["produced"]["byte_count"] > 0,
-           f"{printed['produced']['byte_count']} ESC/POS bytes to a character device, "
+           f"{printed['produced']['byte_count']} ESC/POS bytes composed, rasterised, "
            f"{printed['produced']['characters_checked']} character(s) each checked "
-           f"against the vendored fonts. What is NOT proved here is that a machine turned "
-           f"them into legible paper: no printer exists on this runner, and that half is "
-           f"FR-BIL-017's own open register entry against M5a")
+           f"against the vendored fonts, encoded, and written to "
+           f"{printed['produced']['destination']} — a null device, which throws them "
+           f"away. The step says DISCARDED because that is what happened. This journey "
+           f"claims byte production and encoding and claims NOTHING about paper: no "
+           f"printer exists on this runner, migration 0032 refuses to let this sink "
+           f"record 'printed', and the physical half is FR-BIL-017's own open register "
+           f"entry")
 
     again = print_the_receipt(journey, receipt)
     record(journey, "and a second original print of the same settlement is refused",
@@ -1252,10 +1258,12 @@ def gj_02b() -> None:
            f"{covered} of {present} Ethiopic codepoint(s) drawn by the vendored fonts, "
            f"read off the RASTER the printer receives rather than off the string. A "
            f"receipt is paper: a customer cannot ask it to render again")
-    record(journey, "and the bytes reached a character device",
-           printed["recorded"].ok and printed["produced"]["outcome"] == "printed",
-           f"{printed['produced']['byte_count']} bytes. The M4 print proves a real path "
-           f"to a device and claims no durable queue, no retry and no outage resilience — "
+    record(journey, "and the bytes were encoded and discarded, not printed",
+           printed["recorded"].ok
+           and printed["produced"]["outcome"] == m4c.PRINT_OUTCOME,
+           f"{printed['produced']['byte_count']} bytes to a null device. The M4 print "
+           f"proves composition, glyph coverage and ESC/POS encoding; it does not prove "
+           f"paper, and it claims no durable queue, no retry and no outage resilience — "
            f"all of which are M5a's")
 
 
@@ -1311,11 +1319,12 @@ def gj_03b() -> None:
            f"that found the Ethiopic-only font set: the coverage check reported the "
            f"vendored font as having drawn nothing for every Arabic character, which is "
            f"exactly what it exists to report")
-    record(journey, "and the bytes reached a character device",
-           printed["recorded"].ok,
-           printed["recorded"].why() or f"{printed['produced']['byte_count']} bytes. "
-                                        f"Durable local print recovery is reserved for "
-                                        f"M5a and is not claimed here")
+    record(journey, "and the bytes were encoded and discarded, not printed",
+           printed["recorded"].ok
+           and printed["produced"]["outcome"] == m4c.PRINT_OUTCOME,
+           printed["recorded"].why() or f"{printed['produced']['byte_count']} bytes to a "
+                                        f"null device. Paper is not claimed, and durable "
+                                        f"local print recovery is reserved for M5a")
 
 
 def gj_06() -> None:
