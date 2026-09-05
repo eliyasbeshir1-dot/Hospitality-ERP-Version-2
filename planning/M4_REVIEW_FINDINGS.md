@@ -214,6 +214,35 @@ Derived by `tools/uncalled_routes.py` on every generation, so this list cannot g
 | `reports.ts` | `GET /s/v1/reports/catalog`<br>`GET /s/v1/reports/metrics`<br>`GET /s/v1/reports/sales`<br>`GET /s/v1/reports/shifts/:shiftId/snapshot`<br>`POST /s/v1/reports/shifts/:shiftId/recomputations` |
 | `service.ts` | `GET /s/v1/service/queue` |
 | `staff.ts` | `GET /s/v1/fast-picks`<br>`GET /s/v1/terminals`<br>`POST /s/v1/handovers/:handoverId/acknowledge`<br>`POST /s/v1/terminals`<br>`POST /s/v1/terminals/:deviceId/revoke` |
+
+## The KDS cannot be operated through the service
+
+**Its own finding, and it belongs to M3-B rather than to this slice.** M3-B built the ticket state machine, the station queues and the expo view, and its suite proves all of it against the database. Not one of its writers can be invoked through the running service.
+
+Of the 13 operator-callable writers in `fulfillment`, **13 are reachable by no route** and none is.
+
+`fulfillment.transition_ticket()` is the single writer that moves a ticket through every one of its eleven states — queued, acknowledged, held, preparing, partially_completed, ready, collected, completed, rework, cancelled, exception — and it has no route. So **acknowledge, hold, fire, mark ready, complete, recall and transfer are all unreachable**, along with line-level progress, serving, waste, priority, allergy acknowledgement, release to the stations and release to service.
+
+`api/src/routes/station.ts` exposes three routes and all three are `GET`: the station queue, one ticket, and the expo view. `station/src` issues no write of any kind. **A cook can read the board and change nothing on it.**
+
+| `fulfillment` writer | Reachable through a route |
+|---|---|
+| `fulfillment.acknowledge_allergy` | **no** |
+| `fulfillment.apply_order_amendment` | **no** |
+| `fulfillment.emit_ready_notice` | **no** |
+| `fulfillment.escalate_uncollected` | **no** |
+| `fulfillment.recall_ticket` | **no** |
+| `fulfillment.record_serve` | **no** |
+| `fulfillment.record_unit_progress` | **no** |
+| `fulfillment.record_waste` | **no** |
+| `fulfillment.release_order` | **no** |
+| `fulfillment.release_to_service` | **no** |
+| `fulfillment.set_priority` | **no** |
+| `fulfillment.transfer_ticket` | **no** |
+| `fulfillment.transition_ticket` | **no** |
+
+This is GJ-01A one layer below the defect that opened this repair. There, ten billing routes existed and nothing had called them; here the routes do not exist at all, so the KDS M3-B delivered could not function in production. It is recorded rather than fixed: the fix is M3-B's scope and a station write surface is a feature, not a repair.
+
 ## A requirement the pinned package itself cannot satisfy
 
 **FR-MNU-002B — No customer-segment targeting.** THE SCANNER CANNOT PROVE WHAT THIS REQUIREMENT CREDITS IT WITH. The clause demands a scan for a customer-segment field, assignment rule or screen, and no term for it exists among the 63 in the package's forbidden_surface_rules.json — loyalty_crm_promotions carries loyalty, reward, loyalty points, crm, campaign, promotion and marketing campaign, and none of them matches the word this requirement is about. No such field exists in the build, so the property holds; nothing proves it, and nothing in the repository can, because the vocabulary is the pinned package's and the build may not edit it. The correct disposition is a package amendment through amendment_register.json, not a build change, which is why this is recorded as absent rather than uncited: the scanning behaviour genuinely does not exist.

@@ -183,3 +183,5 @@ INSERT INTO config.entitlement (tenant_id, scope_kind, feature_key, granted) VAL
 
 SELECT set_config('app.tenant_id', '', false);
 SELECT set_config('app.outlet_id', '', false);
+
+-- deliberate edit to an applied seed

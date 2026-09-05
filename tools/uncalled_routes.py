@@ -79,6 +79,68 @@ def survey() -> dict:
             "uncalled": uncalled}
 
 
+
+# ---------------------------------------------------------------------------
+# The other direction: writers no route reaches
+# ---------------------------------------------------------------------------
+#
+# uncalled_routes() asks which doors nobody opens. This asks the sharper question: which
+# ROOMS have no door. A delivered writer no route reaches cannot be invoked by any
+# surface, any operator or any integration — it exists, it is tested against the
+# database, and nothing outside the database can run it.
+#
+# Read from the migrations rather than from pg_proc so this needs no database: a function
+# is VOLATILE unless its own definition says STABLE or IMMUTABLE, which is PostgreSQL's
+# rule, and the migrations are the source of truth CI already checksums.
+
+# The whole header, from CREATE FUNCTION to the body marker. VOLATILITY MUST BE READ FROM
+# ALL OF IT: PostgreSQL accepts STABLE either before or after LANGUAGE, and a first draft
+# stopped at LANGUAGE, called eight readers writers, and disagreed with the catalog it was
+# supposed to be a static stand-in for.
+_DEFINITION = re.compile(
+    r"CREATE(?:\s+OR\s+REPLACE)?\s+FUNCTION\s+([a-z_]+)\.([a-z_][a-z0-9_]*)\s*\("
+    r"(.*?)\)\s*RETURNS\s+(.*?)AS\s*\$", re.S | re.I)
+
+# Bodies of triggers and internal assertions are not something an operator calls.
+_INTERNAL = re.compile(r"^(assert_|refuse_|apply_[a-z_]*_event$|drop_projections|"
+                       r"rebuild_projections|notice_on_|generate_[a-z_]*_document$)")
+
+
+def unreachable_writers(schema: str) -> dict:
+    """Writers in one schema that no route can invoke."""
+    routes_text = ""
+    for source in sorted((REPO / "api" / "src" / "routes").glob("*.ts")):
+        text = source.read_text(encoding="utf-8")
+        text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+        text = re.sub(r"^\s*\*.*$", "", text, flags=re.M)
+        routes_text += re.sub(r"//.*$", "", text, flags=re.M)
+
+    writers: set[str] = set()
+    for migration in sorted((REPO / "migrations").glob("*.sql")):
+        body = migration.read_text(encoding="utf-8")
+        for match in _DEFINITION.finditer(body):
+            if match.group(1) != schema:
+                continue
+            name = match.group(2)
+            if _INTERNAL.match(name):
+                continue
+            # RETURNS trigger is a trigger body; STABLE/IMMUTABLE cannot write.
+            declared = match.group(4)
+            if re.search(r"\btrigger\b", declared, re.I):
+                continue
+            if re.search(r"\b(STABLE|IMMUTABLE)\b", declared, re.I):
+                writers.discard(name)
+                continue
+            writers.add(name)
+
+    reachable, unreachable = [], []
+    for name in sorted(writers):
+        if re.search(r"\b" + schema + r"\." + re.escape(name) + r"\s*\(", routes_text):
+            reachable.append(name)
+        else:
+            unreachable.append(name)
+    return {"schema": schema, "reachable": reachable, "unreachable": unreachable}
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--json", action="store_true")

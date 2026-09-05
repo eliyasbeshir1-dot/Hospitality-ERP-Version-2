@@ -245,6 +245,48 @@ def build() -> str:
         listed = "<br>".join(f"`{r}`" for r in sorted(by_file[source]))
         w(f"| `{source}` | {listed} |")
 
+    # ---- The kitchen the service cannot drive ----------------------------------
+    kitchen = uncalled_routes.unreachable_writers("fulfillment")
+    w("")
+    w("## The KDS cannot be operated through the service")
+    w("")
+    w("**Its own finding, and it belongs to M3-B rather than to this slice.** M3-B built "
+      "the ticket state machine, the station queues and the expo view, and its suite "
+      "proves all of it against the database. Not one of its writers can be invoked "
+      "through the running service.")
+    w("")
+    w(f"Of the {len(kitchen['unreachable']) + len(kitchen['reachable'])} operator-callable "
+      f"writers in `fulfillment`, **{len(kitchen['unreachable'])} are reachable by no "
+      f"route** and "
+      f"{len(kitchen['reachable']) or 'none'} "
+      f"{'are' if kitchen['reachable'] else 'is'}"
+      + (f": {', '.join('`' + n + '`' for n in kitchen['reachable'])}"
+         if kitchen['reachable'] else "."))
+    w("")
+    w("`fulfillment.transition_ticket()` is the single writer that moves a ticket through "
+      "every one of its eleven states — queued, acknowledged, held, preparing, "
+      "partially_completed, ready, collected, completed, rework, cancelled, exception — "
+      "and it has no route. So **acknowledge, hold, fire, mark ready, complete, recall "
+      "and transfer are all unreachable**, along with line-level progress, serving, "
+      "waste, priority, allergy acknowledgement, release to the stations and release to "
+      "service.")
+    w("")
+    w("`api/src/routes/station.ts` exposes three routes and all three are `GET`: the "
+      "station queue, one ticket, and the expo view. `station/src` issues no write of any "
+      "kind. **A cook can read the board and change nothing on it.**")
+    w("")
+    w("| `fulfillment` writer | Reachable through a route |")
+    w("|---|---|")
+    for name in kitchen["unreachable"]:
+        w(f"| `fulfillment.{name}` | **no** |")
+    w("")
+    w("This is GJ-01A one layer below the defect that opened this repair. There, ten "
+      "billing routes existed and nothing had called them; here the routes do not exist "
+      "at all, so the KDS M3-B delivered could not function in production. It is recorded "
+      "rather than fixed: the fix is M3-B's scope and a station write surface is a "
+      "feature, not a repair.")
+    w("")
+
     # ---- the package's own gap --------------------------------------------
     package_gaps = [g for g in absent
                     if "amendment_register" in g["closes_when"]
