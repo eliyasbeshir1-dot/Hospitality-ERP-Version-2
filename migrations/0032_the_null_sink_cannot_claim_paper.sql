@@ -168,3 +168,38 @@ BEGIN
     RETURN v_id;
 END;
 $$;
+
+-- 6. AND "TESTED" MEANS EXERCISED, WHICH IS SINK-DEPENDENT.
+--
+--    docs.printer_has_passed_a_test() asked for the outcome 'printed', which no discard
+--    sink can ever carry — so with 0032 in place FR-CFG-001D's precondition became
+--    unsatisfiable on every runner and no receipt could be printed at all. The suite
+--    caught it on the first clean rebuild.
+--
+--    The question the precondition is really asking is "has anybody ever driven this
+--    printer successfully?", and the answer for a device is 'printed' and for a discard
+--    sink is 'discarded'. Both are successful exercises of the path; they differ in what
+--    they prove about paper, which is carried by the outcome word itself and by
+--    FR-BIL-017's open register entry — not by pretending the test never happened.
+--
+--    An UNTESTED printer still fails, which is the whole of FR-CFG-001D. A printer with
+--    a FAILED test still fails.
+CREATE OR REPLACE FUNCTION docs.printer_has_passed_a_test(p_tenant_id uuid, p_printer_id uuid)
+RETURNS boolean
+LANGUAGE sql STABLE
+AS $$
+    SELECT EXISTS (
+        SELECT 1
+          FROM docs.printer_test t
+          JOIN docs.printer p ON p.tenant_id = t.tenant_id AND p.id = t.printer_id
+         WHERE t.tenant_id = p_tenant_id AND t.printer_id = p_printer_id
+           AND t.outcome = CASE p.sink
+                               WHEN 'discard' THEN 'discarded'::docs.print_outcome
+                               ELSE 'printed'::docs.print_outcome
+                           END);
+$$;
+
+COMMENT ON FUNCTION docs.printer_has_passed_a_test(uuid, uuid) IS
+    'FR-CFG-001D''s test half. "Passed" means the path was driven successfully for the '
+    'sink it has: a device printed, a discard sink discarded. A printer nobody has '
+    'driven fails either way, which is the precondition''s whole purpose.';
