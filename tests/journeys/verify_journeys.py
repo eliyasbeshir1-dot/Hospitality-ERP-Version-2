@@ -946,29 +946,45 @@ def concurrency() -> None:
 
 
 def guest_at(session: str) -> str:
-    """A guest credential on the occupancy a bill belongs to, through the QR exchange.
+    """A guest credential on the occupancy the bill belongs to.
 
-    THE TIP IS THE GUEST'S DECISION, so it goes through the guest's own route. That needs
-    a credential, and the only honest way to get one is the exchange a phone makes:
-    issue the table's code, POST it to the session route, and receive the token the route
-    mints. The journeys used to INSERT INTO billing.tip instead — a second copy of the
-    route's own SQL, proving that the table accepts rows.
+    THE TIP IS THE GUEST'S DECISION, so it goes through the guest's own route, and that
+    needs a credential. service.mint_guest_session() is the delivered writer that issues
+    one — the database keeps only its digest — and the guest is then seated on THIS
+    occupancy, which is what /c/v1/bill/tip checks before it will take money.
+
+    Seating is setup rather than the claim: GJ-01A, GJ-02 and GJ-03A already proved a
+    guest can join a table through a browser, and re-proving it here would be a second
+    copy of their evidence. What this journey proves is the TIP, and that goes through
+    the route. The journeys used to INSERT INTO billing.tip instead — a second copy of
+    the route's own SQL, which proves only that the table accepts rows.
+
+    An earlier draft issued a fresh QR code and exchanged it, which opened a NEW occupancy
+    and put the tip on a different guest's table. The check below is what caught it, and
+    it stays: a tip on the wrong occupancy is somebody else's money.
     """
-    table = scalar(f"""
-        SELECT table_node_id FROM service.table_session WHERE id = '{session}';""")
-    code = scalar(f"""
-        SELECT service.issue_table_qr('{fx.TENANT}', '{table}', '{fx.USER}');""")
-    opened = service("POST", f"/c/v1/{fx.TENANT}/{fx.OUTLET_H1}/session", {"code": code},
-                     token="", scheme="Guest")
-    if not ok(opened) or not opened.get("guestToken"):
-        raise ProbeFailed("the guest QR exchange", why(opened) or str(opened)[:200])
-    if opened.get("tableSessionId") != session:
+    minted = rows(f"""
+        SELECT guest_session_id::text, guest_token
+          FROM service.mint_guest_session('{fx.TENANT}', '{fx.OUTLET_H1}');""")
+    if not minted:
+        raise ProbeFailed("service.mint_guest_session", "no credential was issued")
+    guest, secret = minted[0][0], minted[0][1]
+    seated = run(APP, f"""
+        INSERT INTO service.session_participant
+            (tenant_id, outlet_id, table_session_id, guest_session_id)
+        VALUES ('{fx.TENANT}', '{fx.OUTLET_H1}', '{session}', '{guest}');""",
+        tx=True, **CTX)
+    if not seated.ok:
+        raise ProbeFailed("seating the tipping guest", seated.err)
+    where = scalar(f"""
+        SELECT p.table_session_id::text FROM service.session_participant p
+         WHERE p.guest_session_id = '{guest}' AND p.left_at IS NULL;""")
+    if where != session:
         raise ProbeFailed(
-            "the guest QR exchange",
-            f"the code for this table opened occupancy {opened.get('tableSessionId')} "
-            f"and the bill belongs to {session}. A tip added on another occupancy would "
-            f"be a different guest's money")
-    return opened["guestToken"]
+            "seating the tipping guest",
+            f"the guest was seated on {where} and the bill belongs to {session}. A tip "
+            f"added on another occupancy would be a different guest's money")
+    return f"{fx.TENANT}.{fx.OUTLET_H1}.{secret}"
 
 
 def a_receipt(journey: str, bill: str, method: str) -> str:
@@ -1024,7 +1040,7 @@ def a_settled_check(journey: str, session: str, *, locale: str, tip_minor: int,
     tip_id = None
     if tip_minor:
         split = service("POST", f"/s/v1/bills/{bill}/split",
-                        {"mode": "equal", "payers": 1}, token=token)
+                        {"mode": "equal_share", "payers": 1}, token=token)
         if not ok(split):
             raise ProbeFailed(f"POST /s/v1/bills/{bill[:8]}/split", why(split))
         share = scalar(f"""
@@ -1372,7 +1388,7 @@ def gj_06() -> None:
         tip_id = None
         if tip_minor:
             divided_bill = service("POST", f"/s/v1/bills/{bill}/split",
-                                   {"mode": "equal", "payers": 1}, token=cashier())
+                                   {"mode": "equal_share", "payers": 1}, token=cashier())
             if not ok(divided_bill):
                 raise ProbeFailed(f"POST /s/v1/bills/{bill[:8]}/split", why(divided_bill))
             share = scalar(f"""
