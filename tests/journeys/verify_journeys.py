@@ -22,6 +22,7 @@ stopped early cannot look like a journey that mostly worked.
 """
 from __future__ import annotations
 
+import ast
 import json
 import os
 import platform
@@ -29,6 +30,7 @@ import inspect
 import re
 import subprocess
 import sys
+import textwrap
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -1668,18 +1670,39 @@ def gj_07() -> None:
 # rests on which without inferring it from the code, which is M2-C's measured-versus-
 # asserted discipline applied to journeys.
 JOURNEYS = (
-    ("GJ-01A", gj_01a, "browser"),
-    ("GJ-01B", gj_01b, "service"),
-    ("GJ-02", gj_02, "browser"),
-    ("GJ-02B", gj_02b, "service"),
-    ("GJ-03A", gj_03a, "browser"),
-    ("GJ-03B", gj_03b, "service"),
-    ("GJ-04", gj_04, "browser"),
-    ("GJ-05", gj_05, "service"),
-    ("GJ-06", gj_06, "service"),
-    ("GJ-07", gj_07, "service"),
-    ("FR-TST-007A", concurrency, "browser"),
+    ("GJ-01A", gj_01a),
+    ("GJ-01B", gj_01b),
+    ("GJ-02", gj_02),
+    ("GJ-02B", gj_02b),
+    ("GJ-03A", gj_03a),
+    ("GJ-03B", gj_03b),
+    ("GJ-04", gj_04),
+    ("GJ-05", gj_05),
+    ("GJ-06", gj_06),
+    ("GJ-07", gj_07),
+    ("FR-TST-007A", concurrency),
 )
+
+
+def tier_of(walker) -> str:
+    """Which tier a journey was actually driven at, read from the journey itself.
+
+    A tier written by hand next to the journey is a claim, and a claim can be wrong: the
+    first version of this table labelled FR-TST-007A "browser" when it opens no browser
+    at all and races two HTTP requests. The distinction it records — a journey proved
+    through the surface a person touches, against one proved through the route that
+    surface would call — is the whole point of the partial closure, so a summary that
+    got it backwards would let the weaker proof read as the stronger one.
+
+    So it is derived. A journey is browser tier if and only if its own body calls walk(),
+    which is the only way a browser is opened here. Parsed rather than grepped, because
+    every one of these functions explains itself in prose that names walk().
+    """
+    tree = ast.parse(textwrap.dedent(inspect.getsource(walker)))
+    calls = (node for node in ast.walk(tree) if isinstance(node, ast.Call))
+    walks = any(isinstance(node.func, ast.Name) and node.func.id == "walk"
+                for node in calls)
+    return "browser" if walks else "service"
 
 
 # ---------------------------------------------------------------------------
@@ -1756,7 +1779,7 @@ def raw_calls_in(source: str, routed: set[str]) -> dict[str, list[str]]:
     global _WRITERS
     _WRITERS = writing_functions()
     offenders: dict[str, list[str]] = {}
-    for name, walker, _tier in JOURNEYS:
+    for name, walker in JOURNEYS:
         body = inspect.getsource(walker)
         found = sorted({m.group(0)[:-1].strip().rstrip("(").strip()
                         for m in _CALL.finditer(_without_comments(body, "py"))}
@@ -1814,7 +1837,7 @@ def structural_gate() -> None:
            f"rather than by editing a journey, because a gate that had to break the "
            f"suite to prove itself would be a gate nobody ran twice")
 
-    unrouted = sorted({f for name, walker, _t in JOURNEYS
+    unrouted = sorted({f for name, walker in JOURNEYS
                        for f in {m.group(0)[:-1].strip().rstrip("(").strip()
                                  for m in _CALL.finditer(
                                      _without_comments(inspect.getsource(walker), "py"))}
@@ -1853,7 +1876,7 @@ def main() -> int:
     with Service(APP) as service:
         CONTEXT["base_url"] = f"http://127.0.0.1:{service.port}"
         structural_gate()
-        for name, walker, _tier in JOURNEYS:
+        for name, walker in JOURNEYS:
             try:
                 walker()
             except ProbeFailed as error:
@@ -1876,10 +1899,15 @@ def main() -> int:
     print(f"  passed        : {passed}")
     print(f"  failed        : {len(failed)}")
     print()
-    for journey, _walker in JOURNEYS:
+    # The tier is printed with the verdict because it is part of the claim: a journey
+    # that passed at the service tier has not been proved at the browser tier, and a
+    # summary that hid the difference would let the weaker proof read as the stronger.
+    for journey, walker in JOURNEYS:
+        tier = tier_of(walker)
         outcomes = by_journey.get(journey, [])
         verdict = "PASS" if outcomes and all(outcomes) else "FAIL"
-        print(f"  {verdict}  {journey:<12} {sum(outcomes)}/{len(outcomes)} steps")
+        print(f"  {verdict}  {journey:<12} {sum(outcomes)}/{len(outcomes)} steps"
+              f"  [{tier} tier]")
     for journey, step, detail in failed:
         print(f"\n  - {journey} failed at: {step}")
         for line in (detail or "").splitlines():
