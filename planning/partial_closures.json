@@ -582,6 +582,15 @@
       "state": "open",
       "completed_by": "FR-CFG-001E",
       "why": "FR-BIL-017 asks that a completed settlement produces a real physical customer receipt through a supported minimum production printer path, and M4-C built all of that path except its last inch. The receipt is composed from the bill's own figures in the bill's own locale, rasterised at 576 dots by the printer path's own rendering engine, checked per glyph against the font this repository ships, encoded into ESC/POS and written to a sink that refuses anything which is not a character device. One settlement produces one original print, refused twice over by a partial unique index and by a trigger. WHAT IS NOT PROVED is that a physical machine took those bytes and produced legible paper: no printer exists in the build container or on either CI runner and no pilot device has been chosen, so the command set is the published generic one and no vendor's extension. This is recorded here rather than in a footnote because it is the difference between a path and an artifact, and planning/M4C_LIMITATIONS.md states it against the commit it was true at. It closes at M5a, which is the first gate that has hardware — and if M5a selects a different rasteriser, NC-M4-005 must be run against that engine, because glyph coverage is a property of the rasteriser and of the font together and does not transfer."
+    },
+    {
+      "requirement": "FR-TST-005A",
+      "aspect": "settlement proved at the service tier, not the browser tier",
+      "opened_at": "M4-C",
+      "completing_gate": "M5a",
+      "state": "open",
+      "completed_by": "FR-POS-002",
+      "why": "The five settlement journeys are driven by the HTTP calls a cashier's screen would issue, against the running service: checks, allocations, splits, bills, the guest's tip through the guest's own credential, payment intents, cash, terminal results, proofs, receipts, revisions, overrides and reversals. That proves each route exists, is registered, authorises its caller and returns what the caller needs — the thing M4-A shipped without, and the reason the first HTTP call ever made to POST /s/v1/checks failed on two production defects. What it does NOT prove is that a person can reach any of it: there is no cashier settlement surface. waiter/src contains no bill, payment, receipt or tip affordance of any kind, so no button reaches these routes and no browser test can be written against one. DISTINCT FROM THE TWO PRINTING-ADJACENT ENTRIES, deliberately, because all three would otherwise be closed together by whichever gate arrived first: FR-BIL-017's open half is PAPER out of a physical machine, M5a's resilient print queue is DURABILITY of a print across restart and outage, and this one is a SCREEN a cashier can touch. A gate could deliver any one and leave the other two exactly as absent."
     }
   ],
   "gate_decomposition": {

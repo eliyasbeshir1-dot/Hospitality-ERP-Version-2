@@ -25,6 +25,8 @@ from __future__ import annotations
 import json
 import os
 import platform
+import inspect
+import re
 import subprocess
 import sys
 import urllib.error
@@ -991,6 +993,38 @@ def a_receipt(journey: str, bill: str, method: str) -> str:
     return issued["receiptId"]
 
 
+def an_order_placed_by_the_guest(journey: str, session: str, cart: str) -> str:
+    """Preview and submit a cart through the GUEST'S OWN routes, and return the order.
+
+    ordering.submit_order() is a writer the service already exposes, so a journey calling
+    it directly would be standing a database call in for a guest tapping "place order" —
+    which is the substitution GJ-01A exists to catch and the structural gate now refuses.
+    The preview is a read and could be asked either way; it goes through the route too,
+    because the digest the submission must match is the one the ROUTE produced.
+    """
+    token = guest_at(session)
+    seen = service("POST", "/c/v1/orders/preview", {"cartId": cart}, token=token,
+                   scheme="Guest")
+    if not ok(seen) or not seen.get("preview"):
+        raise ProbeFailed("POST /c/v1/orders/preview", why(seen) or str(seen)[:200])
+    preview = seen["preview"]
+    placed = service("POST", "/c/v1/orders",
+                     {"cartId": cart,
+                      "expectedTotalMinor": preview["total_amount_minor"],
+                      "pricingDigest": preview["pricing_digest"]},
+                     token=token, scheme="Guest",
+                     key=f"{journey}-{RUN_NONCE}-order")
+    if not ok(placed):
+        raise ProbeFailed("POST /c/v1/orders", why(placed))
+    order = placed.get("orderId") or scalar(f"""
+        SELECT id FROM ordering.customer_order WHERE cart_id = '{cart}'
+         ORDER BY placed_at DESC LIMIT 1;""")
+    if not order:
+        raise ProbeFailed("POST /c/v1/orders", "the route accepted the order and named "
+                                               "no id, and none is on the cart")
+    return order
+
+
 def a_settled_check(journey: str, session: str, *, locale: str, tip_minor: int,
                     method: str, provider: str) -> dict:
     """Open a check over a served session, bill it, take the money, and say what happened.
@@ -1353,15 +1387,7 @@ def gj_06() -> None:
     cart = m4c.m4a.cart_with(session, guest,
                              ((m4c.VARIANT_DORO_FULL, m4c.ITEM_DORO, 1),
                               (m4c.m4b.VARIANT_TIBS_ONE, m4c.m4b.ITEM_TIBS, 1)))
-    view = json.loads(scalar(f"""
-        SELECT ordering.preview_cart('{fx.TENANT}', '{fx.OUTLET_H1}', '{cart}',
-                                     'en', 'dine_in');"""))
-    order = scalar(f"""
-        SELECT ordering.submit_order(
-            '{fx.TENANT}', '{fx.OUTLET_H1}', '{cart}', '{journey}-{RUN_NONCE}',
-            decode('{view["pricing_digest"]}', 'hex'), {view["total_amount_minor"]},
-            'en', gen_random_uuid(), gen_random_uuid(), 'guest_qr',
-            NULL, '{guest}', false, '[]'::jsonb, '[]'::jsonb, 'dine_in');""")
+    order = an_order_placed_by_the_guest(journey, session, cart)
     accepted = run(APP, f"""
         SELECT ordering.accept_order('{fx.TENANT}', '{order}', '{fx.USER}');""", **CTX)
     if not accepted.ok:
@@ -1501,15 +1527,7 @@ def gj_07() -> None:
     session = m4c.m4a.fresh_occupancy(m4c.RECEIPT_TABLE)
     guest = m4c.m4a.guest_on(session)
     cart = m4c.m4a.cart_with(session, guest, ((m4c.VARIANT_DORO_FULL, m4c.ITEM_DORO, 1),))
-    view = json.loads(scalar(f"""
-        SELECT ordering.preview_cart('{fx.TENANT}', '{fx.OUTLET_H1}', '{cart}',
-                                     'en', 'dine_in');"""))
-    order = scalar(f"""
-        SELECT ordering.submit_order(
-            '{fx.TENANT}', '{fx.OUTLET_H1}', '{cart}', '{journey}-{RUN_NONCE}',
-            decode('{view["pricing_digest"]}', 'hex'), {view["total_amount_minor"]},
-            'en', gen_random_uuid(), gen_random_uuid(), 'guest_qr',
-            NULL, '{guest}', false, '[]'::jsonb, '[]'::jsonb, 'dine_in');""")
+    order = an_order_placed_by_the_guest(journey, session, cart)
     accepted = run(APP, f"""
         SELECT ordering.accept_order('{fx.TENANT}', '{order}', '{fx.USER}');""", **CTX)
     if not accepted.ok:
@@ -1642,19 +1660,171 @@ def gj_07() -> None:
 # So the pairs are adjacent now: order, settle, pay, tip, receipt — then the table turns
 # over. FR-BIL-015's corrections are the staff-side path for anything after departure,
 # and GJ-07 is what exercises it.
+# EVERY JOURNEY DECLARES THE TIER ITS EVIDENCE COMES FROM, and it is printed with the
+# result. "browser" means Playwright drove a real surface; "service" means the journey
+# issued the HTTP calls a surface would issue, against the running service, because no
+# surface exists for that work yet. Both prove reachability through the delivered path;
+# only the first proves a person can reach it. A reader must be able to see which claim
+# rests on which without inferring it from the code, which is M2-C's measured-versus-
+# asserted discipline applied to journeys.
 JOURNEYS = (
-    ("GJ-01A", gj_01a),
-    ("GJ-01B", gj_01b),
-    ("GJ-02", gj_02),
-    ("GJ-02B", gj_02b),
-    ("GJ-03A", gj_03a),
-    ("GJ-03B", gj_03b),
-    ("GJ-04", gj_04),
-    ("GJ-05", gj_05),
-    ("GJ-06", gj_06),
-    ("GJ-07", gj_07),
-    ("FR-TST-007A", concurrency),
+    ("GJ-01A", gj_01a, "browser"),
+    ("GJ-01B", gj_01b, "service"),
+    ("GJ-02", gj_02, "browser"),
+    ("GJ-02B", gj_02b, "service"),
+    ("GJ-03A", gj_03a, "browser"),
+    ("GJ-03B", gj_03b, "service"),
+    ("GJ-04", gj_04, "browser"),
+    ("GJ-05", gj_05, "service"),
+    ("GJ-06", gj_06, "service"),
+    ("GJ-07", gj_07, "service"),
+    ("FR-TST-007A", concurrency, "browser"),
 )
+
+
+# ---------------------------------------------------------------------------
+# The structural gate: no raw database call may stand in for a user action
+# ---------------------------------------------------------------------------
+
+_WRITERS: set[str] = set()
+
+APP_SCHEMAS = ("org", "identity", "config", "app", "menu", "service", "ordering",
+               "fulfillment", "pos", "billing", "payments", "docs", "fiscal", "report")
+
+_CALL = re.compile(r"\b(" + "|".join(APP_SCHEMAS) + r")\.([a-z_][a-z0-9_]*)\s*\(")
+
+
+def _without_comments(source: str, style: str) -> str:
+    """Prose that MENTIONS a function is not a call to it.
+
+    Every one of these files explains itself at length and names the functions it is
+    talking about. A scanner that counted those would report a journey as bypassing the
+    service because a comment said which route replaced the bypass.
+    """
+    if style == "ts":
+        source = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
+        source = re.sub(r"^\s*\*.*$", "", source, flags=re.M)
+        return re.sub(r"//.*$", "", source, flags=re.M)
+    return re.sub(r"#.*$", "", source, flags=re.M)
+
+
+def delivered_functions() -> set[str]:
+    """Every function the database actually has, read from ITS OWN CATALOG.
+
+    Enumerated rather than listed, so a function a later gate adds is covered the day it
+    exists and nobody has to remember to extend a constant.
+    """
+    catalogued = {f"{r[0]}.{r[1]}" for r in rows(
+        "SELECT n.nspname, p.proname FROM pg_proc p "
+        "JOIN pg_namespace n ON n.oid = p.pronamespace "
+        f"WHERE n.nspname IN ({', '.join(repr(s) for s in APP_SCHEMAS)});", dsn=ADMIN)}
+    if not catalogued:
+        raise ProbeFailed("the function catalog",
+                          "the database reported no application function, and an empty "
+                          "catalog would let every raw call through unnoticed")
+    return catalogued
+
+
+def routed_functions(delivered: set[str]) -> set[str]:
+    """Those a route reaches, so the service can carry the action a journey needs."""
+    reached: set[str] = set()
+    for source in sorted((REPO / "api" / "src" / "routes").glob("*.ts")):
+        text = _without_comments(source.read_text(encoding="utf-8"), "ts")
+        reached |= {m.group(0)[:-1].strip().rstrip("(").strip()
+                    for m in _CALL.finditer(text)}
+    return {name for name in reached if name in delivered}
+
+
+def raw_calls_in(source: str, routed: set[str]) -> dict[str, list[str]]:
+    """Which journeys call a routed function directly, and which ones.
+
+    THE RULE, and why it is this rule rather than "every journey must call walk()".
+    A raw database call standing in for a user action proves nothing about reachability —
+    that is GJ-01A's lesson, and M4-A shipped ten billing routes nothing ever called. An
+    HTTP request against the running service is not that: it proves the route exists, is
+    registered, authorises the caller and returns what the caller needs. So the line is
+    drawn at the ACTION, not at the instrument: where the service can carry it, the
+    journey must go through the service.
+
+    A function with NO route is not flagged. There is nothing else a journey could do,
+    and the honest record of that is the uncalled-route finding and the register, not a
+    check that cannot pass.
+
+    Reads are not actions. Asking the database what the route did is evidence; asking it
+    to do the work is the substitution this gate exists to remove.
+    """
+    global _WRITERS
+    _WRITERS = writing_functions()
+    offenders: dict[str, list[str]] = {}
+    for name, walker, _tier in JOURNEYS:
+        body = inspect.getsource(walker)
+        found = sorted({m.group(0)[:-1].strip().rstrip("(").strip()
+                        for m in _CALL.finditer(_without_comments(body, "py"))}
+                       & routed)
+        writers = [f for f in found if f in _WRITERS]
+        if writers:
+            offenders[name] = writers
+    return offenders
+
+
+def writing_functions() -> set[str]:
+    """Which delivered functions may WRITE, asked of the catalog rather than of their names.
+
+    A first draft guessed from the name — anything matching is_, has_, _for, _of and so on
+    was treated as a read — and it let fulfillment.ticket_allergy_emphasis() through while
+    flagging nothing about ordering.submit_order() that the catalog did not already know.
+    A name pattern is a second opinion about a fact PostgreSQL records: provolatile is
+    'v' for a function that may write and 's' or 'i' for one that cannot. Asking the
+    catalog removes the guess, and covers every function a later gate adds.
+    """
+    return {f"{r[0]}.{r[1]}" for r in rows(
+        "SELECT n.nspname, p.proname FROM pg_proc p "
+        "JOIN pg_namespace n ON n.oid = p.pronamespace "
+        f"WHERE n.nspname IN ({', '.join(repr(s) for s in APP_SCHEMAS)}) "
+        "AND p.provolatile = 'v';", dsn=ADMIN)}
+
+
+def structural_gate() -> None:
+    """No raw database call may stand in for a user action."""
+    journey = "STRUCTURE"
+    delivered = delivered_functions()
+    routed = routed_functions(delivered)
+    record(journey, "the service's reach is derived from the catalog, not listed",
+           len(routed) > 20,
+           f"{len(routed)} of {len(delivered)} delivered function(s) are reachable "
+           f"through a route, read from pg_proc and from api/src/routes")
+
+    offenders = raw_calls_in("", routed)
+    record(journey, "no journey calls a delivered writer the service already exposes",
+           not offenders,
+           "; ".join(f"{j}: {', '.join(f)}" for j, f in offenders.items())
+           or "none. Where the service can carry the action, every journey goes through "
+              "it — which is what makes a passing step evidence that a cashier could "
+              "have done the same thing")
+
+    # AND THE RULE CAN FAIL. A gate nobody has seen refuse is a gate nobody has tested.
+    planted = "    payments.record_cash_payment('t', 'o', 'i', 1, 'u')\n"
+    caught = [f for f in sorted(routed)
+              if f in {m.group(0)[:-1].strip().rstrip("(").strip()
+                       for m in _CALL.finditer(_without_comments(planted, "py"))}]
+    record(journey, "and the rule refuses a raw call when one is planted",
+           caught == ["payments.record_cash_payment"],
+           f"planted a direct payments.record_cash_payment() and the scanner named "
+           f"{caught or 'NOTHING, so the rule cannot fail'}. Proved on a planted source "
+           f"rather than by editing a journey, because a gate that had to break the "
+           f"suite to prove itself would be a gate nobody ran twice")
+
+    unrouted = sorted({f for name, walker, _t in JOURNEYS
+                       for f in {m.group(0)[:-1].strip().rstrip("(").strip()
+                                 for m in _CALL.finditer(
+                                     _without_comments(inspect.getsource(walker), "py"))}
+                       if f in delivered and f not in routed})
+    record(journey, "and what the service cannot yet carry is named rather than hidden",
+           True,
+           f"{len(unrouted)} delivered function(s) the journeys must still call directly "
+           f"because no route reaches them: {', '.join(unrouted) or 'none'}. Each is a "
+           f"gap in the service's surface, not a licence — tools/uncalled_routes.py and "
+           f"the partial-closure register carry them")
 
 
 def main() -> int:
@@ -1682,7 +1852,8 @@ def main() -> int:
 
     with Service(APP) as service:
         CONTEXT["base_url"] = f"http://127.0.0.1:{service.port}"
-        for name, walker in JOURNEYS:
+        structural_gate()
+        for name, walker, _tier in JOURNEYS:
             try:
                 walker()
             except ProbeFailed as error:
