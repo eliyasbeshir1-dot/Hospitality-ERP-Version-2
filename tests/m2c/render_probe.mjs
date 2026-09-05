@@ -443,9 +443,29 @@ async function main() {
   // the two are recorded apart and the retry gate fails as itself.
   const retryVisible = await page.locator('#retry').isVisible().catch(() => false);
   let retryClicked = false;
+
+  // THE RE-SAMPLE THAT TELLS THE TWO CAUSES APART, and the reason it has to exist.
+  //
+  // A click that does not complete has two quite different explanations and the timeout
+  // alone cannot distinguish them: the surface took the retry away while the guest still
+  // needed it (a real defect, and what this control is FOR), or the retry was there the
+  // whole time and the click lost its window on a loaded machine (an outcome of this
+  // instrument, and no statement about the surface at all). Reporting the first when only
+  // the timeout is known is a diagnostic naming a cause it did not verify — which is the
+  // one thing this repository refuses everywhere else, and it did exactly that in CI.
+  //
+  // So ask again. Still visible => nothing withdrew it. Gone => something did.
+  // NULL, NOT FALSE, when the re-sample itself cannot be taken: a page that has gone away
+  // is not evidence that the retry was withdrawn, and defaulting to false here would put
+  // the loud alarm back on top of an unknown.
+  let retryVisibleAfterFailedClick = null;
   if (retryVisible) {
     retryClicked = await page.locator('#retry').click({ timeout: 10000 })
       .then(() => true, () => false);
+    if (!retryClicked) {
+      retryVisibleAfterFailedClick = await page.locator('#retry').isVisible()
+        .then((visible) => visible, () => null);
+    }
   }
   if (retryClicked) {
     await page.waitForFunction(
@@ -461,6 +481,7 @@ async function main() {
       && keysSeen.every((k) => k === keysSeen[0]),
     retryOffered: retryVisible && retryClicked,
     retryShown: retryVisible,
+    retryVisibleAfterFailedClick,
     lineStates: await page.evaluate(() =>
       [...document.querySelectorAll('.cart-line')].map((n) => n.dataset.state)),
     cartKeys: await page.evaluate(() => window.surface.cart().map((l) => l.key)),

@@ -672,6 +672,42 @@ def prove(control: str, gate, signature: str, edits: list[tuple[Path, str, str]]
            green_detail if green_ok else f"{green_sig}: {green_detail}", evidence=evidence)
 
 
+def prove_diagnosis(name: str, gate, must_say: str,
+                    edits: list[tuple[Path, str, str]],
+                    *, evidence: str = "measured") -> None:
+    """Force one outcome and require the gate to NAME IT — not merely to fail.
+
+    prove() above asks whether a control fails when the surface is broken. This asks the
+    different question NC-M2C-009 got wrong: whether it fails FOR THE REASON IT STATES.
+    That control failed correctly and then said something it had not verified, and no
+    amount of red-then-green would have caught it, because both halves were red and green
+    exactly as they should have been. A branch of a message nothing ever forces is a
+    claim nobody has read back.
+
+    So each branch is forced here and its sentence required. The check also insists the
+    gate STILL FAILS: naming the cause better must not make the control quieter, and a
+    branch that passed would be this repair having removed an alarm rather than aimed it.
+    """
+    originals = [(path, capture(path)) for path, _, _ in edits]
+    try:
+        for path, old, new in edits:
+            text = path.read_text(encoding="utf-8")
+            if old not in text:
+                record(name, False, f"anchor not found in {path.name}: {old[:60]!r}",
+                       evidence=evidence)
+                return
+            path.write_text(text.replace(old, new, 1), encoding="utf-8")
+        rebuild_surface()
+        ok, _, detail = gate()
+        record(name, (not ok) and (must_say in detail),
+               (f"the gate PASSED, so the forced outcome did not reach it"
+                if ok else detail), evidence=evidence)
+    finally:
+        for path, original in originals:
+            path.write_text(original, encoding="utf-8")
+        rebuild_surface()
+
+
 SURFACE_SRC = WORKSPACE / "pwa" / "src" / "app.ts"
 SURFACE_CSS = WORKSPACE / "pwa" / "app.css"
 
@@ -859,11 +895,42 @@ def duplicate_commitment_gate() -> tuple[bool, str, str]:
     leaks: list[str] = []
 
     if not journey.get("retryOffered"):
-        leaks.append(
-            "a failed write left the guest a retry they could not take — the control was "
-            "drawn and then withdrawn before it could be used"
-            if journey.get("retryShown")
-            else "a failed write offered the guest no way to try again")
+        # THREE OUTCOMES, NOT TWO, BECAUSE A TIMEOUT ALONE NAMES NO CAUSE.
+        #
+        # This used to report a withdrawn retry whenever the click did not complete, and
+        # that was an inference rather than an observation: pwa/src/app.ts hides #retry on
+        # a successful commit, on a successful retry, and on a 401/409 refusal, and on no
+        # other path — so a failed line leaves the control up. CI failed here once with
+        # "drawn and then withdrawn" against a surface that had withdrawn nothing.
+        #
+        # The probe now asks again after a failed click, and the answer decides which
+        # sentence is true. The control fails in every branch either way — a retry that
+        # was never exercised proves nothing about duplicate commitment, and the
+        # keysSeen leak below says so independently. What changes is the cause named.
+        after = journey.get("retryVisibleAfterFailedClick")
+        if not journey.get("retryShown"):
+            leaks.append("a failed write offered the guest no way to try again")
+        elif after is True:
+            leaks.append(
+                "the retry was shown, stayed shown, and the click did not complete "
+                "within its timeout — #retry was still visible when the click gave up, "
+                "so nothing withdrew it. This is a PROBE TIMING OUTCOME on a loaded "
+                "machine, not a defect in the surface, and the retry gate is reporting "
+                "that it could not exercise a retry rather than that the surface failed "
+                "to offer one")
+        elif after is False:
+            leaks.append(
+                "a failed write left the guest a retry they could not take — the control "
+                "was drawn and then withdrawn before it could be used, and it was gone "
+                "when the click gave up. Re-sampled, not inferred: #retry was visible "
+                "before the click and absent after it")
+        else:
+            leaks.append(
+                "the retry was shown and the click did not complete, and the re-sample "
+                "that would say whether #retry was still there could not be taken — so "
+                "whether the surface withdrew it is UNKNOWN. Refusing to name either "
+                "cause: an unknown reported as a withdrawal is the defect this branch "
+                "exists to avoid")
     if len(journey.get("keysSeen", [])) < 2:
         leaks.append(f"only {len(journey.get('keysSeen', []))} attempt(s) were made, so a "
                      f"retry was never exercised")
@@ -990,6 +1057,42 @@ def section_controls() -> None:
             """  // The defect: a fresh key on every attempt, which is the natural thing to write
   // and turns one order into two.
   const work = { ...pending, key: newIdempotencyKey() };""")])
+
+    # BOTH BRANCHES OF NC-M2C-009'S NEW DIAGNOSIS, FORCED AND READ BACK.
+    #
+    # The repair splits one sentence into two, and a sentence that nothing ever forces is
+    # exactly the kind of claim this repair exists to remove. Each plant leaves #retry
+    # unclickable so the click cannot complete; they differ only in whether the surface
+    # then takes the control away, which is the single fact the two messages disagree
+    # about. Both must still FAIL — the retry was never exercised either way.
+    FAILED_WRITE = """  } catch {
+    line.state = 'failed';
+    $('retry').hidden = false;
+  }"""
+
+    print("\n  NC-M2C-009  the diagnosis it gives when a click does not complete")
+    prove_diagnosis(
+        "NC-M2C-009  a retry that stays put is called a timing outcome, not a defect",
+        duplicate_commitment_gate, "PROBE TIMING OUTCOME",
+        [(SURFACE_SRC, FAILED_WRITE, """  } catch {
+    line.state = 'failed';
+    $('retry').hidden = false;
+    // Forced: the retry stays exactly where it is and simply cannot be clicked, which is
+    // what a loaded machine looks like from the probe's side.
+    $('retry').style.pointerEvents = 'none';
+  }""")])
+
+    prove_diagnosis(
+        "NC-M2C-009  a retry that is taken away is still called a surface defect",
+        duplicate_commitment_gate, "absent after it",
+        [(SURFACE_SRC, FAILED_WRITE, """  } catch {
+    line.state = 'failed';
+    $('retry').hidden = false;
+    // Forced: shown, unclickable, and then withdrawn while the guest still needs it —
+    // the real defect, which must keep the loud message.
+    $('retry').style.pointerEvents = 'none';
+    setTimeout(() => { $('retry').hidden = true; }, 3000);
+  }""")])
 
     print("\n  NC-M2C-010  the locale a customer chose is not recorded")
     # The only control here whose evidence is a database row rather than a rendered
