@@ -116,6 +116,7 @@ not have, or is still open after its completing gate has landed.
 | **FR-TAB-007A** | service requests consolidated by a merge | M3-C |
 | **FR-TAB-008** | service requests preserved by a move | M3-C |
 | **FR-TAB-009** | financial closure condition | M4-A |
+| **FR-TST-005A** | settlement proved at the service tier, not the browser tier | M5a |
 | **FR-UX-012** | budgets calibrated against the runner, not against wall clock alone | M4-A |
 | **SM-ORDER** | fulfillment labels derived rather than stored | M4-A |
 
@@ -198,6 +199,8 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0028_financial_table_classification_and_the_fiscal_port.sql`
 - `0029_reporting_metrics_snapshots_and_exports.sql`
 - `0030_receipt_composition_preview_and_the_counter_terminal.sql`
+- `0031_a_null_device_is_not_a_printer.sql`
+- `0032_the_null_sink_cannot_claim_paper.sql`
 
 ## Seeds
 

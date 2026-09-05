@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `c0a1c42ed13ca10e6b19c509bfa85a90485356b9` |
-| Short | `c0a1c42` |
+| Commit | `0dcfd23630891d3b87f93dccfd1959013bf333dc` |
+| Short | `0dcfd23` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation |
@@ -69,6 +69,8 @@ Ordered, forward-only and checksum-locked. An edited applied migration fails pre
 | `0028` | `0028_financial_table_classification_and_the_fiscal_port.sql` | `759735f3dcfb2a2e…` | applied |
 | `0029` | `0029_reporting_metrics_snapshots_and_exports.sql` | `d801aad60ba7a5f6…` | applied |
 | `0030` | `0030_receipt_composition_preview_and_the_counter_terminal.sql` | `42715d944a8d6831…` | applied |
+| `0031` | `0031_a_null_device_is_not_a_printer.sql` | `9a683d127942c417…` | applied |
+| `0032` | `0032_the_null_sink_cannot_claim_paper.sql` | `a466995fd47b6fb5…` | applied |
 
 ## Seeds applied
 
@@ -79,7 +81,7 @@ least-privileged application role.
 
 | Version | File | SHA-256 | Applied |
 |---|---|---|---|
-| `0001` | `0001_demonstration_tenants.sql` | `485ab69c5e0da290…` | applied |
+| `0001` | `0001_demonstration_tenants.sql` | `f2ec118a0a296031…` | applied |
 | `0002` | `0002_reason_codes.sql` | `27b8595f98f7e129…` | applied |
 
 ## Schema shape
@@ -114,8 +116,8 @@ Money is stored as integer minor units beside an explicit currency.
 | M4-B payment capture, verification, cash, reversal | **PASS** | 151 | 0 |
 | M4-C receipts, the printer path, reporting, the register audit | **PASS** | 99 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
-| The golden journeys, end to end | **PASS** | 88 | 0 |
-| **Total** | | **1399** | |
+| The golden journeys, end to end | **FAIL** | 92 | 0 |
+| **Total** | | **1403** | |
 
 ## The golden journeys (FR-TST-005A)
 
@@ -131,12 +133,12 @@ mistaken for one that mostly worked.
 
 | Journey | Covers | Gates reached | Verdict | Steps |
 |---|---|---|---|---:|
-| `GJ-01A` | An English guest: scan, browse, choose modifiers, submit, the kitchen prepares, a waiter serves, the guest sees served — and no local-authority claim exists anywhere in the catalog | M2-B · M2-C · M3-A · M3-B | **PASS** | 11/11 |
-| `GJ-02` | Amharic: menu and allergen text, an order carrying the chosen language, statuses and messages in Ethiopic script, the waiter called, a second order | M2-A · M2-C · M3-A · M3-B · M3-C | **PASS** | 15/15 |
-| `GJ-03A` | Arabic right to left: true RTL layout, Latin SKUs inside an Arabic page, ETB prices measured left to right, an order, an Arabic status timeline | M2-A · M2-C · M3-A · M3-B | **PASS** | 13/13 |
-| `GJ-04` | Two devices at one table: personal baskets, separate orders, the waiter called and acknowledged, a later add-on, an authorized session move | M2-B · M3-A · M3-C | **PASS** | 11/11 |
-| `GJ-05` | Waiter-entered: the table opened, an order entered through the staff routes, routed to stations, the allergy emphasised, served, and one amendment authorized by a manager on their own session | M3-A · M3-B · M3-D | **PASS** | 7/7 |
-| `FR-TST-007A` | Two submissions racing, measured with M3-A's catalog-derived whole-schema differential: one order, one line, no duplicate commercial effect | M3-A · M3-D | **PASS** | 4/4 |
+| `GJ-01A` | An English guest: scan, browse, choose modifiers, submit, the kitchen prepares, a waiter serves, the guest sees served — and no local-authority claim exists anywhere in the catalog | M2-B · M2-C · M3-A · M3-B | **FAIL** | - |
+| `GJ-02` | Amharic: menu and allergen text, an order carrying the chosen language, statuses and messages in Ethiopic script, the waiter called, a second order | M2-A · M2-C · M3-A · M3-B · M3-C | **FAIL** | - |
+| `GJ-03A` | Arabic right to left: true RTL layout, Latin SKUs inside an Arabic page, ETB prices measured left to right, an order, an Arabic status timeline | M2-A · M2-C · M3-A · M3-B | **FAIL** | - |
+| `GJ-04` | Two devices at one table: personal baskets, separate orders, the waiter called and acknowledged, a later add-on, an authorized session move | M2-B · M3-A · M3-C | **FAIL** | - |
+| `GJ-05` | Waiter-entered: the table opened, an order entered through the staff routes, routed to stations, the allergy emphasised, served, and one amendment authorized by a manager on their own session | M3-A · M3-B · M3-D | **FAIL** | - |
+| `FR-TST-007A` | Two submissions racing, measured with M3-A's catalog-derived whole-schema differential: one order, one line, no duplicate commercial effect | M3-A · M3-D | **FAIL** | - |
 
 ## Negative controls
 
