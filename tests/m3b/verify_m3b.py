@@ -203,8 +203,29 @@ def render(payload: dict) -> dict:
     target = WORKSPACE / "station_probe.mjs"
     target.write_text((HERE / "render_probe.mjs").read_text(encoding="utf-8"),
                       encoding="utf-8")
+
+    # THE PAYLOAD GOES IN A FILE, NOT ON THE COMMAND LINE.
+    #
+    # It carries the station's whole ticket queue, so its length depends on how much the
+    # database has accumulated rather than on anything under test. The forward run sees a
+    # database the M1-A driver has just rebuilt from empty and the argument is small; the
+    # reordered sweep runs the same suite against that same database once a full run has
+    # filled it, and the argument crossed Windows' 32767-character limit. subprocess then
+    # raised `FileNotFoundError: [WinError 206] The filename or extension is too long`
+    # from CreateProcess and this suite died at section 6 with NO verdict — which the
+    # sweep could only report as `m3b differs under a reordered run (reordered=none)`.
+    #
+    # Reproduced twice, byte-identically, and absent in a third run whose forward chain
+    # had stopped before m3b and therefore left the queue empty: the crash tracks the
+    # accumulated state, exactly as a command-line length limit would.
+    #
+    # Linux's ARG_MAX is roughly 2MB so it never failed there, and the reorder sweep runs
+    # only in the Linux job — so this was an order dependence that CI was structurally
+    # unable to observe on the platform where it bites.
+    payload_file = WORKSPACE / "station_payload.json"
+    payload_file.write_text(json.dumps(payload), encoding="utf-8")
     proc = subprocess.run(
-        ["node", str(target), CONTEXT["base_url"], json.dumps(payload)],
+        ["node", str(target), CONTEXT["base_url"], str(payload_file)],
         capture_output=True, text=True, encoding="utf-8", cwd=str(WORKSPACE),
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
     try:

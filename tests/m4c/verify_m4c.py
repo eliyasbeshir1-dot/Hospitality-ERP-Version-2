@@ -1514,21 +1514,117 @@ def section_register_audit() -> None:
            + ("" if proc.returncode == 0 or refused_a_partial_run else
               "\n" + "\n".join(output.strip().splitlines()[-12:])))
 
+    # THE REFUSAL IS PROVED ON A SET THIS SUITE BUILDS, NOT ON WHATEVER THE COMMAND ORDER
+    # LEFT LYING ABOUT.
+    #
+    # This check used to call coverage.audit() on the ambient log directory, and what it
+    # then ASSERTED depended on what that directory happened to hold. Partial set: the
+    # audit raised, `numbers is None`, and the check passed on the refusal. Complete set:
+    # the audit returned figures and the check became "landed > 0 and nothing
+    # unclassified" — a different and much stronger claim. One predicate, two shapes,
+    # selected by run order.
+    #
+    # On the Linux runner both orders happen to be partial, because fenced_gate.log is
+    # downloaded two steps after the reorder sweep, so it never diverged. That is an
+    # accident of step ordering, not a property of the check: on the Windows runner the
+    # fenced gate DOES tee into the log directory before the suites, and there the
+    # reversed run would assert a clean account while the forward run asserted a refusal.
+    # A check that FR-TST-020 compares across orders must not have an order-sensitive
+    # shape — it makes the sweep's signal ambiguous exactly where the sweep is the
+    # instrument.
+    #
+    # So the completeness rule is proved against two sets built here: identical inputs on
+    # every platform, in every order. What the suite cannot do is verify the whole run's
+    # account — it cannot read its own log — and that assertion stays where the whole run
+    # exists, in the workflow step below.
+    tag = coverage._verdict_tag          # one mapping, owned by the audit, not restated
+    declared = coverage.declared_suites()
+    with tempfile.TemporaryDirectory(prefix="m4c-audit-") as tmp:
+        whole = Path(tmp) / "whole"
+        whole.mkdir()
+        for suite in declared:
+            (whole / f"{suite}.log").write_text(
+                f"PASS {tag(suite)}_VERIFICATION\n", encoding="utf-8")
+
+        withheld = declared[0]
+        partial = Path(tmp) / "partial"
+        partial.mkdir()
+        for suite in declared:
+            if suite != withheld:
+                (partial / f"{suite}.log").write_text(
+                    f"PASS {tag(suite)}_VERIFICATION\n", encoding="utf-8")
+
+        try:
+            coverage.audit(partial)
+            refused, why = False, "the audit accounted for a run it had only part of"
+        except coverage.SuiteLogsIncomplete as refusal:
+            refused, why = withheld in str(refusal), str(refusal).splitlines()[0][:200]
+        record("the audit refuses a set that is missing a suite, and names which one",
+               refused,
+               f"withheld {withheld}: {why}")
+
+        try:
+            coverage.audit(whole)
+            accounted, detail = True, (
+                f"all {len(declared)} declared verdicts present, so the audit reports "
+                f"rather than refusing. It is the COMPLETENESS that decides this, not "
+                f"the command order and not what the grades turn out to be")
+        except coverage.SuiteLogsIncomplete as refusal:
+            accounted, detail = False, f"refused a complete set: {refusal}"
+        record("and it accounts for one that is not missing any", accounted, detail)
+
+    # The ambient set is REPORTED, not asserted on, because what it holds is a fact about
+    # command order. The whole run's account is gated by the workflow step that runs after
+    # every suite, every journey and the collected fenced gate.
     try:
         numbers = coverage.audit(CONTEXT["log_dir"])
+        print(f"         over this run's own logs so far: {numbers['landed']} landed, "
+              f"{len(numbers['delivered'])} delivered with evidence, "
+              f"{len(numbers['unclassified'])} unaccounted")
     except coverage.SuiteLogsIncomplete as refusal:
-        numbers, why_not = None, str(refusal)
-    record("and it never reports a clean account of a run it has only part of",
-           numbers is None or (numbers["landed"] > 0 and not numbers["unclassified"]),
-           why_not if numbers is None else
-           f"{numbers['landed']} requirement(s) whose gate has landed, "
-           f"{len(numbers['delivered'])} delivered with evidence, "
-           f"{len(numbers['open_entries'])} covered by an open register entry, "
-           f"{len(numbers['unaccounted']) - len(numbers['unclassified'])} carrying a "
-           f"classification, {len(numbers['unclassified'])} unaccounted: "
-           f"{coverage.name_requirements(r['id'] for r in numbers['unclassified'])}. "
-           f"The gates come from "
-           f"the package's own order and the evidence from this run's logs")
+        print(f"         over this run's own logs so far: refused — "
+              f"{str(refusal).splitlines()[0][:160]}")
+
+    # AND THE STEP THAT FEEDS THE WHOLE-RUN AUDIT MUST OUTLIVE A FAILURE THE WAY THE
+    # AUDIT THAT READS IT DOES.
+    #
+    # The audit above refuses a partial log set, which is right. What made that refusal
+    # misleading was the pipeline around it: the FR-GOV-004 step runs `if: always()`, the
+    # step that downloads the fenced-gate log it depends on did not, and a `cp ... ||
+    # true` swallowed the difference. So any earlier failure skipped the collection, the
+    # audit refused for want of a log nobody had failed to produce, and the build reported
+    # a second, register-shaped defect that did not exist. A reader with no access to the
+    # step logs cannot tell that cascade from a real finding — which is exactly the
+    # position run 81 left its reader in.
+    #
+    # A CONSUMER THAT RUNS UNCONDITIONALLY MAY NOT DEPEND ON A PRODUCER THAT DOES NOT.
+    # Read out of the workflow rather than remembered, so the pairing cannot drift apart
+    # again.
+    workflow = (REPO / ".github" / "workflows" / "m1-conformance.yml").read_text(
+        encoding="utf-8")
+    steps = re.split(r"\n      - (?=name:|uses:)", workflow)
+
+    def step_named(fragment: str) -> str:
+        return next((s for s in steps if fragment in s.splitlines()[0]), "")
+
+    producer = step_named("Collect the fenced-gate log")
+    consumer = step_named("FR-GOV-004")
+    always = re.compile(r"^\s*if:\s*always\(\)\s*$", re.M)
+    record("the step that collects the fenced-gate log outlives a failure, as the audit "
+           "that reads it does",
+           bool(producer) and bool(consumer)
+           and (bool(always.search(producer)) or not always.search(consumer)),
+           f"collection step: {'if: always()' if always.search(producer) else 'NO if:'}; "
+           f"FR-GOV-004 step: {'if: always()' if always.search(consumer) else 'NO if:'}. "
+           f"An unconditional consumer behind a conditional producer turns every earlier "
+           f"failure into a second, differently-named one")
+
+    record("and the fenced-gate log is not copied with a swallowed failure",
+           bool(consumer) and "collected/fenced_gate.log\" \"$LOG_DIR/audit-logs/\" || true"
+           not in consumer,
+           "the copy that feeds the audit fails loudly and names collection as the cause; "
+           "the per-suite copies keep `|| true` on purpose, because a missing SUITE log "
+           "is the audit's question to refuse and this one never was")
 
     findings = (REPO / "planning" / "M4_REVIEW_FINDINGS.md")
     record("and what it surfaced across M1 to M3 is published for the review to challenge",

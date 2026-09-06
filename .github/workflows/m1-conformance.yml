@@ -887,6 +887,18 @@ jobs:
           test "$fail" -eq 0
 
       - name: Collect the fenced-gate log from the job that ran it
+        # `if: always()`, BECAUSE THE STEP AFTER IT RUNS UNCONDITIONALLY AND CANNOT DO ITS
+        # JOB WITHOUT THIS FILE.
+        #
+        # Without it, any earlier failure skipped this download; the FR-GOV-004 step still
+        # ran on its own `if: always()`, its `cp ... || true` swallowed the absence, and
+        # the audit refused a set that was incomplete for a reason having nothing to do
+        # with the register. Every reorder failure therefore reported as TWO — the real
+        # one, and this one arriving behind it wearing the costume of an independent
+        # second defect. Run 81 read as a broader problem than it was for exactly this
+        # reason, and with no step logs to read, the cascade was indistinguishable from a
+        # register finding.
+        if: always()
         uses: actions/download-artifact@v4
         with:
           name: fenced-gate-log
@@ -910,7 +922,19 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$LOG_DIR/audit-logs"
-          cp "$LOG_DIR/collected/fenced_gate.log" "$LOG_DIR/audit-logs/" || true
+          # NOT `|| true`, unlike the per-suite copies below, and the difference is the
+          # point. A missing SUITE log means that suite did not run, and the audit
+          # refusing to account for the run is the right answer. A missing FENCED-GATE log
+          # means the collection step above did not hand it over, which is a fact about
+          # this pipeline and not about the register — and refusing on it produced a
+          # register-shaped failure with a non-register cause. Say which one it is.
+          if [ ! -s "$LOG_DIR/collected/fenced_gate.log" ]; then
+            echo "::error::the fenced-gate log was not collected, so FR-GOV-004 has no"
+            echo "::error::complete run to audit. This is a COLLECTION failure, not a"
+            echo "::error::register finding — do not read it as one."
+            exit 1
+          fi
+          cp "$LOG_DIR/collected/fenced_gate.log" "$LOG_DIR/audit-logs/"
           for suite in $(python3 tools/generate_evidence_report.py --list-suites); do
             if [ "$suite" != fenced_gate ]; then
               cp "$LOG_DIR/$suite.log" "$LOG_DIR/audit-logs/" || true

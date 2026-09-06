@@ -1872,7 +1872,16 @@ def section_generator_controls() -> None:
     # suites and nineteen controls when there were six, thirteen and seventy-six, and
     # nothing failed because nothing read it.
     matrix_path = REPO / "planning" / "CI_TEST_MATRIX.md"
-    matrix_was = matrix_path.read_text(encoding="utf-8")
+    # READ AND RESTORED AS BYTES, because this control writes a COMMITTED file in place.
+    #
+    # It restored with Path.write_text(), which opens in text mode: on Windows every "\n"
+    # goes to disk as "\r\n", so a run left all 240 lines of a tracked document rewritten.
+    # Nothing caught it. generate_ci_matrix.py --check reads back with universal newlines,
+    # so the comparison was equal and this control went green while the tree it was
+    # measuring had been dirtied — and the evidence report reads that tree to record
+    # whether it was clean. Linux cannot expose it and --check cannot see it.
+    matrix_bytes = matrix_path.read_bytes()
+    matrix_was = matrix_bytes.decode("utf-8")
 
     def _matrix_check() -> str:
         result = subprocess.run(
@@ -1883,8 +1892,8 @@ def section_generator_controls() -> None:
         return (result.stdout + result.stderr).strip()
 
     def red_matrix():
-        matrix_path.write_text(
-            matrix_was.replace("Six jobs", "Five jobs", 1), encoding="utf-8")
+        matrix_path.write_bytes(
+            matrix_was.replace("Six jobs", "Five jobs", 1).encode("utf-8"))
         drifted = _matrix_check()
         return ("CI_MATRIX_DRIFT" in drifted,
                 f"{drifted.splitlines()[0] if drifted else 'the matrix checked out clean'} "
@@ -1892,7 +1901,7 @@ def section_generator_controls() -> None:
                 f"came to claim five jobs through three gates of pipeline work")
 
     def green_matrix():
-        matrix_path.write_text(matrix_was, encoding="utf-8")
+        matrix_path.write_bytes(matrix_bytes)
         restored = _matrix_check()
         return ("PASS CI_MATRIX_MATCHES_REPOSITORY" in restored,
                 f"{restored.splitlines()[0] if restored else 'no verdict'} — the "
@@ -1903,7 +1912,24 @@ def section_generator_controls() -> None:
         control("NC-M3D-012  the CI matrix stops describing the pipeline",
                 "", red_matrix, green_matrix)
     finally:
-        matrix_path.write_text(matrix_was, encoding="utf-8")
+        matrix_path.write_bytes(matrix_bytes)
+
+    # AND THE FILE IT WROTE IN PLACE IS BACK, BYTE FOR BYTE.
+    #
+    # Asserted separately because --check cannot ask this question: it compares decoded
+    # text, so a restore that changed every line ending in the file passed it. This
+    # compares the bytes, which is the only reading in which "restored" means restored,
+    # and it is what makes the defect above impossible to reintroduce quietly.
+    record("the control restored the committed file it planted in, byte for byte",
+           matrix_path.read_bytes() == matrix_bytes,
+           f"{len(matrix_bytes)} bytes, "
+           f"{matrix_bytes.count(bytes([13, 10]))} CRLF and "
+           f"{matrix_bytes.count(bytes([10])) - matrix_bytes.count(bytes([13, 10]))} bare "
+           f"LF before; "
+           f"{matrix_path.read_bytes().count(bytes([13, 10]))} CRLF and "
+           f"{matrix_path.read_bytes().count(bytes([10])) - matrix_path.read_bytes().count(bytes([13, 10]))} "
+           f"bare LF after. A planted defect that leaves the tree dirty is a control "
+           f"that damaged what it was measuring")
 
     # NC-M3D-013 — a control the suites prove and no document describes.
     #

@@ -13,6 +13,7 @@ prints numbers; every judgement about those numbers is here.
 """
 from __future__ import annotations
 
+import ast
 import json
 import os
 import platform
@@ -67,11 +68,22 @@ LATENCY_MS = "300"
 # So the probe measures a reference operation in the same run under the same CPU throttle:
 # a fixed arithmetic loop that touches no network, no DOM and none of the bundle. A slow
 # surface cannot slow it. The ratio between what it cost and what it costs on a healthy
-# machine is the machine's factor, and it separates the two failures that used to look
-# identical:
+# machine is the machine's factor, and a factor past the band says the run is not
+# evidence about the surface at all:
 #
-#   the surface is slow          factor near one, budget exceeded  -> a regression
-#   the machine is starved       factor large                      -> not measurable
+#   factor large                       -> not measurable, whatever the budget did
+#   factor near one, budget exceeded   -> the budget is missed; the CAUSE is open
+#
+# WHAT THE FACTOR DOES NOT ESTABLISH. The second line above used to read "the surface is
+# slow -> a regression", and that inference is measurably wrong. Two Windows machines at
+# the same declared factor — 1.28x and 1.27x — painted 1876ms and 7020ms for a
+# byte-identical bundle under the same throttle, and within one machine the reference
+# rose 22% across two runs while first contentful paint FELL 37%. The loop runs in an
+# already-warm about:blank page and touches no disk, no socket and no renderer startup,
+# so it establishes that the CPU is not starved and nothing beyond that. A runner starved
+# on I/O scores healthy here and slow on the paint, which is the pattern actually
+# observed. The breach is still reported and still fails; it is no longer attributed to a
+# surface this run did not examine.
 #
 # NOT MEASURABLE IS STILL A FAILURE. It is a different failure with a different name, and
 # that is the whole gain: the one permitted CI re-run is then justified by evidence in the
@@ -1118,6 +1130,28 @@ def section_controls() -> None:
 # 10. Performance budgets (FR-UX-012)
 # ===========================================================================
 
+def performance_verdict(observed, limit: int, factor: float) -> tuple[str, bool]:
+    """Which of four things a timing measurement is — decided once, for every budget.
+
+    THE BRANCH THAT USED TO BE UNREACHABLE IS WHY THIS IS A FUNCTION. Two of the four
+    budgets went through the guarded path and could report a starved runner; the
+    interaction budget was asserted with a bare `<=` and could only ever say
+    "regression". There was no input for which it said anything else, so on a starved
+    machine it reported a cause it had not verified and offered no way to say so — a
+    check that cannot report the truth about its own measurement.
+
+    Returned as a word rather than printed, so a control can force each branch and read
+    it back. Three outcomes, the same three whichever measurement is asking.
+    """
+    if observed is None:
+        return "PERFORMANCE_NOT_REPORTED", False
+    if observed <= limit:
+        return "WITHIN", True
+    if factor > REFERENCE_TOLERANCE:
+        return "PERFORMANCE_NOT_MEASURABLE", False
+    return "PERFORMANCE_BUDGET_EXCEEDED", False
+
+
 def section_performance(probe: dict) -> None:
     print("\n--- 10. Performance budgets (FR-UX-012) ---")
 
@@ -1139,28 +1173,38 @@ def section_performance(probe: dict) -> None:
     print(f"         reference: {reference}ms for a fixed arithmetic loop under the same "
           f"throttle, against a {REFERENCE_BASELINE_MS}ms baseline — this machine is "
           f"{factor:.2f}x")
-    measurable = factor <= REFERENCE_TOLERANCE
 
     def budget(name: str, observed, limit: int, detail: str) -> None:
-        """One budget, reported as a regression or as an unmeasurable machine, never both.
+        """One timing budget, reported as at most one thing, and never as a cause.
 
         A breach on a machine the reference says is starved is not evidence about the
-        surface, and calling it one would be a diagnostic naming a cause it did not
-        verify. It is still a FAILURE — a measurement that did not happen cannot be a
+        surface. It is still a FAILURE — a measurement that did not happen cannot be a
         pass — but a differently named one, so the single permitted re-run rests on
         evidence in the log rather than on somebody's impression that it looked flaky.
+
+        WHAT THIS NO LONGER SAYS is that a breach inside the band means the surface is
+        slow. It said exactly that, and the claim does not survive measurement: a run at
+        1.28x on one Windows machine painted 1876ms while a run at 1.27x on another
+        painted 7020ms, byte-identical bundle, same throttle. The reference is a
+        warm-page arithmetic loop; it establishes that the CPU is not starved and
+        nothing else. Naming the surface on that evidence was the same defect this suite
+        catches elsewhere — a diagnostic naming a cause it did not verify.
         """
-        if observed is None:
+        verdict, ok = performance_verdict(observed, limit, factor)
+        if verdict == "PERFORMANCE_NOT_REPORTED":
             measured(name, False, f"the probe reported nothing for {name}")
-            return
-        within = observed <= limit
-        if within:
+        elif ok:
             measured(name, True, f"{observed}ms against a {limit}ms budget. {detail}")
-        elif measurable:
+        elif verdict == "PERFORMANCE_BUDGET_EXCEEDED":
             measured(name, False,
                      f"PERFORMANCE_BUDGET_EXCEEDED: {observed}ms against a {limit}ms "
-                     f"budget, and the reference says this machine is {factor:.2f}x — "
-                     f"within its normal band, so the surface is what is slow. {detail}")
+                     f"budget, on a machine the reference puts at {factor:.2f}x, inside "
+                     f"the {REFERENCE_TOLERANCE}x band. That rules out CPU starvation "
+                     f"and only that — the reference is an arithmetic loop in an "
+                     f"already-warm page, so it does not see renderer startup, disk, "
+                     f"socket setup or the emulated network, and a runner starved on "
+                     f"those scores healthy here while painting slowly. The budget is "
+                     f"missed; what made it miss is NOT established by this run. {detail}")
         else:
             measured(name, False,
                      f"PERFORMANCE_NOT_MEASURABLE: {observed}ms against a {limit}ms "
@@ -1179,18 +1223,78 @@ def section_performance(probe: dict) -> None:
            f"This is the whole journey: entry, QR exchange, join, basket and menu read, "
            f"four round trips at {device['latencyMs']}ms each")
 
-    measured("an interaction responds within budget",
-             perf["interactionMs"] <= BUDGET_INTERACTION_MS,
-             f"{perf['interactionMs']}ms from tapping Add to the basket line appearing, "
-             f"against {BUDGET_INTERACTION_MS}ms, with the CPU still throttled "
-             f"{device['cpuThrottlingRate']}x. The line is drawn from local state before "
-             f"anything leaves the device, which is why this is not a network number")
+    # THROUGH THE SAME GUARD AS THE OTHER TWO, which it was not. This is a timing
+    # measurement on a throttled machine and it can be starved exactly like the paint —
+    # observed here at 237, 325, 365 and 443ms across four runs of one commit and then
+    # at 1487ms on a run the reference put at 0.92x, FASTER than the baseline. Under the
+    # bare comparison it had been, that reading could only be reported as a regression in
+    # a surface that had not changed.
+    budget("an interaction responds within budget",
+           perf["interactionMs"], BUDGET_INTERACTION_MS,
+           f"From tapping Add to the basket line appearing, with the CPU still throttled "
+           f"{device['cpuThrottlingRate']}x. The line is drawn from local state before "
+           f"anything leaves the device, which is why this is not a network number")
 
+    # AND THIS ONE STAYS OUTSIDE THE GUARD, deliberately. Bytes are not a timing
+    # measurement: the figure was 47880 over 6 requests in every run of every order on
+    # every machine this has been measured on, because it is a property of the artifact
+    # and not of the runner. Routing it through the reference would let a genuine bundle
+    # regression be excused by a slow machine, which is the guard doing harm rather than
+    # work.
     measured("the surface stays inside its transfer budget",
              perf["transferredBytes"] <= BUDGET_TRANSFER_BYTES,
              f"{perf['transferredBytes']} bytes over {perf['requestCount']} requests, "
              f"against {BUDGET_TRANSFER_BYTES}. No framework and no runtime dependency: "
-             f"the bundle is one compiled file and one stylesheet")
+             f"the bundle is one compiled file and one stylesheet. Not guarded by the "
+             f"reference: a byte count does not get larger because a runner is slow")
+
+    # ---- The three outcomes, forced and read back -------------------------------
+    #
+    # Every branch of the decision above is exercised with a made-up triple, because a
+    # branch nothing ever forces is a claim nobody has read back — the same rule
+    # NC-M2C-009 established for the retry diagnosis. These need no browser: the
+    # judgement is arithmetic, and keeping it arithmetic is what makes it testable.
+    print("\n         the budget decision itself, forced through every outcome:")
+    for label, observed, limit, forced_factor, expected in (
+            ("a breach on a healthy machine is a breach", 3000, 500, 1.00,
+             "PERFORMANCE_BUDGET_EXCEEDED"),
+            ("the same breach on a starved machine is not measurable", 3000, 500, 9.00,
+             "PERFORMANCE_NOT_MEASURABLE"),
+            ("a breach exactly at the tolerance is still a breach", 3000, 500,
+             REFERENCE_TOLERANCE, "PERFORMANCE_BUDGET_EXCEEDED"),
+            ("inside budget passes however starved the machine", 100, 500, 9.00,
+             "WITHIN"),
+            ("a measurement the probe never made is a failure", None, 500, 1.00,
+             "PERFORMANCE_NOT_REPORTED")):
+        got, _ok = performance_verdict(observed, limit, forced_factor)
+        record(label, got == expected,
+               f"{observed}ms against {limit}ms at {forced_factor:.2f}x -> {got}")
+
+    # AND NO TIMING BUDGET MAY GO BACK TO A BARE COMPARISON.
+    #
+    # The defect itself, guarded structurally rather than by remembering: a millisecond
+    # measurement compared directly inside a measured() is how a timing assertion leaves
+    # the guarded path, and that is what the interaction budget had been.
+    #
+    # READ FROM THE PARSE TREE, NOT THE TEXT. The first form of this scanned the
+    # function's source for the pattern and immediately matched the sentence ABOVE
+    # describing it — a comment counted as the thing it describes, which is the defect
+    # the route census already had to fix once. A comment is not a comparison, and the
+    # parser is the only reader that knows the difference.
+    own = next((n for n in ast.walk(ast.parse(Path(__file__).read_text(encoding="utf-8")))
+                if isinstance(n, ast.FunctionDef) and n.name == "section_performance"), None)
+    bare = [k.value for node in (ast.walk(own) if own else [])
+            if isinstance(node, ast.Compare) and isinstance(node.left, ast.Subscript)
+            for k in [node.left.slice]
+            if isinstance(k, ast.Constant) and isinstance(k.value, str)
+            and k.value.endswith("Ms")]
+    record("no timing budget is asserted with a bare comparison",
+           own is not None and not bare,
+           f"{len(bare)} bare timing comparison(s) in section_performance"
+           + (f": {bare}" if bare else
+              " — every millisecond budget goes through performance_verdict(), so a "
+              "starved runner can report itself on any of them. Read from the parse tree, "
+              "so the sentence describing the defect is not mistaken for the defect"))
 
 
 def main() -> int:

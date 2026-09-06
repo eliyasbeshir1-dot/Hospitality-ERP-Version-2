@@ -14,9 +14,23 @@
  * first in every respect that matters.
  */
 import { chromium } from 'playwright';
+import { readFileSync } from 'node:fs';
 
-const [, , baseUrl, payloadJson] = process.argv;
-const payload = JSON.parse(payloadJson);
+// THE PAYLOAD ARRIVES AS A FILE, NOT AS AN ARGUMENT.
+//
+// It used to be one `json.dumps(payload)` on the command line, and the payload carries
+// the station's WHOLE ticket queue — so its size is a function of how much the database
+// has accumulated, not of anything this probe or that surface does. Under the reordered
+// sweep the suites run against a database an earlier full run had already filled (178
+// tickets, 154 of them queued, when this was measured), the argument crossed Windows'
+// 32767-character command-line limit, and python died with
+// `FileNotFoundError: [WinError 206] The filename or extension is too long` before the
+// suite printed any verdict at all. Linux's ~2MB ARG_MAX hid it, and the reorder sweep
+// only runs on Linux, so the one platform that fails is the one never asked the question.
+//
+// A file has no such ceiling and no platform difference.
+const [, , baseUrl, payloadPath] = process.argv;
+const payload = JSON.parse(readFileSync(payloadPath, 'utf8'));
 
 const out = { normal: null, flattened: null, errors: [] };
 

@@ -2791,10 +2791,17 @@ def section_controls() -> None:
                           f"unfinished completer")
 
     register_path = REPO / "planning" / "partial_closures.json"
+    register_was = register_path.read_bytes()
 
     def red_register():
-        CONTEXT["nc4b008_original"] = register_path.read_text(encoding="utf-8")
-        payload = json.loads(CONTEXT["nc4b008_original"])
+        # BYTES, because this control writes a COMMITTED file in place. Path.write_text()
+        # opens in text mode and turns every "\n" into "\r\n" on Windows, so restoring
+        # through it rewrote the whole register and left the tree dirty while the control
+        # went green — the register's own checks read decoded text and cannot see it.
+        # Same defect as NC-M3D-012 had against planning/CI_TEST_MATRIX.md, on a second
+        # committed file.
+        CONTEXT["nc4b008_original"] = register_path.read_bytes()
+        payload = json.loads(CONTEXT["nc4b008_original"].decode("utf-8"))
         # Find a CLOSED entry whose completer still carries an open entry, and make it
         # claim to rest on the gap. Chosen from the register rather than hard-coded, so
         # the control survives the entries being renamed.
@@ -2810,19 +2817,34 @@ def section_controls() -> None:
                 "no closed entry rests on a completer with an open entry, so this control "
                 "has nothing to plant on and would pass by emptiness")
         target["completer_aspect"] = sorted(still_open[target["completed_by"]])[0]
-        register_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n",
-                                 encoding="utf-8")
+        register_path.write_bytes(
+            (json.dumps(payload, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))
         ok, sig, detail = register_gate()
         return (not ok and sig == "PARTIAL_CLOSURE_COMPLETER_INCOMPLETE",
                 f"{sig}: {detail}")
 
     def green_register():
-        register_path.write_text(CONTEXT["nc4b008_original"], encoding="utf-8")
+        register_path.write_bytes(CONTEXT["nc4b008_original"])
         ok, _sig, detail = register_gate()
         return (ok, detail)
 
-    control("NC-M4B-008  a closure resting on a completer that is itself incomplete",
-            red_register, green_register)
+    try:
+        control("NC-M4B-008  a closure resting on a completer that is itself incomplete",
+                red_register, green_register)
+    finally:
+        # The plant writes a committed file, so the restore cannot depend on the control
+        # having reached its green half. It did: a raise between the two left the register
+        # rewritten on disk.
+        register_path.write_bytes(register_was)
+
+    record("the control restored the committed register it planted in, byte for byte",
+           register_path.read_bytes() == register_was,
+           f"{len(register_was)} bytes, "
+           f"{register_was.count(bytes([13, 10]))} CRLF and "
+           f"{register_was.count(bytes([10])) - register_was.count(bytes([13, 10]))} bare "
+           f"LF before; {register_path.read_bytes().count(bytes([13, 10]))} CRLF after. "
+           f"Asserted in bytes because every reader of this register decodes it first and "
+           f"so cannot see a restore that changed every line in it")
 
     # ---------------------------------------------------------------- NC-M4B-009
     # A verification suite the evidence report does not count. This is the defect this
