@@ -301,6 +301,39 @@ def build() -> str:
         listed = "<br>".join(f"`{r}`" for r in sorted(by_file[source]))
         w(f"| `{source}` | {listed} |")
 
+    # ---- A check that cannot tell its two failure names apart -------------------
+    #
+    # POINTER ONLY. The measurements belong to particular runs on particular machines,
+    # so they live in an anchored record rather than in this derived document — a number
+    # from one run, restated in a document regenerated on every commit, reads as a claim
+    # about the system now.
+    w("")
+    w("## A check that reports a cause it cannot distinguish")
+    w("")
+    w("**Its own finding, and the repair belongs to M5a.** The M4-A calibration gives "
+      "every performance budget in `tests/m2c` two failure names: one for a breach on a "
+      "machine inside its normal band, meaning the surface is slow, and one for a breach "
+      "on a starved machine, meaning the run is not evidence about the surface. Both are "
+      "failures. It was built so that a breach on a starved machine could not be reported "
+      "as a regression — a diagnostic naming a cause it did not verify.")
+    w("")
+    w("**It decides between the two by which starvation its reference happened to "
+      "catch**, and that reference is a fixed arithmetic loop. Starvation the loop cannot "
+      "see — disk, process launch, a filter driver scanning a freshly written workspace — "
+      "leaves the reference unmoved, so the breach is reported as a slow artifact. The "
+      "check distinguishes one cause from everything else and gives the remainder the "
+      "other cause's name. That is the class of defect the calibration exists to prevent, "
+      "inside the calibration.")
+    w("")
+    w("Observed on the Windows runner while getting this repair green, with the same "
+      "commit passing the same budgets on Linux in the same run. The measurements, the "
+      "commit they were taken against and what was and was not done about them are in "
+      "`planning/M4_PERFORMANCE_CHECK_FINDING.md`, which is an anchored record rather "
+      "than a derived document because they describe two runs and not the system.")
+    w("")
+    w("No budget threshold was changed at this gate.")
+    w("")
+
     # ---- The kitchen the service cannot drive ----------------------------------
     kitchen = uncalled_routes.unreachable_writers("fulfillment")
     w("")

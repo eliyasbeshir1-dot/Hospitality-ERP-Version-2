@@ -62,6 +62,7 @@ DATED_RECORDS = [
     "docs-local/CROSS_PLATFORM_COMMANDS.md",
     "planning/M0R_MIGRATION_RECORD.md",
     "planning/M4C_LIMITATIONS.md",
+    "planning/M4_PERFORMANCE_CHECK_FINDING.md",
 ]
 
 DECLARATION = "<!-- dated-record -->"

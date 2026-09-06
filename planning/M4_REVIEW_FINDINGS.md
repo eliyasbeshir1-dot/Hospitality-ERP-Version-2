@@ -241,6 +241,17 @@ Derived by `tools/uncalled_routes.py` on every generation, so this list cannot g
 | `service.ts` | `GET /s/v1/service/queue` |
 | `staff.ts` | `GET /s/v1/fast-picks`<br>`GET /s/v1/terminals`<br>`POST /s/v1/handovers/:handoverId/acknowledge`<br>`POST /s/v1/terminals`<br>`POST /s/v1/terminals/:deviceId/revoke` |
 
+## A check that reports a cause it cannot distinguish
+
+**Its own finding, and the repair belongs to M5a.** The M4-A calibration gives every performance budget in `tests/m2c` two failure names: one for a breach on a machine inside its normal band, meaning the surface is slow, and one for a breach on a starved machine, meaning the run is not evidence about the surface. Both are failures. It was built so that a breach on a starved machine could not be reported as a regression — a diagnostic naming a cause it did not verify.
+
+**It decides between the two by which starvation its reference happened to catch**, and that reference is a fixed arithmetic loop. Starvation the loop cannot see — disk, process launch, a filter driver scanning a freshly written workspace — leaves the reference unmoved, so the breach is reported as a slow artifact. The check distinguishes one cause from everything else and gives the remainder the other cause's name. That is the class of defect the calibration exists to prevent, inside the calibration.
+
+Observed on the Windows runner while getting this repair green, with the same commit passing the same budgets on Linux in the same run. The measurements, the commit they were taken against and what was and was not done about them are in `planning/M4_PERFORMANCE_CHECK_FINDING.md`, which is an anchored record rather than a derived document because they describe two runs and not the system.
+
+No budget threshold was changed at this gate.
+
+
 ## The KDS cannot be operated through the service
 
 **Its own finding, and it belongs to M3-B rather than to this slice.** M3-B built the ticket state machine, the station queues and the expo view, and its suite proves all of it against the database. Not one of its writers can be invoked through the running service.
