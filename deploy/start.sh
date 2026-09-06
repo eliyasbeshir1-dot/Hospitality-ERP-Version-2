@@ -18,10 +18,12 @@ if [ -n "${SUPER_URL:-}" ]; then
   echo "=== 1. roles, from the repository's own tools/bootstrap_database.sql ==="
   psql "$SUPER_URL" -v ON_ERROR_STOP=1 -f tools/bootstrap_database.sql
   echo "=== 2. authentication, from the deployment secret store, never from the file ==="
-  psql "$SUPER_URL" -v ON_ERROR_STOP=1 \
-    -v mp="$MIGRATOR_PW" -v ap="$APP_PW" \
-    -c "ALTER ROLE hospitality_migrator PASSWORD :'mp'" \
-    -c "ALTER ROLE hospitality_app PASSWORD :'ap'"
+  # Fed through stdin, not -c: psql interpolates :'var' when reading a file or
+  # standard input and sends -c verbatim to the server, which is why the first
+  # attempt failed with a syntax error at ":". Interpolation is what keeps the
+  # password out of the process list and correctly quoted whatever it contains.
+  printf "ALTER ROLE hospitality_migrator PASSWORD :'mp';\nALTER ROLE hospitality_app PASSWORD :'ap';\n" \
+    | psql "$SUPER_URL" -v ON_ERROR_STOP=1 -v mp="$MIGRATOR_PW" -v ap="$APP_PW" -f -
   echo "=== 3. role attributes as the managed cluster holds them ==="
   psql "$SUPER_URL" -v ON_ERROR_STOP=1 -c \
     "SELECT rolname, rolsuper, rolbypassrls, rolcreaterole, rolcreatedb, rolcanlogin
