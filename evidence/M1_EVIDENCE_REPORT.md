@@ -13,11 +13,11 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `1d5912203d5a4089aa92cc18aad023220044c2b0` |
-| Short | `1d59122` |
+| Commit | `ada1ba309325d167c38041ebd062636ed65dcb6c` |
+| Short | `ada1ba3` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
-| Working tree | clean at generation |
+| Working tree | clean at generation — the generator refuses a tree that is not |
 
 ## Versions
 
@@ -114,10 +114,10 @@ Money is stored as integer minor units beside an explicit currency.
 | M3-D terminals, override, handover, the waiter surface | **PASS** | 95 | 0 |
 | M4-A checks, bills, splitting, tip separation | **PASS** | 105 | 0 |
 | M4-B payment capture, verification, cash, reversal | **PASS** | 151 | 0 |
-| M4-C receipts, the printer path, reporting, the register audit | **PASS** | 101 | 0 |
+| M4-C receipts, the printer path, reporting, the register audit | **PASS** | 103 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
 | The golden journeys, end to end | **PASS** | 92 | 0 |
-| **Total** | | **1405** | |
+| **Total** | | **1407** | |
 
 ## The golden journeys (FR-TST-005A)
 
@@ -147,7 +147,7 @@ mistaken for one that mostly worked.
 
 ## Negative controls
 
-**113** controls — M1 22, M2 22, M3 35, M4 34 — each planted as a real
+**114** controls — M1 22, M2 22, M3 35, M4 35 — each planted as a real
 defect, required to produce its exact registered signature, then reverted and
 required to pass again. A control that never went red is a coverage gap wearing a
 green badge, and CI fails the build when one is missing. The registry is
@@ -270,6 +270,7 @@ build, and so does one described and never proved.
 | `NC-M4C-007` | A counter order that can name no POS terminal | `COUNTER_ORDER_WITHOUT_A_TERMINAL` | red, then green |
 | `NC-M4C-008` | A customer receipt printed on a printer nobody tested | `PRINTER_NEVER_TESTED` | red, then green |
 | `NC-M4C-009` | A journey the suite walks that the evidence report never reports | `JOURNEY_UNACCOUNTED` | red, then green |
+| `NC-M4C-010` | An evidence report generated from a tree with uncommitted work | `REPORT_TREE_NOT_CLEAN` | red, then green |
 
 ## Design decision: the ledger is the record, everything else is a projection (M3-A)
 

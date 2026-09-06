@@ -43,7 +43,7 @@ use_utf8_output()
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from repo_history import (  # noqa: E402
-    HistoryUnavailable, assert_history_available, current_branch, is_dirty_excluding,
+    HistoryUnavailable, assert_history_available, current_branch, dirt_excluding,
     last_commit_excluding,
 )
 
@@ -144,6 +144,41 @@ class JourneyUnaccounted(Exception):
 
 
 JOURNEY_SUITE = REPO / "tests" / "journeys" / "verify_journeys.py"
+
+
+class ReportTreeNotClean(Exception):
+    """The report would describe a tree that is not the one it anchors to."""
+
+
+def assert_tree_is_clean() -> None:
+    """Refuse to write the report from a working tree carrying uncommitted work.
+
+    THE DEFECT THIS EXISTS FOR SHIPPED TWICE, AT THIS GATE, IN THIS DOCUMENT. Once from a
+    run whose journeys suite had crashed, so every journey row read FAIL beside "92 steps,
+    0 failures"; once from a tree still holding eight other modified files, so the report
+    anchored to the previous commit and described a repository nobody had. Both were
+    caught by a person reading the diff, which is the weakest check this repository has.
+
+    The report names the last commit touching anything other than itself. If other files
+    are uncommitted, that commit is not the state the report describes: the numbers come
+    from the working tree and the anchor comes from history, and the two have drifted. CI
+    regenerates from a clean checkout and diffs, so the disagreement surfaces there as a
+    mismatch nobody can read — the report is right about neither tree.
+
+    Excluding the report itself is deliberate and is the same exclusion the anchor uses:
+    regenerating it is what this function is called during, and the workflow it permits is
+    commit the work, regenerate, commit the report.
+    """
+    uncommitted = dirt_excluding(REPORT_PATH)
+    if uncommitted:
+        raise ReportTreeNotClean(
+            "REPORT_TREE_NOT_CLEAN: " + ", ".join(uncommitted[:8])
+            + (f" and {len(uncommitted) - 8} more" if len(uncommitted) > 8 else "")
+            + f" {'is' if len(uncommitted) == 1 else 'are'} uncommitted. This report "
+              f"anchors to the last commit touching anything other than itself, and with "
+              f"work outstanding that commit is not the tree these numbers were measured "
+              f"in. Commit the work first, then regenerate: a report describing a tree "
+              f"nobody has is worse than no report, because it looks like evidence")
 
 
 def journeys_the_suite_walks() -> list[str]:
@@ -382,13 +417,13 @@ def build(dsn: str, logs: Path) -> str:
     # Before anything is read: the report's own list of suites must equal the repository's.
     assert_suites_cover_the_repository()
     assert_journeys_cover_the_suite()
+    assert_tree_is_clean()
 
     # Under a shallow checkout the commit this report names cannot be resolved, and the
     # field would come out empty rather than wrong-looking. Refuse instead.
     assert_history_available()
     commit, short = last_commit_excluding(REPORT_PATH)
     branch = current_branch()
-    dirty = is_dirty_excluding(REPORT_PATH)
 
     w("# M1 Evidence Report")
     w("")
@@ -409,7 +444,10 @@ def build(dsn: str, logs: Path) -> str:
     w(f"| Short | `{short}` |")
     w(f"| Branch | `{branch}` |")
     w(f"| Subject | the last commit touching anything other than this report |")
-    w(f"| Working tree | {'NOT CLEAN — regenerate from a clean tree' if dirty else 'clean at generation'} |")
+    # Not a measurement with two possible values: assert_tree_is_clean() refuses above,
+    # so this states the guarantee that refusal provides rather than a field that could
+    # only ever read one way.
+    w(f"| Working tree | clean at generation — the generator refuses a tree that is not |")
     w("")
 
     w("## Versions")

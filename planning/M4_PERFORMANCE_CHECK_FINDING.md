@@ -76,10 +76,23 @@ The attempt was taken instead on the next commit, whose diff against `2f9ba4b` i
 record, the pointer to it, and that corrected report: nothing that touches a surface, a
 route or a browser path, so it tests the same question.
 
-**One further attempt, and a second failure changes the reading.** Two consecutive Windows failures
-on this commit, while Linux paints the same surface in 780ms, would be evidence of a real
-regression and it is to be hunted before the gate goes to review — not re-run a third
-time, and not re-labelled.
+**One further attempt, and a second failure changes the reading.** Two consecutive Windows
+failures on this commit, while Linux paints the same surface in 780ms, would be evidence
+of a real regression and it is to be hunted before the gate goes to review — not re-run a
+third time, and not re-labelled.
+
+**THE ATTEMPT PASSED.** CI run 72 on `12439aa`, 6 September 2026, on the same Windows
+runner image: both paint budgets came in inside their thresholds and the run was green
+on both platforms. The rule above was therefore never reached, and the reading stands:
+the breach on run 71 was starvation in a dimension the reference cannot see, not a slow
+surface. That is one observation and not a measurement of how often it happens — what it
+establishes is that the check reported a cause it could not distinguish, which the
+repair at M5a is for. It does not establish that this runner meets these budgets
+reliably.
+
+The dirty-tree defect named at the top of this section is closed rather than only
+recorded: `assert_tree_is_clean()` refuses to write the report from a tree carrying
+uncommitted work, proved red then green as `NC-M4C-010`.
 
 **The budget numbers are untouched.** No threshold in `tests/m2c` was changed, raised or
 made conditional at this gate.

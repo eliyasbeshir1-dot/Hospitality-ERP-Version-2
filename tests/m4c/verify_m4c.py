@@ -2131,6 +2131,52 @@ def section_controls() -> None:
     control("NC-M4C-009  a journey the suite walks that the evidence report never reports",
             red_journey, green_journey)
 
+    # ---------------------------------------------------------------- NC-M4C-010
+    # An evidence report generated from a tree with uncommitted work.
+    #
+    # THIS DEFECT SHIPPED TWICE AT THIS GATE, in this document, and a person reading the
+    # diff caught it both times — the weakest check this repository has. Once the report
+    # was regenerated from a run whose journeys suite had crashed, so it stated FAIL for
+    # every journey beside "92 steps, 0 failures". Once from a tree still holding eight
+    # other modified files, so it anchored to the previous commit and described a tree
+    # nobody had. CI regenerates from a clean checkout and diffs, so the second one
+    # surfaced as a mismatch that named neither cause.
+    #
+    # Planted by replacing the generator's view of the working tree in its own module
+    # namespace — never by dirtying the real repository, which would make the control's
+    # own failure indistinguishable from the thing it is testing.
+    def tree_gate() -> tuple[bool, str, str]:
+        try:
+            _report.assert_tree_is_clean()
+        except _report.ReportTreeNotClean as refused:
+            return (False, "REPORT_TREE_NOT_CLEAN", str(refused)[:240])
+        return (True, "", "no file outside the report itself is uncommitted, so the "
+                          "commit this report anchors to is the tree it describes")
+
+    def red_tree():
+        CONTEXT["nc4c010_dirt"] = _report.dirt_excluding
+        _report.dirt_excluding = lambda path: ["planning/an_uncommitted_file.json"]
+        ok, sig, detail = tree_gate()
+        return (not ok and sig == "REPORT_TREE_NOT_CLEAN", f"{sig}: {detail}")
+
+    def green_tree():
+        # NOT "the guard passes". A developer runs this suite with work in progress, and a
+        # green that required a clean repository would fail on every machine except CI —
+        # a control that only passes where nobody is working is a control nobody can use.
+        # What is asserted is that the guard AGREES WITH THE REPOSITORY: it refuses when
+        # there is uncommitted work and permits when there is none. That holds in both
+        # places, and it still fails if the revert did not happen or the reader is broken.
+        _report.dirt_excluding = CONTEXT["nc4c010_dirt"]
+        ok, _sig, _detail = tree_gate()
+        outstanding = _report.dirt_excluding(_report.REPORT_PATH)
+        agrees = ok == (not outstanding)
+        state = ("a clean tree and the guard permitted it" if not outstanding
+                 else f"{len(outstanding)} uncommitted file(s) and the guard refused")
+        return (agrees, f"the real reader is back: {state}")
+
+    control("NC-M4C-010  an evidence report generated from a tree with uncommitted work",
+            red_tree, green_tree)
+
 
 # ===========================================================================
 # Setting the stage: the settlements, the receipts, and one signed-off shift

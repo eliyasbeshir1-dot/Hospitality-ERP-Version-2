@@ -74,8 +74,11 @@ def last_commit_excluding(path: str) -> tuple[str, str]:
     return full, short
 
 
-def is_dirty_excluding(path: str) -> bool:
-    return bool(_git("status", "--porcelain", "--", ".", f":(exclude){path}").stdout.strip())
+def dirt_excluding(path: str) -> list[str]:
+    """The uncommitted paths, ignoring one file. Named, because a refusal that cannot say
+    WHICH files are uncommitted leaves the reader to run git themselves to find out."""
+    lines = _git("status", "--porcelain", "--", ".", f":(exclude){path}").stdout.splitlines()
+    return sorted(line[3:].strip() for line in lines if line.strip())
 
 
 def current_branch() -> str:
