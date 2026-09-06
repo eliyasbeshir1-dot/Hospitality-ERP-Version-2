@@ -43,5 +43,27 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c \
   "SELECT current_user, r.rolsuper, r.rolbypassrls, r.rolcreaterole, r.rolcreatedb
      FROM pg_roles r WHERE r.rolname = current_user"
 
+# The two endpoints, read back from inside the container and printed into the
+# deploy log. This is not decoration: the operator running this deployment cannot
+# reach *.up.railway.app from where they sit, so the only honest way to show what
+# /health and /ready actually answer on the managed database is to have the
+# service answer, and to print the body verbatim rather than a summary of it.
+(
+  for _ in $(seq 1 90); do
+    if curl -sf "http://127.0.0.1:${PORT:-8080}/health" -o /tmp/health.json 2>/dev/null; then
+      echo "=== 8. GET /health ==="
+      cat /tmp/health.json; echo
+      if curl -sf "http://127.0.0.1:${PORT:-8080}/ready" -o /tmp/ready.json 2>/dev/null; then
+        echo "=== 9. GET /ready ==="
+        cat /tmp/ready.json; echo
+      else
+        echo "=== 9. GET /ready did not answer 2xx ==="
+      fi
+      break
+    fi
+    sleep 2
+  done
+) &
+
 echo "=== 7. starting the service; FR-OPS-001 now decides ==="
 exec node /workspace/dist/server.js

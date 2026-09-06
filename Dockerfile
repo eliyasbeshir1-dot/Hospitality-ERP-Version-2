@@ -18,7 +18,7 @@ FROM node:22-bookworm-slim
 # run as a pre-deploy step under the MIGRATOR identity, separately from the
 # app identity the server runs as.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends postgresql-client python3 bash ca-certificates \
+ && apt-get install -y --no-install-recommends postgresql-client python3 bash ca-certificates curl \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
