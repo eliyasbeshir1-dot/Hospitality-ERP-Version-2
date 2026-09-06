@@ -65,5 +65,45 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c \
   done
 ) &
 
+# FR-OPS-001, both directions, against the managed database — run here rather
+# than by pointing DATABASE_URL at a superuser, because on this platform a
+# variable change re-resolves the service's source to the repository's tracked
+# branch: a harmless probe variable was enough to make the next deploy build the
+# wrong branch and fail. Driving it from code keeps the deploy on this branch and
+# never leaves a privileged credential configured as the runtime identity.
+#
+# This CALLS the guard. It does not reimplement it, weaken it, or stand in for
+# it: readRoleFacts and assertUnprivileged are the same exported functions
+# server.js uses at boot, out of the same compiled dist.
+if [ -n "${SUPER_URL:-}" ]; then
+  echo "=== 6b. FR-OPS-001 against this managed database, both directions ==="
+  node -e '
+    const { readRoleFacts, assertUnprivileged, privilegeViolations } = require("/workspace/dist/env.js");
+    (async () => {
+      const superFacts = await readRoleFacts(process.env.SUPER_URL);
+      try {
+        assertUnprivileged(superFacts);
+        console.log("NOT REFUSED for " + superFacts.currentUser + " — that is a defect");
+        process.exit(1);
+      } catch (error) {
+        console.log("REFUSED  " + error.signature);
+        console.log("         " + error.message);
+        console.log("         violations: " + privilegeViolations(superFacts).join("; "));
+      }
+      const appFacts = await readRoleFacts(process.env.DATABASE_URL);
+      assertUnprivileged(appFacts);
+      console.log("PERMITTED " + appFacts.currentUser +
+                  " — superuser=" + appFacts.isSuperuser +
+                  " bypassrls=" + appFacts.bypassesRls +
+                  " createrole=" + appFacts.canCreateRole +
+                  " createdb=" + appFacts.canCreateDb +
+                  " ownsTables=" + appFacts.ownsApplicationTables +
+                  " canCreateInAppSchemas=" + appFacts.canCreateInAppSchemas +
+                  " inheritsSuperuser=" + appFacts.inheritsSuperuser);
+      process.exit(0);
+    })().catch((e) => { console.log("CHECK FAILED: " + e.message); process.exit(1); });
+  '
+fi
+
 echo "=== 7. starting the service; FR-OPS-001 now decides ==="
 exec node /workspace/dist/server.js
