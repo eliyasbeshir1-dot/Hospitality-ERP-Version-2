@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `d1b1700764147c4a8285f3262b8d574c689dcfd9` |
-| Short | `d1b1700` |
+| Commit | `4b689889802a05dadb493a2c5f8ba5c1fb6021ca` |
+| Short | `4b68988` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation — the generator refuses a tree that is not |
@@ -107,17 +107,17 @@ Money is stored as integer minor units beside an explicit currency.
 | M1-D API, security, operations | **PASS** | 49 | 0 |
 | M2-A menu, pricing, translation storage | **PASS** | 75 | 0 |
 | M2-B tables, QR, guests, allergen safety | **PASS** | 107 | 0 |
-| M2-C customer surface, rendered | **PASS** | 65 | 0 |
+| M2-C customer surface, rendered | **PASS** | 71 | 0 |
 | M3-A orders, snapshots, session lifecycle | **PASS** | 136 | 0 |
 | M3-B fulfillment, tickets, stations, the KDS | **PASS** | 127 | 0 |
 | M3-C service requests, notifications, integration | **PASS** | 126 | 0 |
-| M3-D terminals, override, handover, the waiter surface | **PASS** | 95 | 0 |
+| M3-D terminals, override, handover, the waiter surface | **PASS** | 96 | 0 |
 | M4-A checks, bills, splitting, tip separation | **PASS** | 105 | 0 |
-| M4-B payment capture, verification, cash, reversal | **PASS** | 151 | 0 |
-| M4-C receipts, the printer path, reporting, the register audit | **PASS** | 105 | 0 |
+| M4-B payment capture, verification, cash, reversal | **PASS** | 152 | 0 |
+| M4-C receipts, the printer path, reporting, the register audit | **PASS** | 108 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
 | The golden journeys, end to end | **PASS** | 92 | 0 |
-| **Total** | | **1409** | |
+| **Total** | | **1420** | |
 
 ## The golden journeys (FR-TST-005A)
 
