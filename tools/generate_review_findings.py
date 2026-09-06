@@ -160,6 +160,56 @@ def build() -> str:
       "override is visible in the tables below.")
     w("")
 
+    # ---- what the repair caught in itself ----------------------------------
+    #
+    # Placed before the findings rather than after them, because it is the calibration a
+    # reviewer needs in order to read the rest: this document reports on instruments that
+    # were repaired by hand, and two defects inside that repair were caught by comparing
+    # numbers across runs rather than by anything that could have failed the build.
+    w("## Two defects this repair caught in itself, and how")
+    w("")
+    w("**Neither was caught by a check. Both were caught by noticing a number that had "
+      "moved when nothing should have moved it.** A reviewer weighing self-reported "
+      "evidence should weigh that: the second M4 repair rewrote a guard, a grader and a "
+      "census, and the build would have gone green with both of these defects in it.")
+    w("")
+    w("**A guard that stopped being able to fail, inside its own repair.** The structural "
+      "gate refusing a raw database call in place of a user action was widened to follow "
+      "helper calls, which was the review's finding. The first version read both the call "
+      "graph and the database calls from the parse tree — and these journeys reach the "
+      "database by writing SQL, so `ordering.accept_order(...)` is characters inside a "
+      "string literal and not a call node at all. The rewritten gate reported no offender "
+      "in any journey, which looked like success. The tell was the line beside it: zero "
+      "delivered functions that no route reaches, where the previous run had named three. "
+      "A gate that can no longer see anything reports the same thing as a gate with "
+      "nothing to report, and only the second number distinguished them. Calls are read "
+      "from the text now and the call graph from the tree. Widened correctly, the gate "
+      "immediately named five journeys reaching `docs.record_receipt_print()` through a "
+      "helper — the defect it had been walked around by.")
+    w("")
+    w("**A measurement contaminated by the defect it was measuring.** The grader repair "
+      "was first measured at 13 requirements left unaccounted, and that figure was used "
+      "to choose the shape of the repair and put to the founder as the cost of it. It was "
+      "wrong. The audit was still reading its own output back: not through its finding "
+      "lines, which were already filtered, but through the sentence `tests/m4c` writes "
+      "summarising them — `\"43 unaccounted: ['FR-AUTH-007', ...]\"` — which carries no "
+      "finding code and graded forty-one requirements the audit had just said nothing "
+      "cites. The honest figure is 57. The tell was again arithmetic: the same audit over "
+      "a fresh set of logs gave a different answer while the register had not changed. "
+      "One failing run had been manufacturing the evidence that made the next one pass.")
+    w("")
+    w("**And one repair is proved on one platform only.** The null-device fix — a print "
+      "to a device that discards must not be recordable as a print — is proved red then "
+      "green on Linux, against a symlink alias the old four-spelling test reported as not "
+      "the null device. The finding was about **Windows**, where the null device is a DOS "
+      "alias the loader resolves in every directory. `tests/m4c` builds that alias on "
+      "whichever platform it runs and reads the word back, so the Windows half is checked "
+      "by CI — but that it will pass is a **prediction** about how the platform resolves "
+      "a device path, not something this repair demonstrated. If the prediction is wrong "
+      "the step goes red rather than passing silently, which is the right failure mode "
+      "and is still not a proof.")
+    w("")
+
     # ---- the headline ------------------------------------------------------
     w(f"## {len(urgent)} absent requirements in money, security or authority")
     w("")
@@ -370,15 +420,26 @@ def build() -> str:
     w("Derived by `tools/uncalled_routes.py` on every generation, so this list cannot go "
       "stale the way a typed one would.")
     w("")
-    w("**This figure was 70 called until the second M4 repair, and both halves of that "
-      "number were wrong.** The census read every byte of every caller, so a comment "
-      "naming a path counted as a call to it — the executing reviewer moved it to 72 with "
-      "two planted comments. The same whole-file scan also MISSED a caller, because a "
+    w("**This figure was 70 called until the second M4 repair, and it was wrong in both "
+      "directions.** The census read every byte of every caller, so a comment naming a "
+      "path counted as a call to it — the executing reviewer moved it to 72 with two "
+      "planted comments. The same whole-file scan also MISSED a real caller, because a "
       "path built with an f-string whose interpolation contains a quote is not one run of "
-      "characters in the file's text. Comments and prose are now excluded and callers are "
-      "read out of string literals, which moves the count to its corrected value in the "
-      "sentence above. Both errors were the same error: matching bytes instead of reading "
-      "code.")
+      "characters anywhere in the file's text and the :param pattern will not cross a "
+      "quote. Both errors were the same error: matching bytes instead of reading code, "
+      "and they ran in opposite directions, so the old number was not even wrong "
+      "consistently.")
+    w("")
+    w("**The census repair alone gives 71 called and 24 uncalled — that is the honest "
+      "correction of 70/25.** The figure in the sentence above is one higher because a "
+      "SECOND repair in the same pass gave a route its first caller: the structural gate, "
+      "once it followed helper calls, caught five journeys recording a receipt print with "
+      "a direct database call, and they now go through "
+      "`POST /s/v1/receipts/:receiptId/prints`. That first call found a defect in it — "
+      "the refusal a second original print raises was missing from the route's status "
+      "map, so a business rule working exactly as designed answered 500 and logged an "
+      "unmapped refusal. Which is this section's own point, arriving while the section "
+      "was being repaired.")
     by_file: dict[str, list[str]] = {}
     for route in unreached:
         by_file.setdefault(route["file"], []).append(f"{route['verb']} {route['path']}")
