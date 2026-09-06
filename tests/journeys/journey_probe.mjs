@@ -72,10 +72,32 @@ async function enterAsGuest(device, code, locale) {
   return device.page.evaluate(() => document.querySelectorAll('.item').length);
 }
 
+// STATES A LINE PASSES THROUGH BEFORE THE SERVER HAS BEEN TOLD ANYTHING.
+// The guest surface holds a tap on the device first and sends it after (FR-UX-007), so a
+// line is rendered at 'saved_locally', moves to 'queued' when the POST is issued, and only
+// then reaches a state the server decided: synchronized, blocked, failed or stale.
+const NOT_YET_AT_THE_SERVER = ['saved_locally', 'queued'];
+
 async function addFirstItem(page) {
   await page.locator('.add').first().click();
+  // WAIT FOR THE SERVER TO HAVE IT, NOT FOR THE SCREEN TO SHOW IT.
+  //
+  // This waited for a .cart-line to exist, which is the OPTIMISTIC render — drawn before
+  // the POST is issued. So 'choose a dish' could report a line while the cart on the
+  // server was still empty, and the very next step clicked #place-order and got
+  // 422 CART_EMPTY. That is what the executing reviewer saw at M4: GJ-02 failed under a
+  // reordered run, passed on its own, and CI called the run green. A race that resolves
+  // the right way most of the time is worse than a failure, because it makes a passing
+  // run mean nothing in particular.
+  //
+  // Every line must have reached a state the SERVER decided — not just the one this tap
+  // added, because a step that adds to a cart with work still in flight has the same
+  // race. The wait is on the outcome, not on a duration: nothing here sleeps and hopes.
   await page.waitForFunction(
-    () => document.querySelectorAll('.cart-line').length > 0, null, { timeout: 15000 });
+    (inFlight) => {
+      const lines = [...document.querySelectorAll('.cart-line')];
+      return lines.length > 0 && lines.every((li) => !inFlight.includes(li.dataset.state));
+    }, NOT_YET_AT_THE_SERVER, { timeout: 15000 });
   return page.evaluate(() => window.surface.cart().length);
 }
 

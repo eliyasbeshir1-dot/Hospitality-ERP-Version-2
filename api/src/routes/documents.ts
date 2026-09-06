@@ -59,6 +59,13 @@ const STATUS: Record<string, number> = {
   PAYMENT_METHOD_ABSENT: 422,
   RECEIPT_NOT_FOUND: 404,
   RECEIPT_ALREADY_PRINTED: 409,
+  // Found by the second M4 repair, when a golden journey recorded a print through this
+  // route for the first time instead of calling docs.record_receipt_print() directly.
+  // Nothing had ever called it, so nothing had noticed that the refusal a second
+  // original print raises was absent from this map: the route answered 500 and logged
+  // "unmapped database refusal" for a business rule working exactly as designed. Same
+  // shape as the M4-A billing routes and GJ-01A — the first caller finds the defect.
+  DUPLICATE_RECEIPT_PRINTED: 409,
   RECEIPT_INCOMPLETE_IN_LOCALE: 422,
   RECEIPT_FIGURE_UNFAITHFUL: 409,
   TIP_MERGED_ON_RECEIPT: 409,

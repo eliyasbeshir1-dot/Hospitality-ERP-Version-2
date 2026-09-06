@@ -241,6 +241,16 @@ def build() -> str:
       "list until nobody reads it. Each closes the same way, by a check or a CI step "
       "citing the requirement so the audit can grade it.")
     w("")
+    w("**This list grew from 51 to its present size at the second M4 repair, and nothing "
+      "regressed to make that happen.** The grader used to accept a citation anywhere in "
+      "a log — a section heading, an error dump, a comment in the workflow, and the "
+      "audit's own output read back on the next pass — so most of these requirements "
+      "counted as delivered on the strength of a line that could not fail. A citation now "
+      "counts only where it sits on a recorded PASS or FAIL step or in that step's "
+      "detail. The behaviours were always proved and are still proved; what changed is "
+      "that the audit stopped crediting itself for prose. Each entry below names the "
+      "checks that do prove it.")
+    w("")
     w("| Requirement | Introduced | Closes at |")
     w("|---|---|---|")
     for gap in sorted(uncited, key=lambda g: (order.index(g["introduced_at"]),
@@ -281,21 +291,30 @@ def build() -> str:
     identity_writers = uncalled_routes.unreachable_writers("identity")
     reads_credential = uncalled_routes.sources_matching("identity.credential")
     w("")
-    w("## FR-AUTH-001: the audit reports staff login delivered, and nobody can log in")
+    w("## FR-AUTH-001: the audit reported staff login delivered, and nobody can log in")
     w("")
-    w("**This is the strongest concrete evidence in this document that *delivered* is a "
-      "weaker word than the count suggests, and it is why the section above matters more "
-      "than it reads.** The audit passes only when nothing is unaccounted, and it "
+    w("**This is the strongest concrete evidence in this document that *delivered* was a "
+      "weaker word than the count suggested, and it is why the section above matters "
+      "more than it reads.** The audit passes only when nothing is unaccounted, and it "
       f"accounts for all {landed_count} requirements belonging to a landed gate. "
-      "FR-AUTH-001 — *Staff login*, P0, introduced at M1 — is inside that account, on "
-      "the delivered side.")
+      "FR-AUTH-001 — *Staff login*, P0, introduced at M1 — sat inside that account, on "
+      "the delivered side, until the second M4 repair took it off.")
     w("")
     w("The clause asks for three things: verified phone or email login, secure password "
       "or OTP flows, and a replaceable provider adapter. M1-B built and proved the first "
       "and the third. Its section 1 shows two distinct verified channel kinds and no "
-      "provider-specific type reaching the domain model — and **that section heading is "
+      "provider-specific type reaching the domain model — and **that section heading was "
       "the only citation of FR-AUTH-001 anywhere in the run.** A heading over two "
-      "structural checks is what grades a login flow delivered.")
+      "structural checks was what graded a login flow delivered.")
+    w("")
+    w("**Two things changed at the second M4 repair, and neither of them is the login "
+      "flow.** The grader no longer reads a citation off a section heading: a citation "
+      "counts only where it sits on a step the run recorded PASS or FAIL, or in that "
+      "step's detail — a line that could have failed. And where the grade and a recorded "
+      "classification disagree, the classification now wins, so a judgement somebody "
+      "wrote down is no longer overturned by a log line mentioning the requirement. "
+      "FR-AUTH-001 is therefore reported as what it is. The flow is still absent and "
+      "this repair did not build it.")
     w("")
     w("The middle limb is the flow, and nothing performs it:")
     w("")
@@ -350,6 +369,16 @@ def build() -> str:
     w("")
     w("Derived by `tools/uncalled_routes.py` on every generation, so this list cannot go "
       "stale the way a typed one would.")
+    w("")
+    w("**This figure was 70 called until the second M4 repair, and both halves of that "
+      "number were wrong.** The census read every byte of every caller, so a comment "
+      "naming a path counted as a call to it — the executing reviewer moved it to 72 with "
+      "two planted comments. The same whole-file scan also MISSED a caller, because a "
+      "path built with an f-string whose interpolation contains a quote is not one run of "
+      "characters in the file's text. Comments and prose are now excluded and callers are "
+      "read out of string literals, which moves the count to its corrected value in the "
+      "sentence above. Both errors were the same error: matching bytes instead of reading "
+      "code.")
     by_file: dict[str, list[str]] = {}
     for route in unreached:
         by_file.setdefault(route["file"], []).append(f"{route['verb']} {route['path']}")

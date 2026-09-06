@@ -912,6 +912,12 @@ exercised by a real cookie flow at M1.**
 - The build writes `node_modules/` and `dist/` outside the repository because
   `tools/verify_m1.py` inspects the filesystem rather than the Git index. This is a
   deliberate layout choice, documented in `api/README.md`.
+- The suites are calibrated against the PostgreSQL major version CI runs, which is 16.
+  On PostgreSQL 18 `tests/m1c` records 61 of 62: the newer server names constraints this
+  build's schema documentation checks do not expect, because 18 emits additional named
+  NOT NULL constraints. It is a difference in what the catalog reports, not in what the
+  schema enforces, and it is recorded here rather than absorbed by widening the check —
+  the check is right about the version the build targets.
 
 ## Deployment commands
 

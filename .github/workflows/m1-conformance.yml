@@ -779,17 +779,6 @@ jobs:
             echo "::error::the snapshot grant assertion did not run"; exit 1; }
           echo "M4-C: $checks checks, 0 failures"
 
-      - name: FR-GOV-004 — every requirement whose gate has landed is delivered or classified
-        shell: bash
-        # Its own step as well as a check inside tests/m4c, and deliberately: the suite
-        # asks the question against the logs that existed when it ran, and this asks it
-        # again once every suite and every journey has written one. A gap that only
-        # appears in the complete picture is the gap a slice-local audit cannot see.
-        if: always()
-        run: |
-          set -euo pipefail
-          python3 tools/requirement_coverage.py --logs "$LOG_DIR"
-
       - name: The golden journeys and the duplicate-submit race — end to end, in a browser (FR-TST-005A, FR-TST-007A)
         shell: bash
         # `if: always()` on purpose. The journeys run AFTER the slice suites and report
@@ -872,9 +861,19 @@ jobs:
           for suite in m4c m4b m4a m3d m3c m3b m3a m2c m2b m2a m1d m1c m1b m1a; do
             python3 "tests/$suite/verify_${suite}.py" > "$LOG_DIR/reorder/$suite.log" 2>&1 || true
           done
+          # AND THE JOURNEYS, which this sweep did not run until M4's second repair.
+          # The executing reviewer ran them out of order and GJ-02 returned 422 CART_EMPTY
+          # after the browser had visibly added a cart line, while this step reported every
+          # suite identical and CI called the run green. The sweep was checking thirteen of
+          # the sixteen things the build runs, and the three it skipped are the only ones
+          # that cross a browser. They run LAST here, mirroring the declared order, because
+          # reversing the slice suites is what puts the database in an unfamiliar state and
+          # the journeys are what has to survive it.
+          python3 tests/journeys/verify_journeys.py > "$LOG_DIR/reorder/journeys.log" 2>&1 || true
           fail=0
-          for suite in m1a m1b m1c m1d m2a m2b m2c m3a m3b m3c m3d m4a m4b m4c; do
+          for suite in m1a m1b m1c m1d m2a m2b m2c m3a m3b m3c m3d m4a m4b m4c journeys; do
             tag="$(echo "$suite" | tr '[:lower:]' '[:upper:]')"
+            if [ "$suite" = journeys ]; then tag=GOLDEN_JOURNEY; fi
             declared="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/$suite.log" | tail -1)"
             reordered="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/reorder/$suite.log" | tail -1)"
             verdict="$(grep -cE "^PASS ${tag}_VERIFICATION" "$LOG_DIR/reorder/$suite.log" || true)"
@@ -892,6 +891,32 @@ jobs:
         with:
           name: fenced-gate-log
           path: ${{ runner.temp }}/m1-logs/collected
+
+      - name: FR-GOV-004 — every requirement whose gate has landed is delivered or classified
+        shell: bash
+        # HERE, AND NOT INSIDE tests/m4c, BECAUSE THIS IS WHERE THE WHOLE RUN EXISTS.
+        #
+        # The suite still asks the question, and now gets a refusal for asking it of a
+        # partial set: a suite cannot read its own log, and the journeys have not run when
+        # it calls. That made its verdict depend on which logs the command order had left
+        # behind — clean in the reverse sweep, unaccounted in the forward one.
+        #
+        # This step runs after every suite, the journeys, and the fenced gate's log has
+        # been downloaded from the job that produced it, so the set is complete. The list
+        # of suites comes from the evidence report's own declaration, so a suite added to
+        # the build cannot be forgotten here. The copies do not stop the step: a missing
+        # log is the audit's refusal to report, and its message names which one.
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p "$LOG_DIR/audit-logs"
+          cp "$LOG_DIR/collected/fenced_gate.log" "$LOG_DIR/audit-logs/" || true
+          for suite in $(python3 tools/generate_evidence_report.py --list-suites); do
+            if [ "$suite" != fenced_gate ]; then
+              cp "$LOG_DIR/$suite.log" "$LOG_DIR/audit-logs/" || true
+            fi
+          done
+          python3 tools/requirement_coverage.py --logs "$LOG_DIR/audit-logs" --report
 
       - name: Regenerate and check the M1 evidence report (FR-TST-016)
         shell: bash

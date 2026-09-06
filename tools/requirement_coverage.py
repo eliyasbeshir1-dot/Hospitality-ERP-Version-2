@@ -97,6 +97,37 @@ WORKFLOW = REPO / ".github" / "workflows" / "m1-conformance.yml"
 IDENTIFIER = re.compile(r"FR-[A-Z0-9]+-[0-9]+[A-Z]*")
 
 GRADES = ("proved-red", "ran", "ci-step")
+
+# THE AUDIT'S OWN FINDINGS, named once so the grader can refuse to read them back.
+#
+# A suite that runs this audit prints its output into that suite's log, and the next
+# reader of that directory grades every requirement the audit had just reported
+# UNACCOUNTED — so one failing run manufactures the evidence that makes the next one
+# pass. A test must not supply its own evidence, and neither may an audit.
+OWN_FINDINGS = ("REQUIREMENT_UNACCOUNTED", "ABSENT_AT_A_LANDED_GATE")
+
+# And the same problem one step further out. A suite that runs this audit also SUMMARISES
+# it — "43 unaccounted: ['FR-AUTH-007', 'FR-AUTH-008', ...]" — and that sentence is the
+# suite's own, so it carries none of the codes above. It graded forty-one requirements the
+# audit had just said nothing cites, which is how the first measurement of this very
+# repair came out at 13 unaccounted when the honest figure was 54.
+#
+# So the audit names requirements through one formatter that marks its own authorship, and
+# the grader skips any line carrying the mark. Authorship, not wording: a caller cannot
+# accidentally write this string, and a caller that wants the ids in its output gets them
+# without feeding them back.
+SELF_AUTHORED = "[audit-named]"
+
+
+def name_requirements(identifiers) -> str:
+    """Requirement ids named BY THIS AUDIT, marked so the grader will not read them back."""
+    listed = ", ".join(sorted(identifiers))
+    return f"{SELF_AUTHORED} {listed}" if listed else "none"
+
+# A line that reports an outcome: "  [PASS] (asserted) ...", "[FAIL] NC-M4C-010 ...",
+# "PASS M4C_VERIFICATION". These are the lines a run can go red on, and they are the only
+# lines a citation may be read from.
+RECORDED_STEP = re.compile(r"^\s*(?:\[(?:PASS|FAIL)\]|(?:PASS|FAIL)\b)")
 STATES = ("absent", "uncited")
 CATEGORIES = ("money", "security", "authority", "product", "governance")
 URGENT = ("money", "security", "authority")
@@ -104,6 +135,23 @@ URGENT = ("money", "security", "authority")
 
 class CoverageUnreadable(RuntimeError):
     """A source this audit derives from could not be read, so no verdict is possible."""
+
+
+class SuiteLogsIncomplete(CoverageUnreadable):
+    """The run this audit was asked to account for is not all here.
+
+    FR-GOV-004 asks whether EVERY landed requirement is accounted for by the run. A
+    directory holding some of the run's logs cannot answer that: the requirements the
+    missing suites prove read as unaccounted, and the audit would report a hole where
+    there is only a log it was not shown. Reported clean, the same partial set is worse —
+    a false green over a run nobody audited.
+
+    So it refuses, rather than reporting either. This is the same primitive the balance
+    guard and the vocabulary loader use, and the reason tests/m4c can no longer assert a
+    clean account from inside the run: a suite cannot read its own log, so the audit it
+    calls is always short by whatever that suite proves, and whether it came out clean
+    depended on which logs the command order happened to leave lying about.
+    """
 
 
 class RequirementUnaccounted(RuntimeError):
@@ -169,6 +217,22 @@ def landed_gates() -> set[str]:
     return set(order[:max(reached) + 1])
 
 
+def declared_suites() -> tuple[str, ...]:
+    """Which logs a complete run leaves, asked of the generator that owns the list.
+
+    Imported here rather than restated, so a suite added to the build cannot be forgotten
+    by this audit — the evidence report would refuse to omit it and so will this.
+    """
+    import generate_evidence_report as evidence_report  # noqa: PLC0415 — one list, once
+    return tuple(name for name, _description in evidence_report.SUITES)
+
+
+def _verdict_tag(suite: str) -> str:
+    """The word a suite prints its verdict under — the same mapping the report reads."""
+    return {"fenced_gate": "FENCED_GATE", "journeys": "GOLDEN_JOURNEY"}.get(
+        suite, suite.upper())
+
+
 def execution_logs(logs: Path) -> list[Path]:
     """Recorded executions: every log the run produced, discovered rather than listed."""
     if not logs.is_dir():
@@ -179,6 +243,22 @@ def execution_logs(logs: Path) -> list[Path]:
     found = sorted(logs.glob("*.log"))
     if not found:
         raise CoverageUnreadable(f"no *.log under {logs}; see above")
+    # COMPLETE MEANS EVERY SUITE'S OUTPUT IS HERE, NOT ONE FILE PER SUITE. The Windows
+    # job streams all sixteen into a single log, and a rule about filenames would refuse
+    # that whole runner while nothing was actually missing — a check reporting a cause it
+    # had not verified, in the repair that closes three of those. So the question asked is
+    # the one that matters: did this suite report a verdict anywhere in what I was given?
+    text = "\n".join(path.read_text(encoding="utf-8", errors="ignore") for path in found)
+    absent = [name for name in declared_suites()
+              if not re.search(rf"^(?:PASS|FAIL) {_verdict_tag(name)}_VERIFICATION",
+                               text, re.M)]
+    if absent:
+        raise SuiteLogsIncomplete(
+            f"SUITE_LOGS_INCOMPLETE: {logs} holds {len(found)} log(s) carrying no verdict "
+            f"from {', '.join(absent)}, and this build declares "
+            f"{len(declared_suites())} suite(s). Every requirement those suites prove "
+            f"would read as unaccounted, and reporting the set clean would be a green "
+            f"over a run this audit has not seen. Point it at the whole run")
     return found
 
 
@@ -204,7 +284,13 @@ def ci_citations() -> set[str]:
         raise CoverageUnreadable(
             f"{WORKFLOW.name} contains no run: block, so it is not a workflow that "
             f"executes anything and its citations would stand for nothing")
-    return set(IDENTIFIER.findall(text))
+    # BUT NOT THE COMMENTS, for the reason the log grader above no longer reads section
+    # headings: a comment cannot fail. This file explains itself at the top and above
+    # every job, and three requirements were graded delivered entirely by a sentence of
+    # that prose. Same defect, second reader — found while repairing the first.
+    executable = "\n".join(line for line in text.splitlines()
+                            if not line.lstrip().startswith("#"))
+    return set(IDENTIFIER.findall(executable))
 
 
 def evidence(logs: Path) -> dict[str, str]:
@@ -227,7 +313,34 @@ def evidence(logs: Path) -> dict[str, str]:
         if markers["RED"] and markers["GREEN"]}
 
     for path in execution_logs(logs):
+        # A CITATION MUST SIT ON SOMETHING THAT COULD HAVE FAILED.
+        #
+        # This read every line of every log, so ANY mention of a requirement graded it
+        # delivered. The executing reviewer at M4 reproduced what that means: FR-AUTH-001
+        # graded "ran" and reported no problem, while nothing in this repository turns a
+        # credential into a session — because tests/m1b prints a section heading that
+        # names it. A heading cannot fail. Neither can an error dump, a SQL echo, or a
+        # sentence of prose explaining which requirement a section is about, and all of
+        # them were being counted.
+        #
+        # What CAN fail is a recorded step: a line that says PASS or FAIL. So a citation
+        # counts when it is on such a line, or in the detail printed underneath one —
+        # the detail is that step's evidence, and the step is what would have gone red.
+        # Anything else in a log is narration.
+        #
+        # This is the root cause behind "204 of 217 graded merely ran": the grade was
+        # measuring how often a requirement is TALKED about, which is not a property of
+        # the system at all.
+        in_a_recorded_step = False
         for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            if RECORDED_STEP.match(line):
+                in_a_recorded_step = True
+            elif not (line.startswith("   ") and line.strip()):
+                in_a_recorded_step = False
+            if not in_a_recorded_step:
+                continue
+            if SELF_AUTHORED in line or any(code in line for code in OWN_FINDINGS):
+                continue
             cited = IDENTIFIER.findall(line)
             if not cited:
                 continue
@@ -333,7 +446,18 @@ def audit(logs: Path) -> dict:
     for requirement in sorted(requirements, key=lambda r: r["id"]):
         identifier = requirement["id"]
         grade = graded.get(identifier)
-        if grade:
+        # WHERE THE GRADE AND THE CLASSIFICATION DISAGREE, THE CLASSIFICATION WINS.
+        #
+        # This preferred the grade, so a requirement recorded as ABSENT — a judgement
+        # somebody made, wrote down and signed a gate against — was reported delivered
+        # because a log line mentioned it. That is the audit taking evidence it inferred
+        # over evidence a person recorded, in the one direction that makes a hole
+        # disappear. A grade says a citation was seen; a classification says a human
+        # looked at the requirement and found it absent or uncited. The second is the
+        # stronger statement and it is the one that stands.
+        if identifier in recorded:
+            unaccounted.append(requirement)
+        elif grade:
             delivered.append((identifier, grade, requirement))
         elif identifier in open_entried:
             continue                      # the register already says this is part-done
@@ -360,7 +484,7 @@ def audit(logs: Path) -> dict:
 def check(logs: Path) -> list[tuple[str, str]]:
     """Every landed requirement accounted for, and every account still true."""
     finding = audit(logs)
-    problems = [("REQUIREMENT_UNACCOUNTED",
+    problems = [(OWN_FINDINGS[0],
                  f"{r['id']} [{r['introduced_at']}] {r['title']} — nothing in this run "
                  f"cites it, no open partial closure covers it, and planning/"
                  f"{COVERAGE.name} does not classify it. Either it is not delivered, or "
@@ -391,7 +515,7 @@ def check(logs: Path) -> list[tuple[str, str]]:
         gate = entry.get("completing_gate")
         if gate in landed:
             problems.append((
-                "ABSENT_AT_A_LANDED_GATE",
+                OWN_FINDINGS[1],
                 f"{identifier} is classified ABSENT with {gate} as its completing gate, "
                 f"and {gate} has landed. Either it was built and this entry is stale, or "
                 f"it was not built and the gate closed over a hole. Build it, or move it "

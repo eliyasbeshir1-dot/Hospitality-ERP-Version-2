@@ -194,15 +194,46 @@ def assert_every_glyph_came_from_the_vendored_font(measured: dict) -> None:
               "cannot ask it to render again")
 
 
-def _is_the_null_device(path: str) -> bool:
-    """Whether this destination throws the bytes away.
+def _resolved_device(path: str) -> tuple:
+    """What the OPERATING SYSTEM resolves a destination to, rather than what it is called.
 
-    Both spellings, because the null device is /dev/null on POSIX and NUL on Windows and
-    this repository runs on both. os.devnull gives the local one; the other is named too,
-    so a path copied from the other platform is still recognised for what it is.
+    A name is not an identity. The first version of this compared the path against a
+    small set of spellings — os.devnull, "nul", "nul:", "/dev/null" — and the executing
+    reviewer walked around it on Windows, where the null device is not a path at all but
+    a DOS device alias the loader resolves in EVERY directory: C:\\anywhere\\NUL is the
+    null device, and so are NUL.txt, nul: and \\\\.\\NUL. Each of those is a character
+    device, so the sink check above passes it, and each was spelled differently from the
+    four names, so the agent called the bytes "printed". The P1-1 repair did not hold
+    there.
+
+    A spelling that has to be enumerated is a guess about a fact the system records, and
+    this project has replaced that guess three times already — most recently the
+    read/write classifier that decided by function name until provolatile replaced it.
+    So the question is put to the platform:
+
+    POSIX  — st_rdev, the device's identity in the kernel. Two names for one device node
+             share it, so a symlink, a bind mount or a second node made with mknod all
+             resolve to the same device the platform's own os.devnull does.
+    Windows — the final path the OS reaches after opening the destination, which is where
+             DOS device aliasing is resolved. Every alias above comes back as the one
+             canonical device name, and COM1 does not come back as NUL.
+
+    This is the same shape as live_outcome and simulated_outcome: the distinction is a
+    structural fact about what was reached, not a word chosen by whoever typed the path.
     """
-    return os.path.normcase(path) in {os.path.normcase(os.devnull), "nul", "nul:",
-                                      "/dev/null"}
+    if os.name == "nt":
+        return (os.path.normcase(os.path.realpath(path)),)
+    return (os.stat(path).st_rdev,)
+
+
+def _is_the_null_device(path: str) -> bool:
+    """Whether this destination is the same device the platform throws bytes away at."""
+    try:
+        return _resolved_device(path) == _resolved_device(os.devnull)
+    except OSError:
+        # Unopenable is not "not the null device" — but write_to_device has already
+        # stat()ed and refused an unopenable path, so nothing reaches here that way.
+        return False
 
 
 def write_to_device(payload: bytes, *, device_path: str | None,

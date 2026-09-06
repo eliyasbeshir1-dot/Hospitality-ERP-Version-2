@@ -775,12 +775,34 @@ def section_entitlements() -> None:
 WORKERS = 8
 PER_WORKER = 25
 
+# A SERIES NOBODY NUMBERS A DOCUMENT FROM.
+#
+# This gate rewinds a series to 1 and issues two hundred numbers from it, and it used to
+# do that to the live 'check' series at OUTLET_H1. Its own comment below already states
+# the rule — a reset broader than the cleanup beside it corrupts whatever else shares the
+# scope — and it was applied one level too shallow: the DELETE cleans config's issued-
+# number ledger, but the numbers were also stamped onto rows in billing.check, which this
+# suite neither owns nor cleans.
+#
+# So a run that opened checks and then ran tests/m1c again left the series rewound and re-
+# advanced to exactly where those checks began, and the next check reissued a number
+# billing.check already held: UNIQUE_VIOLATION on check_number_unique. That is what the
+# golden journeys hit under the reordered sweep at M4 — five of them could not start —
+# and the sweep had never run them, so nothing saw it.
+#
+# The concurrency question does not need the check series to answer it: what is under test
+# is config.issue_document_number() under real parallelism. It is asked of a document type
+# this suite owns outright, so rewinding it can corrupt nothing, and the isolation is a
+# property of the setup rather than a promise about ordering.
+PROBE_DOCUMENT_TYPE = "numbering_probe"
+
 
 def _issue_batch(_: int) -> list[str]:
     """One worker: its own connection, issuing PER_WORKER numbers from the same series."""
     res = run(APP, f"""
         SELECT config.issue_document_number(
-            '{TENANT_HABESHA}'::uuid, 'check', '2026', NULL, '{OUTLET_H1}'::uuid)
+            '{TENANT_HABESHA}'::uuid, '{PROBE_DOCUMENT_TYPE}', '2026', NULL,
+            '{OUTLET_H1}'::uuid)
         FROM generate_series(1, {PER_WORKER});
     """, **H1)
     return [r[0] for r in res.rows] if res.ok else []
@@ -799,10 +821,15 @@ def numbering_concurrency_gate() -> tuple[bool, str, str]:
     # was already taken. A reset that is broader than the cleanup beside it is a reset
     # that corrupts whatever else shares the scope.
     run(APP, f"""
-        DELETE FROM config.issued_document_number WHERE document_type = 'check';
+        INSERT INTO config.number_series
+            (tenant_id, outlet_id, document_type, fiscal_period, prefix)
+        VALUES ('{TENANT_HABESHA}', '{OUTLET_H1}', '{PROBE_DOCUMENT_TYPE}', '2026', 'H1-')
+        ON CONFLICT DO NOTHING;
+        DELETE FROM config.issued_document_number
+         WHERE document_type = '{PROBE_DOCUMENT_TYPE}';
         UPDATE config.number_series SET next_value = 1
         WHERE tenant_id = '{TENANT_HABESHA}' AND outlet_id = '{OUTLET_H1}'
-          AND document_type = 'check';
+          AND document_type = '{PROBE_DOCUMENT_TYPE}';
     """, **H1)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=WORKERS) as pool:
@@ -819,9 +846,9 @@ def numbering_concurrency_gate() -> tuple[bool, str, str]:
         duplicates = len(issued) - len(unique)
         problems.append(f"{duplicates} duplicate number(s) issued across {WORKERS} concurrent workers")
 
-    stored = count(APP, """
+    stored = count(APP, f"""
         SELECT count(DISTINCT document_number) FROM config.issued_document_number
-        WHERE document_type = 'check';
+        WHERE document_type = '{PROBE_DOCUMENT_TYPE}';
     """, **H1)
     if stored != len(unique):
         problems.append(f"{stored} distinct number(s) stored but {len(unique)} distinct returned")
@@ -841,7 +868,7 @@ def section_numbering() -> None:
 
     shape = run(APP, f"""
         SELECT document_number FROM config.issued_document_number
-        WHERE document_type = 'check' ORDER BY document_number LIMIT 1;
+        WHERE document_type = '{PROBE_DOCUMENT_TYPE}' ORDER BY document_number LIMIT 1;
     """, **H1)
     record("numbers are human-readable and scoped by period", shape.ok and shape.scalar.startswith("H1-2026-"),
            f"first issued number is {shape.scalar}, carrying the outlet prefix and fiscal period")

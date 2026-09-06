@@ -1007,6 +1007,40 @@ def section_printer() -> None:
                              "would rewrite what every attempt already recorded against "
                              "it means")
 
+    # THE NULL DEVICE UNDER A NAME THAT IS NOT ITS OWN.
+    #
+    # P1-1 made the agent say DISCARDED instead of "printed" for bytes written to the
+    # null device, and it decided which device that was by comparing the path against
+    # four spellings. The executing reviewer walked around that on Windows, where NUL is
+    # a DOS device alias the loader resolves in every directory: C:\anywhere\NUL is the
+    # null device under a name none of the four matched, and it is a character device, so
+    # the sink check passed it and the agent called it a print.
+    #
+    # So the alias is built here, on whichever platform is running, and the agent is
+    # asked what it did. Nothing about this check knows how the agent decides — it names
+    # a destination the enumeration would have missed and reads back the word. On Windows
+    # that is a directory-prefixed NUL; on POSIX a symlink to os.devnull, which is the
+    # same trick in the shape that platform allows.
+    alias = CONTEXT["workspace"] / ("NUL" if os.name == "nt" else "null-under-another-name")
+    if os.name != "nt":
+        alias.unlink(missing_ok=True)
+        os.symlink(os.devnull, alias)
+    at_an_alias = printer.write_to_device(b"\x1b@", device_path=str(alias),
+                                          host_and_port=None)
+    record("bytes at the null device under an alias are still discarded, not printed",
+           at_an_alias["outcome"] == "discarded" and at_an_alias["sink"] == "discard",
+           f"{str(alias)!r} reported sink {at_an_alias['sink']!r} and outcome "
+           f"{at_an_alias['outcome']!r}. The identity is asked of the platform — st_rdev "
+           f"here, the resolved device on Windows — rather than matched against a list "
+           f"of spellings, which is what the list missed")
+
+    record("and the platform agrees the alias and the null device are one device",
+           printer._resolved_device(str(alias)) == printer._resolved_device(os.devnull),
+           f"{printer._resolved_device(str(alias))} against "
+           f"{printer._resolved_device(os.devnull)}. Stated separately because the step "
+           f"above would also pass if the agent discarded everything: this is the fact "
+           f"the decision rests on, read from the operating system")
+
 
 # ===========================================================================
 # 9. One composer, two sinks (FR-UX-018)
@@ -1435,24 +1469,48 @@ def section_register_audit() -> None:
     print("\n--- 15. Every requirement whose gate has landed is delivered or "
           "classified (FR-GOV-004) ---")
 
+    # WHAT THIS SUITE CAN HONESTLY ASK OF THE AUDIT, AND WHAT IT CANNOT.
+    #
+    # A suite cannot read its own log — this file is still being written while section 15
+    # runs — so the audit called from here is always short by whatever tests/m4c itself
+    # proves, and short by the journeys, which run afterwards. It used to assert the
+    # account came out CLEAN anyway, and that only ever passed because the grader counted
+    # citations in section headings. Worse, it passed or failed depending on which logs
+    # the command order happened to leave lying about: clean in the reverse sweep, where
+    # a complete forward set is present, and unaccounted in the forward run. A check whose
+    # verdict depends on what ran before it is the defect this whole repair is about.
+    #
+    # So the audit now REFUSES a partial set (SUITE_LOGS_INCOMPLETE) rather than reporting
+    # either verdict over it, and what this suite asserts is the thing that is true in
+    # both orders: the audit accounts for the whole run, or it refuses because it has not
+    # seen the whole run, and it never reports a clean account of a partial one. The
+    # complete account is asserted by the workflow step that runs after every suite and
+    # every journey, which is the only place a complete set exists.
     proc = run_command([sys.executable, str(REPO / "tools" / "requirement_coverage.py"),
                         "--logs", str(CONTEXT["log_dir"])], cwd=str(REPO))
     output = proc.stdout + proc.stderr
-    record("the register audit runs and accounts for every landed requirement",
-           proc.returncode == 0,
+    refused_a_partial_run = "SUITE_LOGS_INCOMPLETE" in output
+    record("the register audit accounts for the whole run, or refuses because it has not "
+           "seen all of it",
+           proc.returncode == 0 or refused_a_partial_run,
            (output.strip().splitlines() or ["(no output)"])[0]
-           + ("" if proc.returncode == 0 else
+           + ("" if proc.returncode == 0 or refused_a_partial_run else
               "\n" + "\n".join(output.strip().splitlines()[-12:])))
 
-    numbers = coverage.audit(CONTEXT["log_dir"])
-    record("and its numbers are derived from the package, not typed",
-           numbers["landed"] > 0 and not numbers["unclassified"],
+    try:
+        numbers = coverage.audit(CONTEXT["log_dir"])
+    except coverage.SuiteLogsIncomplete as refusal:
+        numbers, why_not = None, str(refusal)
+    record("and it never reports a clean account of a run it has only part of",
+           numbers is None or (numbers["landed"] > 0 and not numbers["unclassified"]),
+           why_not if numbers is None else
            f"{numbers['landed']} requirement(s) whose gate has landed, "
            f"{len(numbers['delivered'])} delivered with evidence, "
            f"{len(numbers['open_entries'])} covered by an open register entry, "
            f"{len(numbers['unaccounted']) - len(numbers['unclassified'])} carrying a "
            f"classification, {len(numbers['unclassified'])} unaccounted: "
-           f"{[r['id'] for r in numbers['unclassified']] or 'none'}. The gates come from "
+           f"{coverage.name_requirements(r['id'] for r in numbers['unclassified'])}. "
+           f"The gates come from "
            f"the package's own order and the evidence from this run's logs")
 
     findings = (REPO / "planning" / "M4_REVIEW_FINDINGS.md")

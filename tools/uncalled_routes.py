@@ -24,6 +24,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
 import sys
@@ -60,12 +61,69 @@ def routes() -> list[tuple[str, str, str]]:
     return found
 
 
+_TS_TOKENS = re.compile(
+    r"//[^\n]*|/\*.*?\*/|'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\"|`(?:\\.|[^`\\])*`",
+    re.S)
+
+
+def _callable_text(source: str, suffix: str) -> str:
+    """The parts of a file that could actually issue a request, and nothing else.
+
+    THE DEFECT THIS CLOSES, found by the executing reviewer at M4. The census read every
+    byte of every caller, so a COMMENT naming a path counted as a call to it — and a
+    planted comment made two uncalled routes read as called. A census that a sentence of
+    prose can move is not a census, whichever way the error runs. Two planted comments
+    moved it from 70 of 95 called to 72. The same whole-file scan also MISSED a real
+    caller, because a path built with an f-string whose interpolation contains a quote is
+    not one run of characters anywhere in the file's text, and the :param pattern will not
+    cross a quote. Both errors are the same error: matching bytes instead of reading code,
+    and they ran in opposite directions, so the old number was not even wrong in a
+    consistent way.
+
+    A request target is written as a string. Prose is not. So the text kept here is the
+    contents of string literals, with comments removed first, and prose in a docstring
+    removed too: a Python string that is a statement on its own is documentation, which
+    is how every file in this repository explains which routes replaced which bypass.
+
+    Python is parsed. An f-string comes back as one string with a placeholder where each
+    interpolation was, so a path built as f"/s/v1/checks/{check}/lines" is still one
+    token and still matches the :param pattern. TypeScript and .mjs are tokenised rather
+    than parsed — there is no TypeScript parser here — but tokenised is enough to tell a
+    comment from a string, which is the whole of the defect.
+    """
+    if suffix == ".py":
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            return ""
+        prose = {id(node.value) for node in ast.walk(tree)
+                 if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant)}
+        kept: list[str] = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Constant) and isinstance(node.value, str):
+                if id(node) not in prose:
+                    kept.append(node.value)
+            elif isinstance(node, ast.JoinedStr):
+                # PARAM stands where an interpolation was, so the :param pattern — one
+                # run of non-slash, non-quote, non-space characters — still matches it.
+                kept.append("".join(
+                    part.value if isinstance(part, ast.Constant) and
+                    isinstance(part.value, str) else "PARAM" for part in node.values))
+        return "\n".join(kept)
+    kept = []
+    for token in _TS_TOKENS.finditer(source):
+        text = token.group(0)
+        if text[0] in "'\"`":
+            kept.append(text[1:-1])
+    return "\n".join(kept)
+
+
 def callers() -> dict[str, str]:
     text: dict[str, str] = {}
     for pattern in CALLER_GLOBS:
         for path in REPO.glob(pattern):
-            text[path.relative_to(REPO).as_posix()] = path.read_text(
-                encoding="utf-8", errors="replace")
+            text[path.relative_to(REPO).as_posix()] = _callable_text(
+                path.read_text(encoding="utf-8", errors="replace"), path.suffix)
     return text
 
 

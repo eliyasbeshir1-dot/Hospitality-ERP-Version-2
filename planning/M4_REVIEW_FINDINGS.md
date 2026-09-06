@@ -153,9 +153,11 @@ PARTLY UNBUILDABLE, AND HONESTLY SO. Validation, authentication, idempotency, co
 
 **What would have to be true:** A route would have to paginate before a test could prove it does. That makes this a genuine CONSTRAINT rather than a preference: the missing test is missing because the behaviour it would test does not exist, and building the behaviour is a feature this brief does not authorise. The listing routes that would need it — checks, terminals, notifications, the service queue — are named here so the gate that adds paging knows what it owes.
 
-## 51 requirements delivered with nothing naming them
+## 108 requirements delivered with nothing naming them
 
 **Uncited** means the behaviour exists, works, and no recorded output names the requirement — so the audit cannot see a proof that is genuinely there. This is a governance gap, not a product one, and the checker refuses to let one be filed as a money, security or authority absence: conflating the two inflates the urgent list until nobody reads it. Each closes the same way, by a check or a CI step citing the requirement so the audit can grade it.
+
+**This list grew from 51 to its present size at the second M4 repair, and nothing regressed to make that happen.** The grader used to accept a citation anywhere in a log — a section heading, an error dump, a comment in the workflow, and the audit's own output read back on the next pass — so most of these requirements counted as delivered on the strength of a line that could not fail. A citation now counts only where it sits on a recorded PASS or FAIL step or in that step's detail. The behaviours were always proved and are still proved; what changed is that the audit stopped crediting itself for prose. Each entry below names the checks that do prove it.
 
 | Requirement | Introduced | Closes at |
 |---|---|---|
@@ -175,41 +177,98 @@ PARTLY UNBUILDABLE, AND HONESTLY SO. Validation, authentication, idempotency, co
 | `FR-POS-010B` No pickup or delivery search | M0R | M6 |
 | `FR-RCP-008B` No operational recipe module | M0R | M6 |
 | `FR-SEC-010B` No employee or payroll data | M0R | M6 |
+| `FR-SEC-015` Vulnerability pipeline | M0R | M6 |
 | `FR-TEN-009B` No later-domain registry entries | M0R | M6 |
 | `FR-TST-004B` No supplier or courier contract tests | M0R | M6 |
 | `FR-TST-005B` No later-channel or supplier journeys | M0R | M6 |
 | `FR-TST-007B` No stock, supplier or delivery races | M0R | M6 |
 | `FR-TST-014` Traceability | M0R | M4-C |
 | `FR-UX-001B` No pickup or delivery UX | M0R | M6 |
+| `FR-AUTH-004` Session management | M1 | M5a |
 | `FR-AUTH-005` Quick PIN | M1 | M6 |
 | `FR-AUTH-006` Step-up authentication | M1 | M6 |
+| `FR-AUTH-007` Password/OTP security | M1 | M6 |
+| `FR-AUTH-008` Memberships | M1 | M5a |
 | `FR-AUTH-009` Service accounts | M1 | M5a |
 | `FR-CFG-001A` Organizational setup | M1 | M6 |
+| `FR-CFG-002A` Phase 1 policy engine | M1 | M5a |
+| `FR-CFG-003` Reason codes | M1 | M5a |
+| `FR-CFG-004` Numbering | M1 | M6 |
+| `FR-CFG-005A` Deny-by-default entitlements | M1 | M6 |
 | `FR-COM-007` Configuration templates | M1 | M6 |
+| `FR-DAT-013` Seed data | M1 | M6 |
+| `FR-DAT-015` Schema documentation | M1 | M6 |
+| `FR-DAT-016` Migration rollback | M1 | M6 |
+| `FR-DAT-017` Test realism | M1 | M5a |
+| `FR-DAT-018` Retention | M1 | M5a |
 | `FR-GOV-001B` Database and migration start | M1 | M6 |
+| `FR-INT-010` Credential isolation | M1 | M5a |
 | `FR-OPS-001` Environment validation | M1 | M5a |
 | `FR-OPS-002` Health endpoints | M1 | M5a |
 | `FR-OPS-003` Structured logs | M1 | M5a |
 | `FR-OPS-005` Background jobs | M1 | M5a |
 | `FR-OPS-008` Deployment automation | M1 | M5a |
 | `FR-OPS-020` Production-role readiness | M1 | M5a |
+| `FR-OPS-021` Ordinary cross-platform commands | M1 | M6 |
+| `FR-SEC-001` Deny by default | M1 | M5a |
+| `FR-SEC-002A` Cloud IDOR defense | M1 | M6 |
+| `FR-SEC-003` Input validation | M1 | M6 |
 | `FR-SEC-005` CSRF/session | M1 | M6 |
 | `FR-SEC-006` Rate limiting | M1 | M6 |
+| `FR-SEC-009` Audit separation | M1 | M5a |
 | `FR-SEC-011` Payment boundary | M1 | M6 |
 | `FR-SEC-013` MFA | M1 | M6 |
 | `FR-SEC-014` Device security | M1 | M5a |
+| `FR-SEC-016` Security headers | M1 | M5b |
+| `FR-TEN-001` Tenant isolation | M1 | M5a |
 | `FR-TEN-005` Second tenant | M1 | M6 |
+| `FR-TEN-010` Configuration history | M1 | M6 |
 | `FR-TST-001` Unit tests | M1 | M6 |
 | `FR-TST-002` Database integration | M1 | M5a |
 | `FR-TST-006` Security tests | M1 | M5a |
 | `FR-TST-015` Defect gates | M1 | M6 |
+| `FR-I18N-002` Arabic RTL | M2 | M6 |
+| `FR-I18N-003` Customer translation records | M2 | M6 |
+| `FR-I18N-004` Language selection and fallback | M2 | M6 |
 | `FR-I18N-011` Exact launch locale set | M2 | M6 |
+| `FR-MNU-001` Menu hierarchy | M2 | M6 |
+| `FR-MNU-002A` Menu assignment | M2 | M6 |
+| `FR-MNU-003` Menu publishing | M2 | M6 |
 | `FR-MNU-004` Item content | M2 | M6 |
 | `FR-MNU-005` Variants | M2 | M6 |
 | `FR-MNU-006` Modifier sets | M2 | M6 |
+| `FR-MNU-007` Availability | M2 | M6 |
+| `FR-MNU-009` Price versions | M2 | M6 |
+| `FR-MNU-010` Daypart scheduling | M2 | M6 |
+| `FR-MNU-011` Images | M2 | M6 |
 | `FR-RCP-008A` Customer ingredient and allergen content | M2 | M6 |
+| `FR-SAF-001` Allergen catalog | M2 | M6 |
+| `FR-SAF-006` Dietary claims | M2 | M6 |
 | `FR-SAF-007` Publication block | M2 | M6 |
+| `FR-TAB-001` QR resolution | M2 | M5b |
+| `FR-TAB-003` Table session creation | M2 | M6 |
+| `FR-TAB-006` Table ownership | M2 | M6 |
+| `FR-TAB-010` Stale QR protection | M2 | M6 |
+| `FR-TST-011` Accessibility | M2 | M6 |
+| `FR-UX-006` Error recovery | M2 | M6 |
+| `FR-UX-011` Accessibility | M2 | M6 |
+| `FR-DAT-008A` Accepted-order ledger | M3 | M6 |
+| `FR-FUL-002` Ticket identity | M3 | M6 |
 | `FR-FUL-006` Course firing | M3 | M6 |
+| `FR-FUL-009` Expo coordination | M3 | M6 |
+| `FR-ORD-004` Submit idempotency | M3 | M5a |
+| `FR-ORD-013` Notes | M3 | M6 |
+| `FR-ORD-017` Duplicate detection | M3 | M5a |
+| `FR-POS-006` Manager override | M3 | M6 |
+| `FR-SRV-007A` Ephemeral waiter availability | M3 | M6 |
+| `FR-BIL-001` Check creation | M4 | M6 |
+| `FR-BIL-005` Tax/service calculation | M4 | M6 |
+| `FR-BIL-006` Rounding | M4 | M6 |
+| `FR-PAY-001` Payment intent | M4 | M6 |
+| `FR-PAY-003` External card terminal | M4 | M5a |
+| `FR-PAY-006` Mixed tender | M4 | M6 |
+| `FR-PAY-007` Partial payment | M4 | M6 |
+| `FR-PAY-017` Dual payment allocation | M4 | M6 |
 
 ## How strongly the delivered requirements are proved
 
@@ -224,11 +283,13 @@ The audit grades its own evidence rather than implying a strength it did not mea
 Gates that have landed: M0, M0R, M1, M2, M3, M4. The package carries 336 active requirements and 288 of them belong to a landed gate.
 
 
-## FR-AUTH-001: the audit reports staff login delivered, and nobody can log in
+## FR-AUTH-001: the audit reported staff login delivered, and nobody can log in
 
-**This is the strongest concrete evidence in this document that *delivered* is a weaker word than the count suggests, and it is why the section above matters more than it reads.** The audit passes only when nothing is unaccounted, and it accounts for all 288 requirements belonging to a landed gate. FR-AUTH-001 — *Staff login*, P0, introduced at M1 — is inside that account, on the delivered side.
+**This is the strongest concrete evidence in this document that *delivered* was a weaker word than the count suggested, and it is why the section above matters more than it reads.** The audit passes only when nothing is unaccounted, and it accounts for all 288 requirements belonging to a landed gate. FR-AUTH-001 — *Staff login*, P0, introduced at M1 — sat inside that account, on the delivered side, until the second M4 repair took it off.
 
-The clause asks for three things: verified phone or email login, secure password or OTP flows, and a replaceable provider adapter. M1-B built and proved the first and the third. Its section 1 shows two distinct verified channel kinds and no provider-specific type reaching the domain model — and **that section heading is the only citation of FR-AUTH-001 anywhere in the run.** A heading over two structural checks is what grades a login flow delivered.
+The clause asks for three things: verified phone or email login, secure password or OTP flows, and a replaceable provider adapter. M1-B built and proved the first and the third. Its section 1 shows two distinct verified channel kinds and no provider-specific type reaching the domain model — and **that section heading was the only citation of FR-AUTH-001 anywhere in the run.** A heading over two structural checks was what graded a login flow delivered.
+
+**Two things changed at the second M4 repair, and neither of them is the login flow.** The grader no longer reads a citation off a section heading: a citation counts only where it sits on a step the run recorded PASS or FAIL, or in that step's detail — a line that could have failed. And where the grade and a recorded classification disagree, the classification now wins, so a judgement somebody wrote down is no longer overturned by a log line mentioning the requirement. FR-AUTH-001 is therefore reported as what it is. The flow is still absent and this repair did not build it.
 
 The middle limb is the flow, and nothing performs it:
 
@@ -241,20 +302,22 @@ What makes this worth a reviewer's attention is not that a gap exists. It is tha
 **So read the delivered count as what it is: a count of requirements that something in the run names.** It does not assert that a person can perform the behaviour the clause describes. Recorded in `planning/requirement_coverage.json` as absent, security, buildable now, closing at M6. It is not built here, and this brief does not build it: a repair that quietly added an authentication flow would be a far worse defect than the one it fixed.
 
 
-## 25 routes the service exposes that nothing has ever called
+## 23 routes the service exposes that nothing has ever called
 
 **This is a finding in its own right, not a footnote.** GJ-01A's lesson was that `ordering.preview_cart()` and `ordering.submit_order()` were both proved against the database while no route called either and no button reached one: every unit check passed and the feature was unreachable. M4-A shipped its billing routes the same way. The first HTTP call ever made to `POST /s/v1/checks` — made while repairing the journeys, after the slice had closed — failed on two production defects at once, because nothing had ever called it.
 
-Of 95 addressable routes, 70 are called by some suite, journey or surface and **25 are called by nothing**. A route with no caller is not necessarily broken. It is unproved, which is the condition both of those defects were hiding in.
+Of 95 addressable routes, 72 are called by some suite, journey or surface and **23 are called by nothing**. A route with no caller is not necessarily broken. It is unproved, which is the condition both of those defects were hiding in.
 
 Derived by `tools/uncalled_routes.py` on every generation, so this list cannot go stale the way a typed one would.
+
+**This figure was 70 called until the second M4 repair, and both halves of that number were wrong.** The census read every byte of every caller, so a comment naming a path counted as a call to it — the executing reviewer moved it to 72 with two planted comments. The same whole-file scan also MISSED a caller, because a path built with an f-string whose interpolation contains a quote is not one run of characters in the file's text. Comments and prose are now excluded and callers are read out of string literals, which moves the count to its corrected value in the sentence above. Both errors were the same error: matching bytes instead of reading code.
 
 | Route file | Never called |
 |---|---|
 | `billing.ts` | `POST /s/v1/bills/:billId/corrections`<br>`POST /s/v1/bills/:billId/dispositions`<br>`POST /s/v1/bills/:billId/finalize`<br>`POST /s/v1/checks/merge` |
 | `customer.ts` | `POST /c/v1/allergy-concerns` |
-| `documents.ts` | `GET /s/v1/documents/preview`<br>`GET /s/v1/fiscal/reconciliation`<br>`GET /s/v1/printers`<br>`POST /s/v1/printers`<br>`POST /s/v1/printers/:printerId/test`<br>`POST /s/v1/receipts/:receiptId/prints`<br>`POST /s/v1/receipts/:receiptId/renders` |
-| `payments.ts` | `GET /s/v1/cash/shifts/:shiftId/reconciliation`<br>`GET /s/v1/payments/:paymentId/allocations` |
+| `documents.ts` | `GET /s/v1/documents/preview`<br>`GET /s/v1/fiscal/reconciliation`<br>`GET /s/v1/printers`<br>`POST /s/v1/printers`<br>`POST /s/v1/printers/:printerId/test`<br>`POST /s/v1/receipts/:receiptId/renders` |
+| `payments.ts` | `GET /s/v1/payments/:paymentId/allocations` |
 | `reports.ts` | `GET /s/v1/reports/catalog`<br>`GET /s/v1/reports/metrics`<br>`GET /s/v1/reports/sales`<br>`GET /s/v1/reports/shifts/:shiftId/snapshot`<br>`POST /s/v1/reports/shifts/:shiftId/recomputations` |
 | `service.ts` | `GET /s/v1/service/queue` |
 | `staff.ts` | `GET /s/v1/fast-picks`<br>`GET /s/v1/terminals`<br>`POST /s/v1/handovers/:handoverId/acknowledge`<br>`POST /s/v1/terminals`<br>`POST /s/v1/terminals/:deviceId/revoke` |

@@ -13,7 +13,7 @@ there a value of the adapter mode a caller can supply, is there a column of the 
 that a simulated result would fit, and is there a path to an allocation that does not pass
 the earned check. Only then is the crossing attempted, through the real route.
 
-THE REGISTRY IS ASSERTED NON-EMPTY, AND NAMED, BEFORE ANY OF IT RUNS. M4-A's thirteen
+THE REGISTRY IS ASSERTED NON-EMPTY, AND NAMED, BEFORE ANY OF IT RUNS. M4-A's fourteen
 balance functions are the model: a fence proved against an empty set passes by having
 nothing to examine. If the adapter registry ever loads with no simulated adapter in it,
 this suite stops rather than reporting that no simulator could be made live.
@@ -345,7 +345,7 @@ def section_registry() -> None:
     simulated = sorted(p for p, (m, _a) in adapters.items() if m == "simulated")
     live = sorted(p for p, (m, _a) in adapters.items() if m == "live")
 
-    # THE GUARD, before anything below it. M4-A's thirteen balance functions are the
+    # THE GUARD, before anything below it. M4-A's fourteen balance functions are the
     # model: a boundary proved against an empty set passes by having nothing to examine.
     # If the registry ever loads with no simulated adapter, every check in section 2 would
     # report that no simulator could be made live — truthfully, and uselessly.
@@ -1607,7 +1607,7 @@ def section_reconciliation() -> None:
            f"{sorted(fields)}. FR-PAY-013 forbids merging tips into sales revenue, and "
            f"this is the layer at which that merge would happen")
 
-    # DERIVED, the way M4-A derived its thirteen balance functions. Any function in either
+    # DERIVED, the way M4-A derived its fourteen balance functions. Any function in either
     # schema whose name or body suggests it reports revenue must not read a tip.
     # BY OID. Resolving a name to a regprocedure needs an argument list, and the catalog's
     # identity arguments carry parameter NAMES a type parser rejects; selecting prosrc

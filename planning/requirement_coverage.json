@@ -1235,6 +1235,906 @@
       "buildable_why": "Nothing blocks it. The storage, the lockout, the attempt log, the OTP transmission record and the session table all exist and are proved; what is missing is one function that verifies a presented credential against identity.credential, records the attempt, honours the lockout and inserts the session — and one route that calls it. It is absent because no gate asked for it and the audit never noticed, not because anything it depends on is unbuilt.",
       "closes_when": "A function verifies a presented credential and issues a session, a route exposes it, and a suite proves a wrong credential authenticates nobody while a right one yields a token that a staff route then accepts.",
       "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-TEN-001",
+      "introduced_at": "M1",
+      "title": "Tenant isolation",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M5a",
+      "revalidated_at": [
+        "M2",
+        "M3",
+        "M4",
+        "M5a",
+        "M6"
+      ],
+      "why": "tests/m1a section 2 populates fixtures first so isolation cannot be vacuous, then proves cross-tenant SELECT/INSERT/UPDATE/DELETE denied and sibling-outlet denied, against RLS that is ENABLEd and FORCEd on every tenant-scoped table. Four negative controls in that suite go red without it. The id is in the section heading only.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-AUTH-004",
+      "introduced_at": "M1",
+      "title": "Session management",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M5a",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "why": "tests/m1b section 3 establishes tenant and outlet context from an active membership, shows a session's context cannot see the sibling outlet, and shows a token presented under a scope it does not belong to authenticates nobody. Each step runs against the real identity tables and fails if the session model does not hold. The id is in the section heading over them.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-SEC-009",
+      "introduced_at": "M1",
+      "title": "Audit separation",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M5a",
+      "revalidated_at": [
+        "M4",
+        "M5a"
+      ],
+      "why": "tests/m1c section 2 proves audit storage cannot be changed by the application role, that security audit and operational audit are separate stores, and that the application role holds only INSERT and SELECT on them — read from the catalog's own grants rather than from a comment. APPEND_ONLY_VIOLATED is raised in the run. The id is in the section heading.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-SEC-016",
+      "introduced_at": "M1",
+      "title": "Security headers",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M5b",
+      "revalidated_at": [
+        "M2",
+        "M5b"
+      ],
+      "why": "The behaviour is proved and the citation is in the wrong place, which is worth the reviewer's attention. tests/m1d records \"every required security header is present\" on both success and error responses, and NC-M1D-004 makes it fail when one is removed. The only line naming FR-SEC-016 is the heading of a DIFFERENT section, on rate limiting. So the requirement is proved by a step that does not name it and named by a heading that does not prove it.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-TEN-010",
+      "introduced_at": "M1",
+      "title": "Configuration history",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M4"
+      ],
+      "why": "tests/m1c section 3 proves versioned configuration exists for the tenant, that a superseded version is closed while the effective one resolves, and that two open versions of one category cannot coexist — which is what a history is. FR-TEN-003 is cited on one of those steps and FR-TEN-010 on none of them, so the same section grades one requirement and not its neighbour.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-TAB-001",
+      "introduced_at": "M2",
+      "title": "QR resolution",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M5b",
+      "revalidated_at": [
+        "M5b"
+      ],
+      "why": "tests/m2b section 1 proves a QR reference is not enumerable and decodes to nothing without the service, over tables whose RLS is built on the unchanged M1-A predicate. Rotation and revocation are exercised in the same section. The id is in the heading, shared with FR-TAB-002, and neither is on a step.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-TAB-003",
+      "introduced_at": "M2",
+      "title": "Table session creation",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "tests/m2b section 2 proves an occupancy records state, opening source, host and timestamps, that a table cannot have two open occupancies at once, and that multiple devices join one session on the same active code. That is creation and its constraints. The id is in the heading.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-TAB-006",
+      "introduced_at": "M2",
+      "title": "Table ownership",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M3"
+      ],
+      "why": "tests/m2b section 10 proves a guest may flag an allergy concern for the table, that it cannot be recorded without explicit acknowledgement text, and that it names whoever raised it — ownership of a table's record by the party that made it. The heading carries four requirement ids and the steps carry none.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-TAB-010",
+      "introduced_at": "M2",
+      "title": "Stale QR protection",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "Proved twice and cited on neither. tests/m2b section 2 covers stale scans and section 3 proves there is no configuration that admits one; the run raises STALE_QR_VERIFICATION_REQUIRED five times over occupancy changes, a named method with no recorded evidence, a method this tenant does not accept, and a tenant with no method configured. Both citations are section headings.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-UX-006",
+      "introduced_at": "M2",
+      "title": "Error recovery",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M3",
+        "M4"
+      ],
+      "why": "tests/m2c section 5 measures all seven line states rendering in a browser, each distinguishable without colour and each carrying a machine-readable timestamp — the states a guest recovers through are failed, queued and blocked, and the retry path that reuses the same idempotency key is what they drive. Measured, not asserted. The id is in the heading beside FR-UX-005.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-UX-011",
+      "introduced_at": "M2",
+      "title": "Accessibility",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M6"
+      ],
+      "why": "tests/m2c section 7 runs axe-core against the rendered surface in English, Amharic and Arabic and requires no WCAG A or AA violation in any of the three. The evidence is measured off a real browser. The section heading names FR-UX-011 and FR-TST-011 together and no step names either.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-TST-011",
+      "introduced_at": "M2",
+      "title": "Accessibility",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M3",
+        "M6"
+      ],
+      "why": "The same three axe-core runs as FR-UX-011 above — deliberately the same evidence, because the package states the surface clause and the test clause of one property, and one run of axe-core over the rendered page answers both. Recorded separately so neither is closed by the other's citation once one of them is written.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-SRV-007A",
+      "introduced_at": "M3",
+      "title": "Ephemeral waiter availability",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "tests/m3c section 5 proves exactly the three presence states the package names and no fourth, that the primary key is the person so a second row for them cannot exist, and that no column anywhere on the table could record when a state ENDED — which is what makes the state ephemeral rather than a history. Read from the catalog. The id is in the heading.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-DAT-017",
+      "introduced_at": "M1",
+      "title": "Test realism",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M5a",
+      "revalidated_at": [
+        "M4",
+        "M5a"
+      ],
+      "why": "Every suite in this build runs against a real PostgreSQL, a real compiled service and a real Chromium, connecting as hospitality_app — the least-privileged role — while the owner credential is used only to read the catalog. Nothing is mocked and the workflow would fail outright if the app role could not do the work. The only line naming FR-DAT-017 was a comment in the workflow header, and a comment cannot fail; excluding workflow prose from the audit at the second M4 repair is what surfaced it.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-OPS-021",
+      "introduced_at": "M1",
+      "title": "Ordinary cross-platform commands",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M6"
+      ],
+      "why": "The Windows job runs every suite through the same drivers Linux runs and the generators are required to produce byte-identical output on both, which is the clause asserted by execution rather than by documentation; docs-local/CROSS_PLATFORM_COMMANDS.md carries the commands themselves. The citation was a comment above the job the comment calls the guard.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-SEC-015",
+      "introduced_at": "M0R",
+      "title": "Vulnerability pipeline",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M1",
+        "M6"
+      ],
+      "why": "Failing closed is enforced in several places that do run: the step that refuses an absent or unparseable report, the control registry's refusal when a negative control was never shown red, and the coverage audit's own refusal over a partial log set added at this repair. What the clause asks for beyond that — a dependency and vulnerability pipeline — is not in this build and is not claimed here; this entry records the citation gap on the fail-closed half, and the reviewer should read the absence of the scanning half as unbuilt rather than uncited.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-AUTH-007",
+      "introduced_at": "M1",
+      "title": "Password/OTP security",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M6"
+      ],
+      "why": "tests/m1b section 4 records that repeated failures lock the subject out, that attempts are keyed by the credential digest rather than by a phone number or an email, and that distributed production rate limiting is NOT claimed — the last of those being a check that refuses to overstate what was proved. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-AUTH-008",
+      "introduced_at": "M1",
+      "title": "Memberships",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M5a",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M5a"
+      ],
+      "why": "tests/m1b section 3 records that an active membership establishes tenant and outlet context, that context from a session cannot see the sibling outlet, and that a token presented under a scope it does not belong to authenticates nobody. The section heading names this requirement and FR-AUTH-004 together; both are recorded here for the same reason and neither is cited by a step. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-BIL-001",
+      "introduced_at": "M4",
+      "title": "Check creation",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "tests/m4a section 1 records that a check is created from accepted lines with the order untouched — proved by census over the order tables, not by inspection — that the check is numbered from M1-C's gapless series rather than by billing, and that an order the house has not accepted cannot be billed for. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-BIL-005",
+      "introduced_at": "M4",
+      "title": "Tax/service calculation",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "tests/m4a section 2 records that every component equals the figure recomputed independently from the rates, that a fee names an approved configuration version rather than a constant, and that components record the stage order they were computed in. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-BIL-006",
+      "introduced_at": "M4",
+      "title": "Rounding",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "The same section 2 of tests/m4a that carries FR-BIL-005 above — deliberately the same evidence, because staged calculation and the rounding of each stage are one computation and the checks that prove one exercise the other. Recorded separately so neither is closed by the other's citation once one of them is written. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-CFG-002A",
+      "introduced_at": "M1",
+      "title": "Phase 1 policy engine",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M5a",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M5a"
+      ],
+      "why": "tests/m1c section 3 records that versioned configuration exists for the tenant, that a superseded version is closed while the effective one resolves, and that two open versions of one category cannot coexist. One step in that section cites FR-TEN-003 by name, which is what grades that requirement and not this one. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-CFG-003",
+      "introduced_at": "M1",
+      "title": "Reason codes",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M5a",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M5a"
+      ],
+      "why": "tests/m1c section 4 records that all ten Phase 1 reason-code categories are populated, that every reason code carries a localized label, and that a malformed locale tag is rejected. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-CFG-004",
+      "introduced_at": "M1",
+      "title": "Numbering",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M4"
+      ],
+      "why": "tests/m1c section 6 records that document numbers are collision-safe under real concurrency — eight connections issuing in parallel — that numbers are human-readable and scoped by period, and that issuing against an undefined series is refused rather than invented. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-CFG-005A",
+      "introduced_at": "M1",
+      "title": "Deny-by-default entitlements",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "tests/m1c section 5 records that entitlements resolve deny-by-default. The two steps beside it cite FR-TEN-004 and FR-CFG-005B by name, so the section grades its neighbours and not the requirement its own first step proves. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-DAT-008A",
+      "introduced_at": "M3",
+      "title": "Accepted-order ledger",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "tests/m3a section 13 records that UPDATE and DELETE on the ledger are refused for the application role and refused again for an administrator holding every privilege, and that projections rebuild deterministically from it. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-DAT-013",
+      "introduced_at": "M1",
+      "title": "Seed data",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M2"
+      ],
+      "why": "tests/m1c section 7 records that two differently branded tenants are seeded, that the branding genuinely differs rather than being two rows of the same thing, and that one tenant has at least two outlets. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-DAT-015",
+      "introduced_at": "M1",
+      "title": "Schema documentation",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M4",
+        "M6"
+      ],
+      "why": "tests/m1c section 9 records that the committed schema catalog matches the live schema, that the catalog is generated rather than hand-written, and that it includes a relationship diagram. CI regenerates and diffs the catalog in its own step, which also does not name the requirement. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-DAT-016",
+      "introduced_at": "M1",
+      "title": "Migration rollback",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M6"
+      ],
+      "why": "tests/m1a section 1 records that 0001 applied to a database built from empty, that history begins at 0001, and that the checksum lock rejects an edited applied migration — the forward-only discipline this clause's rollback position rests on. The heading names FR-DAT-001 alongside it and a step cites neither. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-DAT-018",
+      "introduced_at": "M1",
+      "title": "Retention",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M5a",
+      "revalidated_at": [
+        "M4",
+        "M5a"
+      ],
+      "why": "tests/m1c section 8 records that retention cannot delete append-only audit rows, that it is configurable per tenant and target, and that a zero retention window is refused. The M4 half — retention refusing to touch the financial ledgers — is proved at M4-C under its own heading. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-FUL-002",
+      "introduced_at": "M3",
+      "title": "Ticket identity",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "tests/m3b section 3 records that a ticket is a record distinct from the commercial order, that one order fans out to several stations by versioned rule rather than by guess, and that each ticket records the rule VERSION that routed it. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-FUL-009",
+      "introduced_at": "M3",
+      "title": "Expo coordination",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "tests/m3b section 7 records that expo combines the readiness of every station on one order, that an incomplete set is refused service with a refusal that says why, and that one station being ready is still not the set. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-I18N-002",
+      "introduced_at": "M2",
+      "title": "Arabic RTL",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M3",
+        "M4"
+      ],
+      "why": "tests/m2c section 3 measures Arabic rendering right-to-left in the browser's own layout, navigation mirroring so the same elements move to the other side, and a price keeping its reading order inside an Arabic paragraph. Measured off a real browser, not asserted from source. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-I18N-003",
+      "introduced_at": "M2",
+      "title": "Customer translation records",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M3",
+        "M4"
+      ],
+      "why": "tests/m2a section 6 records exactly three customer locales as a closed type, that a locale nobody agreed to support cannot be named, and that translations are stored separately and never overwrite the canonical record. The heading names four I18N requirements at once and no step names any of them. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-I18N-004",
+      "introduced_at": "M2",
+      "title": "Language selection and fallback",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "tests/m2c section 2 measures the surface rendering completely in each of en, am and ar — completely meaning no string left in another language, which is what fallback failing silently would look like. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-INT-010",
+      "introduced_at": "M1",
+      "title": "Credential isolation",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M5a",
+      "revalidated_at": [
+        "M4",
+        "M5a"
+      ],
+      "why": "tests/m1d section 4 records that no credential literal appears in API source, tools, seeds or manifests. The two steps beside it cite FR-COM-010 by name, so this section grades commercial neutrality and not the credential isolation its own first step proves. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-MNU-001",
+      "introduced_at": "M2",
+      "title": "Menu hierarchy",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "tests/m2a section 1 records that every tenant-scoped menu table has row level security ENABLEd and FORCEd, that every menu policy is built on the unchanged M1-A predicate, and that no menu column names a fenced Phase 2 or 3 concept. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-MNU-002A",
+      "introduced_at": "M2",
+      "title": "Menu assignment",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "tests/m2a section 2 records that an assignment carries outlet, service area, channel, daypart and date range, that no customer-segment targeting column exists, and that an assignment resolves for the outlet, channel and date in force. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-MNU-003",
+      "introduced_at": "M2",
+      "title": "Menu publishing",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M3"
+      ],
+      "why": "tests/m2a section 7 records that the publication lifecycle has all six states, that publication is BLOCKED while a required locale is missing, and that it proceeds once the third locale is approved. The blocking step cites FR-I18N-006 by name, which grades that requirement from this section and not this one. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-MNU-007",
+      "introduced_at": "M2",
+      "title": "Availability",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M3"
+      ],
+      "why": "tests/m2a section 4 records all five availability states as a closed type, that the availability model holds no number that could be a remaining count, and that a scarce item reads as 'limited' carrying no figure with it. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-MNU-009",
+      "introduced_at": "M2",
+      "title": "Price versions",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M3"
+      ],
+      "why": "tests/m2a section 3 records that money.assert_currency_paired() is no longer vacuous now that priced rows exist, that the pairing check still fires on a money column with no currency beside it, and that no float touches a price anywhere in the menu schema. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-MNU-010",
+      "introduced_at": "M2",
+      "title": "Daypart scheduling",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "tests/m2a section 5 records that a daypart is evaluated in outlet-local time rather than server time, that a window crossing midnight is active on both sides of it, and that a daylight-saving transition moves the window with the clock. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-MNU-011",
+      "introduced_at": "M2",
+      "title": "Images",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "tests/m2a section 9 records that a source asset carries responsive derivatives, that alt text and an exact focal crop are stored, and that a source asset cannot be marked public. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-ORD-004",
+      "introduced_at": "M3",
+      "title": "Submit idempotency",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M5a",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "why": "tests/m3a section 4 records that the exemption list for what a retry may change is empty, that an idempotency key is required and blank is not a key, and that a safe retry returns the ORIGINAL outcome rather than a fresh success or an error. The golden journeys race two submissions on one key and prove the same property end to end, also without naming it. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-ORD-013",
+      "introduced_at": "M3",
+      "title": "Notes",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "Two sections of tests/m3a carry it. Section 9 records that an allergy declaration cannot be posted as a plain note, that the customer note and the declaration are stored as different kinds, and that a declaration naming no allergen cannot be stored at all. Section 10 records audience filtering: a customer sees their own note and declaration and nothing else, and the reader takes no audience argument so it cannot be asked wrongly. Both headings name it and neither section's steps do. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-ORD-017",
+      "introduced_at": "M3",
+      "title": "Duplicate detection",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M5a",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "why": "tests/m3a section 11 records that an identical order moments later with a fresh key is FLAGGED and not refused, that a declared second round raises no signal at all, and that an order for different things is not a duplicate however close together it arrives. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-PAY-001",
+      "introduced_at": "M4",
+      "title": "Payment intent",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "tests/m4b section 4 records that the same idempotency key returns the same intent and never a second, that a census of the table agrees only one exists, and that an intent without an idempotency key is refused rather than guessed at. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-PAY-003",
+      "introduced_at": "M4",
+      "title": "External card terminal",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M5a",
+      "revalidated_at": [
+        "M5a"
+      ],
+      "why": "tests/m4b section 6 records that there is no column a card number could be stored in, that every table which could hold text is guarded and the guard is derived from the catalog rather than listed, and that a card number written into a text field is refused at the write. The heading names FR-PAY-016 alongside it. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-PAY-006",
+      "introduced_at": "M4",
+      "title": "Mixed tender",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "tests/m4b section 8 records one payment producing two allocations each naming what it went to, that the tip allocation reduced no balance, and that an allocation does not follow the bill it was made against. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-PAY-007",
+      "introduced_at": "M4",
+      "title": "Partial payment",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "The same section 8 of tests/m4b as FR-PAY-006 above, and the same three steps: separate stored allocations are what makes a partial payment and a mixed tender the same mechanism seen from two sides. Recorded separately so neither is closed by the other's citation. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-PAY-017",
+      "introduced_at": "M4",
+      "title": "Dual payment allocation",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "Two sections of tests/m4b carry it. Section 5 records a cash payment captured through the route, change that is what arithmetic on the two stored figures says it is, and no surface computing it. Section 8 records the two allocations themselves, stored and never recomputed. Both headings name it and neither section's steps do. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-POS-006",
+      "introduced_at": "M3",
+      "title": "Manager override",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M4"
+      ],
+      "why": "tests/m3d section 6 records that a step-up grant names a session and cannot name a user, that pos.approve_override() takes no approver identity as an argument — so a shared credential cannot be passed in — and that an override with no recent authentication is refused. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-SAF-001",
+      "introduced_at": "M2",
+      "title": "Allergen catalog",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M3"
+      ],
+      "why": "tests/m2b section 6 records that the catalog is tenant and jurisdiction configurable, that kitchen codes are English and are not translated, and that the application role cannot read an icon at all — icons never standing in for words. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-SAF-006",
+      "introduced_at": "M2",
+      "title": "Dietary claims",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "tests/m2b section 8 records that fasting is a first-class claim beside vegan and halal, that every claim carries a definition, an evidence owner and a review date, and that a claim with an empty definition is refused. The heading names four SAF requirements at once. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-SEC-001",
+      "introduced_at": "M1",
+      "title": "Deny by default",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M5a",
+      "revalidated_at": [
+        "M2",
+        "M3",
+        "M4",
+        "M5a"
+      ],
+      "why": "tests/m1a section 2 populates fixtures first so isolation cannot be vacuous, then records cross-tenant and sibling-outlet denial for SELECT, INSERT, UPDATE and DELETE. Denial is the default the whole schema is built on and four negative controls in that suite go red without it. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-SEC-002A",
+      "introduced_at": "M1",
+      "title": "Cloud IDOR defense",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M6"
+      ],
+      "why": "The same section 2 of tests/m1a as FR-SEC-001 and FR-TEN-001 — deliberately the same evidence, because in this build a cross-tenant object reference is refused by the same row level security that makes denial the default, and there is no second mechanism to point at. Recorded separately so one citation does not close three requirements. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
+    },
+    {
+      "requirement": "FR-SEC-003",
+      "introduced_at": "M1",
+      "title": "Input validation",
+      "state": "uncited",
+      "category": "governance",
+      "completing_gate": "M6",
+      "revalidated_at": [
+        "M3",
+        "M4",
+        "M6"
+      ],
+      "why": "tests/m1d section 2 records that an unknown enumeration value is refused before domain execution, that a malformed identifier is refused by the request schema, and that an over-length value is refused at the declared bound. The heading names FR-SEC-004 alongside it. The run's only line naming it is that section's heading, and a heading cannot fail.",
+      "buildable_now": null,
+      "buildable_why": "Uncited, so there is nothing to build: the behaviour exists and only its citation is owed.",
+      "closes_when": "A recorded check or CI step cites this requirement and the audit grades the citation, so the proof that already exists becomes visible.",
+      "review_may_challenge": true
     }
   ]
 }

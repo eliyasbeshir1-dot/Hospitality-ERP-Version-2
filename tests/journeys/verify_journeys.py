@@ -76,6 +76,10 @@ SYSTEM_SCHEMAS = ("pg_catalog", "information_schema", "pg_toast")
 
 results: list[tuple[str, str, bool, str]] = []
 CONTEXT: dict = {}
+
+# The suite's own text, read once. The structural gate parses this rather than stitching
+# inspect.getsource() together per function, because a call graph needs the whole module.
+SOURCE = Path(__file__).resolve().read_text(encoding="utf-8")
 RUN_NONCE = os.urandom(6).hex()
 
 
@@ -1099,28 +1103,57 @@ def a_settled_check(journey: str, session: str, *, locale: str, tip_minor: int,
             "method": method, "provider": provider}
 
 
+class Recorded:
+    """What a route answered, in the shape the steps below already read a run() result in.
+
+    The receipt print used to be recorded with a direct SELECT and the steps ask it `.ok`
+    and `.why()`. It goes through POST /s/v1/receipts/:receiptId/prints now, so this
+    carries the HTTP answer under the same two names — the assertions did not change,
+    only what performed the action.
+    """
+
+    def __init__(self, response: dict) -> None:
+        self.response = response
+
+    @property
+    def ok(self) -> bool:
+        return ok(self.response)
+
+    def why(self) -> str:
+        return why(self.response)
+
+
 def print_the_receipt(journey: str, receipt: str, *, is_reprint: bool = False,
                       reason_code: str | None = None,
                       reason_text: str | None = None) -> dict:
-    """Compose, rasterise, check every glyph, encode, and DISCARD at the null device.
+    """Compose, rasterise, check every glyph, encode, DISCARD at the null device, record.
 
     os.devnull, never a POSIX literal — the null device has a different name on each
     platform. Both are character devices, which is why this path used to pass the agent's
     device check and report "printed" for bytes that went nowhere. It reports DISCARDED
     now, and migration 0032 refuses any other outcome for a sink whose destination is the
     null device, so the claim cannot come back by anybody forgetting.
+
+    THE RECORDING GOES THROUGH THE ROUTE. It was a direct SELECT until the second M4
+    repair, and five journeys reached it — a routed writer standing in for a cashier
+    pressing print, exactly the substitution the structural gate refuses, hidden from that
+    gate by sitting one call down inside this helper. The gate follows helpers now and
+    named it, which is what a gate is for. The route authorises the cashier, validates the
+    body and returns the attempt id; the assertions above it are unchanged.
     """
     document = json.loads(scalar(
         f"SELECT docs.receipt_document('{fx.TENANT}', '{receipt}')::text;"))
     produced = printer.produce(document, sink="device", device_path=os.devnull,
                                workspace=WORKSPACE)
-    recorded = run(APP, f"""
-        SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}',
-            '{m4c.PRINTER_DEVICE}', '{m4c.PRINT_OUTCOME}', '{produced["bytes_sha256"]}',
-            {produced["byte_count"]}, '{m4c.USER_CASHIER}', {str(is_reprint).lower()},
-            {"'" + reason_code + "'" if reason_code else "NULL"},
-            {"$r$" + reason_text + "$r$" if reason_text else "NULL"});""",
-        tx=True, **CTX)
+    body = {"printerId": m4c.PRINTER_DEVICE, "outcome": m4c.PRINT_OUTCOME,
+            "bytesSha256": produced["bytes_sha256"],
+            "byteCount": produced["byte_count"], "isReprint": is_reprint}
+    if reason_code:
+        body["reasonCodeId"] = reason_code
+    if reason_text:
+        body["reasonText"] = reason_text
+    recorded = Recorded(service("POST", f"/s/v1/receipts/{receipt}/prints", body,
+                                token=cashier()))
     return {"produced": produced, "recorded": recorded, "document": document}
 
 
@@ -1758,8 +1791,99 @@ def routed_functions(delivered: set[str]) -> set[str]:
     return {name for name in reached if name in delivered}
 
 
-def raw_calls_in(source: str, routed: set[str]) -> dict[str, list[str]]:
-    """Which journeys call a routed function directly, and which ones.
+def _module_functions(source: str) -> dict[str, ast.FunctionDef]:
+    """Every function a suite defines at module level, by name, for the call graph."""
+    return {node.name: node for node in ast.parse(source).body
+            if isinstance(node, ast.FunctionDef)}
+
+
+def _without_prose(source: str) -> str:
+    """A docstring that NAMES a function is not a call to it either.
+
+    Comments are one of the two places these files explain themselves; the other is the
+    docstring every function here carries, and several of them name the very writer the
+    journey deliberately does NOT call — "ordering.submit_order() is a writer the service
+    already exposes, so a journey calling it directly would be..." reads as a call to any
+    scanner working on text. Stripped by the PARSER rather than by a quote-matching
+    pattern: a string that stands alone as a statement is documentation, and a string
+    passed as an argument is the SQL these journeys ask the database with. Only the first
+    is removed.
+    """
+    try:
+        tree = ast.parse(textwrap.dedent(source))
+    except SyntaxError:
+        return source
+    prose = [ast.get_source_segment(textwrap.dedent(source), node.value)
+             for node in ast.walk(tree)
+             if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant)
+             and isinstance(node.value.value, str)]
+    text = textwrap.dedent(source)
+    for segment in prose:
+        if segment:
+            text = text.replace(segment, "", 1)
+    return text
+
+
+def _functions_called_by(node: ast.AST, local: dict[str, ast.FunctionDef]) -> set[str]:
+    """Which of this suite's own functions a function calls, read from the parse tree.
+
+    The call graph is the one part of this that a parser answers exactly: a bare name in
+    call position either resolves to a function this module defines or it does not.
+    """
+    return {call.func.id for call in ast.walk(node)
+            if isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+            and call.func.id in local}
+
+
+def _schema_calls(name: str, source: str, local: dict[str, ast.FunctionDef],
+                  seen: set[str] | None = None) -> set[str]:
+    """Every schema-qualified call REACHABLE from a function, not only the ones it makes.
+
+    THE HOLE THIS CLOSES, found by the executing reviewer at M4. The first version read
+    the journey's own body and nothing else, so a raw database call moved one line into a
+    helper was invisible to it. A journey that calls settle_it() which calls
+    payments.record_cash_payment() has done exactly what this gate refuses; the
+    indirection changes nothing about what the guest did not do. A guard with a hole in
+    it is worse than no guard, because it is trusted.
+
+    So the call graph is followed to a fixed point through the functions this suite
+    defines. Only those: a call to something the suite did not define cannot be inspected
+    from here, and every raw database call this gate is about is written in this file.
+    Nested functions come along for free, because ast.walk descends into a def written
+    inside a journey — which is where GJ-05 and the submit race keep their request
+    helpers.
+
+    THE DATABASE CALLS ARE READ FROM THE TEXT, NOT FROM THE TREE, and that is deliberate.
+    These journeys reach the database by writing SQL, so `ordering.accept_order(...)` is
+    characters inside a string literal and not a call node at all. A first attempt at this
+    repair walked the tree for both and reported that no journey called any writer and
+    that nothing was unrouted — a guard that had stopped being able to fail, which is the
+    defect it exists to catch, arriving in its own repair. Comments are stripped first for
+    the reason _without_comments() gives.
+    """
+    seen = set() if seen is None else seen
+    node = local[name]
+    body = _without_comments(_without_prose(ast.get_source_segment(source, node) or ""),
+                             "py")
+    found = {match.group(0)[:-1].strip().rstrip("(").strip()
+             for match in _CALL.finditer(body)}
+    for callee in sorted(_functions_called_by(node, local)):
+        if callee in seen:
+            continue
+        seen.add(callee)
+        found |= _schema_calls(callee, source, local, seen)
+    return found
+
+
+def reachable_calls_in(source: str) -> dict[str, set[str]]:
+    """What each journey can reach, keyed by the journey name the suite runs it under."""
+    local = _module_functions(source)
+    return {name: _schema_calls(walker.__name__, source, local)
+            for name, walker in JOURNEYS if walker.__name__ in local}
+
+
+def raw_calls_in(routed: set[str]) -> dict[str, list[str]]:
+    """Which journeys reach a routed function that writes, and which ones.
 
     THE RULE, and why it is this rule rather than "every journey must call walk()".
     A raw database call standing in for a user action proves nothing about reachability —
@@ -1779,12 +1903,8 @@ def raw_calls_in(source: str, routed: set[str]) -> dict[str, list[str]]:
     global _WRITERS
     _WRITERS = writing_functions()
     offenders: dict[str, list[str]] = {}
-    for name, walker in JOURNEYS:
-        body = inspect.getsource(walker)
-        found = sorted({m.group(0)[:-1].strip().rstrip("(").strip()
-                        for m in _CALL.finditer(_without_comments(body, "py"))}
-                       & routed)
-        writers = [f for f in found if f in _WRITERS]
+    for name, reached in reachable_calls_in(SOURCE).items():
+        writers = sorted(reached & routed & _WRITERS)
         if writers:
             offenders[name] = writers
     return offenders
@@ -1817,30 +1937,39 @@ def structural_gate() -> None:
            f"{len(routed)} of {len(delivered)} delivered function(s) are reachable "
            f"through a route, read from pg_proc and from api/src/routes")
 
-    offenders = raw_calls_in("", routed)
+    offenders = raw_calls_in(routed)
     record(journey, "no journey calls a delivered writer the service already exposes",
            not offenders,
            "; ".join(f"{j}: {', '.join(f)}" for j, f in offenders.items())
-           or "none. Where the service can carry the action, every journey goes through "
-              "it — which is what makes a passing step evidence that a cashier could "
-              "have done the same thing")
+           or "none, following every helper each journey calls rather than only the "
+              "calls written in its own body — which is what makes a passing step "
+              "evidence that a cashier could have done the same thing")
 
     # AND THE RULE CAN FAIL. A gate nobody has seen refuse is a gate nobody has tested.
-    planted = "    payments.record_cash_payment('t', 'o', 'i', 1, 'u')\n"
-    caught = [f for f in sorted(routed)
-              if f in {m.group(0)[:-1].strip().rstrip("(").strip()
-                       for m in _CALL.finditer(_without_comments(planted, "py"))}]
-    record(journey, "and the rule refuses a raw call when one is planted",
-           caught == ["payments.record_cash_payment"],
-           f"planted a direct payments.record_cash_payment() and the scanner named "
-           f"{caught or 'NOTHING, so the rule cannot fail'}. Proved on a planted source "
-           f"rather than by editing a journey, because a gate that had to break the "
-           f"suite to prove itself would be a gate nobody ran twice")
+    # The plant carries the INDIRECTION the reviewer walked the first version around
+    # with: the journey never names a database function, a helper does. A plant that
+    # called the writer directly would have passed against the broken scanner too, so it
+    # would have proved the gate ran, not that the gate works.
+    planted = textwrap.dedent("""
+        def settle_it_quietly(check):
+            payments.record_cash_payment('t', 'o', check, 1, 'u')
 
-    unrouted = sorted({f for name, walker in JOURNEYS
-                       for f in {m.group(0)[:-1].strip().rstrip("(").strip()
-                                 for m in _CALL.finditer(
-                                     _without_comments(inspect.getsource(walker), "py"))}
+        def gj_planted():
+            settle_it_quietly('a-check')
+    """)
+    local = _module_functions(planted)
+    caught = sorted(f for f in _schema_calls("gj_planted", planted, local)
+                    if f in routed and f in _WRITERS)
+    record(journey, "and the rule refuses a raw call reached through a helper",
+           caught == ["payments.record_cash_payment"],
+           f"planted a journey that calls a helper which calls "
+           f"payments.record_cash_payment(), naming no database function itself, and the "
+           f"scanner named {caught or 'NOTHING, so the rule cannot fail'}. Proved on a "
+           f"planted source rather than by editing a journey, because a gate that had to "
+           f"break the suite to prove itself would be a gate nobody ran twice")
+
+    reachable = reachable_calls_in(SOURCE)
+    unrouted = sorted({f for reached in reachable.values() for f in reached
                        if f in delivered and f not in routed})
     record(journey, "and what the service cannot yet carry is named rather than hidden",
            True,
