@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `1269f07514d760fee8f059a5da8c0421a650fae6` |
-| Short | `1269f07` |
+| Commit | `7ceafbdf39b1f5d48dd5d3b29fabc06e1f5b53cd` |
+| Short | `7ceafbd` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation — the generator refuses a tree that is not |
@@ -114,10 +114,10 @@ Money is stored as integer minor units beside an explicit currency.
 | M3-D terminals, override, handover, the waiter surface | **PASS** | 95 | 0 |
 | M4-A checks, bills, splitting, tip separation | **PASS** | 105 | 0 |
 | M4-B payment capture, verification, cash, reversal | **PASS** | 151 | 0 |
-| M4-C receipts, the printer path, reporting, the register audit | **PASS** | 103 | 0 |
+| M4-C receipts, the printer path, reporting, the register audit | **PASS** | 105 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
 | The golden journeys, end to end | **PASS** | 92 | 0 |
-| **Total** | | **1407** | |
+| **Total** | | **1409** | |
 
 ## The golden journeys (FR-TST-005A)
 
@@ -597,6 +597,12 @@ exercised by a real cookie flow at M1.**
 - The build writes `node_modules/` and `dist/` outside the repository because
   `tools/verify_m1.py` inspects the filesystem rather than the Git index. This is a
   deliberate layout choice, documented in `api/README.md`.
+- The suites are calibrated against the PostgreSQL major version CI runs, which is 16.
+  On PostgreSQL 18 `tests/m1c` records 61 of 62: the newer server names constraints this
+  build's schema documentation checks do not expect, because 18 emits additional named
+  NOT NULL constraints. It is a difference in what the catalog reports, not in what the
+  schema enforces, and it is recorded here rather than absorbed by widening the check —
+  the check is right about the version the build targets.
 
 ## Deployment commands
 
