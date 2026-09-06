@@ -29,4 +29,4 @@ ENV M1D_WORKSPACE=/workspace
 ENV PYTHONDONTWRITEBYTECODE=1
 RUN bash api/build.sh
 
-CMD ["node", "/workspace/dist/server.js"]
+CMD ["bash", "/src/deploy/start.sh"]
