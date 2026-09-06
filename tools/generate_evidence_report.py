@@ -29,6 +29,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import ast
 import re
 import subprocess
 import sys
@@ -138,6 +139,92 @@ def assert_suites_cover_the_repository() -> None:
             "be a report describing a repository that is not this one")
 
 
+class JourneyUnaccounted(Exception):
+    """The suite walks a journey the report has no row for, or the reverse."""
+
+
+JOURNEY_SUITE = REPO / "tests" / "journeys" / "verify_journeys.py"
+
+
+def journeys_the_suite_walks() -> list[str]:
+    """Every journey the suite actually walks, read from its own JOURNEYS table.
+
+    PARSED, not imported: importing the suite would need a database, a compiled service
+    and a browser, none of which this generator has or should acquire in order to know
+    what a table says. Parsed rather than grepped for the reason tier_of() is parsed —
+    these files explain themselves at length in prose that names journeys, and a scanner
+    counting prose would report journeys nobody walks.
+    """
+    tree = ast.parse(JOURNEY_SUITE.read_text(encoding="utf-8"))
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(isinstance(t, ast.Name) and t.id == "JOURNEYS" for t in node.targets):
+            continue
+        walked = []
+        for element in getattr(node.value, "elts", []):
+            first = getattr(element, "elts", [None])[0]
+            if not isinstance(first, ast.Constant) or not isinstance(first.value, str):
+                raise JourneyUnaccounted(
+                    f"JOURNEY_UNACCOUNTED: {JOURNEY_SUITE.name} has a JOURNEYS entry "
+                    f"whose first element is not a literal name, so which journeys the "
+                    f"suite walks cannot be read. Fail closed rather than report a table "
+                    f"assembled from the half that could be parsed")
+            walked.append(first.value)
+        if not walked:
+            raise JourneyUnaccounted(
+                f"JOURNEY_UNACCOUNTED: {JOURNEY_SUITE.name} has an empty JOURNEYS table. "
+                f"A report that rendered no journey rows because it found no journeys "
+                f"would look like a run with nothing to say rather than a broken read")
+        return walked
+    raise JourneyUnaccounted(
+        f"JOURNEY_UNACCOUNTED: {JOURNEY_SUITE.name} has no JOURNEYS table. The report's "
+        f"journey rows are a second statement of that table, and with nothing to check "
+        f"them against they would be unfalsifiable prose")
+
+
+def assert_journeys_cover_the_suite() -> None:
+    """JOURNEYS here must name every journey the suite walks, and no others.
+
+    THE DEFECT THIS EXISTS FOR SHIPPED. The suite grew from six journeys to eleven when
+    the M4 repair drove GJ-01B, GJ-02B, GJ-03B, GJ-06 and GJ-07 through the running
+    service, and this table stayed at six. Every one of the five passed in every run and
+    appeared nowhere in the document a reviewer reads — so the artifact reporting on the
+    repair omitted exactly the journeys the repair created, which is worse than saying
+    nothing, because six rows all marked PASS read as a complete account.
+
+    The suite's table is the catalog and this is the equality check, the same rule
+    SUITE_UNACCOUNTED applies one level up. Coverage prose cannot be derived — what a
+    journey covers is editorial — so the prose stays written by hand and only its
+    PRESENCE is enforced. The verdict, the step count and the tier are all read from the
+    run; this table declares coverage, never outcome.
+    """
+    walked = journeys_the_suite_walks()
+    described = [name for name, _covers, _gates in JOURNEYS]
+    missing = [name for name in walked if name not in described]
+    if missing:
+        raise JourneyUnaccounted(
+            "JOURNEY_UNACCOUNTED: " + ", ".join(missing) + " "
+            + ("is a journey" if len(missing) == 1 else "are journeys")
+            + " the suite walks with no row in this report. Add "
+            + ("it" if len(missing) == 1 else "them")
+            + " to JOURNEYS with what "
+            + ("it covers" if len(missing) == 1 else "they cover")
+            + " and which gates "
+            + ("it reaches" if len(missing) == 1 else "they reach")
+            + "; a journey that runs and is not reported is coverage the reviewer is "
+              "never told about")
+    stale = [name for name in described if name not in walked]
+    if stale:
+        raise JourneyUnaccounted(
+            "JOURNEY_UNACCOUNTED: " + ", ".join(stale) + " "
+            + ("is described here and the suite does not walk it"
+               if len(stale) == 1 else
+               "are described here and the suite walks none of them")
+            + ". A row for a journey nobody walks is a claim of coverage this repository "
+              "cannot support")
+
+
 def suite_result(logs: Path, name: str) -> tuple[str, str, str]:
     """Read a suite's verdict and counts from its log.
 
@@ -183,12 +270,27 @@ JOURNEYS = [
                "prepares, a waiter serves, the guest sees served — and no local-authority "
                "claim exists anywhere in the catalog",
                "M2-B · M2-C · M3-A · M3-B"),
+    ("GJ-01B", "English settlement: the cashier presents the check and settles it in "
+               "cash, no tip recorded as a decision rather than an absence, bill and tip "
+               "and total shown apart on the receipt, one trip down the printer path, a "
+               "second original print refused, and check, bill, payment and receipt all "
+               "hanging off the guest's order",
+               "M4-A · M4-B · M4-C"),
     ("GJ-02", "Amharic: menu and allergen text, an order carrying the chosen language, "
               "statuses and messages in Ethiopic script, the waiter called, a second order",
               "M2-A · M2-C · M3-A · M3-B · M3-C"),
+    ("GJ-02B", "Amharic settlement: a tip chosen on the check, an unverified proof that "
+               "settles nothing until a named person verifies it in the provider's app, "
+               "a receipt Amharic on every line with every Ethiopic glyph drawn from the "
+               "packaged font, and the table released only once it is settled",
+               "M2-A · M4-A · M4-B · M4-C"),
     ("GJ-03A", "Arabic right to left: true RTL layout, Latin SKUs inside an Arabic page, "
                "ETB prices measured left to right, an order, an Arabic status timeline",
                "M2-A · M2-C · M3-A · M3-B"),
+    ("GJ-03B", "Arabic settlement: a tip and a payment on a permitted live method, a "
+               "receipt that keeps bill, tip and total paid apart under RTL, and Arabic "
+               "and the Latin currency code both drawn by the packaged fonts",
+               "M2-A · M4-A · M4-B · M4-C"),
     ("GJ-04", "Two devices at one table: personal baskets, separate orders, the waiter "
               "called and acknowledged, a later add-on, an authorized session move",
               "M2-B · M3-A · M3-C"),
@@ -196,6 +298,16 @@ JOURNEYS = [
               "routes, routed to stations, the allergy emphasised, served, and one "
               "amendment authorized by a manager on their own session",
               "M3-A · M3-B · M3-D"),
+    ("GJ-06", "A check split by item into one document per payer: each payment "
+              "allocating to bill and tip independently, one payer tipping and the other "
+              "not, and each payer's receipt produced exactly once",
+              "M4-A · M4-B · M4-C"),
+    ("GJ-07", "Taking money back: a cashier refused their own refund, a manager's "
+              "purpose-specific step-up authorizing it, bill and tip corrected as two "
+              "independent records, a corrected receipt issued as a new revision with "
+              "its own number and a marked reprint carrying operator and reason, and the "
+              "first receipt's own record left unchanged",
+              "M1-B · M4-B · M4-C"),
     ("FR-TST-007A", "Two submissions racing, measured with M3-A's catalog-derived "
                     "whole-schema differential: one order, one line, no duplicate "
                     "commercial effect",
@@ -203,8 +315,16 @@ JOURNEYS = [
 ]
 
 
-def journey_result(logs: Path, journey: str) -> tuple[str, str]:
-    """One journey's verdict and step count, read out of the run's own summary."""
+def journey_result(logs: Path, journey: str) -> tuple[str, str, str]:
+    """One journey's verdict, step count and TIER, read out of the run's own summary.
+
+    The tier is here because eleven rows all marked PASS would otherwise read as eleven
+    journeys walked in a browser, and seven of them are not: they go through the routes a
+    surface would call, which is what partial closure FR-TST-005A records and what the
+    settlement half of this product still owes. The suite derives the tier from each
+    journey's own source rather than declaring it, so this column cannot claim a stronger
+    proof than the run performed.
+    """
     path = logs / "journeys.log"
     if not path.exists():
         raise SuiteLogMissing(
@@ -212,11 +332,12 @@ def journey_result(logs: Path, journey: str) -> tuple[str, str]:
             f"the evidence, not an optional extra; hand the log to this job rather than "
             f"omitting the rows")
     text = path.read_text(encoding="utf-8", errors="ignore")
-    matched = re.search(rf"^\s*(PASS|FAIL)\s+{re.escape(journey)}\s+(\S+) steps",
-                        text, re.M)
+    matched = re.search(
+        rf"^\s*(PASS|FAIL)\s+{re.escape(journey)}\s+(\S+) steps(?:\s+\[(\w+) tier\])?",
+        text, re.M)
     if not matched:
-        return ("FAIL", "-")
-    return (matched.group(1), matched.group(2))
+        return ("FAIL", "-", "-")
+    return (matched.group(1), matched.group(2), matched.group(3) or "-")
 
 
 # The registry moved to tools/controls.py at M3-D, and the reason is the drift it now
@@ -260,6 +381,7 @@ def build(dsn: str, logs: Path) -> str:
 
     # Before anything is read: the report's own list of suites must equal the repository's.
     assert_suites_cover_the_repository()
+    assert_journeys_cover_the_suite()
 
     # Under a shallow checkout the commit this report names cannot be resolved, and the
     # field would come out empty rather than wrong-looking. Refuse instead.
@@ -395,11 +517,11 @@ def build(dsn: str, logs: Path) -> str:
     w("reached rather than skipped silently, so a journey that stopped early cannot be")
     w("mistaken for one that mostly worked.")
     w("")
-    w("| Journey | Covers | Gates reached | Verdict | Steps |")
-    w("|---|---|---|---|---:|")
+    w("| Journey | Covers | Gates reached | Tier | Verdict | Steps |")
+    w("|---|---|---|---|---|---:|")
     for journey, covers, gates in JOURNEYS:
-        verdict, steps = journey_result(logs, journey)
-        w(f"| `{journey}` | {covers} | {gates} | **{verdict}** | {steps} |")
+        verdict, steps, tier = journey_result(logs, journey)
+        w(f"| `{journey}` | {covers} | {gates} | {tier} | **{verdict}** | {steps} |")
     w("")
 
     w("## Negative controls")

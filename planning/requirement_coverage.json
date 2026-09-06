@@ -1221,6 +1221,20 @@
         "why": "Accessibility preferences do not exist on any staff surface. M2-C proved the CUSTOMER surface against measured computed layout; doing the same for the waiter, station and POS surfaces means a preference store, three surfaces changed and a measured proof for each. That is a slice of work, not a repair."
       },
       "what_would_make_it_buildable": "A per-user accessibility preference, the waiter and station bundles honouring it, and M2-C's measuring instrument — target sizes, contrast, text scaling, read out of a real browser — pointed at those two surfaces. The instrument already exists and is the expensive half. This is a PREFERENCE."
+    },
+    {
+      "requirement": "FR-AUTH-001",
+      "introduced_at": "M1",
+      "title": "Staff login",
+      "state": "absent",
+      "category": "security",
+      "completing_gate": "M6",
+      "revalidated_at": [],
+      "why": "THE AUDIT REPORTS THIS DELIVERED AND NO STAFF MEMBER CAN LOG IN. The clause asks for three things: verified phone or email login, secure password or OTP flows, and a replaceable provider adapter. M1-B built and proved the first and the third — tests/m1b section 1 shows two distinct verified channel kinds and no provider-specific type reaching the domain model — and that section heading is the only citation of FR-AUTH-001 in the whole run, which is what grades it delivered. The middle limb is the flow, and nothing performs it. identity holds credential, auth_attempt, auth_lockout, otp_transmission, recovery_request and session; every function in that schema authorizes an action, records an attempt, establishes context for a session that already exists or revokes one, and not one turns a presented credential into a session, and no route in api/src reads identity.credential. Every staff bearer token in this build exists because a fixture inserted a row into identity.session. The surrounding mechanism is real and proved — a digest CHECK that rejects plaintext, five failures inside the window tripping a lockout, rotation retiring the previous token — which is precisely why the hole is easy to miss: everything around the missing step works.",
+      "buildable_now": true,
+      "buildable_why": "Nothing blocks it. The storage, the lockout, the attempt log, the OTP transmission record and the session table all exist and are proved; what is missing is one function that verifies a presented credential against identity.credential, records the attempt, honours the lockout and inserts the session — and one route that calls it. It is absent because no gate asked for it and the audit never noticed, not because anything it depends on is unbuilt.",
+      "closes_when": "A function verifies a presented credential and issues a session, a route exposes it, and a suite proves a wrong credential authenticates nobody while a right one yields a token that a staff route then accepts.",
+      "review_may_challenge": true
     }
   ]
 }

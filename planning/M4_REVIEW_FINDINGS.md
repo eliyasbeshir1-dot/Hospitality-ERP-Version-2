@@ -10,17 +10,26 @@ Each finding below carries a **classification** and a **completing gate**, and b
 
 Completing gates are not chosen. Each is the next gate at which the pinned package itself revalidates the requirement, read from its own `revalidated_at`, or the final gate when the package names none. Where this slice delivers the missing half the gate is overridden to the slice that delivers it, and every such override is visible in the tables below.
 
-## 5 absent requirements in money, security or authority
+## 6 absent requirements in money, security or authority
 
 These are the findings that change what this review is about. **Absent** means the behaviour genuinely does not exist — not that it exists uncited. Each row says whether it could be built today, because otherwise *"not due yet"* reads as *"not possible yet"*, which is a different and more forgiving claim.
 
 | Requirement | Introduced | Category | Closes at | Buildable now |
 |---|---|---|---|---|
+| `FR-AUTH-001` Staff login | M1 | security | **M6** | **yes** |
 | `FR-SEC-008` Encryption | M1 | security | **M5b** | no |
 | `FR-SEC-010A` Customer PII classification | M1 | security | **M6** | **yes** |
 | `FR-SEC-012` File security | M1 | security | **M6** | **yes** |
 | `FR-SEC-018` Data deletion | M1 | security | **M6** | **yes** |
 | `FR-SEC-020` Incident response | M1 | security | **M6** | no |
+
+### FR-AUTH-001 — Staff login
+
+THE AUDIT REPORTS THIS DELIVERED AND NO STAFF MEMBER CAN LOG IN. The clause asks for three things: verified phone or email login, secure password or OTP flows, and a replaceable provider adapter. M1-B built and proved the first and the third — tests/m1b section 1 shows two distinct verified channel kinds and no provider-specific type reaching the domain model — and that section heading is the only citation of FR-AUTH-001 in the whole run, which is what grades it delivered. The middle limb is the flow, and nothing performs it. identity holds credential, auth_attempt, auth_lockout, otp_transmission, recovery_request and session; every function in that schema authorizes an action, records an attempt, establishes context for a session that already exists or revokes one, and not one turns a presented credential into a session, and no route in api/src reads identity.credential. Every staff bearer token in this build exists because a fixture inserted a row into identity.session. The surrounding mechanism is real and proved — a digest CHECK that rejects plaintext, five failures inside the window tripping a lockout, rotation retiring the previous token — which is precisely why the hole is easy to miss: everything around the missing step works.
+
+**Buildable now:** Nothing blocks it. The storage, the lockout, the attempt log, the OTP transmission record and the session table all exist and are proved; what is missing is one function that verifies a presented credential against identity.credential, records the attempt, honours the lockout and inserts the session — and one route that calls it. It is absent because no gate asked for it and the audit never noticed, not because anything it depends on is unbuilt.
+
+**This entry closes when:** A function verifies a presented credential and issues a session, a route exposes it, and a suite proves a wrong credential authenticates nobody while a right one yields a token that a staff route then accepts.
 
 ### FR-SEC-008 — Encryption
 
@@ -195,6 +204,23 @@ The audit grades its own evidence rather than implying a strength it did not mea
 | `ci-step` | The citation sits in a workflow step, which fails the build on a non-zero exit. Can fail; cannot show a planted defect. |
 
 Gates that have landed: M0, M0R, M1, M2, M3, M4. The package carries 336 active requirements and 288 of them belong to a landed gate.
+
+
+## FR-AUTH-001: the audit reports staff login delivered, and nobody can log in
+
+**This is the strongest concrete evidence in this document that *delivered* is a weaker word than the count suggests, and it is why the section above matters more than it reads.** The audit passes only when nothing is unaccounted, and it accounts for all 288 requirements belonging to a landed gate. FR-AUTH-001 — *Staff login*, P0, introduced at M1 — is inside that account, on the delivered side.
+
+The clause asks for three things: verified phone or email login, secure password or OTP flows, and a replaceable provider adapter. M1-B built and proved the first and the third. Its section 1 shows two distinct verified channel kinds and no provider-specific type reaching the domain model — and **that section heading is the only citation of FR-AUTH-001 anywhere in the run.** A heading over two structural checks is what grades a login flow delivered.
+
+The middle limb is the flow, and nothing performs it:
+
+- `identity` exposes 5 operator-callable writers — `authorize_action`, `authorize_service_principal`, `emit_security_event`, `establish_session_context`, `register_auth_attempt`. **Not one of them turns a presented credential into a session.**
+- No file under `api/src` reads `identity.credential`.
+- Every staff bearer token in this build exists because a fixture inserted a row into `identity.session` directly.
+
+What makes this worth a reviewer's attention is not that a gap exists. It is that **everything around the gap is real and proved.** `identity.credential` stores only digests and a CHECK rejects anything that is not one. Five failures inside the window trip `auth_lockout`. Rotation retires the previous token. `otp_transmission` refuses to record a simulated result as a live provider outcome. A failed authentication never echoes the credential presented. All of that is proved, some of it red-then-green. The one step missing is the step in the middle — verify, then issue — and its absence is invisible precisely because the mechanism on either side of it is so thoroughly built.
+
+**So read the delivered count as what it is: a count of requirements that something in the run names.** It does not assert that a person can perform the behaviour the clause describes. Recorded in `planning/requirement_coverage.json` as absent, security, buildable now, closing at M6. It is not built here, and this brief does not build it: a repair that quietly added an authentication flow would be a far worse defect than the one it fixed.
 
 
 ## 25 routes the service exposes that nothing has ever called

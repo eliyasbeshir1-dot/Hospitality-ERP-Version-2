@@ -148,6 +148,7 @@ CONTROLS = [
     ("NC-M4C-006", "Money on a bill that no sales classification claims", "SALES_COMPONENT_UNCLASSIFIED", "m4c"),
     ("NC-M4C-007", "A counter order that can name no POS terminal", "COUNTER_ORDER_WITHOUT_A_TERMINAL", "m4c"),
     ("NC-M4C-008", "A customer receipt printed on a printer nobody tested", "PRINTER_NEVER_TESTED", "m4c"),
+    ("NC-M4C-009", "A journey the suite walks that the evidence report never reports", "JOURNEY_UNACCOUNTED", "m4c"),
 ]
 
 

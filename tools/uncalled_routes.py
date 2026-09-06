@@ -69,6 +69,19 @@ def callers() -> dict[str, str]:
     return text
 
 
+def sources_matching(needle: str) -> list[str]:
+    """Which files under api/src name a database object, relative to the repository.
+
+    Derived rather than asserted, so a finding that says "no route reads this" stops
+    being true the day one does, instead of the day somebody remembers to re-check.
+    """
+    hits = []
+    for source in sorted((REPO / "api" / "src").rglob("*.ts")):
+        if needle in source.read_text(encoding="utf-8"):
+            hits.append(str(source.relative_to(REPO)))
+    return hits
+
+
 def survey() -> dict:
     body = callers()
     uncalled, called = [], {}

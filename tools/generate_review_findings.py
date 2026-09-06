@@ -208,10 +208,66 @@ def build() -> str:
     w("| `ci-step` | The citation sits in a workflow step, which fails the build on a "
       "non-zero exit. Can fail; cannot show a planted defect. |")
     w("")
+    landed_count = sum(1 for r in active if r["introduced_at"] in landed)
     w(f"Gates that have landed: {', '.join(g for g in order if g in landed)}. "
-      f"The package carries {len(active)} active requirements and "
-      f"{sum(1 for r in active if r['introduced_at'] in landed)} of them belong to a "
-      f"landed gate.")
+      f"The package carries {len(active)} active requirements and {landed_count} of them "
+      f"belong to a landed gate.")
+    w("")
+
+    # ---- What "delivered" is worth, in one concrete case ------------------------
+    #
+    # The section above describes the grades. This one is the case that shows what the
+    # strongest-sounding number in this whole audit is actually worth, and it is put
+    # immediately after the grades on purpose.
+    identity_writers = uncalled_routes.unreachable_writers("identity")
+    reads_credential = uncalled_routes.sources_matching("identity.credential")
+    w("")
+    w("## FR-AUTH-001: the audit reports staff login delivered, and nobody can log in")
+    w("")
+    w("**This is the strongest concrete evidence in this document that *delivered* is a "
+      "weaker word than the count suggests, and it is why the section above matters more "
+      "than it reads.** The audit passes only when nothing is unaccounted, and it "
+      f"accounts for all {landed_count} requirements belonging to a landed gate. "
+      "FR-AUTH-001 — *Staff login*, P0, introduced at M1 — is inside that account, on "
+      "the delivered side.")
+    w("")
+    w("The clause asks for three things: verified phone or email login, secure password "
+      "or OTP flows, and a replaceable provider adapter. M1-B built and proved the first "
+      "and the third. Its section 1 shows two distinct verified channel kinds and no "
+      "provider-specific type reaching the domain model — and **that section heading is "
+      "the only citation of FR-AUTH-001 anywhere in the run.** A heading over two "
+      "structural checks is what grades a login flow delivered.")
+    w("")
+    w("The middle limb is the flow, and nothing performs it:")
+    w("")
+    w(f"- `identity` exposes {len(identity_writers['unreachable']) + len(identity_writers['reachable'])} "
+      f"operator-callable writers — "
+      + ", ".join(f"`{f}`" for f in sorted(identity_writers['unreachable']
+                                           + identity_writers['reachable']))
+      + ". **Not one of them turns a presented credential into a session.**")
+    w(f"- {'No file' if not reads_credential else str(len(reads_credential)) + ' file(s)'} "
+      f"under `api/src` reads `identity.credential`"
+      + ("." if not reads_credential
+         else ": " + ", ".join(f"`{f}`" for f in sorted(reads_credential)) + "."))
+    w("- Every staff bearer token in this build exists because a fixture inserted a row "
+      "into `identity.session` directly.")
+    w("")
+    w("What makes this worth a reviewer's attention is not that a gap exists. It is that "
+      "**everything around the gap is real and proved.** `identity.credential` stores "
+      "only digests and a CHECK rejects anything that is not one. Five failures inside "
+      "the window trip `auth_lockout`. Rotation retires the previous token. "
+      "`otp_transmission` refuses to record a simulated result as a live provider "
+      "outcome. A failed authentication never echoes the credential presented. All of "
+      "that is proved, some of it red-then-green. The one step missing is the step in "
+      "the middle — verify, then issue — and its absence is invisible precisely because "
+      "the mechanism on either side of it is so thoroughly built.")
+    w("")
+    w("**So read the delivered count as what it is: a count of requirements that "
+      "something in the run names.** It does not assert that a person can perform the "
+      "behaviour the clause describes. Recorded in `planning/requirement_coverage.json` "
+      "as absent, security, buildable now, closing at M6. It is not built here, and this "
+      "brief does not build it: a repair that quietly added an authentication flow would "
+      "be a far worse defect than the one it fixed.")
     w("")
 
     # ---- The routes nobody has ever called -------------------------------------

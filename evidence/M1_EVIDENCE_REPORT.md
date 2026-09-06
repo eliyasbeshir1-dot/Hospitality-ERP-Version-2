@@ -17,7 +17,7 @@ recorded deliberately and are marked as such.
 | Short | `976f80e` |
 | Branch | `claude/code-execution-brief-nle2y7` |
 | Subject | the last commit touching anything other than this report |
-| Working tree | clean at generation |
+| Working tree | NOT CLEAN — regenerate from a clean tree |
 
 ## Versions
 
@@ -114,10 +114,10 @@ Money is stored as integer minor units beside an explicit currency.
 | M3-D terminals, override, handover, the waiter surface | **PASS** | 95 | 0 |
 | M4-A checks, bills, splitting, tip separation | **PASS** | 105 | 0 |
 | M4-B payment capture, verification, cash, reversal | **PASS** | 151 | 0 |
-| M4-C receipts, the printer path, reporting, the register audit | **PASS** | 99 | 0 |
+| M4-C receipts, the printer path, reporting, the register audit | **PASS** | 101 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
 | The golden journeys, end to end | **PASS** | 92 | 0 |
-| **Total** | | **1403** | |
+| **Total** | | **1405** | |
 
 ## The golden journeys (FR-TST-005A)
 
@@ -131,18 +131,23 @@ A failure names the JOURNEY and the STEP. Steps after a failure are reported as 
 reached rather than skipped silently, so a journey that stopped early cannot be
 mistaken for one that mostly worked.
 
-| Journey | Covers | Gates reached | Verdict | Steps |
-|---|---|---|---|---:|
-| `GJ-01A` | An English guest: scan, browse, choose modifiers, submit, the kitchen prepares, a waiter serves, the guest sees served — and no local-authority claim exists anywhere in the catalog | M2-B · M2-C · M3-A · M3-B | **PASS** | 11/11 |
-| `GJ-02` | Amharic: menu and allergen text, an order carrying the chosen language, statuses and messages in Ethiopic script, the waiter called, a second order | M2-A · M2-C · M3-A · M3-B · M3-C | **PASS** | 14/14 |
-| `GJ-03A` | Arabic right to left: true RTL layout, Latin SKUs inside an Arabic page, ETB prices measured left to right, an order, an Arabic status timeline | M2-A · M2-C · M3-A · M3-B | **PASS** | 13/13 |
-| `GJ-04` | Two devices at one table: personal baskets, separate orders, the waiter called and acknowledged, a later add-on, an authorized session move | M2-B · M3-A · M3-C | **PASS** | 11/11 |
-| `GJ-05` | Waiter-entered: the table opened, an order entered through the staff routes, routed to stations, the allergy emphasised, served, and one amendment authorized by a manager on their own session | M3-A · M3-B · M3-D | **PASS** | 7/7 |
-| `FR-TST-007A` | Two submissions racing, measured with M3-A's catalog-derived whole-schema differential: one order, one line, no duplicate commercial effect | M3-A · M3-D | **PASS** | 4/4 |
+| Journey | Covers | Gates reached | Tier | Verdict | Steps |
+|---|---|---|---|---|---:|
+| `GJ-01A` | An English guest: scan, browse, choose modifiers, submit, the kitchen prepares, a waiter serves, the guest sees served — and no local-authority claim exists anywhere in the catalog | M2-B · M2-C · M3-A · M3-B | browser | **PASS** | 11/11 |
+| `GJ-01B` | English settlement: the cashier presents the check and settles it in cash, no tip recorded as a decision rather than an absence, bill and tip and total shown apart on the receipt, one trip down the printer path, a second original print refused, and check, bill, payment and receipt all hanging off the guest's order | M4-A · M4-B · M4-C | service | **PASS** | 6/6 |
+| `GJ-02` | Amharic: menu and allergen text, an order carrying the chosen language, statuses and messages in Ethiopic script, the waiter called, a second order | M2-A · M2-C · M3-A · M3-B · M3-C | browser | **PASS** | 14/14 |
+| `GJ-02B` | Amharic settlement: a tip chosen on the check, an unverified proof that settles nothing until a named person verifies it in the provider's app, a receipt Amharic on every line with every Ethiopic glyph drawn from the packaged font, and the table released only once it is settled | M2-A · M4-A · M4-B · M4-C | service | **PASS** | 7/7 |
+| `GJ-03A` | Arabic right to left: true RTL layout, Latin SKUs inside an Arabic page, ETB prices measured left to right, an order, an Arabic status timeline | M2-A · M2-C · M3-A · M3-B | browser | **PASS** | 13/13 |
+| `GJ-03B` | Arabic settlement: a tip and a payment on a permitted live method, a receipt that keeps bill, tip and total paid apart under RTL, and Arabic and the Latin currency code both drawn by the packaged fonts | M2-A · M4-A · M4-B · M4-C | service | **PASS** | 4/4 |
+| `GJ-04` | Two devices at one table: personal baskets, separate orders, the waiter called and acknowledged, a later add-on, an authorized session move | M2-B · M3-A · M3-C | browser | **PASS** | 11/11 |
+| `GJ-05` | Waiter-entered: the table opened, an order entered through the staff routes, routed to stations, the allergy emphasised, served, and one amendment authorized by a manager on their own session | M3-A · M3-B · M3-D | service | **PASS** | 7/7 |
+| `GJ-06` | A check split by item into one document per payer: each payment allocating to bill and tip independently, one payer tipping and the other not, and each payer's receipt produced exactly once | M4-A · M4-B · M4-C | service | **PASS** | 5/5 |
+| `GJ-07` | Taking money back: a cashier refused their own refund, a manager's purpose-specific step-up authorizing it, bill and tip corrected as two independent records, a corrected receipt issued as a new revision with its own number and a marked reprint carrying operator and reason, and the first receipt's own record left unchanged | M1-B · M4-B · M4-C | service | **PASS** | 6/6 |
+| `FR-TST-007A` | Two submissions racing, measured with M3-A's catalog-derived whole-schema differential: one order, one line, no duplicate commercial effect | M3-A · M3-D | service | **PASS** | 4/4 |
 
 ## Negative controls
 
-**112** controls — M1 22, M2 22, M3 35, M4 33 — each planted as a real
+**113** controls — M1 22, M2 22, M3 35, M4 34 — each planted as a real
 defect, required to produce its exact registered signature, then reverted and
 required to pass again. A control that never went red is a coverage gap wearing a
 green badge, and CI fails the build when one is missing. The registry is
@@ -264,6 +269,7 @@ build, and so does one described and never proved.
 | `NC-M4C-006` | Money on a bill that no sales classification claims | `SALES_COMPONENT_UNCLASSIFIED` | red, then green |
 | `NC-M4C-007` | A counter order that can name no POS terminal | `COUNTER_ORDER_WITHOUT_A_TERMINAL` | red, then green |
 | `NC-M4C-008` | A customer receipt printed on a printer nobody tested | `PRINTER_NEVER_TESTED` | red, then green |
+| `NC-M4C-009` | A journey the suite walks that the evidence report never reports | `JOURNEY_UNACCOUNTED` | red, then green |
 
 ## Design decision: the ledger is the record, everything else is a projection (M3-A)
 

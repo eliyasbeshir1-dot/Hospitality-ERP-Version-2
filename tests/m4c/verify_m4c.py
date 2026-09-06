@@ -81,6 +81,10 @@ CTX = dict(tenant=fx.TENANT, outlet=fx.OUTLET_H1)
 
 results: list[tuple[str, bool, str, str]] = []
 CONTEXT: dict = {}
+
+# This file's own text, read once. Two records derive from it rather than from a number
+# somebody kept up to date by hand.
+SOURCE = Path(__file__).resolve().read_text(encoding="utf-8")
 RUN_NONCE = os.urandom(6).hex()
 
 SCRATCH = Path(tempfile.gettempdir()) / f"m4c-{RUN_NONCE}"
@@ -1486,11 +1490,23 @@ def section_control_registry() -> None:
            f"so a term added to the fence covers these without anybody editing a list")
 
     described = registry.described()
-    mine = {k: v for k, v in described.items() if v[2] == "m4c"}
+    mine = sorted(k for k, v in described.items() if v[2] == "m4c")
+    # DERIVED FROM THIS FILE, not counted by hand. This record used to assert
+    # len(mine) == 9 and say "the other eight are this slice's own", and both numbers
+    # went stale the moment a control was added — a description naming a derivable fact,
+    # which is what the README generator refuses in prose, sitting inside an assertion
+    # instead. Worse, the typed count could only ever fail by the number changing; it
+    # could not catch the thing this record claims, which is that the registry and this
+    # suite name the same controls. Now it can, in both directions: a control registered
+    # to this slice and never driven here, or driven here and registered to nobody.
+    driven = sorted(set(re.findall(r'control\("(NC-[A-Z0-9-]+)', SOURCE)))
+    agree = mine == driven
+    detail = (f"{mine}" if agree
+              else f"registry {mine}; driven here {driven}")
     record("and this slice's controls are in the one registry every document reads from",
-           len(mine) == 9,
-           f"{sorted(mine)}. NC-M4-005 is the package's; the other eight are this "
-           f"slice's own")
+           bool(mine) and agree,
+           f"the registry attributes {len(mine)} control(s) to this slice and this suite "
+           f"drives {len(driven)}: {detail}")
 
 
 # ===========================================================================
@@ -2053,6 +2069,67 @@ def section_controls() -> None:
 
     control("NC-M4C-008  a customer receipt printed on a printer nobody tested",
             red_untested, green_untested)
+
+    # ---------------------------------------------------------------- NC-M4C-009
+    # A journey the suite walks that the evidence report never reports.
+    #
+    # NOT A DATABASE CONTROL, and it belongs to this slice anyway: the defect is one this
+    # slice shipped. The repair drove GJ-01B, GJ-02B, GJ-03B, GJ-06 and GJ-07 through the
+    # running service, the suite grew from six journeys to eleven, and the report's table
+    # stayed at six. All five passed in every run and appeared in no document a reviewer
+    # reads — so the artifact reporting on the repair omitted exactly the journeys the
+    # repair created, and six rows all marked PASS read as a complete account.
+    #
+    # Planted in the generator's MODULE-LEVEL STATE and on a COPY of the suite source,
+    # never by editing tools/generate_evidence_report.py or the journeys suite: a control
+    # that edited the thing it was proving would leave the repository one crash away from
+    # a silently weakened rule. Same discipline as NC-M4B-009 one level up, and as the
+    # structural gate, which proves itself on a planted source rather than by breaking a
+    # journey.
+    import importlib.util
+    import tempfile
+
+    sys.dont_write_bytecode = True
+    _spec = importlib.util.spec_from_file_location(
+        "m4c_generate_evidence_report", REPO / "tools" / "generate_evidence_report.py")
+    _report = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_report)
+
+    def journey_gate() -> tuple[bool, str, str]:
+        try:
+            _report.assert_journeys_cover_the_suite()
+        except _report.JourneyUnaccounted as refused:
+            return (False, "JOURNEY_UNACCOUNTED", str(refused)[:260])
+        return (True, "",
+                f"{len(_report.JOURNEYS)} journey row(s), and the suite walks exactly "
+                f"those: {', '.join(_report.journeys_the_suite_walks())}")
+
+    def red_journey():
+        # A journey added to the suite and never described. Written to a COPY, because
+        # the real file is what every other check in this run reads.
+        original = _report.JOURNEY_SUITE
+        CONTEXT["nc4c009_suite"] = original
+        planted = Path(tempfile.mkdtemp()) / original.name
+        source = original.read_text(encoding="utf-8")
+        grown = source.replace('    ("GJ-01A", gj_01a),',
+                               '    ("GJ-01A", gj_01a),\n    ("GJ-99", gj_01a),', 1)
+        if grown == source:
+            raise CommandUnreadable(
+                "could not add a journey to the copied suite source; the anchor this "
+                "control plants at has moved, and a plant that changed nothing would "
+                "make an unprovable rule look proved")
+        planted.write_text(grown, encoding="utf-8")
+        _report.JOURNEY_SUITE = planted
+        ok, sig, detail = journey_gate()
+        return (not ok and sig == "JOURNEY_UNACCOUNTED", f"{sig}: {detail}")
+
+    def green_journey():
+        _report.JOURNEY_SUITE = CONTEXT["nc4c009_suite"]
+        ok, _sig, detail = journey_gate()
+        return (ok, detail)
+
+    control("NC-M4C-009  a journey the suite walks that the evidence report never reports",
+            red_journey, green_journey)
 
 
 # ===========================================================================
