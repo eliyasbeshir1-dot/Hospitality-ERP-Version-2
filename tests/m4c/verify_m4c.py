@@ -1016,30 +1016,47 @@ def section_printer() -> None:
     # null device under a name none of the four matched, and it is a character device, so
     # the sink check passed it and the agent called it a print.
     #
-    # So the alias is built here, on whichever platform is running, and the agent is
-    # asked what it did. Nothing about this check knows how the agent decides — it names
-    # a destination the enumeration would have missed and reads back the word. On Windows
-    # that is a directory-prefixed NUL; on POSIX a symlink to os.devnull, which is the
-    # same trick in the shape that platform allows.
+    # WHAT THIS STEP ASSERTS IS THE PROPERTY, NOT THE MECHANISM, because the two
+    # platforms can establish different amounts about the same destination and both
+    # answers are honest. POSIX can identify the device — st_rdev is the same node — so
+    # the bytes are recorded as discarded. Windows resolves os.devnull to \\.\nul but
+    # resolves the directory-prefixed alias to an ordinary filesystem path, which run 81
+    # measured on a real runner: a character device the OS will not name as a device.
+    # There the agent refuses rather than choosing a word it cannot justify.
+    #
+    # Either way the claim this gate exists to prevent is not made. The step names which
+    # of the two happened, so a reader is never told "discarded" by a check that would
+    # have accepted anything.
     alias = CONTEXT["workspace"] / ("NUL" if os.name == "nt" else "null-under-another-name")
     if os.name != "nt":
         alias.unlink(missing_ok=True)
         os.symlink(os.devnull, alias)
-    at_an_alias = printer.write_to_device(b"\x1b@", device_path=str(alias),
-                                          host_and_port=None)
-    record("bytes at the null device under an alias are still discarded, not printed",
-           at_an_alias["outcome"] == "discarded" and at_an_alias["sink"] == "discard",
-           f"{str(alias)!r} reported sink {at_an_alias['sink']!r} and outcome "
-           f"{at_an_alias['outcome']!r}. The identity is asked of the platform — st_rdev "
-           f"here, the resolved device on Windows — rather than matched against a list "
-           f"of spellings, which is what the list missed")
+    try:
+        at_an_alias = printer.write_to_device(b"\x1b@", device_path=str(alias),
+                                              host_and_port=None)
+        refusal = ""
+    except printer.PrintRefused as refused:
+        at_an_alias, refusal = {}, str(refused)
+    discarded = at_an_alias.get("outcome") == "discarded" and \
+        at_an_alias.get("sink") == "discard"
+    unresolved = "PRINTER_DESTINATION_UNRESOLVED" in refusal
+    record("the null device under an alias is never recorded as a print",
+           discarded or unresolved,
+           f"{str(alias)!r} -> "
+           + (f"sink {at_an_alias.get('sink')!r}, outcome "
+              f"{at_an_alias.get('outcome')!r}" if at_an_alias else refusal[:200])
+           + ". Identity is asked of the platform, never matched against a list of "
+             "spellings — and where the platform cannot answer, the agent refuses "
+             "instead of claiming paper came out")
 
-    record("and the platform agrees the alias and the null device are one device",
-           printer._resolved_device(str(alias)) == printer._resolved_device(os.devnull),
-           f"{printer._resolved_device(str(alias))} against "
-           f"{printer._resolved_device(os.devnull)}. Stated separately because the step "
-           f"above would also pass if the agent discarded everything: this is the fact "
-           f"the decision rests on, read from the operating system")
+    resolved = printer._resolved_device(str(alias))
+    the_null_device = printer._resolved_device(os.devnull)
+    record("and the platform was asked what the destination is, not what it is called",
+           (resolved == the_null_device) is discarded,
+           f"{resolved} against {the_null_device} for the null device. Stated separately "
+           f"because the step above would also pass if the agent discarded everything or "
+           f"refused everything: this is the fact the decision rests on, read from the "
+           f"operating system, and the outcome recorded above follows from it")
 
 
 # ===========================================================================

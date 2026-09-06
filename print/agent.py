@@ -214,16 +214,36 @@ def _resolved_device(path: str) -> tuple:
     POSIX  — st_rdev, the device's identity in the kernel. Two names for one device node
              share it, so a symlink, a bind mount or a second node made with mknod all
              resolve to the same device the platform's own os.devnull does.
-    Windows — the final path the OS reaches after opening the destination, which is where
-             DOS device aliasing is resolved. Every alias above comes back as the one
-             canonical device name, and COM1 does not come back as NUL.
+    Windows — the path the OS resolves the destination to, which for a real device is in
+             the device namespace: os.devnull comes back as \\\\.\\nul.
 
-    This is the same shape as live_outcome and simulated_outcome: the distinction is a
-    structural fact about what was reached, not a word chosen by whoever typed the path.
+    AND WINDOWS DOES NOT ALWAYS ANSWER, which CI established rather than this docstring
+    assuming it. Run 81 measured both values on a real runner: os.devnull resolved to
+    '\\\\.\\nul' and D:\\a\\_temp\\m1d-workspace\\NUL — the same device under a
+    directory-prefixed name — resolved to 'd:\\a\\_temp\\m1d-workspace\\nul'. A
+    filesystem path, for a destination os.stat() had just called a character device.
+
+    That contradiction is the whole answer. A character device the operating system will
+    not name in its device namespace is a destination this agent cannot identify, and
+    write_to_device() refuses it rather than choosing a word for it. The rule stays
+    structural — which namespace the OS puts the destination in, never how it is spelled —
+    and it fails in the safe direction: an unidentifiable destination never becomes the
+    claim that paper came out of it.
     """
     if os.name == "nt":
         return (os.path.normcase(os.path.realpath(path)),)
     return (os.stat(path).st_rdev,)
+
+
+def _the_platform_named_a_device(path: str) -> bool:
+    """Whether the OS resolved this destination into its device namespace.
+
+    Windows only, because POSIX has st_rdev and needs no proxy for it. Every real device
+    a caller could print to comes back as \\\\.\\something; a DOS device alias resolved
+    inside a directory does not, and neither would anything else this agent has no way to
+    identify.
+    """
+    return os.name != "nt" or _resolved_device(path)[0].startswith("\\\\.\\")
 
 
 def _is_the_null_device(path: str) -> bool:
@@ -264,6 +284,25 @@ def write_to_device(payload: bytes, *, device_path: str | None,
             f"into a regular file and calling the outcome 'printed' is the claim "
             f"docs.print_outcome and docs.render_outcome are two types in order to make "
             f"unrepresentable, and a file sink is the preview path — use it by name")
+
+    # AND THE PLATFORM MUST BE ABLE TO SAY WHAT THIS DEVICE IS.
+    #
+    # On Windows a reserved device name is resolved in every directory, so
+    # C:\anywhere\NUL is the null device and passes the character-device check above
+    # under a name the OS then declines to resolve into its device namespace. The four
+    # spellings this used to enumerate did not match it and the agent called the bytes
+    # printed — the executing reviewer's finding, and the first repair for it was wrong in
+    # the same way, assuming a resolution the runner does not perform.
+    #
+    # So an unidentifiable destination is refused before anything is written. Not
+    # "printed", not "discarded": a word this agent cannot justify is not chosen.
+    if not _the_platform_named_a_device(device_path):
+        raise PrintRefused(
+            f"PRINTER_DESTINATION_UNRESOLVED: {device_path} is a character device that "
+            f"this platform will not name in its device namespace, so the agent cannot "
+            f"tell a printer from a device that discards. Refusing rather than recording "
+            f"an outcome it has not established — on Windows a reserved device name "
+            f"resolves inside any directory, and that is exactly what this looks like")
 
     with open(device_path, "wb") as fh:
         fh.write(payload)
