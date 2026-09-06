@@ -4,6 +4,24 @@
 
 This document exists because a finding a reviewer has to go looking for is a finding they may not find. Everything below comes from `planning/requirement_coverage.json`, which the FR-GOV-004 audit validates on every run.
 
+## The pattern: everything built except the step that makes it usable
+
+**Read this before the findings below, because three of them are one defect and the class matters more than the instances.**
+
+Three subsystems in this build are complete except for the single step that would let a person use them. In each case every component has a passing suite, and the gap sits in the join between components, where no component's own test looks.
+
+| Subsystem | Built and proved | The missing step |
+|---|---|---|
+| The kitchen | The ticket state machine, station queues, the expo view, all proved against the database by M3-B | No route reaches any writer, so a cook can read the board and change nothing |
+| Staff identity | Credentials as digests, lockouts, OTP transmission, recovery, sessions, rotation — much of it proved red-then-green | Nothing turns a presented credential into a session, so nobody can log in |
+| The demonstration floor | A menu schema, a table schema, QR issuance, a guest surface that renders three languages | The seeds carry 0 menu row(s) and 0 dining table(s), so there is nothing to render |
+
+**Every one of these was found by trying to use the system, and none by testing it.** The billing routes were found when a journey first called one over HTTP. The KDS was found when the route sweep asked which delivered writers a surface could reach. The login gap was found while reading what actually cites FR-AUTH-001. The absent floor was found by deploying the service to a hosted database and discovering that migrations and seeds alone render an empty menu.
+
+The reason the suites miss this class is structural, not careless. Each suite proves its own slice against the database, and the database is where every one of these subsystems is complete. The missing step is always the connection to the next layer — a route, a function, a row of product data — and a slice suite has no standing to demand something from a layer it does not own. The golden journeys exist to cross those seams and they do catch it, which is exactly how the billing defect surfaced; but a journey only crosses the seams somebody wrote a journey for.
+
+**So the question for the review is not whether these three should be fixed. It is how many more there are, and what would find them without waiting for somebody to try the product.** The route sweep below is one instrument aimed at this class: it enumerates what the service exposes and what nothing calls. It would not have caught the absent floor, because that gap is in data rather than in code.
+
 ## The reviewer is free to disagree with all of it
 
 Each finding below carries a **classification** and a **completing gate**, and both are the builder's judgement, made under the deadline of a closing gate. That is precisely the condition in which *"not really a security gap"* is an easy sentence to write. **The review may challenge a classification as readily as a fix.** A gap wrongly called schedulable is worse than one honestly called urgent, and the reasoning for every one is printed here so it can be argued with rather than taken on trust.

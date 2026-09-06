@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -84,6 +85,64 @@ def build() -> str:
       "`planning/requirement_coverage.json`, which the FR-GOV-004 audit validates on "
       "every run.")
     w("")
+    # ---- THE DIAGNOSIS, before any of the symptoms --------------------------------
+    #
+    # Three findings in this document are one defect. Listing them separately invites a
+    # reviewer to triage three items; naming the class invites them to ask how many more
+    # there are. The second question is the useful one, so it goes first.
+    #
+    # Derived where it can be: whether the seeds carry a menu or a floor is a fact about
+    # seeds/, and a finding that says "there is no product seed" must stop saying it the
+    # day somebody writes one.
+    seed_sql = "\n".join(path.read_text(encoding="utf-8")
+                         for path in sorted((REPO / "seeds").glob("*.sql")))
+    menu_inserts = len(re.findall(r"INSERT\s+INTO\s+menu\.", seed_sql, re.I))
+    table_inserts = len(re.findall(r"'dining_table'", seed_sql, re.I))
+    w("## The pattern: everything built except the step that makes it usable")
+    w("")
+    w("**Read this before the findings below, because three of them are one defect and "
+      "the class matters more than the instances.**")
+    w("")
+    w("Three subsystems in this build are complete except for the single step that would "
+      "let a person use them. In each case every component has a passing suite, and the "
+      "gap sits in the join between components, where no component's own test looks.")
+    w("")
+    w("| Subsystem | Built and proved | The missing step |")
+    w("|---|---|---|")
+    w("| The kitchen | The ticket state machine, station queues, the expo view, all "
+      "proved against the database by M3-B | No route reaches any writer, so a cook can "
+      "read the board and change nothing |")
+    w("| Staff identity | Credentials as digests, lockouts, OTP transmission, recovery, "
+      "sessions, rotation — much of it proved red-then-green | Nothing turns a presented "
+      "credential into a session, so nobody can log in |")
+    w("| The demonstration floor | A menu schema, a table schema, QR issuance, a guest "
+      "surface that renders three languages | "
+      f"The seeds carry {menu_inserts} menu row(s) and {table_inserts} dining table(s), "
+      "so there is nothing to render |")
+    w("")
+    w("**Every one of these was found by trying to use the system, and none by testing "
+      "it.** The billing routes were found when a journey first called one over HTTP. "
+      "The KDS was found when the route sweep asked which delivered writers a surface "
+      "could reach. The login gap was found while reading what actually cites "
+      "FR-AUTH-001. The absent floor was found by deploying the service to a hosted "
+      "database and discovering that migrations and seeds alone render an empty menu.")
+    w("")
+    w("The reason the suites miss this class is structural, not careless. Each suite "
+      "proves its own slice against the database, and the database is where every one of "
+      "these subsystems is complete. The missing step is always the connection to the "
+      "next layer — a route, a function, a row of product data — and a slice suite has no "
+      "standing to demand something from a layer it does not own. The golden journeys "
+      "exist to cross those seams and they do catch it, which is exactly how the billing "
+      "defect surfaced; but a journey only crosses the seams somebody wrote a journey "
+      "for.")
+    w("")
+    w("**So the question for the review is not whether these three should be fixed. It "
+      "is how many more there are, and what would find them without waiting for somebody "
+      "to try the product.** The route sweep below is one instrument aimed at this class: "
+      "it enumerates what the service exposes and what nothing calls. It would not have "
+      "caught the absent floor, because that gap is in data rather than in code.")
+    w("")
+
     w("## The reviewer is free to disagree with all of it")
     w("")
     w("Each finding below carries a **classification** and a **completing gate**, and "
