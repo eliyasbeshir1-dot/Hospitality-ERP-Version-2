@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `0b95fd574ee10c030aec8da6679707c3e02d6abe` |
-| Short | `0b95fd5` |
+| Commit | `f1253d3c808a053a1db16d0e0c49cf581c221ba2` |
+| Short | `f1253d3` |
 | Branch | `claude/operator-gate-opa` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation — the generator refuses a tree that is not |
