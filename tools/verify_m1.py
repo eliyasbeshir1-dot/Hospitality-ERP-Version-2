@@ -230,7 +230,8 @@ def main() -> int:
     print(f"  repository files scanned : {scanned}")
     print(f"  docs package files       : {docs_files}")
     print(f"  vocabulary loaded        : {terms} terms across {domains} domains")
-    print(f"  vocabulary source        : {RULES_PATH.relative_to(Path(__file__).resolve().parents[1])}")
+    print("  vocabulary source        : "
+          f"{RULES_PATH.relative_to(Path(__file__).resolve().parents[1]).as_posix()}")
     print("  fenced-domain surface    : none")
     return 0
 

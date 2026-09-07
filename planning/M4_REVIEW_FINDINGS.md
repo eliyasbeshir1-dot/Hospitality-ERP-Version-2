@@ -304,7 +304,7 @@ The clause asks for three things: verified phone or email login, secure password
 The middle limb is the flow, and it now exists — what follows is the evidence, not a gap:
 
 - `identity` exposes 7 operator-callable writers — `authenticate_credential`, `authorize_action`, `authorize_service_principal`, `credential_key_derivation`, `emit_security_event`, `establish_session_context`, `register_auth_attempt`. One of them turns a presented credential into a session.
-- 1 file(s) under `api/src` reads `identity.credential`: `api\src\routes\auth.ts`.
+- 1 file(s) under `api/src` reads `identity.credential`: `api/src/routes/auth.ts`.
 - Every staff bearer token in this build existed because a fixture inserted a row into `identity.session` directly, until a login route began issuing them.
 
 What makes this worth a reviewer's attention is not that a gap exists. It is that **everything around the gap is real and proved.** `identity.credential` stores only digests and a CHECK rejects anything that is not one. Five failures inside the window trip `auth_lockout`. Rotation retires the previous token. `otp_transmission` refuses to record a simulated result as a live provider outcome. A failed authentication never echoes the credential presented. All of that is proved, some of it red-then-green. The one step missing is the step in the middle — verify, then issue — and its absence is invisible precisely because the mechanism on either side of it is so thoroughly built.

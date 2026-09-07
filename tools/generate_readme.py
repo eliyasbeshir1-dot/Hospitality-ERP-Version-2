@@ -141,13 +141,13 @@ def vendored_assets() -> list[str]:
             .get("Licence", ""))
         if not binaries:
             raise DescriptionNamesADerivableFact(
-                f"{record.relative_to(REPO)} names no file with a sha256 beside it, so "
+                f"{record.relative_to(REPO).as_posix()} names no file with a sha256 beside it, so "
                 f"the README cannot describe what this repository ships")
         for digest, name in sorted(binaries, key=lambda pair: pair[1]):
             on_disk = record.parent / name
             if not on_disk.is_file():
                 raise DescriptionNamesADerivableFact(
-                    f"{record.relative_to(REPO)} names {name}, which is not there. A "
+                    f"{record.relative_to(REPO).as_posix()} names {name}, which is not there. A "
                     f"licence line describing a file that does not exist is worse than "
                     f"none, because somebody would rely on it")
             found = True

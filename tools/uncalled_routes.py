@@ -324,7 +324,12 @@ def sources_matching(needle: str) -> list:
     hits = []
     for source in sorted((REPO / "api" / "src").rglob("*.ts")):
         if needle in source.read_text(encoding="utf-8"):
-            hits.append(str(source.relative_to(REPO)))
+            # POSIX, ALWAYS. This is rendered into planning/M4_REVIEW_FINDINGS.md, which
+            # CI regenerates and diffs against the committed copy, so a Windows separator
+            # here is a failure with no defect behind it. It stayed hidden until OP-A
+            # added the first file this function has ever matched: for as long as the
+            # answer was an empty list, the platform could not show through it.
+            hits.append(source.relative_to(REPO).as_posix())
     return hits
 
 
