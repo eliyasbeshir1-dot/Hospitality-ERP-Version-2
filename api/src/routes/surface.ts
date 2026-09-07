@@ -40,7 +40,42 @@ const FILES = [
   'waiter.html',
   'waiter.css',
   'waiter.js',
+  // The till (OP-B). Fourth entry point, same reasoning a fourth time: a cashier screen a
+  // guest could reach by scanning a table would be a defect, not a convenience.
+  'cashier.html',
+  'cashier.css',
+  'cashier.js',
 ] as const;
+
+/**
+ * EVERY DOCUMENT THIS SERVICE SERVES, AND THE ONE PLACE THAT FACT IS WRITTEN.
+ *
+ * Each entry is a separate surface with a separate audience and separate authentication:
+ * a guest, a kitchen, a waiter and a cashier. A till reachable by scanning a table's QR
+ * code would be a defect, not a convenience, which is why none of these is a mode of
+ * another.
+ *
+ * IT IS EXPORTED BECAUSE THE SECURITY LAYER NEEDS THE SAME LIST. A document loads its own
+ * stylesheet and script, so it must be served the surface content-security-policy rather
+ * than the API's deny-everything one. That list used to be typed out again in
+ * security.ts, and the comment beside it recorded that a surface which "had to be listed
+ * somewhere and was not would be served the API's deny-everything policy and would render
+ * as a blank page with two console errors, which is how this was found the first time."
+ *
+ * It was found that way a fourth time when the till was added, because a hand-maintained
+ * copy of a list is a copy that goes stale. Now there is one list: registering a document
+ * here is what puts it in the policy, and forgetting is no longer possible.
+ */
+export const SURFACE_DOCUMENTS: readonly (readonly [string, string])[] = [
+  ['/', 'index.html'],
+  ['/station', 'station.html'],
+  ['/waiter', 'waiter.html'],
+  ['/cashier', 'cashier.html'],
+] as const;
+
+/** The paths that must carry the surface CSP, derived from the documents themselves. */
+export const SURFACE_DOCUMENT_PATHS: readonly string[] =
+  SURFACE_DOCUMENTS.map(([path]) => path);
 
 export function registerSurfaceRoutes(app: FastifyInstance, publicDir: string): void {
   const loaded = new Map<string, { body: Buffer; type: string }>();
@@ -58,31 +93,14 @@ export function registerSurfaceRoutes(app: FastifyInstance, publicDir: string): 
     }
   }
 
-  app.get('/', async (_request, reply) => {
-    const file = loaded.get('index.html');
-    if (!file) { reply.code(503); return { error: 'surface not built' }; }
-    reply.type(file.type);
-    return file.body;
-  });
-
-  // The station surface's document. A separate entry point from the customer surface's
-  // '/', because they are separate surfaces with separate audiences: nothing a guest can
-  // reach serves this, and it carries the same locked-down policy.
-  app.get('/station', async (_request, reply) => {
-    const file = loaded.get('station.html');
-    if (!file) { reply.code(503); return { error: 'surface not built' }; }
-    reply.type(file.type);
-    return file.body;
-  });
-
-  // The waiter surface's document. Third entry point, and for the same reason again:
-  // a screen a guest could reach by scanning a QR code would be a defect, not a feature.
-  app.get('/waiter', async (_request, reply) => {
-    const file = loaded.get('waiter.html');
-    if (!file) { reply.code(503); return { error: 'surface not built' }; }
-    reply.type(file.type);
-    return file.body;
-  });
+  for (const [path, document] of SURFACE_DOCUMENTS) {
+    app.get(path, async (_request, reply) => {
+      const file = loaded.get(document);
+      if (!file) { reply.code(503); return { error: 'surface not built' }; }
+      reply.type(file.type);
+      return file.body;
+    });
+  }
 
   app.get<{ Params: { '*': string } }>('/app/*', async (request, reply) => {
     const file = loaded.get(request.params['*']);

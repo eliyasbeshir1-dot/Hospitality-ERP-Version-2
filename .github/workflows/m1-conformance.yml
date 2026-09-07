@@ -287,7 +287,7 @@ jobs:
           # M1A..M4A while it ran through M4-B — and each time two suites were passing on
           # Windows without anybody requiring them to. tests/ is where the suites are, so
           # tests/ is what the loop reads.
-          for suite in $(ls -d tests/m[0-9]* tests/opa | sed 's#tests/##' | sort); do
+          for suite in $(ls -d tests/m[0-9]* tests/opa tests/opb | sed 's#tests/##' | sort); do
             verdict="$(echo "$suite" | tr '[:lower:]' '[:upper:]')"
             grep -q "^PASS ${verdict}_VERIFICATION" "$LOG_DIR/windows-suites.log" || {
               echo "::error::${verdict} did not report PASS on Windows"; exit 1; }
@@ -812,6 +812,37 @@ jobs:
           done
           echo "OP-A: $checks checks, 0 failures, 9 controls red then green"
 
+      - name: "OP-B — the staff screens over routes that already exist (FR-UX-002, FR-UX-008, FR-UX-015, FR-BIL-013, FR-BIL-014, FR-BIL-015, FR-POS-004, FR-POS-006, FR-SAF-004)"
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Chains from OP-A, which chains the whole history beneath it. This gate proves a
+          # person can REACH what the slices built: before it, station.ts and waiter.ts
+          # contained no fetch at all and there was no till, so thirteen kitchen routes
+          # existed that no cook could press.
+          export M4C_LOG_DIR="$LOG_DIR"
+          bash tests/opb/run_verification.sh 2>&1 | tee "$LOG_DIR/opb.log"
+          grep -q '^PASS OPB_VERIFICATION' "$LOG_DIR/opb.log" || {
+            echo "::error::OP-B suite did not report PASS"; exit 1; }
+          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' "$LOG_DIR/opb.log" | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/opb.log" | tail -1)"
+          test "${checks:-0}" -ge 20 || { echo "::error::only ${checks:-0} OP-B checks ran"; exit 1; }
+          test "${failed:-1}" -eq 0 || { echo "::error::${failed} OP-B check(s) failed"; exit 1; }
+          # SOMETHING MUST HAVE BEEN MEASURED IN A BROWSER. Every claim in this gate about
+          # what a person SEES is measured; a run reporting zero measured checks would mean
+          # the browser never opened and the suite degraded to asserting about payloads,
+          # which is the thing it exists not to do.
+          measured="$(grep -oP 'measured\s+:\s+\K[0-9]+' "$LOG_DIR/opb.log" | tail -1)"
+          test "${measured:-0}" -ge 10 || {
+            echo "::error::only ${measured:-0} OP-B checks were measured in a browser"; exit 1; }
+          for control in NC-OPB-001 NC-OPB-002 NC-OPB-003 NC-OPB-004                          NC-OPB-005 NC-OPB-006 NC-OPB-007 NC-OPB-008; do
+            grep -q "$control — RED with the defect planted" "$LOG_DIR/opb.log" || {
+              echo "::error::$control was never proved red"; exit 1; }
+            grep -q "$control — GREEN after revert" "$LOG_DIR/opb.log" || {
+              echo "::error::$control was never proved green"; exit 1; }
+          done
+          echo "OP-B: $checks checks ($measured measured), 0 failures, 8 controls red then green"
+
       - name: "The route census reads code, not prose (the instrument behind GJ-01A)"
         shell: bash
         run: |
@@ -901,7 +932,7 @@ jobs:
           export M4C_LOG_DIR="$LOG_DIR"
           # Reverse order, same database, no rebuild. A suite that only passes when it runs
           # first is depending on state another suite left behind.
-          for suite in opa m4c m4b m4a m3d m3c m3b m3a m2c m2b m2a m1d m1c m1b m1a; do
+          for suite in opb opa m4c m4b m4a m3d m3c m3b m3a m2c m2b m2a m1d m1c m1b m1a; do
             python3 "tests/$suite/verify_${suite}.py" > "$LOG_DIR/reorder/$suite.log" 2>&1 || true
           done
           # AND THE JOURNEYS, which this sweep did not run until M4's second repair.
@@ -914,7 +945,7 @@ jobs:
           # the journeys are what has to survive it.
           python3 tests/journeys/verify_journeys.py > "$LOG_DIR/reorder/journeys.log" 2>&1 || true
           fail=0
-          for suite in m1a m1b m1c m1d m2a m2b m2c m3a m3b m3c m3d m4a m4b m4c opa journeys; do
+          for suite in m1a m1b m1c m1d m2a m2b m2c m3a m3b m3c m3d m4a m4b m4c opa opb journeys; do
             tag="$(echo "$suite" | tr '[:lower:]' '[:upper:]')"
             if [ "$suite" = journeys ]; then tag=GOLDEN_JOURNEY; fi
             declared="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/$suite.log" | tail -1)"

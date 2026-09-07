@@ -1,0 +1,112 @@
+/*
+ * The till's styles.
+ *
+ * The same discipline as the station board and the customer surface: no fact is carried by
+ * colour alone, one ink and one paper, and every control large enough to hit without
+ * looking. A till is used at speed, standing up, with a queue behind it.
+ *
+ * THE ONE RULE WORTH READING TWICE is the layout of the bill and the tip. They are two
+ * sections side by side, never nested, because a tip rendered inside a bill summary has
+ * told the guest it is part of what they owe. That is FR-BIL-014, and it is a rule about
+ * a total rather than about a stylesheet — but a stylesheet is how it gets broken, so the
+ * containment is asserted from the rendered page by tests/opb rather than trusted here.
+ */
+:root {
+  --ink: #101418;
+  --paper: #ffffff;
+  --rule: #7a828a;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font: 16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+}
+.skip { position: absolute; left: -9999px; }
+.skip:focus { left: 0.5rem; top: 0.5rem; position: fixed; background: var(--paper); padding: 0.5rem; }
+header { padding: 0.75rem 1rem; border-bottom: 2px solid var(--rule); }
+h1 { margin: 0; font-size: 1.25rem; }
+h2 { margin: 0 0 0.5rem; font-size: 1.05rem; }
+
+#notice {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  border-bottom: 2px solid var(--rule);
+}
+
+main, section { padding: 1rem; }
+
+/* The bill and the tip, as two columns on a till and two stacked blocks on a tablet. */
+#bill, #tip-box {
+  border: 2px solid var(--rule);
+  border-radius: 0.25rem;
+  margin: 0 1rem 1rem;
+}
+@media (min-width: 60rem) {
+  #bill { float: left; width: calc(60% - 1.5rem); }
+  #tip-box { float: left; width: calc(40% - 1.5rem); }
+  #payment { clear: both; }
+}
+
+.bill-line { display: flex; justify-content: space-between; gap: 1rem; padding: 0.25rem 0; }
+.bill-total, .bill-outstanding { font-weight: 700; border-top: 2px solid var(--rule); margin-top: 0.5rem; padding-top: 0.5rem; }
+
+.tip-options { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.tip-note { font-size: 0.95rem; }
+
+.tables { list-style: none; margin: 0; padding: 0; }
+.row { display: flex; align-items: center; gap: 1rem; padding: 0.75rem 0; border-bottom: 1px solid var(--rule); }
+.table-reference { font-weight: 700; font-size: 1.125rem; }
+
+.splits { display: flex; flex-wrap: wrap; gap: 0.75rem; padding-top: 0.75rem; }
+
+/* Large targets: a till is used standing, at speed, often one-handed. */
+.action {
+  min-height: 3rem;
+  min-width: 8rem;
+  padding: 0.75rem 1.25rem;
+  font: inherit;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--paper);
+  border: 2px solid var(--rule);
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+.action:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.action[disabled] { opacity: 0.6; cursor: progress; }
+
+/* Friction is a panel that states the consequence in words, not a colour on a button. */
+.confirm, .override {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 3px solid var(--ink);
+  border-radius: 0.25rem;
+  max-width: 34rem;
+}
+.confirm-what, .override-what { margin: 0; font-weight: 700; }
+.confirm input, .override input {
+  min-height: 3rem;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  border: 2px solid var(--rule);
+  border-radius: 0.25rem;
+}
+
+.sign-in { display: grid; gap: 0.75rem; max-width: 32rem; }
+.field { display: grid; gap: 0.25rem; font-weight: 600; }
+.field input {
+  min-height: 3rem;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  border: 2px solid var(--rule);
+  border-radius: 0.25rem;
+}
+
+.receipt-body { white-space: pre-wrap; font-size: 0.9rem; }

@@ -66,6 +66,12 @@ const STATUS: Record<string, number> = {
   // "unmapped database refusal" for a business rule working exactly as designed. Same
   // shape as the M4-A billing routes and GJ-01A — the first caller finds the defect.
   DUPLICATE_RECEIPT_PRINTED: 409,
+  // FOURTH INSTANCE OF THE SAME PATTERN, found the same way again. A second receipt for
+  // one bill revision is refused by a UNIQUE constraint — FR-BIL-010's one original per
+  // settlement, working exactly as designed — and it answered 500 because the constraint
+  // name was not in this map. The first caller to ask twice was OP-B's till, once the
+  // journeys started issuing receipts through the screen.
+  'UNIQUE_VIOLATION:receipt_one_per_bill_revision': 409,
   // AND THE THIRD INSTANCE OF THE SAME PATTERN, found the same way. NC-OPA-009 is the
   // first thing ever to POST to the printer-test route, and the refusals migration 0034
   // added were missing from this map exactly as DUPLICATE_RECEIPT_PRINTED had been: a

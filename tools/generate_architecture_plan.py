@@ -51,6 +51,9 @@ ENTRY_PURPOSE = {
     ".gitignore": "caches, dependency directories, generated validator output",
     "README.md": "gate status, prohibitions, lineage — generated",
     "api": "the cloud API: Fastify and TypeScript, two runtime dependencies",
+    "cashier": "the till: the cashier's surface, vanilla TypeScript like the other three, "
+               "a fourth entry point because a guest, a kitchen, a waiter and a cashier "
+               "share no audience and no authentication",
     "docs": "the pinned package, byte-identical, verified by its own SHA256SUMS.txt",
     "docs-local": "cross-platform command reference and its verification record",
     "evidence": "the generated evidence report",

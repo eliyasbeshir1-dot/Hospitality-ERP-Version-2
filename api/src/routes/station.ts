@@ -122,11 +122,31 @@ export function registerStationRoutes(app: FastifyInstance, deps: StationDepende
             WHERE kind = 'kitchen_instruction'`,
           [tenantId, request.params.ticketId],
         );
+        // WHERE THIS TICKET MAY GO NEXT, READ FROM THE CATALOG THAT DECIDES IT.
+        //
+        // A kitchen screen has to know which buttons to draw, and there are exactly two
+        // honest ways to get that: show all thirteen actions and let the database refuse
+        // the wrong ones, or ask the database. fulfillment.transition IS the machine's
+        // ordered pairs — the same rows assert_legal_transition() enforces against — so
+        // this returns them rather than letting a surface carry its own copy. A screen
+        // holding a second state table is CHANNEL_RULE_DIVERGENCE waiting to happen: it
+        // would agree on the day it was written and drift on the day the machine changed.
+        //
+        // This is a read of a catalog table, not a second opinion about legality. The
+        // refusal still comes from the trigger; nothing here can permit a move.
+        const transitions = await client.query(
+          `SELECT to_state::text AS to_state, reason
+             FROM fulfillment.transition
+            WHERE from_state = $1::fulfillment.ticket_state
+            ORDER BY to_state`,
+          [ticket.rows[0].state],
+        );
         return {
           ticket: ticket.rows[0],
           lines: lines.rows,
           allergies: allergies.rows,
           notes: notes.rows,
+          transitions: transitions.rows,
         };
       }),
   );

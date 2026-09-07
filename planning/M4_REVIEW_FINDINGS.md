@@ -312,11 +312,11 @@ What makes this worth a reviewer's attention is not that a gap exists. It is tha
 **So read the delivered count as what it is: a count of requirements that something in the run names.** It does not assert that a person can perform the behaviour the clause describes. Recorded in `planning/requirement_coverage.json` as absent, security, buildable now, closing at M6. It is not built here, and this brief does not build it: a repair that quietly added an authentication flow would be a far worse defect than the one it fixed.
 
 
-## 24 routes the service exposes that nothing has ever called
+## 26 routes the service exposes that nothing has ever called
 
 **This is a finding in its own right, not a footnote.** GJ-01A's lesson was that `ordering.preview_cart()` and `ordering.submit_order()` were both proved against the database while no route called either and no button reached one: every unit check passed and the feature was unreachable. M4-A shipped its billing routes the same way. The first HTTP call ever made to `POST /s/v1/checks` — made while repairing the journeys, after the slice had closed — failed on two production defects at once, because nothing had ever called it.
 
-Of 108 addressable routes, 84 are called by some suite, journey or surface and **24 are called by nothing**. A route with no caller is not necessarily broken. It is unproved, which is the condition both of those defects were hiding in.
+Of 111 addressable routes, 85 are called by some suite, journey or surface and **26 are called by nothing**. A route with no caller is not necessarily broken. It is unproved, which is the condition both of those defects were hiding in.
 
 Derived by `tools/uncalled_routes.py` on every generation, so this list cannot go stale the way a typed one would.
 
@@ -326,7 +326,7 @@ Derived by `tools/uncalled_routes.py` on every generation, so this list cannot g
 
 | Route file | Never called |
 |---|---|
-| `billing.ts` | `GET /s/v1/checks`<br>`POST /s/v1/bills/:billId/corrections`<br>`POST /s/v1/bills/:billId/dispositions`<br>`POST /s/v1/bills/:billId/finalize`<br>`POST /s/v1/checks/merge` |
+| `billing.ts` | `GET /s/v1/bills/:billId`<br>`GET /s/v1/bills/:billId/tip-options`<br>`GET /s/v1/checks`<br>`POST /s/v1/bills/:billId/corrections`<br>`POST /s/v1/bills/:billId/dispositions`<br>`POST /s/v1/bills/:billId/finalize`<br>`POST /s/v1/checks/merge` |
 | `customer.ts` | `POST /c/v1/allergy-concerns` |
 | `documents.ts` | `GET /s/v1/documents/preview`<br>`GET /s/v1/fiscal/reconciliation`<br>`GET /s/v1/receipts/:receiptId`<br>`POST /s/v1/receipts/:receiptId/renders` |
 | `payments.ts` | `GET /s/v1/payments/:paymentId/allocations` |

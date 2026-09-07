@@ -17,7 +17,7 @@ would fail the build for doing the assigned work. The script is retained unmodif
 historical evidence and is superseded by `tools/verify_m1.py`.
 
 This file used to be hand-written, and it said five jobs, four suites and nineteen
-controls long after there were six jobs, seventeen suites and 123 controls.
+controls long after there were six jobs, eighteen suites and 131 controls.
 
 That is the third time a hardcoded description outlived its truth in this repository,
 after the README's undescribed slice and its default suite description. So every count
@@ -50,7 +50,7 @@ credential out of the repository (FR-SEC-007).
 
 ## The suites
 
-Seventeen suites: fourteen that each verify one slice, and three that cut across gates.
+Eighteen suites: fourteen that each verify one slice, and four that cut across gates.
 
 | Suite | Kind |
 |---|---|
@@ -71,6 +71,7 @@ Seventeen suites: fourteen that each verify one slice, and three that cut across
 | `tests/m4b/verify_m4b.py` | one slice |
 | `tests/m4c/verify_m4c.py` | one slice |
 | `tests/opa/verify_opa.py` | cross-cutting |
+| `tests/opb/verify_opb.py` | cross-cutting |
 
 Order independence is checked on every run: the slice suites run again in reverse against
 the same database, and a suite whose failure count differs between the two orders fails
@@ -78,7 +79,7 @@ the build (FR-TST-020). That requirement has found eight real defects across M3 
 
 ## Negative controls are checked for non-vacuity
 
-A control that never fails is not a control. There are 123 of them — M1 22, M2 22, M3 35, M4 44. The database job
+A control that never fails is not a control. There are 131 of them — M1 22, M2 22, M3 35, M4 52. The database job
 requires each of them to appear in a suite log **both** as RED with a defect planted and
 as GREEN after revert, and the evidence report is regenerated in the same job and fails
 the build if it lists any control as `not proven`.
@@ -88,8 +89,8 @@ the build if it lists any control as `not proven`.
 | M1 | 22 |
 | M2 | 22 |
 | M3 | 35 |
-| M4 | 44 |
-| **Total** | **123** |
+| M4 | 52 |
+| **Total** | **131** |
 
 The registry is `tools/controls.py`. It is not a list somebody maintains beside the run:
 `controls.check_against_run()` compares it with what the suites actually printed, in both

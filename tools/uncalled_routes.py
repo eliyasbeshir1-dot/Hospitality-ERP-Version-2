@@ -42,8 +42,13 @@ REPO = Path(__file__).resolve().parents[1]
 # Not addressable by a caller: the static surface mounts and the index documents.
 NOT_A_CALLABLE_ROUTE = re.compile(r"^/$|^/app/\*$|\.html$|^index")
 
+# Every place a request can come from. The till joined at OP-B, and it had to be added
+# here: a surface the census does not read is a surface whose routes read as uncalled,
+# which is the census understating coverage rather than overstating it — the safer
+# direction, and still wrong.
 CALLER_GLOBS = ("tests/**/*.py", "tests/**/*.mjs",
-                "pwa/**/*.ts", "waiter/**/*.ts", "station/**/*.ts")
+                "pwa/**/*.ts", "waiter/**/*.ts", "station/**/*.ts",
+                "cashier/**/*.ts")
 
 
 def routes() -> list[tuple[str, str, str]]:
@@ -57,6 +62,22 @@ def routes() -> list[tuple[str, str, str]]:
             if NOT_A_CALLABLE_ROUTE.search(path):
                 continue
             found.append((match.group(1).upper(), path, source.name))
+
+        # THE DOCUMENT ROUTES ARE REGISTERED FROM A TABLE, AND THE TABLE IS THE CATALOG.
+        #
+        # surface.ts used to register '/', '/station' and '/waiter' as three literal
+        # app.get() calls, which the pattern above reads. OP-B replaced them with a loop
+        # over SURFACE_DOCUMENTS so the security layer could derive the same list instead
+        # of restating it — and that refactor made this census blind to every one of them.
+        # The total stayed at 108 by coincidence, two new billing routes arriving as two
+        # document routes disappeared, which is exactly how a miscount hides.
+        #
+        # So the census reads the table too. One list still: the server registers from it,
+        # the content-security-policy is derived from it, and the census counts it.
+        for match in re.finditer(r"\[\s*'([^']+)'\s*,\s*'[^']*\.html'\s*\]", text):
+            path = match.group(1)
+            if not NOT_A_CALLABLE_ROUTE.search(path):
+                found.append(("GET", path, source.name))
     if not found:
         raise SystemExit("FAIL ROUTES_UNREADABLE: no route was found in api/src/routes; "
                          "an empty enumeration would report every route uncalled")

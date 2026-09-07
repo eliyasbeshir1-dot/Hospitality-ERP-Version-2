@@ -63,19 +63,74 @@ FIRST_VERSION = 1
 # reaches for anything else is refused by name. Without that, "the app role cannot write
 # it" becomes a reason to move any inconvenient row into the privileged pass, and the
 # guarantee that seeded content passes real RLS quietly stops being true.
+#
+# WHY EACH OF THESE IS CONFIGURATION RATHER THAN CONTENT. The distinction is not "the app
+# role cannot write it" — that is the symptom. It is that each row below is decided when an
+# outlet is INSTALLED and is then read, not written, by the running service. Nothing here
+# is produced by trade. A reader should be able to check that claim table by table:
+#
+#   fulfillment.station_profile     which stations exist in this kitchen
+#   fulfillment.routing_rule        which of them a dish goes to
+#   fulfillment.routing_rule_set    the version of that routing, as a set
+#   billing.tip_setting             whether this outlet offers a tip at all
+#   billing.tip_suggestion          the percentages it offers, if it does
+#   payments.payment_adapter        which payment providers this outlet accepts
+#
+# billing.service_charge_setting was approved for this set and is deliberately NOT in it.
+# It requires a configuration_version_id, and a floor with no service charge is correctly
+# represented by having no row at all — billing.issue_bill() reads its absence as "none",
+# which the demonstration floor's first bill proved before this seed existed. Admitting a
+# table to the privileged pass that nothing writes would widen the boundary for nothing,
+# which is the opposite of what "narrow" is protecting. Six, not seven.
+#
+# Each is a decision an installer makes and a manager revisits; none is a bill, a payment,
+# an order or a ticket. The counter-example is the test: a bill IS produced by trade, and
+# billing.bill is SELECT-only to the app role too — because a FUNCTION writes it, not
+# because it is configuration. Membership here is decided by "who decides this row", never
+# by "which grant is in the way".
 PROVISIONABLE_TABLES = frozenset({
     "fulfillment.station_profile",
     "fulfillment.routing_rule",
     "fulfillment.routing_rule_set",
+    "billing.tip_setting",
+    "billing.tip_suggestion",
+    "payments.payment_adapter",
 })
+
+# THE SET IS NAMED, AND THE NAMING IS CHECKED. Growing PROVISIONABLE_TABLES without saying
+# so here fails, so an eighth table cannot arrive as a one-word diff: somebody has to write
+# it down in two places and mean it. This is the condition attached to growing the set
+# beyond the three tables it held at OP-A.
+PROVISIONABLE_TABLES_DECLARED = (
+    "billing.tip_setting",
+    "billing.tip_suggestion",
+    "fulfillment.routing_rule",
+    "fulfillment.routing_rule_set",
+    "fulfillment.station_profile",
+    "payments.payment_adapter",
+)
 
 # The grant that must still hold after seeding. Asserted rather than assumed: a later
 # provisioning seed could issue a GRANT and nothing else here would notice.
-RUNTIME_SELECT_ONLY = {
-    "fulfillment.station_profile": {"SELECT"},
-    "fulfillment.routing_rule": {"SELECT"},
-    "fulfillment.routing_rule_set": {"SELECT"},
-}
+RUNTIME_SELECT_ONLY = {table: {"SELECT"} for table in PROVISIONABLE_TABLES_DECLARED}
+
+
+def assert_the_provisionable_set_is_declared() -> None:
+    """The set and its written-down twin agree, or seeding stops.
+
+    Two statements of one fact, deliberately, because this is the one place where the
+    cost of drift is a privilege boundary rather than a stale document.
+    """
+    if PROVISIONABLE_TABLES != frozenset(PROVISIONABLE_TABLES_DECLARED):
+        difference = PROVISIONABLE_TABLES.symmetric_difference(
+            PROVISIONABLE_TABLES_DECLARED)
+        raise MigrationFailure(
+            "PROVISIONABLE_SET_UNDECLARED",
+            f"PROVISIONABLE_TABLES and PROVISIONABLE_TABLES_DECLARED differ on "
+            f"{', '.join(sorted(difference))}. The provisioning pass may write "
+            f"{len(PROVISIONABLE_TABLES_DECLARED)} named tables; a table added to one "
+            f"list and not the other is a privilege boundary moved without anybody "
+            f"saying so.")
 
 _COMMENT = re.compile(r"--[^\n]*")
 _WRITE_TARGET = re.compile(
@@ -143,23 +198,30 @@ def assert_runtime_grant_unchanged(dsn: str) -> None:
     can do. That is a claim about the database after seeding, so it is read back from the
     catalog rather than argued from the fact that no seed said GRANT.
     """
-    out = psql(dsn, """
-        SELECT c.relname, coalesce(string_agg(DISTINCT g.privilege_type, ',' ORDER BY g.privilege_type), '')
+    # Derived from RUNTIME_SELECT_ONLY rather than restating its members. The first
+    # version of this named three tables in one schema in a SQL literal, which would have
+    # kept passing while saying nothing about the four added later in two other schemas —
+    # an assertion that cannot fail for the rows you just wrote.
+    wanted = ", ".join(
+        f"('{table.split('.')[0]}','{table.split('.')[1]}')"
+        for table in sorted(RUNTIME_SELECT_ONLY))
+    out = psql(dsn, f"""
+        SELECT n.nspname || '.' || c.relname,
+               coalesce(string_agg(DISTINCT g.privilege_type, ',' ORDER BY g.privilege_type), '')
           FROM pg_class c
           JOIN pg_namespace n ON n.oid = c.relnamespace
           LEFT JOIN information_schema.role_table_grants g
                  ON g.table_schema = n.nspname AND g.table_name = c.relname
                 AND g.grantee = 'hospitality_app'
-         WHERE n.nspname = 'fulfillment'
-           AND c.relname IN ('station_profile', 'routing_rule', 'routing_rule_set')
-         GROUP BY c.relname ORDER BY c.relname;
+         WHERE (n.nspname, c.relname) IN ({wanted})
+         GROUP BY 1 ORDER BY 1;
     """)
     seen: dict[str, set[str]] = {}
     for line in out.splitlines():
         if not line.strip():
             continue
-        relname, privileges = line.split("\x1f")
-        seen[f"fulfillment.{relname}"] = {p for p in privileges.split(",") if p}
+        table, privileges = line.split("\x1f")
+        seen[table] = {p for p in privileges.split(",") if p}
 
     for table, expected in sorted(RUNTIME_SELECT_ONLY.items()):
         actual = seen.get(table)
@@ -278,6 +340,8 @@ def preflight(dsn: str, seeds_dir: Path) -> list[tuple[int, Path]]:
 
 
 def cmd_apply(dsn: str, seeds_dir: Path, content_dsn: str) -> int:
+    # Before anything is applied: the privileged set is what this file says it is.
+    assert_the_provisionable_set_is_declared()
     ordered = preflight(dsn, seeds_dir)
     state = applied_state(dsn)
     pending = [(v, p) for v, p in ordered if v not in state]

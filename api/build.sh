@@ -64,6 +64,16 @@ cp "$WORKSPACE/waiter/index.html" "$WORKSPACE/dist/public/waiter.html"
 cp "$WORKSPACE/waiter/waiter.css" "$WORKSPACE/dist/public/waiter.css"
 ./node_modules/.bin/tsc -p "$WORKSPACE/waiter/tsconfig.json" --outDir "$WORKSPACE/dist/public"
 
+# The TILL (OP-B), a fourth entry point on the same reasoning as the second and third. A
+# guest, a kitchen, a waiter and a cashier share no audience and no authentication, and a
+# till reachable from a table's QR code would be the defect the separation exists to
+# prevent. Its negative controls plant their defects in this workspace copy too.
+rm -rf "$WORKSPACE/cashier"
+cp -r "$REPO/cashier" "$WORKSPACE/cashier"
+cp "$WORKSPACE/cashier/index.html" "$WORKSPACE/dist/public/cashier.html"
+cp "$WORKSPACE/cashier/cashier.css" "$WORKSPACE/dist/public/cashier.css"
+./node_modules/.bin/tsc -p "$WORKSPACE/cashier/tsconfig.json" --outDir "$WORKSPACE/dist/public"
+
 echo "built into $WORKSPACE/dist"
 
 if [ "${1:-}" = "--run" ]; then

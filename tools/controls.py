@@ -163,6 +163,17 @@ CONTROLS = [
     ("NC-OPA-007", "A seeded row bypassing the runner or RLS", "SEED_BYPASSED_RUNNER", "opa"),
     ("NC-OPA-008", "Lockout not firing after the configured failures", "LOCKOUT_NOT_ENFORCED", "opa"),
     ("NC-OPA-009", "A caller's claim recorded as a print the agent never made", "PRINT_OUTCOME_FORGED", "opa"),
+    # OP-B — the staff screens. Every one of these is planted in a SURFACE and measured in
+    # a real browser, because that is where these particular defects live: a rule the
+    # database enforces perfectly can still be undone by the screen that draws it.
+    ("NC-OPB-001", "A station renders an allergy without its written warning", "WRITTEN_WARNING_ABSENT_FROM_RENDER", "opb"),
+    ("NC-OPB-002", "Allergy emphasis carried by colour alone", "STATE_CONVEYED_BY_COLOUR_ALONE", "opb"),
+    ("NC-OPB-003", "The tip box rendered inside the bill summary", "TIP_COMMINGLED_WITH_BILL", "opb"),
+    ("NC-OPB-004", "A tip option preselected for the guest", "TIP_PRESELECTED", "opb"),
+    ("NC-OPB-005", "An override accepted without the manager's own session", "OVERRIDE_WITHOUT_STEP_UP", "opb"),
+    ("NC-OPB-006", "A destructive action proceeding with no reason", "DESTRUCTIVE_ACTION_WITHOUT_REASON", "opb"),
+    ("NC-OPB-007", "The station screen driving a ticket into an illegal state", "ILLEGAL_TRANSITION_ACCEPTED", "opb"),
+    ("NC-OPB-008", "A screen re-implementing a rule the route enforces", "CHANNEL_RULE_DIVERGENCE", "opb"),
 ]
 
 
@@ -269,7 +280,7 @@ def count() -> int:
 # rather than inventing a tenth gate for work that landed no new requirement. The mapping
 # is a single table rather than a wildcard, so an identifier this file has never heard of
 # still raises rather than being silently filed somewhere.
-REPAIR_PASS_GATE = {"OPA": "M4"}
+REPAIR_PASS_GATE = {"OPA": "M4", "OPB": "M4"}
 
 
 def gate_of(identifier: str) -> str | None:

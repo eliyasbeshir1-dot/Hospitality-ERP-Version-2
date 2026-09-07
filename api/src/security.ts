@@ -6,6 +6,7 @@
  * unfalsifiable green this project spent five package revisions removing.
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { SURFACE_DOCUMENT_PATHS } from './routes/surface';
 
 /**
  * Response headers required on every response, including errors.
@@ -58,15 +59,18 @@ export function registerCustomerSurfaceHeaders(app: FastifyInstance): void {
     // The browser said so plainly; a check that only looked at the response header would
     // have called this correct.
     const path = request.url.split('?')[0] ?? '';
-    // '/station' joins the list for the same reason '/' is on it: it serves a DOCUMENT
-    // that loads its own stylesheet and script, and the API's deny-everything policy
-    // would refuse both. Its assets come from /app/ like the customer surface's.
-    // '/waiter' joins them at M3-D. Three documents, one policy: a surface that had to
-    // be listed somewhere and was not would be served the API's deny-everything policy
-    // and would render as a blank page with two console errors, which is how this was
-    // found the first time.
-    if (path === '/' || path === '/station' || path === '/waiter'
-        || path.startsWith('/app/')) {
+    // DERIVED FROM THE DOCUMENTS THEMSELVES, NOT TYPED OUT AGAIN.
+    //
+    // A document loads its own stylesheet and script, so it needs the surface policy
+    // rather than the API's deny-everything one. This list used to be written here by
+    // hand, beside a comment saying that a surface "listed somewhere and not here" would
+    // render as a blank page with two console errors — "which is how this was found the
+    // first time". It was found that way again when OP-B added the till: three names here,
+    // four surfaces registered, and a page that would not load its own assets.
+    //
+    // So the list comes from where the documents are registered. Adding a surface there
+    // now puts it in the policy; there is nothing left to forget.
+    if (SURFACE_DOCUMENT_PATHS.includes(path) || path.startsWith('/app/')) {
       reply.header('content-security-policy', SURFACE_CSP);
     }
     return payload;

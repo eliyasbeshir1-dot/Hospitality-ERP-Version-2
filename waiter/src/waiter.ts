@@ -421,6 +421,103 @@ function start(): void {
   $('confirm-no').addEventListener('click', closeConfirm);
 }
 
+/* ===========================================================================
+ * THE NETWORK LAYER (OP-B)
+ * ===========================================================================
+ *
+ * Before OP-B this file had no fetch in it. It rendered a floor somebody handed it and
+ * waited: M3-D measured the surface by calling render() with a payload the suite wrote,
+ * which proves the rendering and proves nothing about whether a waiter can reach it.
+ *
+ * render() is untouched and stays pure — it takes a payload and draws it, exactly as that
+ * suite calls it. Everything below fetches a payload and hands it to render(), so the
+ * drawing has one implementation whether the data came from a probe or from the service.
+ *
+ * NOTHING IS FETCHED WITHOUT A SESSION, for the same reason as the station board: M3-D
+ * opens this page with no service behind it, and a poll that overwrote what it drew would
+ * break a measurement that has nothing to do with this gate.
+ */
+
+interface WaiterSession { token: string; }
+
+const WAITER_SESSION_KEY = 'waiter.session';
+let waiterSession: WaiterSession | null = null;
+let waiterPoller: number | null = null;
+
+async function waiterApi(method: string, path: string, body?: unknown): Promise<{
+  status: number; data: Record<string, unknown>;
+}> {
+  const response = await fetch(path, {
+    method,
+    headers: {
+      'content-type': 'application/json',
+      ...(waiterSession ? { authorization: `Bearer ${waiterSession.token}` } : {}),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  const text = await response.text();
+  let data: Record<string, unknown> = {};
+  try { data = text ? JSON.parse(text) as Record<string, unknown> : {}; } catch { /* not json */ }
+  return { status: response.status, data };
+}
+
+/**
+ * One pass over the floor.
+ *
+ * Four reads, then ONE render. Rendering after each would show a floor that is partly
+ * this second's and partly last second's, which on a screen whose job is "what needs me
+ * next" is worse than being a moment late.
+ */
+export async function refresh(): Promise<void> {
+  if (!waiterSession) return;
+  const [home, tables, notifications, needs] = await Promise.all([
+    waiterApi('GET', '/s/v1/home'),
+    waiterApi('GET', '/s/v1/tables'),
+    waiterApi('GET', '/s/v1/notifications'),
+    waiterApi('GET', '/s/v1/confirmation-requirements'),
+  ]);
+  if (home.status === 401 || tables.status === 401) { waiterSignOut(); return; }
+
+  render({
+    requirements: (needs.data.requirements ?? []) as ConfirmationRequirement[],
+    // GET /s/v1/home answers { queues: [...] } — pos.role_home()'s rows, one per queue.
+    home: (home.data.queues ?? []) as HomeRow[],
+    tables: (tables.data.tables ?? []) as TableRow[],
+    notifications: (notifications.data.notifications ?? []) as NotificationRow[],
+  });
+}
+
+export async function search(term: string): Promise<void> {
+  if (!waiterSession) return;
+  const answer = await waiterApi('GET', `/s/v1/search?q=${encodeURIComponent(term)}`);
+  render({ results: (answer.data.results ?? []) as SearchRow[] });
+}
+
+function waiterSignOut(): void {
+  waiterSession = null;
+  sessionStorage.removeItem(WAITER_SESSION_KEY);
+  if (waiterPoller !== null) { clearInterval(waiterPoller); waiterPoller = null; }
+}
+
+function waiterStart(): void {
+  void refresh();
+  if (waiterPoller === null) {
+    waiterPoller = window.setInterval(() => { void refresh(); }, 5000);
+  }
+}
+
+export async function signIn(tenantId: string, outletId: string,
+                             channelValue: string, secret: string): Promise<boolean> {
+  const answer = await waiterApi('POST', '/v1/auth/login', {
+    tenantId, outletId, channel: 'email', channelValue, kind: 'password', secret,
+  });
+  if (answer.status !== 200 || !answer.data.token) return false;
+  waiterSession = { token: String(answer.data.token) };
+  sessionStorage.setItem(WAITER_SESSION_KEY, JSON.stringify(waiterSession));
+  waiterStart();
+  return true;
+}
+
 declare global {
   interface Window {
     waiterSurface: {
@@ -428,11 +525,21 @@ declare global {
       askThenRun: typeof askThenRun;
       gradeFor: typeof gradeFor;
       setAccessibilityMode: typeof setAccessibilityMode;
+      signIn: typeof signIn;
+      refresh: typeof refresh;
+      search: typeof search;
     };
   }
 }
 
-window.waiterSurface = { render, askThenRun, gradeFor, setAccessibilityMode };
+window.waiterSurface = { render, askThenRun, gradeFor, setAccessibilityMode,
+                         signIn, refresh, search };
+
+try {
+  const raw = sessionStorage.getItem(WAITER_SESSION_KEY);
+  waiterSession = raw ? JSON.parse(raw) as WaiterSession : null;
+} catch { waiterSession = null; }
+if (waiterSession) waiterStart();
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', start);

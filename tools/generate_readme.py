@@ -198,6 +198,9 @@ SUITE_SPANS = {
     # menu (M2-A, M2-B), drives the kitchen and expo (M3-A, M3-B), and replays the M4
     # review's printer forgery over the route it was performed on (M4-C).
     "opa": ["M1", "M2", "M3", "M4"],
+    # The screens sit on top of everything: identity to sign in, the menu to sell, the
+    # kitchen to cook, the bill to settle.
+    "opb": ["M1", "M2", "M3", "M4"],
 }
 
 
@@ -256,6 +259,12 @@ SUITE_PURPOSE = {
            "than through the database, expo refusing to release an incomplete set, a "
            "seed proved unable to bypass its runner or to widen a grant, and the M4 "
            "review's printer forgery replayed over the route it was performed on",
+    "opb": "the staff screens, measured in a browser: a station board that signs a cook "
+           "in and draws its actions from the transition catalog rather than from a table "
+           "of its own, a till that reads a bill in the bill's own language and keeps the "
+           "tip beside it with nothing preselected, a waiter floor that fetches its own "
+           "tables with the unpaid balance on them, confirmation friction graded by the "
+           "database, and a manager override that takes the manager's own session",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
     "journeys": "the golden journeys end to end in a browser against real "
                 "persistence, plus the duplicate-submit race: what a guest and a waiter "

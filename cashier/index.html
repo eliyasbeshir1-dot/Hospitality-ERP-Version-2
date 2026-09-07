@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Till</title>
+<link rel="stylesheet" href="/app/cashier.css">
+</head>
+<body>
+<a class="skip" href="#floor">Skip to the floor</a>
+<header><h1 id="till-name">Till</h1></header>
+<p id="notice" role="status" hidden></p>
+<main id="floor" tabindex="-1" aria-label="Open tables"></main>
+
+<!--
+  THE BILL AND THE TIP ARE SIBLINGS, NOT NESTED.
+
+  FR-BIL-014 is a rule about a total: a tip is not part of what the guest owes, and a
+  surface that renders it inside the bill summary has said it is. Keeping them as two
+  sections here means "inside the summary" is not a styling accident away — the tip box
+  cannot end up in the summary's subtree without somebody moving this element, and
+  tests/opb asserts the containment from the rendered page rather than from this comment.
+-->
+<section id="bill" aria-label="Bill"></section>
+<section id="tip-box" aria-label="Tip"></section>
+<section id="payment" aria-label="Payment"></section>
+<section id="receipt" aria-label="Receipt"></section>
+
+<script src="/app/cashier.js" type="module"></script>
+</body>
+</html>

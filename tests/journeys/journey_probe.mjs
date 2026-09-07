@@ -242,6 +242,115 @@ try {
     out.errors = [...one.errors, ...two.errors];
   }
 
+  /*
+   * THE TILL, for every journey that settles a bill.
+   *
+   * GJ-01B, GJ-02B, GJ-03B, GJ-06 and GJ-07 were service tier: they issued the HTTP calls
+   * a cashier's screen would issue, because until OP-B there was no such screen. Now there
+   * is, so the same journeys are walked through it — a cashier opens a bill, sees it in
+   * the guest's language, leaves or chooses a tip, takes money and hands over a receipt.
+   *
+   * One branch for all five because they differ in what the cashier DOES, not in what the
+   * till is: a locale, a payment method, whether a tip is chosen. The suite passes those
+   * in and holds every assertion, as it does for the guest journeys above.
+   */
+  if (['GJ-01B', 'GJ-02B', 'GJ-03B', 'GJ-06', 'GJ-07'].includes(journey)) {
+    const context = await browser.newContext({ viewport: { width: 1400, height: 950 } });
+    // The cashier's session is handed in rather than typed: signing in is proved in
+    // tests/opb, and FR-AUTH-007's limiter is real — a browser sign-in per journey would
+    // spend the window on something no journey is about.
+    await context.addInitScript((a) => {
+      sessionStorage.setItem('cashier.session',
+        JSON.stringify({ token: a.token, sessionId: a.sessionId || '' }));
+      sessionStorage.setItem('cashier.tenant', a.tenant);
+      sessionStorage.setItem('cashier.outlet', a.outlet);
+    }, args);
+    await context.addInitScript((answers) => {
+      let i = 0;
+      window.prompt = () => answers[Math.min(i++, answers.length - 1)];
+    }, args.prompts || []);
+
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+
+    await step('the cashier opens the till and calls up the bill', async () => {
+      await page.goto(`${baseUrl}/cashier`, { waitUntil: 'domcontentloaded' });
+      await page.waitForFunction(() => typeof window.cashierSurface === 'object');
+      await page.evaluate((id) => window.cashierSurface.showBill(id), args.bill);
+      await page.waitForFunction(
+        () => document.querySelectorAll('#bill .bill-line').length > 0, null,
+        { timeout: 20000 });
+      return page.evaluate(() => ({
+        billNumber: (document.querySelector('.bill-number') || {}).textContent || '',
+        lines: document.querySelectorAll('#bill .bill-line').length,
+        total: (document.querySelector('#bill-total .bill-amount') || {}).textContent || '',
+        outstanding: (document.querySelector('.bill-outstanding .bill-amount') || {})
+          .textContent || '',
+        lang: (document.getElementById('bill-summary') || {}).getAttribute('lang') || '',
+        direction: getComputedStyle(document.getElementById('bill-summary')).direction,
+      }));
+    });
+
+    await step('the tip box sits beside the bill with nothing chosen for the guest',
+      async () => page.evaluate(() => {
+        const bill = document.getElementById('bill');
+        const options = [...document.querySelectorAll('.tip-option')];
+        return {
+          options: options.length,
+          insideTheBill: options.filter((t) => bill && bill.contains(t)).length,
+          preselected: options.filter((t) =>
+            t.getAttribute('aria-pressed') === 'true'
+            || t.classList.contains('selected') || t.hasAttribute('checked')).length,
+          labels: options.map((t) => t.textContent),
+        };
+      }));
+
+    if (args.tipPercentage) {
+      await step('the guest chooses a tip, and it is their choice that is recorded',
+        async () => {
+          await page.click(`.tip-option[data-tip-percentage="${args.tipPercentage}"]`);
+          return page.evaluate((p) => ({
+            chosen: p,
+            stillOutsideTheBill: !document.getElementById('bill')
+              .contains(document.querySelector(`.tip-option[data-tip-percentage="${p}"]`)),
+          }), args.tipPercentage);
+        });
+    }
+
+    // 'none' walks the cashier's VIEW and stops there. Some journeys prove a payment
+    // RULE the till cannot express — that an unverified proof settles nothing, say — and
+    // those keep their service-tier payment while the half a person actually looks at is
+    // measured here. Saying which half is which is the point of the tier line.
+    if (args.method !== 'none') {
+    await step(`the cashier takes payment by ${args.method}`, async () => {
+      const selector = { cash: '.pay-cash', terminal: '.pay-terminal',
+                         proof: '.pay-proof' }[args.method] || '.pay-cash';
+      await page.click(selector);
+      await page.waitForTimeout(2500);
+      return page.evaluate(() => ({
+        notice: (document.getElementById('notice') || {}).textContent || '',
+        outstanding: (document.querySelector('.bill-outstanding .bill-amount') || {})
+          .textContent || '',
+      }));
+    });
+
+    await step('a receipt is produced and the guest can be handed one', async () => {
+      await page.evaluate((a) =>
+        window.cashierSurface.issueReceipt(a.bill, a.receiptMethod || a.method), args);
+      await page.waitForTimeout(2000);
+      return page.evaluate(() => ({
+        receipt: (document.getElementById('receipt') || {})
+          .getAttribute('data-receipt') || '',
+        notice: (document.getElementById('notice') || {}).textContent || '',
+      }));
+    });
+    }
+
+    out.errors = errors;
+  }
+
   if (journey === 'GJ-05') {
     const context = await browser.newContext({ viewport: { width: 480, height: 900 } });
     const page = await context.newPage();
@@ -250,12 +359,26 @@ try {
     page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 
     await step('the waiter opens the floor', async () => {
+      // THE FLOOR IS FETCHED, NOT HANDED OVER. This branch used to call
+      // waiterSurface.render() with a payload this probe wrote — and nothing called this
+      // branch at all, because gj_05 never invoked walk(). Two defects at once: a browser
+      // step that was dead code, and a step that would have supplied its own evidence if
+      // it had ever run. The waiter surface fetches for itself since OP-B, so the session
+      // is seeded and the screen does the rest.
+      await context.addInitScript((t) => {
+        sessionStorage.setItem('waiter.session', JSON.stringify({ token: t }));
+      }, args.token);
       await page.goto(`${baseUrl}/waiter`, { waitUntil: 'domcontentloaded' });
       await page.waitForFunction(() => typeof window.waiterSurface === 'object');
-      await page.evaluate((data) => window.waiterSurface.render(data), args.payload);
+      await page.evaluate(() => window.waiterSurface.refresh());
+      await page.waitForTimeout(1500);
       return page.evaluate(() => ({
         queues: document.querySelectorAll('#next li.row').length,
         tables: document.querySelectorAll('#tables li.row').length,
+        showsUnpaidBalance: /balance/i.test(
+          (document.getElementById('tables') || {}).textContent || ''),
+        fetched: performance.getEntriesByType('resource')
+          .filter((r) => r.name.includes('/s/v1/')).length,
       }));
     });
 

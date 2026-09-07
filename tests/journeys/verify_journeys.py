@@ -227,8 +227,12 @@ def why(response: dict) -> str:
 def cashier() -> str:
     """The cashier's own bearer token, minted once for the run."""
     if "cashier_token" not in CONTEXT:
-        _session, token = m4c.staff_session(m4c.USER_CASHIER)
+        session, token = m4c.staff_session(m4c.USER_CASHIER)
         CONTEXT["cashier_token"] = token
+        # Kept because the TILL needs it: a browser is handed this session rather than
+        # signing in, so that FR-AUTH-007's limiter is not spent on something no journey
+        # is about. Signing in through the screen is proved in tests/opb.
+        CONTEXT["cashier_session"] = session
     return CONTEXT["cashier_token"]
 
 
@@ -667,6 +671,7 @@ def gj_05() -> None:
 
     fx.m3c.set_presence("available")
     seated = fx.a_seated_guest(table=fx.TABLE_TWO)
+
     fx.assign_table_owner(seated["session"], fx.USER)
     session_id, token = fx.staff_session(fx.USER)
 
@@ -838,6 +843,25 @@ def gj_05() -> None:
                both == [["the waiter asked", "the manager allowed it"]],
                f"{both}. Two people on the record, which is the whole difference between "
                f"delegation and somebody borrowing a password")
+
+    # AND THE WAITER LOOKS AT THE FLOOR, in a browser, on the surface that fetches it.
+    #
+    # journey_probe.mjs has carried a GJ-05 branch since M3-D and nothing has ever called
+    # it: walk() was invoked for four journeys and this was not one of them. It was also
+    # written to render a payload this suite handed in, so had it ever run it would have
+    # measured the suite's own data. The waiter surface fetches for itself since OP-B, so
+    # the branch is reached and what it measures is the floor the service returned.
+    walked = walk(journey, {"token": token, "tenant": fx.TENANT,
+                            "outlet": fx.OUTLET_H1})
+    floor = next((st for st in walked["steps"]
+                  if st["name"] == "the waiter opens the floor"), {})
+    seen = floor.get("detail") or {}
+    record(journey, "the waiter sees the floor the service returned, in a browser",
+           floor.get("ok") and seen.get("fetched", 0) > 0,
+           f"{seen.get('tables', 0)} table row(s) and {seen.get('queues', 0)} queue "
+           f"row(s) from {seen.get('fetched', 0)} request(s) the screen made itself; "
+           f"the unpaid balance FR-POS-004 has carried since M3-D is on it: "
+           f"{seen.get('showsUnpaidBalance')}")
 
 
 # ===========================================================================
@@ -1055,7 +1079,7 @@ def an_order_placed_by_the_guest(journey: str, session: str, cart: str) -> str:
 
 
 def a_settled_check(journey: str, session: str, *, locale: str, tip_minor: int,
-                    method: str, provider: str) -> dict:
+                    method: str, provider: str, make_intent: bool = True) -> dict:
     """Open a check over a served session, bill it, take the money, and say what happened.
 
     EVERY WRITE HERE GOES THROUGH THE SERVICE. Staff actions carry the cashier's own
@@ -1114,16 +1138,96 @@ def a_settled_check(journey: str, session: str, *, locale: str, tip_minor: int,
             SELECT id FROM billing.tip WHERE bill_share_id = '{share}'
              ORDER BY chosen_at DESC LIMIT 1;""")
 
-    intent = service("POST", "/s/v1/payments/intents",
-                     {"billId": bill, "billAmountMinor": total,
-                      "tipAmountMinor": tip_minor,
-                      **({"tipId": tip_id} if tip_id else {})},
-                     token=token, key=f"{journey}-{RUN_NONCE}-intent")
-    if not ok(intent):
-        raise ProbeFailed("POST /s/v1/payments/intents", why(intent))
+    # THE TILL OPENS ITS OWN INTENT. When a journey settles in the browser, this helper
+    # stops one step short: an intent created here and ignored by the screen would be the
+    # test doing the cashier's work and then watching somebody else do it again.
+    intent_id = None
+    if make_intent:
+        intent = service("POST", "/s/v1/payments/intents",
+                         {"billId": bill, "billAmountMinor": total,
+                          "tipAmountMinor": tip_minor,
+                          **({"tipId": tip_id} if tip_id else {})},
+                         token=token, key=f"{journey}-{RUN_NONCE}-intent")
+        if not ok(intent):
+            raise ProbeFailed("POST /s/v1/payments/intents", why(intent))
+        intent_id = intent["intentId"]
     return {"check": check, "bill": bill, "total": total, "tip": tip_minor,
-            "tip_id": tip_id, "intent": intent["intentId"],
+            "tip_id": tip_id, "intent": intent_id,
             "method": method, "provider": provider}
+
+
+def settle_at_the_till(journey: str, settled: dict, *, method: str, prompts: list,
+                       tip_percentage: str | None = None,
+                       receipt_method: str | None = None) -> dict:
+    """Walk the settlement through the till, in a browser, and record what it showed.
+
+    method="none" walks the cashier's VIEW and stops: some journeys prove a payment rule
+    the screen cannot express — that an unverified proof settles nothing — and those keep
+    their service-tier payment while the half a person looks at is measured here. The
+    record says which half is which rather than letting "browser tier" imply more.
+
+    THIS IS WHAT MAKES THESE JOURNEYS BROWSER TIER. Until OP-B they issued the HTTP calls
+    a cashier's screen would issue, because there was no screen; the tier line in the
+    summary said "service" and meant it. The screen exists now, so the cashier's half of
+    each journey is walked rather than called, and tier_of() reports browser because this
+    function calls walk() — derived from the journey's own body, never declared.
+    """
+    walked = walk(journey, {
+        "bill": settled["bill"], "method": method, "prompts": prompts,
+        "token": cashier(), "sessionId": CONTEXT.get("cashier_session"),
+        "tenant": m4c.TENANT, "outlet": m4c.OUTLET_H1,
+        **({"tipPercentage": tip_percentage} if tip_percentage else {}),
+        **({"receiptMethod": receipt_method} if receipt_method else {}),
+    })
+    seen = {s["name"]: s for s in walked["steps"]}
+
+    opened = seen.get("the cashier opens the till and calls up the bill", {})
+    record(journey, "a cashier opens the bill on the till, in a browser",
+           opened.get("ok") and (opened.get("detail") or {}).get("lines", 0) > 0,
+           f"{(opened.get('detail') or {})}. The screen fetched this bill itself through "
+           f"GET /s/v1/bills/:billId — a route that did not exist before this gate, "
+           f"because every way of reading a bill was reachable only by a guest")
+
+    tip_box = seen.get("the tip box sits beside the bill with nothing chosen for the guest",
+                       {})
+    detail = tip_box.get("detail") or {}
+    record(journey, "the tip box is beside the bill and nothing is chosen for the guest",
+           tip_box.get("ok") and detail.get("insideTheBill") == 0
+           and detail.get("preselected") == 0,
+           f"{detail.get('options')} option(s), {detail.get('insideTheBill')} inside the "
+           f"bill, {detail.get('preselected')} preselected — FR-BIL-014 and FR-BIL-015 "
+           f"measured on the rendered page rather than asserted about the payload")
+
+    # PAY AND RECEIPT ARE ONLY ASSERTED WHEN THEY WERE WALKED. In view-only mode the
+    # probe deliberately does not press either, and recording a failure for a step nobody
+    # asked it to take is an assertion that cannot pass — the opposite of the "an
+    # assertion that cannot fail is a defect" rule, and just as useless.
+    if method != "none":
+        paid = seen.get(f"the cashier takes payment by {method}", {})
+        notice = (paid.get("detail") or {}).get("notice", "")
+        record(journey, f"the cashier takes payment by {method} through the screen",
+               paid.get("ok") and bool(notice) and "refused" not in notice.lower(),
+               f"{notice!r}; outstanding now "
+               f"{(paid.get('detail') or {}).get('outstanding', '')!r}")
+
+        made = seen.get("a receipt is produced and the guest can be handed one", {})
+        record(journey, "and a receipt is produced from the till",
+               bool(((made.get("detail") or {}).get("receipt") or "")),
+               f"receipt {((made.get('detail') or {}).get('receipt') or 'none')[:8]}… "
+               f"{(made.get('detail') or {}).get('notice', '')}")
+
+    if walked.get("errors"):
+        record(journey, "the till raised nothing in the browser console",
+               False, "; ".join(walked["errors"][:3])[:300])
+
+    # THE RECEIPT THE TILL MADE, handed back so the journey does not make a second one.
+    # FR-BIL-010 allows one original per bill revision, so a caller that issued one at the
+    # screen and then issued another through the route would be refused — correctly, and
+    # confusingly, since the journey would look like it could not produce a receipt when
+    # in fact it had already produced one.
+    made = seen.get("a receipt is produced and the guest can be handed one", {})
+    return {"walked": walked, "seen": seen,
+            "receipt": ((made.get("detail") or {}).get("receipt") or None)}
 
 
 class Recorded:
@@ -1220,15 +1324,21 @@ def gj_01b() -> None:
                           "a bill can be settled, not that this guest can pay and leave")
 
     settled = a_settled_check(journey, predecessor["session"], locale="en",
-                              tip_minor=0, method="cash", provider="cash")
-    captured = service("POST", f"/s/v1/payments/{settled['intent']}/cash",
-                       {"tenderedMinor": settled["total"]}, token=cashier(),
-                       key=f"{journey}-{RUN_NONCE}-cash")
+                              tip_minor=0, method="cash", provider="cash",
+                              make_intent=False)
+    at_the_till = settle_at_the_till(journey, settled, method="cash",
+                                     prompts=[str(settled["total"])],
+                                     receipt_method="cash")
+
+    paid = count(APP, f"""
+        SELECT count(*) FROM payments.payment p
+          JOIN payments.payment_intent i ON i.id = p.intent_id
+         WHERE i.bill_id = '{settled["bill"]}';""", **CTX)
     record(journey, "the cashier presents the check and settles it in cash",
-           ok(captured),
-           why(captured) or f"bill {settled['bill'][:8]} of {settled['total']} minor "
-                            f"units, tendered exactly, through "
-                            f"POST /s/v1/payments/:intentId/cash on the running service")
+           paid > 0,
+           f"{paid} payment(s) against bill {settled['bill'][:8]}…, taken by a person "
+           f"pressing a button on a till in a browser rather than by this suite issuing "
+           f"the request a till would have issued")
 
     no_tip = count(APP, f"""
         SELECT count(*) FROM billing.tip t
@@ -1239,7 +1349,10 @@ def gj_01b() -> None:
            f"{no_tip} tip(s) against this bill. No tip is preselected anywhere — "
            f"NC-M4-001 — so a guest who chooses nothing has chosen nothing")
 
-    receipt = a_receipt(journey, settled["bill"], "cash")
+    receipt = at_the_till["receipt"]
+    if not receipt:
+        raise ProbeFailed("the till's receipt",
+                          "the screen produced no receipt to carry forward")
     lines = {r[0]: r[1] for r in rows(f"""
         SELECT l.kind::text, coalesce(l.amount_minor::text, '-')
           FROM docs.receipt_line l WHERE l.receipt_id = '{receipt}';""")}
@@ -1292,6 +1405,7 @@ def gj_02b() -> None:
     settled = a_settled_check(journey, predecessor["session"], locale="am",
                               tip_minor=2500, method="telebirr_proof",
                               provider="telebirr_proof")
+    settle_at_the_till(journey, settled, method="none", prompts=[])
     record(journey, "the Amharic check offers a tip box and the guest adds a tip",
            settled["tip"] > 0 and bool(settled["tip_id"]),
            f"tip {settled['tip']} minor units on its own share, separate from the bill "
@@ -1387,6 +1501,7 @@ def gj_03b() -> None:
                               tip_minor=1800, method="external_terminal",
                               provider="external_terminal")
     due = settled["total"] + settled["tip"]
+    settle_at_the_till(journey, settled, method="none", prompts=[])
     slip = service("POST", "/s/v1/terminal-results",
                    {"terminalReference": f"{journey}-{RUN_NONCE}", "scheme": "visa",
                     "currencyCode": "ETB", "amountMinor": due, "outcome": "approved",
@@ -1516,6 +1631,13 @@ def gj_06() -> None:
             tip_id = scalar(f"""
                 SELECT id FROM billing.tip WHERE bill_share_id = '{share}'
                  ORDER BY chosen_at DESC LIMIT 1;""")
+        # THE FIRST PAYER'S BILL IS OPENED ON THE TILL, in a browser. A split bill is the
+        # case where "the tip box is beside the bill" matters most: there are two bills,
+        # two shares and two tips, and a screen that commingled them would produce two
+        # wrong totals rather than one. The payments themselves stay here, where the split
+        # rules they exercise are proved.
+        if label == "A":
+            settle_at_the_till(journey, {"bill": bill}, method="none", prompts=[])
         intended = service("POST", "/s/v1/payments/intents",
                            {"billId": bill, "billAmountMinor": total,
                             "tipAmountMinor": tip_minor,
@@ -1605,14 +1727,25 @@ def gj_07() -> None:
                           str(accepted.get("signature") or accepted.get("error") or accepted))
 
     settled = a_settled_check(journey, session, locale="en", tip_minor=2000,
-                              method="cash", provider="cash")
-    paid = service("POST", f"/s/v1/payments/{settled['intent']}/cash",
-                   {"tenderedMinor": settled["total"] + settled["tip"]},
-                   token=cashier(), key=f"{journey}-{RUN_NONCE}-cash")
-    if not ok(paid):
-        raise ProbeFailed("settling GJ-07's bill", why(paid))
+                              method="cash", provider="cash", make_intent=False)
+    # THE CASHIER'S HALF, WALKED. Everything after this — the self-approval refusal, the
+    # step-up, the reversal and the reprint — is a rule the SERVICE holds, and stays where
+    # it is proved. What a person does with their hands is done with their hands.
+    at_the_till = settle_at_the_till(journey, settled, method="cash",
+                                     prompts=[str(settled["total"] + settled["tip"])],
+                                     receipt_method="cash")
+    took = count(APP, f"""
+        SELECT count(*) FROM payments.payment p
+          JOIN payments.payment_intent i ON i.id = p.intent_id
+         WHERE i.bill_id = '{settled["bill"]}';""", **CTX)
+    if not took:
+        raise ProbeFailed("settling GJ-07's bill",
+                          "the till recorded no payment against this bill")
 
-    receipt = a_receipt(journey, settled["bill"], "cash")
+    receipt = at_the_till["receipt"]
+    if not receipt:
+        raise ProbeFailed("the till's receipt",
+                          "the screen produced no receipt to carry forward")
     print_the_receipt(journey, receipt)
 
     # THE CASHIER TRIES TO APPROVE THEIR OWN REFUND, from their own session.
@@ -1763,15 +1896,38 @@ def tier_of(walker) -> str:
     surface would call — is the whole point of the partial closure, so a summary that
     got it backwards would let the weaker proof read as the stronger one.
 
-    So it is derived. A journey is browser tier if and only if its own body calls walk(),
-    which is the only way a browser is opened here. Parsed rather than grepped, because
+    So it is derived. A journey is browser tier if a browser is opened on its behalf, and
+    walk() is the only way a browser is opened here. Parsed rather than grepped, because
     every one of these functions explains itself in prose that names walk().
+
+    THE DERIVATION FOLLOWS ONE LEVEL OF HELPER, and only helpers defined in this module.
+    OP-B moved five journeys' cashier half into settle_at_the_till(), which opens the till
+    in a browser and walks it; a rule that read only each journey's own body would have
+    reported all five as service tier while a browser was demonstrably driving them —
+    understating the evidence, which is the same class of error as overstating it. One
+    level, resolved by name against this module, so "the helper that walks" is followed
+    and "some function somewhere" is not.
     """
-    tree = ast.parse(textwrap.dedent(inspect.getsource(walker)))
-    calls = (node for node in ast.walk(tree) if isinstance(node, ast.Call))
-    walks = any(isinstance(node.func, ast.Name) and node.func.id == "walk"
-                for node in calls)
-    return "browser" if walks else "service"
+    module = sys.modules[walker.__module__]
+
+    def opens_a_browser(function, depth: int) -> bool:
+        try:
+            tree = ast.parse(textwrap.dedent(inspect.getsource(function)))
+        except (OSError, TypeError):
+            return False
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+                continue
+            if node.func.id == "walk":
+                return True
+            if depth > 0:
+                helper = getattr(module, node.func.id, None)
+                if inspect.isfunction(helper) and helper is not function \
+                        and opens_a_browser(helper, depth - 1):
+                    return True
+        return False
+
+    return "browser" if opens_a_browser(walker, 1) else "service"
 
 
 # ---------------------------------------------------------------------------
