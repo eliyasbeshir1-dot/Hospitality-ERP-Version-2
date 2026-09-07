@@ -13,9 +13,9 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `4b689889802a05dadb493a2c5f8ba5c1fb6021ca` |
-| Short | `4b68988` |
-| Branch | `claude/code-execution-brief-nle2y7` |
+| Commit | `0b95fd574ee10c030aec8da6679707c3e02d6abe` |
+| Short | `0b95fd5` |
+| Branch | `claude/operator-gate-opa` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation — the generator refuses a tree that is not |
 
@@ -71,6 +71,8 @@ Ordered, forward-only and checksum-locked. An edited applied migration fails pre
 | `0030` | `0030_receipt_composition_preview_and_the_counter_terminal.sql` | `42715d944a8d6831…` | applied |
 | `0031` | `0031_a_null_device_is_not_a_printer.sql` | `9a683d127942c417…` | applied |
 | `0032` | `0032_the_null_sink_cannot_claim_paper.sql` | `a466995fd47b6fb5…` | applied |
+| `0033` | `0033_a_chosen_secret_must_be_key_stretched.sql` | `77348a41915c0da4…` | applied |
+| `0034` | `0034_a_printer_test_records_what_the_agent_did.sql` | `bda2ede557a00282…` | applied |
 
 ## Seeds applied
 
@@ -83,6 +85,8 @@ least-privileged application role.
 |---|---|---|---|
 | `0001` | `0001_demonstration_tenants.sql` | `f2ec118a0a296031…` | applied |
 | `0002` | `0002_reason_codes.sql` | `27b8595f98f7e129…` | applied |
+| `0003` | `0003_demonstration_floor_and_menu.sql` | `68ead8aa517c9073…` | applied |
+| `0004` | `0004_provision_stations_and_routing.provision.sql` | `ab4c5fab7bf4799a…` | applied |
 
 ## Schema shape
 
@@ -102,7 +106,7 @@ Money is stored as integer minor units beside an explicit currency.
 | Suite | Verdict | Checks | Failures |
 |---|---|---:|---:|
 | M1-A database, RLS, roles | **PASS** | 46 | 0 |
-| M1-B identity and authentication | **PASS** | 35 | 0 |
+| M1-B identity and authentication | **PASS** | 37 | 0 |
 | M1-C configuration, audit, money | **PASS** | 62 | 0 |
 | M1-D API, security, operations | **PASS** | 49 | 0 |
 | M2-A menu, pricing, translation storage | **PASS** | 75 | 0 |
@@ -115,9 +119,10 @@ Money is stored as integer minor units beside an explicit currency.
 | M4-A checks, bills, splitting, tip separation | **PASS** | 105 | 0 |
 | M4-B payment capture, verification, cash, reversal | **PASS** | 152 | 0 |
 | M4-C receipts, the printer path, reporting, the register audit | **PASS** | 108 | 0 |
+| OP-A login, the kitchen and expo routes, the product seed | **PASS** | 49 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
 | The golden journeys, end to end | **PASS** | 92 | 0 |
-| **Total** | | **1420** | |
+| **Total** | | **1471** | |
 
 ## The golden journeys (FR-TST-005A)
 
@@ -147,7 +152,7 @@ mistaken for one that mostly worked.
 
 ## Negative controls
 
-**114** controls — M1 22, M2 22, M3 35, M4 35 — each planted as a real
+**123** controls — M1 22, M2 22, M3 35, M4 44 — each planted as a real
 defect, required to produce its exact registered signature, then reverted and
 required to pass again. A control that never went red is a coverage gap wearing a
 green badge, and CI fails the build when one is missing. The registry is
@@ -271,6 +276,15 @@ build, and so does one described and never proved.
 | `NC-M4C-008` | A customer receipt printed on a printer nobody tested | `PRINTER_NEVER_TESTED` | red, then green |
 | `NC-M4C-009` | A journey the suite walks that the evidence report never reports | `JOURNEY_UNACCOUNTED` | red, then green |
 | `NC-M4C-010` | An evidence report generated from a tree with uncommitted work | `REPORT_TREE_NOT_CLEAN` | red, then green |
+| `NC-OPA-001` | A credential accepted without verification | `CREDENTIAL_ACCEPTED_UNVERIFIED` | red, then green |
+| `NC-OPA-002` | A session issued for a revoked or removed role | `SESSION_ISSUED_FOR_REVOKED_ROLE` | red, then green |
+| `NC-OPA-003` | A quick PIN authorising a step-up-governed action | `LOW_RISK_CREDENTIAL_USED_FOR_SENSITIVE_ACTION` | red, then green |
+| `NC-OPA-004` | A kitchen route re-implementing a transition rule | `CHANNEL_RULE_DIVERGENCE` | red, then green |
+| `NC-OPA-005` | A route driving a ticket into an illegal state | `ILLEGAL_TRANSITION_ACCEPTED` | red, then green |
+| `NC-OPA-006` | Expo releasing an incomplete set | `INCOMPLETE_SET_SERVED` | red, then green |
+| `NC-OPA-007` | A seeded row bypassing the runner or RLS | `SEED_BYPASSED_RUNNER` | red, then green |
+| `NC-OPA-008` | Lockout not firing after the configured failures | `LOCKOUT_NOT_ENFORCED` | red, then green |
+| `NC-OPA-009` | A caller's claim recorded as a print the agent never made | `PRINT_OUTCOME_FORGED` | red, then green |
 
 ## Design decision: the ledger is the record, everything else is a projection (M3-A)
 
