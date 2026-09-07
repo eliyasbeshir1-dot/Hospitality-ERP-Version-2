@@ -194,6 +194,10 @@ DIRECTORY_PURPOSE = {
 SUITE_SPANS = {
     "fenced_gate": ["M1", "M2", "M3"],
     "journeys": ["M1", "M2", "M3"],
+    # M4 as well as M1-M3: the operator gate logs in (M1-B), orders against the seeded
+    # menu (M2-A, M2-B), drives the kitchen and expo (M3-A, M3-B), and replays the M4
+    # review's printer forgery over the route it was performed on (M4-C).
+    "opa": ["M1", "M2", "M3", "M4"],
 }
 
 
@@ -244,6 +248,14 @@ SUITE_PURPOSE = {
            "unrewritable by a grant, by the source and by the attempt, an empty window "
            "proved to report nothing rather than zero where zero would be an invention, "
            "and the FR-GOV-004 audit of every requirement whose gate has landed",
+    "opa": "the operator gate: whether a person can reach what the slices built. A "
+           "credential turned into a session against storage that is salted and "
+           "key-stretched, a quick PIN that is refused away from its registered "
+           "terminal, lockout that fires and then clears, a guest order carried to a "
+           "station and moved acknowledge to preparing to ready through routes rather "
+           "than through the database, expo refusing to release an incomplete set, a "
+           "seed proved unable to bypass its runner or to widen a grant, and the M4 "
+           "review's printer forgery replayed over the route it was performed on",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
     "journeys": "the golden journeys end to end in a browser against real "
                 "persistence, plus the duplicate-submit race: what a guest and a waiter "
@@ -578,7 +590,10 @@ def main() -> int:
         return 0
 
     if args.out:
-        Path(args.out).write_text(generated, encoding="utf-8")
+        # LF explicitly: text mode would write CRLF on Windows and LF on Linux, so the
+        # artefact would differ by the platform that generated it while --check compares
+        # it against one committed copy.
+        Path(args.out).write_text(generated, encoding="utf-8", newline="\n")
         print(f"wrote {args.out} ({len(generated.splitlines())} lines)")
         return 0
 

@@ -16,6 +16,7 @@ import {
 import { StructuredLogger } from './logging';
 import { InMemoryObservability, type ObservabilityProvider } from './observability';
 import { registerApiRoutes } from './routes/api';
+import { registerAuthRoutes } from './routes/auth';
 import { guestContext, registerCustomerRoutes } from './routes/customer';
 import { registerServiceRoutes } from './routes/service';
 import { registerBillingRoutes } from './routes/billing';
@@ -108,6 +109,8 @@ export async function start(): Promise<{ close(): Promise<void>; port: number }>
     environmentName: env.environmentName, startedAt: new Date(),
   });
   registerApiRoutes(app, { db, logger });
+  // Before the staff surfaces, because it is what produces the credential they carry.
+  registerAuthRoutes(app, { db, logger });
   registerCustomerRoutes(app, { db, logger });
   registerStationRoutes(app, { db, logger });
   registerStaffRoutes(app, { db, logger });

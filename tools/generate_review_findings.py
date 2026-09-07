@@ -98,27 +98,69 @@ def build() -> str:
                          for path in sorted((REPO / "seeds").glob("*.sql")))
     menu_inserts = len(re.findall(r"INSERT\s+INTO\s+menu\.", seed_sql, re.I))
     table_inserts = len(re.findall(r"'dining_table'", seed_sql, re.I))
+    # EVERY CONCLUSION BELOW IS DERIVED FROM THE SAME NUMBER IT IS PRINTED BESIDE.
+    #
+    # This section used to interpolate a live count into a fixed sentence, so when the
+    # operator gate seeded a floor the table read "the seeds carry 21 menu row(s) and 4
+    # dining table(s), so there is nothing to render", and listed a function that turns a
+    # credential into a session directly beneath "not one of them turns a presented
+    # credential into a session". A generated document that contradicts its own figures is
+    # worse than no document, because a reviewer will read the sentence and not recount
+    # the rows — which is the exact failure this file was written to prevent.
+    #
+    # So each row states the gap only while the gap is measurable, and says it closed
+    # when the measurement says so. The comment above already promised this: "a finding
+    # that says there is no product seed must stop saying it the day somebody writes one."
+    kitchen_writers = uncalled_routes.unreachable_writers("fulfillment")
+    identity_pattern = uncalled_routes.unreachable_writers("identity")
+    credential_readers = uncalled_routes.sources_matching("identity.credential")
+
+    kitchen_open = not kitchen_writers["reachable"]
+    identity_open = not credential_readers
+    floor_open = menu_inserts == 0 and table_inserts == 0
+    still_open = sum((kitchen_open, identity_open, floor_open))
+
     w("## The pattern: everything built except the step that makes it usable")
     w("")
-    w("**Read this before the findings below, because three of them are one defect and "
-      "the class matters more than the instances.**")
-    w("")
-    w("Three subsystems in this build are complete except for the single step that would "
-      "let a person use them. In each case every component has a passing suite, and the "
-      "gap sits in the join between components, where no component's own test looks.")
+    if still_open:
+        w(f"**Read this before the findings below, because {still_open} of them are one "
+          f"defect and the class matters more than the instances.**")
+        w("")
+        w(f"{still_open} subsystem(s) in this build are complete except for the single "
+          f"step that would let a person use them. In each case every component has a "
+          f"passing suite, and the gap sits in the join between components, where no "
+          f"component's own test looks.")
+    else:
+        w("**Every instance of this pattern that this document has named is now closed. "
+          "The class is kept here because it is how they were found, not because any "
+          "remains open.**")
+        w("")
+        w("Each subsystem below was complete except for the single step that would let a "
+          "person use them, and in each case every component already had a passing suite. "
+          "The gap sat in the join between components, where no component's own test "
+          "looks — which is why testing did not find any of them and using the system did.")
     w("")
     w("| Subsystem | Built and proved | The missing step |")
     w("|---|---|---|")
     w("| The kitchen | The ticket state machine, station queues, the expo view, all "
-      "proved against the database by M3-B | No route reaches any writer, so a cook can "
-      "read the board and change nothing |")
+      "proved against the database by M3-B | "
+      + ("No route reaches any writer, so a cook can read the board and change nothing |"
+         if kitchen_open else
+         f"**CLOSED.** {len(kitchen_writers['reachable'])} of "
+         f"{len(kitchen_writers['reachable']) + len(kitchen_writers['unreachable'])} "
+         f"operator-callable writers are now reachable by a route |"))
     w("| Staff identity | Credentials as digests, lockouts, OTP transmission, recovery, "
-      "sessions, rotation — much of it proved red-then-green | Nothing turns a presented "
-      "credential into a session, so nobody can log in |")
+      "sessions, rotation — much of it proved red-then-green | "
+      + ("Nothing turns a presented credential into a session, so nobody can log in |"
+         if identity_open else
+         f"**CLOSED.** {len(credential_readers)} file(s) under `api/src` read "
+         f"`identity.credential`, so a presented credential becomes a session |"))
     w("| The demonstration floor | A menu schema, a table schema, QR issuance, a guest "
       "surface that renders three languages | "
-      f"The seeds carry {menu_inserts} menu row(s) and {table_inserts} dining table(s), "
-      "so there is nothing to render |")
+      + (f"The seeds carry {menu_inserts} menu row(s) and {table_inserts} dining "
+         f"table(s), so there is nothing to render |" if floor_open else
+         f"**CLOSED.** The seeds carry {menu_inserts} menu row(s) and {table_inserts} "
+         f"dining table(s), so a guest link renders a real menu |"))
     w("")
     w("**Every one of these was found by trying to use the system, and none by testing "
       "it.** The billing routes were found when a journey first called one over HTTP. "
@@ -363,22 +405,30 @@ def build() -> str:
       "step's detail — a line that could have failed. And where the grade and a recorded "
       "classification disagree, the classification now wins, so a judgement somebody "
       "wrote down is no longer overturned by a log line mentioning the requirement. "
-      "FR-AUTH-001 is therefore reported as what it is. The flow is still absent and "
-      "this repair did not build it.")
+      "FR-AUTH-001 is therefore reported as what it is.")
     w("")
-    w("The middle limb is the flow, and nothing performs it:")
+    # THE VERDICT FOLLOWS THE EVIDENCE, in this paragraph as in the table above. Whether
+    # the flow exists is read from whether anything under api/src reads the credential
+    # table, which is the same measurement printed two lines further down — so the claim
+    # and the figure supporting it cannot disagree.
+    flow_absent = not reads_credential
+    w("The middle limb is the flow"
+      + (", and nothing performs it:" if flow_absent
+         else ", and it now exists — what follows is the evidence, not a gap:"))
     w("")
     w(f"- `identity` exposes {len(identity_writers['unreachable']) + len(identity_writers['reachable'])} "
       f"operator-callable writers — "
       + ", ".join(f"`{f}`" for f in sorted(identity_writers['unreachable']
                                            + identity_writers['reachable']))
-      + ". **Not one of them turns a presented credential into a session.**")
+      + (". **Not one of them turns a presented credential into a session.**" if flow_absent
+         else ". One of them turns a presented credential into a session."))
     w(f"- {'No file' if not reads_credential else str(len(reads_credential)) + ' file(s)'} "
       f"under `api/src` reads `identity.credential`"
       + ("." if not reads_credential
          else ": " + ", ".join(f"`{f}`" for f in sorted(reads_credential)) + "."))
-    w("- Every staff bearer token in this build exists because a fixture inserted a row "
-      "into `identity.session` directly.")
+    w("- Every staff bearer token in this build existed because a fixture inserted a row "
+      "into `identity.session` directly"
+      + ("." if flow_absent else ", until a login route began issuing them."))
     w("")
     w("What makes this worth a reviewer's attention is not that a gap exists. It is that "
       "**everything around the gap is real and proved.** `identity.credential` stores "
@@ -560,7 +610,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if args.out:
-        args.out.write_text(rendered, encoding="utf-8")
+        # LF explicitly: text mode would write CRLF on Windows and LF on Linux, so the
+        # artefact would differ by the platform that generated it while --check compares
+        # it against one committed copy.
+        args.out.write_text(rendered, encoding="utf-8", newline="\n")
         print(f"wrote {args.out} ({len(rendered.splitlines())} lines)")
         return 0
 

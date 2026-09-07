@@ -901,7 +901,7 @@ def section_printer() -> None:
 
     untested = run(APP, f"""
         SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}',
-            '{fx.PRINTER_UNTESTED}', '{fx.PRINT_OUTCOME}', repeat('b', 64)::char(64), 64,
+            '{fx.PRINTER_UNTESTED}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}', repeat('b', 64)::char(64), 64,
             '{fx.USER_CASHIER}');""", tx=True, **CTX)
     record("a customer receipt cannot be printed on a printer nobody tested",
            untested.failed_with("PRINTER_NEVER_TESTED"),
@@ -910,7 +910,7 @@ def section_printer() -> None:
 
     printed = scalar(f"""
         SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}',
-            '{fx.PRINTER_DEVICE}', '{fx.PRINT_OUTCOME}', repeat('c', 64)::char(64), 512,
+            '{fx.PRINTER_DEVICE}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}', repeat('c', 64)::char(64), 512,
             '{fx.USER_CASHIER}');""")
     record("and on a tested one it is printed, once",
            bool(printed),
@@ -920,7 +920,7 @@ def section_printer() -> None:
 
     again = run(APP, f"""
         SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}',
-            '{fx.PRINTER_DEVICE}', '{fx.PRINT_OUTCOME}', repeat('c', 64)::char(64), 512,
+            '{fx.PRINTER_DEVICE}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}', repeat('c', 64)::char(64), 512,
             '{fx.USER_CASHIER}');""", tx=True, **CTX)
     record("and a second original print of the same settlement is refused",
            again.failed_with("DUPLICATE_RECEIPT_PRINTED", "print_attempt_one_original"),
@@ -930,7 +930,7 @@ def section_printer() -> None:
 
     reprint_without_reason = run(APP, f"""
         SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}',
-            '{fx.PRINTER_DEVICE}', '{fx.PRINT_OUTCOME}', repeat('d', 64)::char(64), 512,
+            '{fx.PRINTER_DEVICE}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}', repeat('d', 64)::char(64), 512,
             '{fx.USER_CASHIER}', true, NULL, NULL);""", tx=True, **CTX)
     record("a reprint with no reason is refused by constraint",
            not reprint_without_reason.ok,
@@ -939,7 +939,7 @@ def section_printer() -> None:
 
     reprint = scalar(f"""
         SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}',
-            '{fx.PRINTER_DEVICE}', '{fx.PRINT_OUTCOME}', repeat('d', 64)::char(64), 512,
+            '{fx.PRINTER_DEVICE}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}', repeat('d', 64)::char(64), 512,
             '{fx.USER_CASHIER}', true, '{fx.reason_code("M4C_RECEIPT_REPRINT")}',
             'the customer asked for another copy');""")
     marked = rows(f"""
@@ -965,7 +965,7 @@ def section_printer() -> None:
     # where it lives, at the table, by an INSERT that gets past the first lock.
     through_the_function = run(APP, f"""
         SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}',
-            '{fx.PRINTER_PREVIEW}', '{fx.PRINT_OUTCOME}', repeat('e', 64)::char(64), 64,
+            '{fx.PRINTER_PREVIEW}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}', repeat('e', 64)::char(64), 64,
             '{fx.USER_CASHIER}');""", tx=True, **CTX)
     record("a preview printer is refused a print before the sink rule is even reached",
            through_the_function.failed_with("PRINTER_NEVER_TESTED"),
@@ -978,10 +978,12 @@ def section_printer() -> None:
     # get here.
     at_the_table = run(APP, f"""
         INSERT INTO docs.print_attempt
-            (tenant_id, outlet_id, receipt_id, printer_id, outcome, is_reprint,
+            (tenant_id, outlet_id, receipt_id, printer_id, outcome, agent_sink,
+             resolved_destination, is_reprint,
              reason_code_id, reason_text, operator_user_id, bytes_sha256, byte_count)
         VALUES ('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}', '{fx.PRINTER_PREVIEW}',
-                '{fx.PRINT_OUTCOME}', true, '{fx.reason_code("M4C_RECEIPT_REPRINT")}',
+                '{fx.PRINT_OUTCOME}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}',
+                true, '{fx.reason_code("M4C_RECEIPT_REPRINT")}',
                 'a reprint aimed at a file', '{fx.USER_CASHIER}',
                 repeat('e', 64)::char(64), 64);""", tx=True, **CTX)
     record("and the table refuses a print against a preview sink by name",
@@ -1743,7 +1745,7 @@ def section_controls() -> None:
     duplicate_receipt = a_receipt(duplicate_settlement)
     scalar(f"""
         SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}',
-            '{duplicate_receipt}', '{fx.PRINTER_DEVICE}', '{fx.PRINT_OUTCOME}',
+            '{duplicate_receipt}', '{fx.PRINTER_DEVICE}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}',
             repeat('1', 64)::char(64), 256, '{fx.USER_CASHIER}');""")
 
     trigger_body = definition("docs.refuse_duplicate_receipt_print()")
@@ -1751,7 +1753,7 @@ def section_controls() -> None:
     def print_it_again():
         return run(APP, f"""
             SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}',
-                '{duplicate_receipt}', '{fx.PRINTER_DEVICE}', '{fx.PRINT_OUTCOME}',
+                '{duplicate_receipt}', '{fx.PRINTER_DEVICE}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}',
                 repeat('2', 64)::char(64), 256, '{fx.USER_CASHIER}');""",
             tx=True, **CTX)
 
@@ -2207,8 +2209,11 @@ def section_controls() -> None:
     # A customer receipt printed on a printer nobody tested. The precondition lives in
     # docs.record_receipt_print(), and it is the only thing that function adds beyond the
     # INSERT — so removing it is exactly the defect a reviewer would miss.
+    # The fifth argument is the AGENT'S REPORTED SINK, not the outcome. 0034 took the
+    # outcome away from the caller after the M4 review recorded a print that never
+    # happened, and the outcome is now derived from the printer's own classification.
     print_body = definition(
-        "docs.record_receipt_print(uuid, uuid, uuid, uuid, docs.print_outcome, char, "
+        "docs.record_receipt_print(uuid, uuid, uuid, uuid, docs.sink_kind, text, char, "
         "integer, uuid, boolean, uuid, text, text)")
 
     def print_on_the_untested_one():
@@ -2216,7 +2221,7 @@ def section_controls() -> None:
         receipt = a_receipt(settlement)
         return run(APP, f"""
             SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}',
-                '{receipt}', '{fx.PRINTER_UNTESTED}', '{fx.PRINT_OUTCOME}',
+                '{receipt}', '{fx.PRINTER_UNTESTED}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}',
                 repeat('3', 64)::char(64), 128, '{fx.USER_CASHIER}');""",
             tx=True, **CTX)
 

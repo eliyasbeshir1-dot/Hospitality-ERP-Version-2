@@ -1190,7 +1190,11 @@ def section_governance() -> None:
     # statement, in dependency order, so nothing is left dangling. What breaks is a
     # DURABLE table referencing one, which is why the source side is excluded here rather
     # than the rule being relaxed for the pair that happens to exist today.
-    projection_sql = """
+    # Raw, because the SQL regex below contains \. and Python must hand the backslash to
+    # PostgreSQL rather than read it as an escape of its own. It survives today only
+    # because an unrecognised escape is currently preserved; that is a SyntaxWarning now
+    # and a SyntaxError in a later Python, at which point this check would stop running.
+    projection_sql = r"""
         SELECT DISTINCT m[1]
         FROM pg_proc p
         CROSS JOIN LATERAL regexp_matches(

@@ -1927,6 +1927,8 @@ Row level security: **enabled**, **forced**.
 | `byte_count` | `integer` | NOT NULL |  |  |
 | `detail` | `text` |  |  |  |
 | `attempted_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `agent_sink` | `docs.sink_kind` | NOT NULL |  |  |
+| `resolved_destination` | `text` | NOT NULL |  |  |
 
 Constraints:
 
@@ -1975,7 +1977,8 @@ Constraints:
 - `printer_destination_matches_the_connection` — `CHECK ((((connection = 'network_socket'::docs.connection_kind) AND (host_and_port IS NOT NULL) AND (device_path IS NULL)) OR ((connection = ANY (ARRAY['character_device'::docs.connection_kind, 'file'::docs.connection_kind, 'null_device'::docs.connection_kind])) AND (device_path IS NOT NULL) AND (host_and_port IS NULL))))`
 - `printer_name_not_blank` — `CHECK ((btrim(display_name) <> ''::text))`
 - `printer_name_unique_per_outlet` — `UNIQUE (tenant_id, outlet_id, display_name, status)`
-- `printer_null_device_is_not_a_device_sink` — `CHECK (((device_path IS NULL) OR (lower(device_path) <> ALL (ARRAY['/dev/null'::text, 'nul'::text, 'nul:'::text])) OR (sink = 'discard'::docs.sink_kind)))`
+- `printer_null_device_is_not_a_device_sink` — `CHECK (((device_path IS NULL) OR (NOT docs.is_null_device_path(device_path)) OR (sink = 'discard'::docs.sink_kind)))`
+- `printer_null_device_names_the_null_device` — `CHECK (((connection <> 'null_device'::docs.connection_kind) OR docs.is_null_device_path(device_path)))`
 - `printer_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
 - `printer_pkey` — `PRIMARY KEY (id)`
 - `printer_registrar_fk` — `FOREIGN KEY (tenant_id, registered_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
@@ -2005,6 +2008,8 @@ Row level security: **enabled**, **forced**.
 | `detail` | `text` |  |  |  |
 | `tested_by_user_id` | `uuid` | NOT NULL |  |  |
 | `tested_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `agent_sink` | `docs.sink_kind` | NOT NULL |  | The sink the AGENT reported putting the bytes on. Compared with the printer's own classification: a disagreement is a refusal, not a recorded test. |
+| `resolved_destination` | `text` | NOT NULL |  | What the platform resolved the destination to, as the agent saw it. Recorded so a reader can see what was written to rather than only what it was called. |
 
 Constraints:
 
@@ -2787,10 +2792,13 @@ Row level security: **enabled**, **forced**.
 | `row_version` | `bigint` | NOT NULL | `1` |  |
 | `created_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
 | `updated_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `salt` | `bytea` |  |  | Per-credential random salt. Required for kinds a person chooses; absent for the high-entropy kinds, where the stored value is a digest of a random secret. |
+| `kdf_params` | `jsonb` |  |  | The cost parameters this row was derived under, so they can be raised for new rows without invalidating existing ones. cost is the memory-hardness parameter: N for scrypt, m for Argon2id. |
 
 Constraints:
 
 - `credential_algorithm_not_blank` — `CHECK ((btrim(digest_algorithm) <> ''::text))`
+- `credential_chosen_secret_is_key_stretched` — `CHECK (((kind <> ALL (ARRAY['password'::identity.credential_kind, 'quick_pin'::identity.credential_kind])) OR ((salt IS NOT NULL) AND (octet_length(salt) >= 16) AND (digest_algorithm = ANY (ARRAY['scrypt'::text, 'argon2id'::text])) AND COALESCE((jsonb_typeof((kdf_params -> 'cost'::text)) = 'number'::text), false) AND COALESCE(((kdf_params -> 'cost'::text) >= to_jsonb(16384)), false) AND ((digest_algorithm <> 'scrypt'::text) OR (COALESCE((jsonb_typeof((kdf_params -> 'blockSize'::text)) = 'number'::text), false) AND COALESCE((jsonb_typeof((kdf_params -> 'parallelization'::text)) = 'number'::text), false))))))`
 - `credential_digest_is_a_digest` — `CHECK ((octet_length(secret_digest) = 32))`
 - `credential_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
 - `credential_pkey` — `PRIMARY KEY (id)`

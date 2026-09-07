@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
-# Golden journey driver: rebuild from empty through every slice, then walk the journeys.
+# OP-A verification driver: rebuild from empty through every slice, then OP-A.
 #
-# Runs AFTER the slice suites — the OP-A driver, which chains the whole history beneath
-# it — and reports its own outcome whether or not one of them failed. If a slice check and a journey fail together that is one signal; if only the
-# journey fails that is a different and more interesting one, and a driver that stopped
-# at the first slice failure would hide the second case entirely.
+# Chains from M4-C for the reason every driver chains: this gate proves that a PERSON can
+# reach behaviour earlier slices built, and a suite that started here would be asserting
+# that a route works against a database nobody had proved.
+#
+# THE SEEDS ARE APPLIED BEFORE THE SUITE RUNS, and that is not incidental. OP-A's subject
+# is product data — a menu, a floor, staff who can log in — so a run against fixtures
+# alone would prove the routes work on rows the tests wrote, which is the one thing this
+# gate exists to stop being sufficient. The M1-D driver beneath this one applies them
+# through tools/seed.py; this driver checks they arrived rather than assuming it.
 set -euo pipefail
 export PYTHONDONTWRITEBYTECODE=1
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -19,12 +24,12 @@ if [ -z "$PY_BIN" ]; then
 fi
 if [ -z "$PY_BIN" ]; then
     echo "FAIL PREREQUISITE_ABSENT: no runnable interpreter on PATH" >&2
+    echo "  tried python3 then python; a name on PATH that cannot run is not a tool" >&2
     exit 1
 fi
 export PYTHON="$PY_BIN"
 
-slice_status=0
-bash "$REPO/tests/opa/run_verification.sh" || slice_status=$?
+bash "$REPO/tests/m4c/run_verification.sh"
 
 PGHOST_DIR="${PGHOST_DIR:-/var/lib/m1apg/run}"
 PGPORT="${PGPORT:-5433}"
@@ -39,11 +44,5 @@ export M1A_APP_DSN="$(dsn hospitality_app "$DB")"
 export M1A_MIGRATOR_DSN="$(dsn hospitality_migrator "$DB")"
 
 echo
-echo "=== 17. The golden journeys ==="
-journey_status=0
-"$PY_BIN" "$REPO/tests/journeys/verify_journeys.py" || journey_status=$?
-
-if [ "$slice_status" -ne 0 ]; then
-    echo "NOTE: a slice suite failed before the journeys ran; both outcomes are above." >&2
-fi
-exit $(( slice_status != 0 || journey_status != 0 ))
+echo "=== 18. OP-A verification gates ==="
+"$PY_BIN" "$REPO/tests/opa/verify_opa.py"

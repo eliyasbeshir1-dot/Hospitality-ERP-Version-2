@@ -190,6 +190,13 @@ MIGRATION_SLICE = {
     # review: an applied migration is checksum-locked, so a repair to what M4-C shipped
     # is a further migration at M4-C rather than an edit of 0027.
     "0031": "M4-C", "0032": "M4-C",
+    # 0033 and 0034 are the OP-A repair pass, which the M4 executing review's five P0
+    # findings turned into M4's repair rather than a gate of its own. 0033 gives the
+    # chosen-secret credential a salt and stored KDF parameters, closing FR-AUTH-007's
+    # storage limb, which M1-B never met; 0034 makes a printer test record what the agent
+    # did rather than what the caller claimed, and classifies the null device where the
+    # path is stored. Both are attributed to the slice whose defect they close.
+    "0033": "M1-B", "0034": "M4-C",
 }
 
 
@@ -300,7 +307,10 @@ def main() -> int:
         print(f"  {len(generated.splitlines())} lines verified against the repository")
         return 0
 
-    Path(args.out).write_text(generated, encoding="utf-8")
+    # LF explicitly: text mode would write CRLF on Windows and LF on Linux, so the
+    # artefact would differ by the platform that generated it while --check compares
+    # it against one committed copy.
+    Path(args.out).write_text(generated, encoding="utf-8", newline="\n")
     print(f"wrote {args.out} ({len(generated.splitlines())} lines)")
     return 0
 

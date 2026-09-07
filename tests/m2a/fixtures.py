@@ -100,27 +100,55 @@ def reset() -> None:
     and the fixtures do not get an exemption from it. The driver rebuilds the database
     from empty on every run, so nothing accumulates across runs.
     """
+    # SCOPED TO THE OUTLETS THIS FIXTURE WRITES, not to the whole tenant.
+    #
+    # The rule stated three comments down — "a teardown removes what it created" — had
+    # been applied to the translation delete and to nothing else, so every other statement
+    # here still reset the entire tenant. That was invisible while M2-A was the only thing
+    # with a menu in it, and stopped being invisible the moment a PRODUCT SEED put a
+    # demonstration menu on a sibling outlet: this teardown deleted its assignment, its
+    # prices and its availability, leaving a published menu that no outlet could serve and
+    # a guest who could not order from it.
+    #
+    # The same defect M4 repaired in tests/m1c, in the same words: a reset broader than
+    # the cleanup beside it corrupts whatever else shares the scope. M2-A writes menu rows
+    # at OUTLET_H1 and at the daylight-saving outlet it creates, and nowhere else, so
+    # those are the two outlets it may clear.
+    ours = f"'{OUTLET_H1}', '{OUTLET_DST}'"
     statements = [
-        f"DELETE FROM menu.availability_pause       WHERE tenant_id = '{TENANT}'",
-        f"DELETE FROM menu.availability             WHERE tenant_id = '{TENANT}'",
-        f"DELETE FROM menu.price                    WHERE tenant_id = '{TENANT}'",
+        f"DELETE FROM menu.availability_pause       WHERE tenant_id = '{TENANT}' "
+        f"AND outlet_id IN ({ours})",
+        f"DELETE FROM menu.availability             WHERE tenant_id = '{TENANT}' "
+        f"AND outlet_id IN ({ours})",
+        f"DELETE FROM menu.price                    WHERE tenant_id = '{TENANT}' "
+        f"AND outlet_id IN ({ours})",
         # Scoped to the entities M2-A seeds. It used to delete every translation in the
         # tenant, which reached into rows a later slice owns: once M2-B declared allergens
         # on these items, wiping their warning text made this fixture unable to publish
         # its own menu, and the failure surfaced in M2-A rather than where it came from.
         # A teardown removes what it created.
-        f"DELETE FROM menu.translation WHERE tenant_id = '{TENANT}' AND entity IN "
+        f"DELETE FROM menu.translation WHERE tenant_id = '{TENANT}' "
+        f"AND outlet_id IN ({ours}) AND entity IN "
         f"('menu', 'category', 'item_group', 'item', 'variant', 'modifier_group', "
         f"'modifier', 'image')",
-        f"DELETE FROM menu.image_derivative         WHERE tenant_id = '{TENANT}'",
-        f"DELETE FROM menu.image                    WHERE tenant_id = '{TENANT}'",
-        f"DELETE FROM menu.modifier_incompatibility WHERE tenant_id = '{TENANT}'",
-        f"DELETE FROM menu.item_modifier_group      WHERE tenant_id = '{TENANT}'",
-        f"DELETE FROM menu.modifier                 WHERE tenant_id = '{TENANT}'",
-        f"DELETE FROM menu.modifier_group           WHERE tenant_id = '{TENANT}'",
-        f"DELETE FROM menu.item_group_member        WHERE tenant_id = '{TENANT}'",
-        f"DELETE FROM menu.assignment               WHERE tenant_id = '{TENANT}'",
-        f"DELETE FROM menu.daypart                  WHERE tenant_id = '{TENANT}'",
+        f"DELETE FROM menu.image_derivative         WHERE tenant_id = '{TENANT}' "
+        f"AND outlet_id IN ({ours})",
+        f"DELETE FROM menu.image                    WHERE tenant_id = '{TENANT}' "
+        f"AND outlet_id IN ({ours})",
+        f"DELETE FROM menu.modifier_incompatibility WHERE tenant_id = '{TENANT}' "
+        f"AND outlet_id IN ({ours})",
+        f"DELETE FROM menu.item_modifier_group      WHERE tenant_id = '{TENANT}' "
+        f"AND outlet_id IN ({ours})",
+        f"DELETE FROM menu.modifier                 WHERE tenant_id = '{TENANT}' "
+        f"AND outlet_id IN ({ours})",
+        f"DELETE FROM menu.modifier_group           WHERE tenant_id = '{TENANT}' "
+        f"AND outlet_id IN ({ours})",
+        f"DELETE FROM menu.item_group_member        WHERE tenant_id = '{TENANT}' "
+        f"AND outlet_id IN ({ours})",
+        f"DELETE FROM menu.assignment               WHERE tenant_id = '{TENANT}' "
+        f"AND outlet_id IN ({ours})",
+        f"DELETE FROM menu.daypart                  WHERE tenant_id = '{TENANT}' "
+        f"AND outlet_id IN ({ours})",
         # The daylight-saving outlet, now that nothing in the menu schema points at it.
         # The order number series goes with it. This fixture creates the outlet, so it
         # owns everything that comes into being because the outlet does — and from 0010

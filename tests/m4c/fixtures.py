@@ -319,9 +319,15 @@ def _seed_printers() -> None:
     # THE TESTED PRINTER IS TESTED, through docs.record_printer_test(). A printer marked
     # ready by a fixture writing a row would be exactly the setup screen FR-CFG-001D
     # exists to refuse.
+    #
+    # Since 0034 the outcome is DERIVED from what the printer is, so this fixture reports
+    # what an agent would have observed — the sink it wrote to and the destination the
+    # platform resolved — and the database decides that it printed. A fixture naming its
+    # own outcome is precisely the shape the M4 review forged over HTTP.
     res = run(APP, f"""
         SELECT docs.record_printer_test(
-                 '{TENANT}', '{OUTLET_H1}', '{PRINTER_DEVICE}', '{PRINT_OUTCOME}',
+                 '{TENANT}', '{OUTLET_H1}', '{PRINTER_DEVICE}', '{SINK}'::docs.sink_kind,
+                 (SELECT device_path FROM docs.printer WHERE id = '{PRINTER_DEVICE}'),
                  repeat('a', 64)::char(64), 128, 'fixture test page', '{USER_MANAGER}')
         WHERE NOT docs.printer_has_passed_a_test('{TENANT}', '{PRINTER_DEVICE}');
     """, **CTX)

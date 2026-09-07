@@ -287,7 +287,7 @@ jobs:
           # M1A..M4A while it ran through M4-B — and each time two suites were passing on
           # Windows without anybody requiring them to. tests/ is where the suites are, so
           # tests/ is what the loop reads.
-          for suite in $(ls -d tests/m[0-9]* | sed 's#tests/##' | sort); do
+          for suite in $(ls -d tests/m[0-9]* tests/opa | sed 's#tests/##' | sort); do
             verdict="$(echo "$suite" | tr '[:lower:]' '[:upper:]')"
             grep -q "^PASS ${verdict}_VERIFICATION" "$LOG_DIR/windows-suites.log" || {
               echo "::error::${verdict} did not report PASS on Windows"; exit 1; }
@@ -779,6 +779,49 @@ jobs:
             echo "::error::the snapshot grant assertion did not run"; exit 1; }
           echo "M4-C: $checks checks, 0 failures"
 
+      - name: "OP-A — login (FR-AUTH-001, FR-AUTH-004, FR-AUTH-005, FR-AUTH-007), the kitchen and expo routes (FR-FUL-003, FR-FUL-004, FR-FUL-005, FR-FUL-006, FR-FUL-007, FR-FUL-009, FR-FUL-010, FR-FUL-011) and the product seed (FR-DAT-013)"
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Chains from the M4-C driver, which chains the whole history beneath it. This
+          # gate proves a PERSON can reach behaviour the earlier slices built, so it runs
+          # last among the slices and against the product seed rather than against
+          # fixtures — a run on fixtures alone would prove the routes work on rows the
+          # tests wrote, which is the thing this gate exists to stop being sufficient.
+          export M4C_LOG_DIR="$LOG_DIR"
+          bash tests/opa/run_verification.sh 2>&1 | tee "$LOG_DIR/opa.log"
+          grep -q '^PASS OPA_VERIFICATION' "$LOG_DIR/opa.log" || {
+            echo "::error::OP-A suite did not report PASS"; exit 1; }
+          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' "$LOG_DIR/opa.log" | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/opa.log" | tail -1)"
+          test "${checks:-0}" -ge 40 || { echo "::error::only ${checks:-0} OP-A checks ran"; exit 1; }
+          test "${failed:-1}" -eq 0 || { echo "::error::${failed} OP-A check(s) failed"; exit 1; }
+          # THE NINE CONTROLS MUST HAVE RUN, each red and each green. A suite that
+          # skipped a control would still report PASS on the checks that did run, and the
+          # controls are the half of this gate that could actually fail.
+          #
+          # NC-OPA-009 is the M4 review's printer forgery, replayed over the ROUTE rather
+          # than the function. It is listed here by name for the same reason as the other
+          # eight: the enumeration is what makes a silently skipped control a CI failure.
+          for control in NC-OPA-001 NC-OPA-002 NC-OPA-003 NC-OPA-004 NC-OPA-005 \
+                         NC-OPA-006 NC-OPA-007 NC-OPA-008 NC-OPA-009; do
+            grep -q "$control — RED with the defect planted" "$LOG_DIR/opa.log" || {
+              echo "::error::$control was never proved red"; exit 1; }
+            grep -q "$control — GREEN after revert" "$LOG_DIR/opa.log" || {
+              echo "::error::$control was never proved green"; exit 1; }
+          done
+          echo "OP-A: $checks checks, 0 failures, 9 controls red then green"
+
+      - name: "The route census reads code, not prose (the instrument behind GJ-01A)"
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The census is what says which routes nothing has ever called, which is the
+          # condition GJ-01A's defects and M4's printer forgery were both hiding in. It
+          # has now carried two defects of its own, so it is checked against cases whose
+          # answer is known before its number is believed.
+          python3 tools/uncalled_routes.py --self-test
+
       - name: The golden journeys and the duplicate-submit race — end to end, in a browser (FR-TST-005A, FR-TST-007A)
         shell: bash
         # `if: always()` on purpose. The journeys run AFTER the slice suites and report
@@ -858,7 +901,7 @@ jobs:
           export M4C_LOG_DIR="$LOG_DIR"
           # Reverse order, same database, no rebuild. A suite that only passes when it runs
           # first is depending on state another suite left behind.
-          for suite in m4c m4b m4a m3d m3c m3b m3a m2c m2b m2a m1d m1c m1b m1a; do
+          for suite in opa m4c m4b m4a m3d m3c m3b m3a m2c m2b m2a m1d m1c m1b m1a; do
             python3 "tests/$suite/verify_${suite}.py" > "$LOG_DIR/reorder/$suite.log" 2>&1 || true
           done
           # AND THE JOURNEYS, which this sweep did not run until M4's second repair.
@@ -871,7 +914,7 @@ jobs:
           # the journeys are what has to survive it.
           python3 tests/journeys/verify_journeys.py > "$LOG_DIR/reorder/journeys.log" 2>&1 || true
           fail=0
-          for suite in m1a m1b m1c m1d m2a m2b m2c m3a m3b m3c m3d m4a m4b m4c journeys; do
+          for suite in m1a m1b m1c m1d m2a m2b m2c m3a m3b m3c m3d m4a m4b m4c opa journeys; do
             tag="$(echo "$suite" | tr '[:lower:]' '[:upper:]')"
             if [ "$suite" = journeys ]; then tag=GOLDEN_JOURNEY; fi
             declared="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/$suite.log" | tail -1)"

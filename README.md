@@ -135,7 +135,7 @@ position is to write fresh.
 
 | Path | Contents |
 |---|---|
-| `api/` | the cloud API — Fastify and TypeScript, two runtime dependencies, serving `api`, `billing`, `customer`, `documents`, `health`, `payments`, `reports`, `service`, `staff`, `station` and `surface` |
+| `api/` | the cloud API — Fastify and TypeScript, two runtime dependencies, serving `api`, `auth`, `billing`, `customer`, `documents`, `health`, `payments`, `reports`, `service`, `staff`, `station` and `surface` |
 | `docs/` | the approved v2.0.9 package, byte-identical and verified by its own `SHA256SUMS.txt` |
 | `docs-local/` | cross-platform command reference |
 | `evidence/` | `M1_EVIDENCE_REPORT.md`, generated from the repository, database and suite logs |
@@ -144,7 +144,7 @@ position is to write fresh.
 | `print/` | the print agent: the receipt rasteriser, the ESC/POS encoder, and the font it ships rather than resolves from the host |
 | `schema/` | `SCHEMA_CATALOG.md`, generated from the live database, never hand-written |
 | `seeds/` | demonstration tenants and reason-code sets, with their own ordered record |
-| `tests/` | verification suites — 14 that each verify one slice, and 2 that cut across gates |
+| `tests/` | verification suites — 14 that each verify one slice, and 3 that cut across gates |
 | `tools/` | migration and seed runners, generators, and the forbidden-surface verifier |
 
 ## Third-party assets, and what shipping them obliges
@@ -201,6 +201,8 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0030_receipt_composition_preview_and_the_counter_terminal.sql`
 - `0031_a_null_device_is_not_a_printer.sql`
 - `0032_the_null_sink_cannot_claim_paper.sql`
+- `0033_a_chosen_secret_must_be_key_stretched.sql`
+- `0034_a_printer_test_records_what_the_agent_did.sql`
 
 ## Seeds
 
@@ -209,6 +211,8 @@ history: seeds are data, not structure.
 
 - `0001_demonstration_tenants.sql`
 - `0002_reason_codes.sql`
+- `0003_demonstration_floor_and_menu.sql`
+- `0004_provision_stations_and_routing.provision.sql`
 
 ## Verification
 
@@ -236,6 +240,7 @@ bash tests/m1d/run_verification.sh         # rebuilds from empty, runs every sli
 | `tests/m4a/verify_m4a.py` | checks, bills and tips: allocation that cannot bill a unit twice across a set of checks, every component recomputed independently and compared, five split modes exercised at payer counts that do not divide evenly, tip separation proved from the catalog before it is proved by behaviour, and the bill summary and tip box measured as two rectangles in a real browser |
 | `tests/m4b/verify_m4b.py` | payment and the drawer: a simulated result proved unable to become a live one from the catalog before it is attempted through the real route, change and allocations recomputed in Python and required to match, card data refused at the write on every textual column the catalog knows about, the cash path proved to have no outbound dependency anywhere in its transitive call graph, and a reopened cash shift that cannot reach a terminal state without a recount and somebody else's approval |
 | `tests/m4c/verify_m4c.py` | the receipt and the report: every figure on a receipt compared against its own source at the write, an Amharic and an Arabic receipt rasterised by the printer path and checked per glyph against the fonts this repository ships, one original print per settlement refused twice over, a preview proved to be the same composer as the receipt, a signed-off shift snapshot proved unrewritable by a grant, by the source and by the attempt, an empty window proved to report nothing rather than zero where zero would be an invention, and the FR-GOV-004 audit of every requirement whose gate has landed |
+| `tests/opa/verify_opa.py` | the operator gate: whether a person can reach what the slices built. A credential turned into a session against storage that is salted and key-stretched, a quick PIN that is refused away from its registered terminal, lockout that fires and then clears, a guest order carried to a station and moved acknowledge to preparing to ready through routes rather than through the database, expo refusing to release an incomplete set, a seed proved unable to bypass its runner or to widen a grant, and the M4 review's printer forgery replayed over the route it was performed on (spans M1 · M2 · M3 · M4) |
 
 Every suite runs against a real PostgreSQL through the least-privileged application role,
 and every negative control is proved red with a defect planted before it is trusted green.

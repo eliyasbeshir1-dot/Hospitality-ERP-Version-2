@@ -266,17 +266,37 @@ def take_order_through_the_kitchen(order_id: str) -> dict:
     """Accept, release to stations, prepare, and serve — the staff half of a journey.
 
     A guest cannot press these buttons and a journey that skipped them would end at
-    "ordered". Driven through the delivered functions rather than by writing rows, so the
-    journey walks the same path a kitchen does.
+    "ordered".
+
+    THROUGH ROUTES, BECAUSE THERE ARE ROUTES NOW. This walker used to call
+    ordering.accept_order(), fulfillment.release_order(), transition_ticket() and
+    record_serve() as SQL, and that was correct while no route reached them — the
+    structural guard named each one as a gap in the service's surface rather than as a
+    licence. The operator gate built those routes, and the same guard immediately failed
+    this file: a delivered writer the service exposes must be reached the way a person
+    reaches it, or the journey is proving a path nobody can walk.
+
+    So the kitchen half is now HTTP, on a staff session, exactly as a station operator
+    does it. What that buys is not tidiness: it means the routes are exercised by ten
+    journeys on every run, and a route that broke would fail here rather than being
+    discovered by the next person to try the product.
     """
     out: dict[str, str] = {}
+    _session, token = fx.staff_session(fx.USER)
+
+    def kitchen(method: str, path: str, body: dict | None = None) -> dict:
+        return service(method, path, body if body is not None else {}, token=token)
+
+    def outcome(answer: dict, ok_key: str | None = None) -> str:
+        if answer.get("status") in (200, 201):
+            return str(answer.get(ok_key)) if ok_key else "ok"
+        return str(answer.get("signature") or answer.get("error") or answer.get("status"))
+
     state = scalar(f"""
         SELECT state::text FROM ordering.customer_order WHERE id = '{order_id}';""")
     if state == "submitted":
-        accepted = run(APP, f"""
-            SELECT ordering.accept_order('{fx.TENANT}', '{order_id}',
-                                         '{fx.USER}');""", **CTX)
-        out["accepted"] = accepted.why() or "ok"
+        accepted = kitchen("POST", f"/s/v1/orders/{order_id}/accept")
+        out["accepted"] = outcome(accepted)
     else:
         # A waiter-entered order is accepted on submission because the policy says so for
         # that origin — the waiter IS the staff confirmation. Calling accept_order() again
@@ -291,10 +311,8 @@ def take_order_through_the_kitchen(order_id: str) -> dict:
     tickets = rows(f"""
         SELECT id::text FROM fulfillment.ticket WHERE order_id = '{order_id}';""")
     if not tickets:
-        released = run(APP, f"""
-            SELECT fulfillment.release_order('{fx.TENANT}', '{order_id}',
-                                             '{fx.USER}');""", **CTX)
-        out["released"] = released.why() or "ok"
+        released = kitchen("POST", f"/s/v1/orders/{order_id}/release")
+        out["released"] = outcome(released)
         tickets = rows(f"""
             SELECT id::text FROM fulfillment.ticket WHERE order_id = '{order_id}';""")
     else:
@@ -303,22 +321,27 @@ def take_order_through_the_kitchen(order_id: str) -> dict:
 
     for row in tickets:
         ticket = row[0]
-        # Through the machine, in order, all the way to 'collected'. record_serve()
-        # RECORDS who collected and who served; it does not perform the collection, and
-        # it refuses a ticket still at the pass. Passing only the collector leaves
-        # served_at NULL, which is why the ticket sat at 'collected' the first time.
+        # Through the machine, in order, all the way to 'collected'. The route names the
+        # state it wants and fulfillment.transition_ticket() decides whether the move is
+        # legal — the walker carries no transition table of its own, which is the same
+        # property the route was written to have.
+        #
+        # record_serve() RECORDS who collected and who served; it does not perform the
+        # collection, and it refuses a ticket still at the pass. Passing only the
+        # collector leaves served_at NULL, which is why the ticket sat at 'collected' the
+        # first time.
         for state in ("acknowledged", "preparing", "ready", "collected"):
-            moved = run(APP, f"""
-                SELECT fulfillment.transition_ticket('{fx.TENANT}', '{ticket}',
-                    '{state}'::fulfillment.ticket_state, '{fx.USER}');""", **CTX)
-            if not moved.ok:
-                out[f"ticket_{state}"] = moved.why()
+            moved = kitchen("POST", f"/s/v1/tickets/{ticket}/transitions",
+                            {"toState": state})
+            if moved.get("status") not in (200, 201):
+                out[f"ticket_{state}"] = outcome(moved)
 
     if tickets:
-        served = run(APP, f"""
-            SELECT fulfillment.record_serve('{fx.TENANT}', '{tickets[0][0]}',
-                                            '{fx.USER}', '{fx.USER}');""", **CTX)
-        out["served"] = served.why() or "ok"
+        # collectedBy and servedBy are named rather than defaulted, because the walker is
+        # standing in for two different people and the record says which did what.
+        served = kitchen("POST", f"/s/v1/tickets/{tickets[0][0]}/serve",
+                         {"collectedBy": fx.USER, "servedBy": fx.USER})
+        out["served"] = outcome(served)
     else:
         out["served"] = "no ticket to serve"
     # Emitted notices are not sent notices. notify.send_pending() is what writes them
@@ -1145,7 +1168,12 @@ def print_the_receipt(journey: str, receipt: str, *, is_reprint: bool = False,
         f"SELECT docs.receipt_document('{fx.TENANT}', '{receipt}')::text;"))
     produced = printer.produce(document, sink="device", device_path=os.devnull,
                                workspace=WORKSPACE)
-    body = {"printerId": m4c.PRINTER_DEVICE, "outcome": m4c.PRINT_OUTCOME,
+    # The AGENT'S REPORT, not a claimed outcome. Since 0034 this route takes the sink the
+    # agent wrote to and what the platform resolved the destination to, and the database
+    # derives whether that was a print — a caller naming its own outcome is the forgery
+    # the M4 review performed against this route's sibling.
+    body = {"printerId": m4c.PRINTER_DEVICE, "agentSink": m4c.SINK,
+            "resolvedDestination": produced.get("destination") or m4c.DEVICE_PATH,
             "bytesSha256": produced["bytes_sha256"],
             "byteCount": produced["byte_count"], "isReprint": is_reprint}
     if reason_code:
@@ -1423,10 +1451,14 @@ def gj_06() -> None:
                              ((m4c.VARIANT_DORO_FULL, m4c.ITEM_DORO, 1),
                               (m4c.m4b.VARIANT_TIBS_ONE, m4c.m4b.ITEM_TIBS, 1)))
     order = an_order_placed_by_the_guest(journey, session, cart)
-    accepted = run(APP, f"""
-        SELECT ordering.accept_order('{fx.TENANT}', '{order}', '{fx.USER}');""", **CTX)
-    if not accepted.ok:
-        raise ProbeFailed("accept_order", accepted.err)
+    # Through the route, for the reason take_order_through_the_kitchen() records: the
+    # service exposes this writer now, so reaching it by SQL would be the divergence the
+    # structural guard exists to catch.
+    _s, _staff_token = fx.staff_session(fx.USER)
+    accepted = service("POST", f"/s/v1/orders/{order}/accept", {}, token=_staff_token)
+    if accepted.get("status") not in (200, 201):
+        raise ProbeFailed("POST /s/v1/orders/:orderId/accept",
+                          str(accepted.get("signature") or accepted.get("error") or accepted))
 
     opened = service("POST", "/s/v1/checks", {"tableSessionId": session}, token=cashier())
     if not ok(opened):
@@ -1563,10 +1595,14 @@ def gj_07() -> None:
     guest = m4c.m4a.guest_on(session)
     cart = m4c.m4a.cart_with(session, guest, ((m4c.VARIANT_DORO_FULL, m4c.ITEM_DORO, 1),))
     order = an_order_placed_by_the_guest(journey, session, cart)
-    accepted = run(APP, f"""
-        SELECT ordering.accept_order('{fx.TENANT}', '{order}', '{fx.USER}');""", **CTX)
-    if not accepted.ok:
-        raise ProbeFailed("accept_order", accepted.err)
+    # Through the route, for the reason take_order_through_the_kitchen() records: the
+    # service exposes this writer now, so reaching it by SQL would be the divergence the
+    # structural guard exists to catch.
+    _s, _staff_token = fx.staff_session(fx.USER)
+    accepted = service("POST", f"/s/v1/orders/{order}/accept", {}, token=_staff_token)
+    if accepted.get("status") not in (200, 201):
+        raise ProbeFailed("POST /s/v1/orders/:orderId/accept",
+                          str(accepted.get("signature") or accepted.get("error") or accepted))
 
     settled = a_settled_check(journey, session, locale="en", tip_minor=2000,
                               method="cash", provider="cash")

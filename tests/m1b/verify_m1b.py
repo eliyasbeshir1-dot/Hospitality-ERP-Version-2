@@ -16,8 +16,10 @@ Usage:
 """
 from __future__ import annotations
 
+import json
 import os
 import re
+import secrets
 import sys
 from pathlib import Path
 
@@ -321,13 +323,54 @@ def section_secrets() -> None:
                 'a-plaintext-password'::bytea, 'none', 'standard');
     """, **ctx)
     record("a plaintext secret cannot be stored", plaintext.failed_with("23514", "22001"),
-           "the 32-byte digest CHECK rejects anything that is not a digest")
+           "refused by a CHECK: a plaintext password is neither 32 bytes nor key-stretched")
 
     non_digest = count(ADMIN, """
         SELECT count(*) FROM identity.credential WHERE octet_length(secret_digest) <> 32;
     """)
     record("every stored credential is a digest", non_digest == 0,
            f"{non_digest} credential row(s) are not 32-byte digests")
+
+    # AND A WELL-FORMED FAST HASH IS REFUSED TOO, which is the rule the row above does
+    # not actually test. 'a-plaintext-password' is 20 bytes, so the 32-byte CHECK alone
+    # refuses it and the key-stretching rule is never asked — a control that passes for a
+    # reason other than the one it names. This row IS 32 bytes and IS a digest, and is
+    # still refused, because a password stored as an unsalted sha-256 is what M1-B wrote
+    # until migration 0033 and what FR-AUTH-007's secure-storage limb forbids.
+    fast_hash = run(APP, f"""
+        INSERT INTO identity.credential
+            (tenant_id, outlet_id, user_account_id, kind, secret_digest, digest_algorithm, confers_strength)
+        VALUES ('{fx.TENANT_ACME}', '{fx.OUTLET_A1}', '{fx.USER_BOB}', 'password',
+                sha256('correct-horse'::bytea), 'sha-256', 'standard');
+    """, **ctx)
+    record("a chosen secret stored as an unsalted fast hash is refused",
+           fast_hash.failed_with("23514"),
+           "credential_chosen_secret_is_key_stretched: 32 bytes and a real digest, and "
+           "still not storage a password may have. This is the shape THESE FIXTURES used "
+           "until 0033, which is why the rule is structural rather than remembered")
+
+    # And the same secret, salted and stretched the way the login route derives it, is
+    # accepted — so the constraint above refuses fast hashes rather than refusing
+    # everything, which a control that only ever went red could not distinguish.
+    salt = secrets.token_bytes(16)
+    stretched = run(APP, f"""
+        INSERT INTO identity.credential
+            (tenant_id, outlet_id, user_account_id, kind, secret_digest, digest_algorithm,
+             salt, kdf_params, confers_strength)
+        VALUES ('{fx.TENANT_ACME}', '{fx.OUTLET_A1}', '{fx.USER_BOB}', 'password',
+                decode('{fx.stretch("correct-horse", salt)}', 'hex'), 'scrypt',
+                decode('{salt.hex()}', 'hex'), '{json.dumps(fx.KDF)}'::jsonb, 'standard');
+    """, **ctx)
+    record("and the same secret, salted and key-stretched, is accepted",
+           stretched.ok,
+           f"scrypt N={fx.KDF['cost']} r={fx.KDF['blockSize']} p={fx.KDF['parallelization']}, "
+           f"32-byte derived key — the parameters api/src/routes/auth.ts derives with, so "
+           f"what this suite stores is what the login route verifies"
+           if stretched.ok else stretched.err)
+    run(APP, f"""
+        DELETE FROM identity.credential
+         WHERE tenant_id = '{fx.TENANT_ACME}' AND user_account_id = '{fx.USER_BOB}'
+           AND digest_algorithm = 'scrypt' AND kind = 'password';""", **ctx)
 
     # Nothing secret may sit in the repository. Fixtures generate secrets at run time.
     repo = Path(__file__).resolve().parents[2]

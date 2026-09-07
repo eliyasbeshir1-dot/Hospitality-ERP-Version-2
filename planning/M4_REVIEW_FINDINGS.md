@@ -6,15 +6,15 @@ This document exists because a finding a reviewer has to go looking for is a fin
 
 ## The pattern: everything built except the step that makes it usable
 
-**Read this before the findings below, because three of them are one defect and the class matters more than the instances.**
+**Every instance of this pattern that this document has named is now closed. The class is kept here because it is how they were found, not because any remains open.**
 
-Three subsystems in this build are complete except for the single step that would let a person use them. In each case every component has a passing suite, and the gap sits in the join between components, where no component's own test looks.
+Each subsystem below was complete except for the single step that would let a person use them, and in each case every component already had a passing suite. The gap sat in the join between components, where no component's own test looks — which is why testing did not find any of them and using the system did.
 
 | Subsystem | Built and proved | The missing step |
 |---|---|---|
-| The kitchen | The ticket state machine, station queues, the expo view, all proved against the database by M3-B | No route reaches any writer, so a cook can read the board and change nothing |
-| Staff identity | Credentials as digests, lockouts, OTP transmission, recovery, sessions, rotation — much of it proved red-then-green | Nothing turns a presented credential into a session, so nobody can log in |
-| The demonstration floor | A menu schema, a table schema, QR issuance, a guest surface that renders three languages | The seeds carry 0 menu row(s) and 0 dining table(s), so there is nothing to render |
+| The kitchen | The ticket state machine, station queues, the expo view, all proved against the database by M3-B | **CLOSED.** 10 of 13 operator-callable writers are now reachable by a route |
+| Staff identity | Credentials as digests, lockouts, OTP transmission, recovery, sessions, rotation — much of it proved red-then-green | **CLOSED.** 1 file(s) under `api/src` read `identity.credential`, so a presented credential becomes a session |
+| The demonstration floor | A menu schema, a table schema, QR issuance, a guest surface that renders three languages | **CLOSED.** The seeds carry 21 menu row(s) and 4 dining table(s), so a guest link renders a real menu |
 
 **Every one of these was found by trying to use the system, and none by testing it.** The billing routes were found when a journey first called one over HTTP. The KDS was found when the route sweep asked which delivered writers a surface could reach. The login gap was found while reading what actually cites FR-AUTH-001. The absent floor was found by deploying the service to a hosted database and discovering that migrations and seeds alone render an empty menu.
 
@@ -299,24 +299,24 @@ Gates that have landed: M0, M0R, M1, M2, M3, M4. The package carries 336 active 
 
 The clause asks for three things: verified phone or email login, secure password or OTP flows, and a replaceable provider adapter. M1-B built and proved the first and the third. Its section 1 shows two distinct verified channel kinds and no provider-specific type reaching the domain model — and **that section heading was the only citation of FR-AUTH-001 anywhere in the run.** A heading over two structural checks was what graded a login flow delivered.
 
-**Two things changed at the second M4 repair, and neither of them is the login flow.** The grader no longer reads a citation off a section heading: a citation counts only where it sits on a step the run recorded PASS or FAIL, or in that step's detail — a line that could have failed. And where the grade and a recorded classification disagree, the classification now wins, so a judgement somebody wrote down is no longer overturned by a log line mentioning the requirement. FR-AUTH-001 is therefore reported as what it is. The flow is still absent and this repair did not build it.
+**Two things changed at the second M4 repair, and neither of them is the login flow.** The grader no longer reads a citation off a section heading: a citation counts only where it sits on a step the run recorded PASS or FAIL, or in that step's detail — a line that could have failed. And where the grade and a recorded classification disagree, the classification now wins, so a judgement somebody wrote down is no longer overturned by a log line mentioning the requirement. FR-AUTH-001 is therefore reported as what it is.
 
-The middle limb is the flow, and nothing performs it:
+The middle limb is the flow, and it now exists — what follows is the evidence, not a gap:
 
-- `identity` exposes 5 operator-callable writers — `authorize_action`, `authorize_service_principal`, `emit_security_event`, `establish_session_context`, `register_auth_attempt`. **Not one of them turns a presented credential into a session.**
-- No file under `api/src` reads `identity.credential`.
-- Every staff bearer token in this build exists because a fixture inserted a row into `identity.session` directly.
+- `identity` exposes 7 operator-callable writers — `authenticate_credential`, `authorize_action`, `authorize_service_principal`, `credential_key_derivation`, `emit_security_event`, `establish_session_context`, `register_auth_attempt`. One of them turns a presented credential into a session.
+- 1 file(s) under `api/src` reads `identity.credential`: `api\src\routes\auth.ts`.
+- Every staff bearer token in this build existed because a fixture inserted a row into `identity.session` directly, until a login route began issuing them.
 
 What makes this worth a reviewer's attention is not that a gap exists. It is that **everything around the gap is real and proved.** `identity.credential` stores only digests and a CHECK rejects anything that is not one. Five failures inside the window trip `auth_lockout`. Rotation retires the previous token. `otp_transmission` refuses to record a simulated result as a live provider outcome. A failed authentication never echoes the credential presented. All of that is proved, some of it red-then-green. The one step missing is the step in the middle — verify, then issue — and its absence is invisible precisely because the mechanism on either side of it is so thoroughly built.
 
 **So read the delivered count as what it is: a count of requirements that something in the run names.** It does not assert that a person can perform the behaviour the clause describes. Recorded in `planning/requirement_coverage.json` as absent, security, buildable now, closing at M6. It is not built here, and this brief does not build it: a repair that quietly added an authentication flow would be a far worse defect than the one it fixed.
 
 
-## 23 routes the service exposes that nothing has ever called
+## 24 routes the service exposes that nothing has ever called
 
 **This is a finding in its own right, not a footnote.** GJ-01A's lesson was that `ordering.preview_cart()` and `ordering.submit_order()` were both proved against the database while no route called either and no button reached one: every unit check passed and the feature was unreachable. M4-A shipped its billing routes the same way. The first HTTP call ever made to `POST /s/v1/checks` — made while repairing the journeys, after the slice had closed — failed on two production defects at once, because nothing had ever called it.
 
-Of 95 addressable routes, 72 are called by some suite, journey or surface and **23 are called by nothing**. A route with no caller is not necessarily broken. It is unproved, which is the condition both of those defects were hiding in.
+Of 108 addressable routes, 84 are called by some suite, journey or surface and **24 are called by nothing**. A route with no caller is not necessarily broken. It is unproved, which is the condition both of those defects were hiding in.
 
 Derived by `tools/uncalled_routes.py` on every generation, so this list cannot go stale the way a typed one would.
 
@@ -326,13 +326,13 @@ Derived by `tools/uncalled_routes.py` on every generation, so this list cannot g
 
 | Route file | Never called |
 |---|---|
-| `billing.ts` | `POST /s/v1/bills/:billId/corrections`<br>`POST /s/v1/bills/:billId/dispositions`<br>`POST /s/v1/bills/:billId/finalize`<br>`POST /s/v1/checks/merge` |
+| `billing.ts` | `GET /s/v1/checks`<br>`POST /s/v1/bills/:billId/corrections`<br>`POST /s/v1/bills/:billId/dispositions`<br>`POST /s/v1/bills/:billId/finalize`<br>`POST /s/v1/checks/merge` |
 | `customer.ts` | `POST /c/v1/allergy-concerns` |
-| `documents.ts` | `GET /s/v1/documents/preview`<br>`GET /s/v1/fiscal/reconciliation`<br>`GET /s/v1/printers`<br>`POST /s/v1/printers`<br>`POST /s/v1/printers/:printerId/test`<br>`POST /s/v1/receipts/:receiptId/renders` |
+| `documents.ts` | `GET /s/v1/documents/preview`<br>`GET /s/v1/fiscal/reconciliation`<br>`GET /s/v1/receipts/:receiptId`<br>`POST /s/v1/receipts/:receiptId/renders` |
 | `payments.ts` | `GET /s/v1/payments/:paymentId/allocations` |
 | `reports.ts` | `GET /s/v1/reports/catalog`<br>`GET /s/v1/reports/metrics`<br>`GET /s/v1/reports/sales`<br>`GET /s/v1/reports/shifts/:shiftId/snapshot`<br>`POST /s/v1/reports/shifts/:shiftId/recomputations` |
 | `service.ts` | `GET /s/v1/service/queue` |
-| `staff.ts` | `GET /s/v1/fast-picks`<br>`GET /s/v1/terminals`<br>`POST /s/v1/handovers/:handoverId/acknowledge`<br>`POST /s/v1/terminals`<br>`POST /s/v1/terminals/:deviceId/revoke` |
+| `staff.ts` | `GET /s/v1/fast-picks`<br>`GET /s/v1/handovers`<br>`GET /s/v1/terminals`<br>`POST /s/v1/handovers`<br>`POST /s/v1/handovers/:handoverId/acknowledge`<br>`POST /s/v1/terminals`<br>`POST /s/v1/terminals/:deviceId/revoke` |
 
 ## A check that reports a cause it cannot distinguish
 
@@ -349,7 +349,7 @@ No budget threshold was changed at this gate.
 
 **Its own finding, and it belongs to M3-B rather than to this slice.** M3-B built the ticket state machine, the station queues and the expo view, and its suite proves all of it against the database. Not one of its writers can be invoked through the running service.
 
-Of the 13 operator-callable writers in `fulfillment`, **13 are reachable by no route** and none is.
+Of the 13 operator-callable writers in `fulfillment`, **3 are reachable by no route** and 10 are: `acknowledge_allergy`, `recall_ticket`, `record_serve`, `record_unit_progress`, `record_waste`, `release_order`, `release_to_service`, `set_priority`, `transfer_ticket`, `transition_ticket`
 
 `fulfillment.transition_ticket()` is the single writer that moves a ticket through every one of its eleven states — queued, acknowledged, held, preparing, partially_completed, ready, collected, completed, rework, cancelled, exception — and it has no route. So **acknowledge, hold, fire, mark ready, complete, recall and transfer are all unreachable**, along with line-level progress, serving, waste, priority, allergy acknowledgement, release to the stations and release to service.
 
@@ -357,19 +357,9 @@ Of the 13 operator-callable writers in `fulfillment`, **13 are reachable by no r
 
 | `fulfillment` writer | Reachable through a route |
 |---|---|
-| `fulfillment.acknowledge_allergy` | **no** |
 | `fulfillment.apply_order_amendment` | **no** |
 | `fulfillment.emit_ready_notice` | **no** |
 | `fulfillment.escalate_uncollected` | **no** |
-| `fulfillment.recall_ticket` | **no** |
-| `fulfillment.record_serve` | **no** |
-| `fulfillment.record_unit_progress` | **no** |
-| `fulfillment.record_waste` | **no** |
-| `fulfillment.release_order` | **no** |
-| `fulfillment.release_to_service` | **no** |
-| `fulfillment.set_priority` | **no** |
-| `fulfillment.transfer_ticket` | **no** |
-| `fulfillment.transition_ticket` | **no** |
 
 This is GJ-01A one layer below the defect that opened this repair. There, ten billing routes existed and nothing had called them; here the routes do not exist at all, so the KDS M3-B delivered could not function in production. It is recorded rather than fixed: the fix is M3-B's scope and a station write surface is a feature, not a repair.
 

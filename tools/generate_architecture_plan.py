@@ -259,7 +259,10 @@ def main() -> int:
         print(f"  {len(generated.splitlines())} lines verified against the repository")
         return 0
 
-    Path(args.out).write_text(generated, encoding="utf-8")
+    # LF explicitly: text mode would write CRLF on Windows and LF on Linux, so the
+    # artefact would differ by the platform that generated it while --check compares
+    # it against one committed copy.
+    Path(args.out).write_text(generated, encoding="utf-8", newline="\n")
     print(f"wrote {args.out} ({len(generated.splitlines())} lines)")
     return 0
 

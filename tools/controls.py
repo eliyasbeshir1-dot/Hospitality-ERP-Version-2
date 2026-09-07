@@ -150,6 +150,19 @@ CONTROLS = [
     ("NC-M4C-008", "A customer receipt printed on a printer nobody tested", "PRINTER_NEVER_TESTED", "m4c"),
     ("NC-M4C-009", "A journey the suite walks that the evidence report never reports", "JOURNEY_UNACCOUNTED", "m4c"),
     ("NC-M4C-010", "An evidence report generated from a tree with uncommitted work", "REPORT_TREE_NOT_CLEAN", "m4c"),
+    # The operator gate. Each of these is a way the connection between a person and the
+    # behaviour beneath it could be made to look present while being wrong — which is the
+    # class this gate exists for, so its controls break the CONNECTION rather than the
+    # logic the connection reaches.
+    ("NC-OPA-001", "A credential accepted without verification", "CREDENTIAL_ACCEPTED_UNVERIFIED", "opa"),
+    ("NC-OPA-002", "A session issued for a revoked or removed role", "SESSION_ISSUED_FOR_REVOKED_ROLE", "opa"),
+    ("NC-OPA-003", "A quick PIN authorising a step-up-governed action", "LOW_RISK_CREDENTIAL_USED_FOR_SENSITIVE_ACTION", "opa"),
+    ("NC-OPA-004", "A kitchen route re-implementing a transition rule", "CHANNEL_RULE_DIVERGENCE", "opa"),
+    ("NC-OPA-005", "A route driving a ticket into an illegal state", "ILLEGAL_TRANSITION_ACCEPTED", "opa"),
+    ("NC-OPA-006", "Expo releasing an incomplete set", "INCOMPLETE_SET_SERVED", "opa"),
+    ("NC-OPA-007", "A seeded row bypassing the runner or RLS", "SEED_BYPASSED_RUNNER", "opa"),
+    ("NC-OPA-008", "Lockout not firing after the configured failures", "LOCKOUT_NOT_ENFORCED", "opa"),
+    ("NC-OPA-009", "A caller's claim recorded as a print the agent never made", "PRINT_OUTCOME_FORGED", "opa"),
 ]
 
 
@@ -249,20 +262,40 @@ def count() -> int:
     return len(CONTROLS)
 
 
+# A REPAIR PASS IS NOT A GATE, AND ITS CONTROLS BELONG TO THE GATE THEY REPAIR.
+#
+# OP-A is the repair pass for four of the five P0 findings the M4 executing review
+# returned, so its controls are counted against M4 — the gate whose defects they close —
+# rather than inventing a tenth gate for work that landed no new requirement. The mapping
+# is a single table rather than a wildcard, so an identifier this file has never heard of
+# still raises rather than being silently filed somewhere.
+REPAIR_PASS_GATE = {"OPA": "M4"}
+
+
+def gate_of(identifier: str) -> str | None:
+    """The gate a control belongs to, or None if its name says nothing about one."""
+    numbered = re.fullmatch(r"NC-(M\d)[A-Z]?-\d+", identifier)
+    if numbered:
+        return numbered.group(1)
+    named = re.fullmatch(r"NC-([A-Z]+)-\d+", identifier)
+    return REPAIR_PASS_GATE.get(named.group(1)) if named else None
+
+
 def by_gate() -> list[tuple[str, int]]:
     """How many controls each gate owns, derived from the identifiers themselves.
 
     NC-M1-001 and NC-M1B-001 both belong to M1: the letter is the slice within the gate,
-    and a gate's total is what a reader of the matrix wants.
+    and a gate's total is what a reader of the matrix wants. NC-OPA-001 belongs to M4 by
+    the table above, for the reason recorded there.
     """
     tally: dict[str, int] = {}
     for identifier, _p, _s, _suite in CONTROLS:
-        gate = re.fullmatch(r"NC-(M\d)[A-Z]?-\d+", identifier)
+        gate = gate_of(identifier)
         if not gate:
             raise ControlDrift(
                 f"CONTROL_IDENTIFIER_UNPARSEABLE: {identifier} does not name a gate, so "
                 f"no distribution can be derived from it")
-        tally[gate.group(1)] = tally.get(gate.group(1), 0) + 1
+        tally[gate] = tally.get(gate, 0) + 1
     return sorted(tally.items())
 
 
