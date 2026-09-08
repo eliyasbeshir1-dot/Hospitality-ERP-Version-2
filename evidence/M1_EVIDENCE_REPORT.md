@@ -13,8 +13,8 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `894b078cfc908befb4438166b82ddf30c2c9154f` |
-| Short | `894b078` |
+| Commit | `5d07eaf5c70ae6324c63598ddb0c2aba99dfdb55` |
+| Short | `5d07eaf` |
 | Branch | `claude/operator-gate-opb` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation — the generator refuses a tree that is not |
@@ -73,6 +73,8 @@ Ordered, forward-only and checksum-locked. An edited applied migration fails pre
 | `0032` | `0032_the_null_sink_cannot_claim_paper.sql` | `a466995fd47b6fb5…` | applied |
 | `0033` | `0033_a_chosen_secret_must_be_key_stretched.sql` | `77348a41915c0da4…` | applied |
 | `0034` | `0034_a_printer_test_records_what_the_agent_did.sql` | `bda2ede557a00282…` | applied |
+| `0035` | `0035_a_table_can_be_seated.sql` | `c28ce9c0fa001dd3…` | applied |
+| `0036` | `0036_seating_is_an_action_and_actions_are_graded.sql` | `0c6c6a4899f3f665…` | applied |
 
 ## Seeds applied
 
@@ -90,6 +92,7 @@ least-privileged application role.
 | `0005` | `0005_the_demonstration_floor_can_be_billed.sql` | `14f212530bdd33e3…` | applied |
 | `0006` | `0006_the_demonstration_floor_can_take_money.provision.sql` | `9425a5f138a17cf5…` | applied |
 | `0007` | `0007_the_demonstration_floor_can_escalate.sql` | `01cf3ecd7a06beac…` | applied |
+| `0008` | `0008_the_demonstration_floor_can_seat.provision.sql` | `d438fd8decc964af…` | applied |
 
 ## Schema shape
 
@@ -124,9 +127,10 @@ Money is stored as integer minor units beside an explicit currency.
 | M4-C receipts, the printer path, reporting, the register audit | **PASS** | 108 | 0 |
 | OP-A login, the kitchen and expo routes, the product seed | **PASS** | 49 | 0 |
 | OP-B the station board, the till and the waiter floor | **PASS** | 25 | 0 |
+| OP-C being seated, and taking something back out | **PASS** | 42 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
 | The golden journeys, end to end | **PASS** | 107 | 0 |
-| **Total** | | **1511** | |
+| **Total** | | **1553** | |
 
 ## The golden journeys (FR-TST-005A)
 
@@ -156,7 +160,7 @@ mistaken for one that mostly worked.
 
 ## Negative controls
 
-**131** controls — M1 22, M2 22, M3 35, M4 52 — each planted as a real
+**138** controls — M1 22, M2 22, M3 35, M4 59 — each planted as a real
 defect, required to produce its exact registered signature, then reverted and
 required to pass again. A control that never went red is a coverage gap wearing a
 green badge, and CI fails the build when one is missing. The registry is
@@ -297,6 +301,13 @@ build, and so does one described and never proved.
 | `NC-OPB-006` | A destructive action proceeding with no reason | `DESTRUCTIVE_ACTION_WITHOUT_REASON` | red, then green |
 | `NC-OPB-007` | The station screen driving a ticket into an illegal state | `ILLEGAL_TRANSITION_ACCEPTED` | red, then green |
 | `NC-OPB-008` | A screen re-implementing a rule the route enforces | `CHANNEL_RULE_DIVERGENCE` | red, then green |
+| `NC-OPC-001` | A scan bound to no occupancy admitted to one opened since | `STALE_QR_VERIFICATION_REQUIRED` | red, then green |
+| `NC-OPC-002` | A table seated twice, with two open occupancies | `OCCUPANCY_ALREADY_OPEN` | red, then green |
+| `NC-OPC-003` | An occupancy opened without saying who opened it | `OPENING_SOURCE_UNATTRIBUTED` | red, then green |
+| `NC-OPC-004` | A line removed from a basket somebody has ordered from | `CART_ALREADY_SUBMITTED` | red, then green |
+| `NC-OPC-005` | A basket a guest can add to and cannot take from | `REMOVE_CONTROL_ABSENT` | red, then green |
+| `NC-OPC-006` | A surface with a network layer and no way in | `SIGN_IN_UNREACHABLE` | red, then green |
+| `NC-OPC-007` | A bordered box that never says what it is | `BOX_UNLABELLED` | red, then green |
 
 ## Design decision: the ledger is the record, everything else is a projection (M3-A)
 
