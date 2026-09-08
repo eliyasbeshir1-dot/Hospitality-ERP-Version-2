@@ -367,6 +367,43 @@ def section_seating() -> None:
            f"service.join_table_session() is called unchanged and this gate added no "
            f"branch in which a join simply proceeds")
 
+    # ---- the join route itself, which this gate stopped being the only caller of ----
+    #
+    # /c/v1/seat replaced /c/v1/join in the guest surface and in OP-A's order helper, and
+    # the route census immediately reported /c/v1/join as called by nothing — which is the
+    # census doing its job. M2-B's route still exists, still enforces the stale-QR rule,
+    # and is still the route a caller who knows a table is occupied would use. So it is
+    # driven here rather than left unproved, and driven at the case that matters.
+    #
+    # AND THIS IS WHERE F-OPC-4'S REPAIR IS PROVED. Before OP-C this route mapped exactly
+    # one refusal and answered 500 to everything else. NO_OPEN_OCCUPANCY was everything
+    # else, and it is what the first person to scan the demonstration floor was shown as
+    # an internal error while the service was correctly reporting an empty table.
+    empty_the_table()
+    lone = a_guest_scans(a_placard())
+    unjoinable = opa.call("POST", "/c/v1/join", {"scanId": lone["scanId"]},
+                          token=lone["guestToken"], scheme="Guest")
+    record("joining a table nobody has opened is a named refusal, not a 500",
+           unjoinable.get("status") == 409
+           and unjoinable.get("reason") == "NO_OPEN_OCCUPANCY",
+           f"POST /c/v1/join -> {unjoinable.get('status')} {unjoinable.get('reason')!r}. "
+           f"It answered 500 {{'error':'internal error'}} on the demonstration floor: the "
+           f"fifth time in this repository a working business rule has been reported as a "
+           f"server fault, and the first one a person met rather than a suite")
+
+    joinable = opa.call("POST", "/c/v1/seat", {"scanId": lone["scanId"]},
+                        token=lone["guestToken"], scheme="Guest")
+    second = a_guest_scans(a_placard())
+    joined = opa.call("POST", "/c/v1/join", {"scanId": second["scanId"]},
+                      token=second["guestToken"], scheme="Guest")
+    record("and the join route still joins an occupancy that is open",
+           joinable.get("opened") is True
+           and joined.get("status", 200) == 200
+           and joined.get("tableSessionId") == joinable.get("tableSessionId"),
+           f"one guest opened {str(joinable.get('tableSessionId'))[:8]} and a second "
+           f"joined it through M2-B's own route: {joined.get('status', 200)}. Seating did "
+           f"not replace joining; it supplied the occupancy joining always needed")
+
     # ---- and what a guest can do about it on THIS floor ------------------
     #
     # F-OPB-3's fourth member, found by being the first thing to need it. Seating made the
@@ -464,6 +501,35 @@ def section_basket() -> None:
            other.get("status") == 404,
            f"{other.get('status')} {other.get('reason')!r} for a line named against "
            f"another basket")
+
+    # ---- and the same capability on the other channel --------------------
+    #
+    # FR-POS-003A: a waiter-entered order obeys the identical rules as a QR order. The
+    # guest gained a removal at this gate and the waiter had none — F-OPB-10 again on the
+    # channel nobody looked at, because no waiter journey has ever changed its mind
+    # either. Driven here through the staff routes, so the claim that both channels reach
+    # one writer is walked rather than only read out of the source by M3-D.
+    empty_the_table()
+    staff_seat = opa.call("POST", f"/s/v1/tables/{TABLE_1}/seat", token=CONTEXT["token"])
+    staff_cart = opa.call("POST", "/s/v1/carts",
+                          {"tableSessionId": staff_seat.get("tableSessionId")},
+                          token=CONTEXT["token"]).get("cartId")
+    staff_line = opa.call("POST", "/s/v1/cart/lines",
+                          {"cartId": staff_cart, "itemId": opa.ITEM_DORO,
+                           "variantId": opa.VARIANT_DORO, "quantity": 1},
+                          token=CONTEXT["token"]).get("id")
+    staff_removed = opa.call("DELETE", f"/s/v1/cart/lines/{staff_line}?cartId={staff_cart}",
+                             token=CONTEXT["token"])
+    staff_left = run(ADMIN, f"""
+        SELECT count(*)::text FROM service.cart_line
+         WHERE tenant_id = '{TENANT}' AND cart_id = '{staff_cart}';""")
+    record("a waiter can take a line back out too, through the same writer",
+           bool(staff_line) and staff_removed.get("status", 200) == 200
+           and (staff_left.scalar or "").strip() == "0",
+           f"added {str(staff_line)[:8]} and removed it: "
+           f"{staff_removed.get('status', 200)}; {(staff_left.scalar or '').strip()} "
+           f"line(s) left. Both channels call service.remove_cart_line() and neither "
+           f"states the rule about when that is allowed")
 
     # ---- the rule that says when this is allowed -------------------------
     scanned, cart, line = a_basket_with_a_line()

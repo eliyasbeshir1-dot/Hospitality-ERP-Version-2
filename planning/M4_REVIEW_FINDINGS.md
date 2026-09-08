@@ -312,11 +312,11 @@ What makes this worth a reviewer's attention is not that a gap exists. It is tha
 **So read the delivered count as what it is: a count of requirements that something in the run names.** It does not assert that a person can perform the behaviour the clause describes. Recorded in `planning/requirement_coverage.json` as absent, security, buildable now, closing at M6. It is not built here, and this brief does not build it: a repair that quietly added an authentication flow would be a far worse defect than the one it fixed.
 
 
-## 26 routes the service exposes that nothing has ever called
+## 25 routes the service exposes that nothing has ever called
 
 **This is a finding in its own right, not a footnote.** GJ-01A's lesson was that `ordering.preview_cart()` and `ordering.submit_order()` were both proved against the database while no route called either and no button reached one: every unit check passed and the feature was unreachable. M4-A shipped its billing routes the same way. The first HTTP call ever made to `POST /s/v1/checks` — made while repairing the journeys, after the slice had closed — failed on two production defects at once, because nothing had ever called it.
 
-Of 111 addressable routes, 85 are called by some suite, journey or surface and **26 are called by nothing**. A route with no caller is not necessarily broken. It is unproved, which is the condition both of those defects were hiding in.
+Of 116 addressable routes, 91 are called by some suite, journey or surface and **25 are called by nothing**. A route with no caller is not necessarily broken. It is unproved, which is the condition both of those defects were hiding in.
 
 Derived by `tools/uncalled_routes.py` on every generation, so this list cannot go stale the way a typed one would.
 
@@ -332,7 +332,7 @@ Derived by `tools/uncalled_routes.py` on every generation, so this list cannot g
 | `payments.ts` | `GET /s/v1/payments/:paymentId/allocations` |
 | `reports.ts` | `GET /s/v1/reports/catalog`<br>`GET /s/v1/reports/metrics`<br>`GET /s/v1/reports/sales`<br>`GET /s/v1/reports/shifts/:shiftId/snapshot`<br>`POST /s/v1/reports/shifts/:shiftId/recomputations` |
 | `service.ts` | `GET /s/v1/service/queue` |
-| `staff.ts` | `GET /s/v1/fast-picks`<br>`GET /s/v1/handovers`<br>`GET /s/v1/terminals`<br>`POST /s/v1/handovers`<br>`POST /s/v1/handovers/:handoverId/acknowledge`<br>`POST /s/v1/terminals`<br>`POST /s/v1/terminals/:deviceId/revoke` |
+| `staff.ts` | `GET /s/v1/fast-picks`<br>`GET /s/v1/handovers`<br>`GET /s/v1/tables/seatable`<br>`GET /s/v1/terminals`<br>`POST /s/v1/terminals`<br>`POST /s/v1/terminals/:deviceId/revoke` |
 
 ## A check that reports a cause it cannot distinguish
 

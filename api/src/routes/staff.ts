@@ -345,6 +345,58 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
       }),
   );
 
+  /**
+   * Taking a line back out, and the reason this route exists at all (FR-POS-003A).
+   *
+   * OP-C gave the guest surface a remove control and a route behind it, and M3-D's
+   * structural check refused the result: the guest channel named two cart-line functions
+   * and this one named one. That check requires both channels to reach THE SAME functions
+   * for the same rule, and it was reporting something true — a waiter taking an order at
+   * the table could add a dish and could not take one off, which is F-OPB-10 again on the
+   * other channel.
+   *
+   * Nobody had noticed because no waiter journey has ever changed its mind either. The
+   * check found it from the catalog, structurally, before any test walked it.
+   *
+   * service.remove_cart_line() unchanged — the same writer the guest route calls, and the
+   * same refusal when the basket has already been ordered from.
+   */
+  app.delete<{ Params: { lineId: string }; Querystring: { cartId?: string } }>(
+    '/s/v1/cart/lines/:lineId',
+    {
+      schema: {
+        params: {
+          type: 'object', required: ['lineId'],
+          properties: { lineId: { type: 'string', format: 'uuid' } },
+        },
+        querystring: {
+          type: 'object',
+          properties: { cartId: { type: 'string', format: 'uuid' } },
+        },
+      },
+    },
+    async (request, reply) =>
+      asStaff(request, reply, async (client, tenantId) => {
+        try {
+          const { rows } = await client.query(
+            'SELECT service.remove_cart_line($1::uuid, $2::uuid, $3::uuid) AS cart_id',
+            [tenantId, request.params.lineId, request.query.cartId ?? null],
+          );
+          return { removed: request.params.lineId, cartId: rows[0].cart_id };
+        } catch (error) {
+          const signature = signatureOf(error);
+          if (signature) {
+            // The same split the guest route makes, for the same reason: a line already
+            // gone and a basket frozen by an order are different situations, and a screen
+            // does a different thing with each.
+            reply.code(signature === 'CART_LINE_UNKNOWN' ? 404 : 409);
+            return { error: 'refused', reason: signature };
+          }
+          throw error;
+        }
+      }),
+  );
+
   /** FR-ORD-002. The same server-calculated preview the guest surface receives. */
   app.post<{ Body: { cartId: string; locale?: string; origin?: string } }>(
     '/s/v1/orders/preview',

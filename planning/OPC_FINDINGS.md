@@ -272,6 +272,57 @@ that statement and requires `PROVISIONING_SEED_TOO_BROAD`; it got
 before calls are read, and the table check runs first so a new check cannot rename an
 existing refusal. A nine-gate-old control failing on a new checker is the control working.
 
+## F-OPC-4d — the first DELETE route in this repository, and two readers that had never met one
+
+OP-C added the first `app.delete` registration this repository has ever had. Two
+instruments turned out to have been written for a world with only `GET` and `POST` in it,
+and both were found by CI and a local re-run rather than by anything that reasoned about
+them in advance.
+
+**The channel differential swallowed the next handler.** `handler_block()` in
+`tests/channel_differential.py` returns a route's source "from its path literal to the next
+registration", and it found the next registration with `app\.(get|post)[<(]`. A DELETE is
+not a registration to that pattern, so `DELETE /c/v1/cart/lines/:lineId` — sitting
+immediately after `POST /c/v1/cart/lines` — was read as part of the POST handler. The guest
+channel therefore appeared to name `service.remove_cart_line()` while pricing a line, the
+staff channel did not, and the instrument reported **a divergent order path that did not
+exist**.
+
+It reported it confidently, and that is the part worth recording. The message reads *"there
+is no second implementation for the two to agree about"* — a claim about the code — while
+the actual difference was in the reader. Twelve lines below it, `route_paths()` in the same
+file has always known all four verbs. **Two lists in one file, disagreeing with each
+other**, which is the shape F-OPB-4, F-OPB-4b, F-OPB-7 and F-OPC-4b all have.
+
+**And the gap it accidentally pointed at was real.** Chasing the false report showed that
+the staff channel could add a cart line and not remove one — F-OPB-10 again, on the other
+channel, unnoticed because no waiter journey has ever changed its mind either.
+`DELETE /s/v1/cart/lines/:lineId` closes it, calling the same
+`service.remove_cart_line()`. The instrument's *report* was an artifact; the *gap* was not,
+and both halves of that are stated because reporting only the second would make a lucky
+find sound like a diagnosis.
+
+**And there were three copies of the reader, not two.** Chasing the first one turned up
+a private `_block()` in `tests/m4a/verify_m4a.py` — twenty lines duplicating
+`handler_block()`, carrying the same `get|post` defect. It sits in the file whose subject
+is that two implementations of a rule must not exist, and `channel_differential.py`'s own
+header says it was extracted *"because M4-A adds a third channel and a second copy of the
+check that proves there is only one implementation would be the joke writing itself."*
+The copy was there anyway. It is deleted; M4-A imports the shared one.
+
+The verb list is now stated **once**, and stating it once exposed a third disagreement:
+the two readers in `channel_differential.py` knew `get|post` and `get|post|patch|delete`
+respectively, and **neither knew `put`** — which `customer.ts` has registered
+`/c/v1/locale` with since M2-C. Three readers of one fact across two files, no two of them
+agreeing.
+
+**The census had the same shape and did not have the bug.** `tools/uncalled_routes.py`
+reads `\.(get|post|put|patch|delete)`, so it saw both new DELETE routes immediately — and
+it also caught that `POST /c/v1/join` had lost every caller when the guest surface and
+OP-A's helper moved to `/c/v1/seat`. That route is now driven directly by the OP-C suite,
+which is also where F-OPC-4's repair is proved: joining a table nobody has opened answers
+409 `NO_OPEN_OCCUPANCY` and no longer 500.
+
 ## F-OPC-5 — the three smaller absences, closed
 
 | finding | what was missing | closed by |
@@ -348,6 +399,7 @@ have proved nothing.
 | *(not asked for)* | **A fifth 500 on a working rule, removed.** F-OPC-4. |
 | *(not asked for)* | **A grade for the action seating became.** F-OPC-4b: migration 0036 and seed 0008, without which the Seat button asked a waiter to write a reason and then did nothing. |
 | *(not asked for)* | **A hole in the provisioning privilege boundary, closed.** F-OPC-4c. |
+| *(not asked for)* | **The waiter can take a line back out too.** F-OPC-4d: the staff channel could add and not remove, and both channels now call one writer. |
 
 Seven controls, each planted, required to produce its registered signature, reverted and
 required to pass again. Four break a rule and three break a screen, which is the split the
@@ -378,17 +430,26 @@ and a real browser, on Windows 11 with Python 3.12.10 and psql 18.4. Migrations 
 
 | suite | result |
 |---|---|
-| OP-C | **39 checks, 0 failures, 9 measured in a browser, 7 controls red then green** |
+| OP-C | **42 checks, 0 failures, 9 measured in a browser, 7 controls red then green** |
 | OP-A | 49 / 49 |
 | OP-B | 25 / 25, 16 measured |
 | M2-B | 107 / 107 |
+| M3-D | 96 / 96 — the channel differential, repaired |
+| M4-A | 105 / 105 — the differential's other consumer |
 | The golden journeys | **107 steps, 0 failures — ten browser-tier journeys and FR-TST-007A** |
 
-Four of OP-C's own defects were found by that run and by nothing before it: the till's
-`needs_attention` compared against the wrong text, a self-check that matched its own
-docstring, the bodyless POST (F-OPC-5b) and the ungraded action (F-OPC-4b). Two more —
-the false positive in the new seed checker and the control plant that would not compile —
-were found by running the chain rather than the gate alone.
+**Nine defects were found by running it, and none of them by anything that ran before.**
+Four in what this gate had just shipped — the bodyless POST (F-OPC-5b), the ungraded
+action (F-OPC-4b), the invisible function call in the provisioning guard (F-OPC-4c) and
+the staff channel's missing removal (F-OPC-4d). Three in this gate's own suite: a boolean
+compared against the wrong text, a self-check that matched its own docstring, and a
+control plant that would not compile. Two in instruments older than this gate: the
+`get|post` blind spot in the channel differential and its third undeclared copy.
+
+The order they surfaced in is worth stating, because it is an argument for running the
+whole chain rather than the new gate: the route-level checks passed on the first run and
+found nothing. The browser found the screens. CI found the stale generated document. The
+chain found the instrument.
 
 **The browser caveat, stated because it is a real limit on this evidence.** The pinned
 Chromium build for Playwright 1.56 (build 1194) could not be downloaded: both CDN mirrors
