@@ -201,6 +201,11 @@ SUITE_SPANS = {
     # The screens sit on top of everything: identity to sign in, the menu to sell, the
     # kitchen to cook, the bill to settle.
     "opb": ["M1", "M2", "M3", "M4"],
+    # The same four, and for a blunter reason than OP-B's: seating sits UNDER all of them.
+    # Identity to sign a waiter in (M1-B), the occupancy and the basket M2-B built the
+    # tables for, the order and the handover M3 built on top, and the bill M4 settles —
+    # none of which a real guest could reach, because nobody could be seated.
+    "opc": ["M1", "M2", "M3", "M4"],
 }
 
 
@@ -265,6 +270,13 @@ SUITE_PURPOSE = {
            "tip beside it with nothing preselected, a waiter floor that fetches its own "
            "tables with the unpaid balance on them, confirmation friction graded by the "
            "database, and a manager override that takes the manager's own session",
+    "opc": "being seated, and taking something back out: the step that came before "
+           "everything the nineteen suites above had proved. A guest scanning an "
+           "unoccupied table opens the occupancy and a member of staff can open one too, "
+           "through one function with two opening sources that nothing had ever called; a "
+           "waiter who seats a table becomes accountable for it, which is the origin "
+           "FR-TAB-006's handover chain never had; a guest can take a dish back out of "
+           "the basket; and M2-B's stale-QR guarantee is proved unweakened by any of it",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
     "journeys": "the golden journeys end to end in a browser against real "
                 "persistence, plus the duplicate-submit race: what a guest and a waiter "

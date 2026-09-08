@@ -197,6 +197,15 @@ MIGRATION_SLICE = {
     # did rather than what the caller claimed, and classifies the null device where the
     # path is stored. Both are attributed to the slice whose defect they close.
     "0033": "M1-B", "0034": "M4-C",
+    # 0035 is OP-C, and it is attributed to M2-B for the same reason 0033 is attributed to
+    # M1-B: the slice whose defect it closes. FR-TAB-003 asked for a table session with an
+    # opening source and a host, and M2-B built the table, the column and the enum and
+    # never a writer — so the requirement was met in shape and unreachable in fact, and a
+    # guest scanning a real placard could not order. The ownership half of it repairs
+    # M3-D's handover, which had no first owner to hand over FROM; the basket half repairs
+    # M2-C's guest surface, which could add and not take away. One migration, three
+    # slices' omissions, filed under the earliest.
+    "0035": "M2-B",
 }
 
 

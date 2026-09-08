@@ -208,6 +208,30 @@ body {
   border-block-end: 1px solid var(--edge);
 }
 
+/*
+ * OP-C. Taking a line back out.
+ *
+ * Deliberately QUIETER than .add: outlined rather than filled, and in the ordinary ink
+ * rather than the accent. Adding is what the guest came to do and removing is the repair,
+ * so the two should not compete for the same tap — but it carries the SAME 44px floor,
+ * because a control small enough to be safe from a mis-tap is also small enough to be
+ * unusable on purpose.
+ *
+ * No colour carries the meaning. The word is the signal (FR-UX-005), which is why there
+ * is no red here and no icon standing in for one.
+ */
+.cart-line-remove {
+  font: inherit;
+  min-block-size: 44px;
+  min-inline-size: 44px;
+  padding-inline: var(--space-3);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--ground-raised);
+  color: var(--ink);
+  cursor: pointer;
+}
+
 .empty { color: var(--ink-quiet); }
 
 .retry {

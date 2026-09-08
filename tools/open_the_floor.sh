@@ -100,15 +100,29 @@ cat <<INFO
       outlet                 ${OUTLET}
 
   THE WAITER FLOOR           http://127.0.0.1:${PORT}/waiter
-      same manager sign-in; the screen fetches the floor itself
+      sign in on the page itself; the screen fetches the floor, and
+      seats a free table from the list below the occupied ones
 
   A GUEST AT TABLE 11        http://127.0.0.1:${PORT}/?t=${TENANT}&o=${OUTLET}&c=${QR}
-      scan-equivalent link: order from the three-language menu, and the
-      ticket appears on the station board above
+      scan-equivalent link: opening it SEATS you, because the table is
+      empty and the scan is the seating act. Order from the
+      three-language menu, take something back out of the basket, and
+      the ticket appears on the station board above
 
   WHAT WORKS AND WHAT DOES NOT, so nothing here surprises you:
+    - a guest can seat themselves by opening the link, or a waiter can
+      seat the table first; either way the same occupancy is opened.
+      A waiter who seats it becomes accountable for it; a guest who
+      seats themselves leaves the table reading "no waiter is
+      accountable", which is the floor screen telling the truth.
     - a guest can order; the kitchen can cook it; the till can bill it,
       split it, take cash, a card, Telebirr or CBE Birr, and settle it.
+    - anyone holding this link can seat themselves at table 11 from
+      anywhere, including before you sit down at it. That is F-OPC-3 in
+      planning/OPC_FINDINGS.md: a placard is a long-lived secret and
+      nothing tests how fresh a scan is. On a demonstration floor it
+      costs nothing; in a restaurant it is a stranger reading, adding
+      to and being paid for on your table's session.
     - a RECEIPT cannot be produced on this floor. Receipt wording lives
       in two tenant-unique catalogues that only the test fixtures have
       ever written, so product data cannot compose one. That is

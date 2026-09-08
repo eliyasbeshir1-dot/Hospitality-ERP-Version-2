@@ -287,7 +287,7 @@ jobs:
           # M1A..M4A while it ran through M4-B — and each time two suites were passing on
           # Windows without anybody requiring them to. tests/ is where the suites are, so
           # tests/ is what the loop reads.
-          for suite in $(ls -d tests/m[0-9]* tests/opa tests/opb | sed 's#tests/##' | sort); do
+          for suite in $(ls -d tests/m[0-9]* tests/opa tests/opb tests/opc | sed 's#tests/##' | sort); do
             verdict="$(echo "$suite" | tr '[:lower:]' '[:upper:]')"
             grep -q "^PASS ${verdict}_VERIFICATION" "$LOG_DIR/windows-suites.log" || {
               echo "::error::${verdict} did not report PASS on Windows"; exit 1; }
@@ -843,6 +843,45 @@ jobs:
           done
           echo "OP-B: $checks checks ($measured measured), 0 failures, 8 controls red then green"
 
+      - name: "OP-C — being seated, and taking something back out (FR-TAB-003, FR-TAB-004, FR-TAB-006, FR-ORD-002, FR-POS-004, FR-POS-007)"
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Chains from OP-B, which chains the whole history beneath it. This gate closes
+          # the step that came BEFORE everything the nineteen suites above had proved:
+          # nothing in the delivered code path had ever opened a table occupancy, so a
+          # guest who scanned a real placard could not order at all, and every suite
+          # walked around it with a direct INSERT.
+          export M4C_LOG_DIR="$LOG_DIR"
+          bash tests/opc/run_verification.sh 2>&1 | tee "$LOG_DIR/opc.log"
+          grep -q '^PASS OPC_VERIFICATION' "$LOG_DIR/opc.log" || {
+            echo "::error::OP-C suite did not report PASS"; exit 1; }
+          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' "$LOG_DIR/opc.log" | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/opc.log" | tail -1)"
+          test "${checks:-0}" -ge 20 || { echo "::error::only ${checks:-0} OP-C checks ran"; exit 1; }
+          test "${failed:-1}" -eq 0 || { echo "::error::${failed} OP-C check(s) failed"; exit 1; }
+          # SOMETHING MUST HAVE BEEN MEASURED IN A BROWSER, for the same reason as OP-B:
+          # a run reporting zero measured checks would mean the browser never opened and
+          # the suite had degraded into asserting about payloads.
+          measured="$(grep -oP 'measured\s+:\s+\K[0-9]+' "$LOG_DIR/opc.log" | tail -1)"
+          test "${measured:-0}" -ge 8 || {
+            echo "::error::only ${measured:-0} OP-C checks were measured in a browser"; exit 1; }
+          # AND NO SUITE MAY HAVE WRITTEN THE ROW. The whole finding was that four files
+          # inserted a table session and all four were tests, so a gate that closed it by
+          # arranging its own occupancies would have proved nothing. Checked here as well
+          # as inside the suite, because a check a suite makes about itself is a check
+          # that can be deleted in the same commit as the thing it guards.
+          ! grep -rn "INSERT INTO service.table_session" tests/opc/ || {
+            echo "::error::the OP-C suite writes the occupancy it exists to prove somebody else writes"; exit 1; }
+          for control in NC-OPC-001 NC-OPC-002 NC-OPC-003 NC-OPC-004 \
+                         NC-OPC-005 NC-OPC-006 NC-OPC-007; do
+            grep -q "$control — RED with the defect planted" "$LOG_DIR/opc.log" || {
+              echo "::error::$control was never proved red"; exit 1; }
+            grep -q "$control — GREEN after revert" "$LOG_DIR/opc.log" || {
+              echo "::error::$control was never proved green"; exit 1; }
+          done
+          echo "OP-C: $checks checks ($measured measured), 0 failures, 7 controls red then green"
+
       - name: "The route census reads code, not prose (the instrument behind GJ-01A)"
         shell: bash
         run: |
@@ -932,7 +971,7 @@ jobs:
           export M4C_LOG_DIR="$LOG_DIR"
           # Reverse order, same database, no rebuild. A suite that only passes when it runs
           # first is depending on state another suite left behind.
-          for suite in opb opa m4c m4b m4a m3d m3c m3b m3a m2c m2b m2a m1d m1c m1b m1a; do
+          for suite in opc opb opa m4c m4b m4a m3d m3c m3b m3a m2c m2b m2a m1d m1c m1b m1a; do
             python3 "tests/$suite/verify_${suite}.py" > "$LOG_DIR/reorder/$suite.log" 2>&1 || true
           done
           # AND THE JOURNEYS, which this sweep did not run until M4's second repair.
@@ -945,7 +984,7 @@ jobs:
           # the journeys are what has to survive it.
           python3 tests/journeys/verify_journeys.py > "$LOG_DIR/reorder/journeys.log" 2>&1 || true
           fail=0
-          for suite in m1a m1b m1c m1d m2a m2b m2c m3a m3b m3c m3d m4a m4b m4c opa opb journeys; do
+          for suite in m1a m1b m1c m1d m2a m2b m2c m3a m3b m3c m3d m4a m4b m4c opa opb opc journeys; do
             tag="$(echo "$suite" | tr '[:lower:]' '[:upper:]')"
             if [ "$suite" = journeys ]; then tag=GOLDEN_JOURNEY; fi
             declared="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/$suite.log" | tail -1)"

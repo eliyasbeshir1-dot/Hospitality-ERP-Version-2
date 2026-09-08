@@ -250,6 +250,34 @@ export async function openTable(tableSessionId: string): Promise<void> {
   await showBill(String(issued.data.billId));
 }
 
+/**
+ * What the bill and tip boxes say before a bill is loaded (F-OPB-11).
+ *
+ * They said nothing. #bill and #tip-box are sections with a border and no heading, so a
+ * cashier who had signed in and had no bill open saw two empty rectangles and nothing
+ * telling them what they were or what to do next. Visible on first sight to somebody who
+ * had not read the code, and invisible to every check in tests/opb — which measures both
+ * boxes with a bill already in them, because that is the state the rules are about.
+ *
+ * The heading is the same heading the loaded state uses, so the box does not RENAME itself
+ * when a bill arrives; only its contents change. A box whose title appears at the moment it
+ * fills is a box that was unlabelled exactly when the label was needed.
+ */
+function labelEmptyBoxes(): void {
+  const boxes: [string, string, string][] = [
+    ['bill', 'Bill', 'No bill is open. Choose a table above to open one.'],
+    ['tip-box', 'Tip — separate from the bill',
+     'A tip is offered once a bill is open and split.'],
+  ];
+  for (const [id, heading, guidance] of boxes) {
+    const root = $(id);
+    if (!root) continue;
+    root.textContent = '';
+    root.appendChild(element('h2', `${id}-heading`, heading));
+    root.appendChild(element('p', 'empty', guidance));
+  }
+}
+
 export async function showBill(billId: string): Promise<void> {
   const answer = await api('GET', `/s/v1/bills/${billId}`);
   if (answer.status >= 400) { report(`bill: ${refusal(answer)}`); return; }
@@ -260,11 +288,16 @@ export async function showBill(billId: string): Promise<void> {
   if (!root || !bill) return;
 
   root.textContent = '';
+  // The box's own heading, the same words it carries when empty, OUTSIDE the summary. The
+  // bill number below it is the document's identity, not the box's name, and the two were
+  // conflated while the box had no name of its own.
+  root.appendChild(element('h2', 'bill-heading', 'Bill'));
+
   const summary = element('section', 'bill-summary');
   summary.id = 'bill-summary';
   summary.setAttribute('data-bill', bill.id);
   summary.setAttribute('lang', bill.locale);
-  summary.appendChild(element('h2', 'bill-number', bill.bill_number));
+  summary.appendChild(element('h3', 'bill-number', bill.bill_number));
 
   for (const line of lines) {
     const row = element('div', `bill-line stage-${line.stage}`);
@@ -337,6 +370,11 @@ export async function loadTipOptions(billId: string): Promise<void> {
   const root = $('tip-box');
   if (!root) return;
   root.textContent = '';
+  // The heading FIRST and unconditionally, so the box is named in all three of its states
+  // — no bill, a bill with no tip on offer, and a bill with options. It used to appear
+  // only in the third, which meant the box was anonymous in exactly the two states where
+  // a cashier would be wondering what it was.
+  root.appendChild(element('h2', 'tip-heading', 'Tip — separate from the bill'));
 
   const answer = await api('GET', `/s/v1/bills/${billId}/tip-options`);
   if (answer.status >= 400) return;
@@ -347,7 +385,6 @@ export async function loadTipOptions(billId: string): Promise<void> {
     return;
   }
 
-  root.appendChild(element('h2', 'tip-heading', 'Tip — separate from the bill'));
   const list = element('div', 'tip-options');
   list.id = 'tip-options';
   for (const option of options) {
@@ -585,6 +622,9 @@ export async function signIn(tenantId: string, outletId: string,
 }
 
 async function afterSignIn(): Promise<void> {
+  // Signed in with no bill open is the state a cashier is in most of the day, and it is
+  // the state the two boxes were blank in.
+  labelEmptyBoxes();
   const answer = await api('GET', '/s/v1/confirmation-requirements');
   requirements = (answer.data.requirements ?? []) as unknown as Requirement[];
   await loadFloor();
@@ -594,6 +634,7 @@ function renderSignIn(): void {
   const root = $('floor');
   if (!root) return;
   root.textContent = '';
+  labelEmptyBoxes();
   const form = element('form', 'sign-in');
   form.id = 'sign-in';
 

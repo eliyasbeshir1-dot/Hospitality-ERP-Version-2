@@ -196,7 +196,84 @@ export function registerCustomerRoutes(app: FastifyInstance, deps: CustomerDepen
             // it is the one refusal a guest can actually resolve.
             return { error: 'verification required', reason: 'STALE_QR_VERIFICATION_REQUIRED' };
           }
-          throw error;
+          // AND EVERY OTHER NAMED REFUSAL, which this route used to answer 500 to.
+          //
+          // NO_OPEN_OCCUPANCY was the one a person actually met: the first guest to scan
+          // the demonstration floor was told the server had broken, when the service was
+          // correctly reporting that the table had no session to join. That is the fifth
+          // instance in this repository of a named business rule answered as a server
+          // fault — F-OPB-4b counted four in documents.ts — and it is the same shape every
+          // time: a map of the refusals somebody remembered, beside a set of refusals
+          // somebody else adds to.
+          //
+          // Derived rather than listed here, so a refusal added to
+          // service.join_table_session() tomorrow does not become a 500 by being new.
+          const matched = /\b([A-Z][A-Z_]{4,})\b/.exec(message);
+          if (!matched) throw error;
+          reply.code(409);
+          return { error: 'refused', reason: matched[1] };
+        }
+      }),
+  );
+
+  /**
+   * Being seated: the route the guest surface calls after a scan (FR-TAB-003).
+   *
+   * `/c/v1/join` above joins an occupancy that already exists, and until OP-C nothing in
+   * this repository created one — every INSERT INTO service.table_session was in a test.
+   * So a guest who scanned an unoccupied table got a session, a scan, and then
+   * NO_OPEN_OCCUPANCY from the cart, which is what the first person to open the
+   * demonstration floor met.
+   *
+   * THE BRANCH IS NOT HERE. service.seat_guest_from_scan() decides whether this scan
+   * opens an occupancy or joins one, because a surface that decided would be a second
+   * opinion about whether a table is busy and the two would disagree the moment a party
+   * sits down between the scan and the tap. This route passes the verification arguments
+   * through unread and reports what came back.
+   */
+  app.post<{ Body: { scanId: string; verification?: string; evidence?: string } }>(
+    '/c/v1/seat',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['scanId'],
+          properties: {
+            scanId: { type: 'string', format: 'uuid' },
+            verification: { type: 'string', maxLength: 64 },
+            evidence: { type: 'string', maxLength: 500 },
+          },
+        },
+      },
+    },
+    async (request, reply) =>
+      asGuest(request, reply, async (client, tenantId) => {
+        try {
+          const { rows } = await client.query(
+            `SELECT table_session_id, opened
+               FROM service.seat_guest_from_scan($1::uuid, $2::uuid,
+                                                $3::service.verification_method, $4)`,
+            [tenantId, request.body.scanId, request.body.verification ?? null,
+             request.body.evidence ?? null],
+          );
+          return { tableSessionId: rows[0].table_session_id, opened: rows[0].opened };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '';
+          if (message.includes('STALE_QR_VERIFICATION_REQUIRED')) {
+            reply.code(409);
+            // Named, not flattened into a generic failure, for the same reason as on the
+            // join route: it is the one refusal a guest can actually resolve, and after
+            // OP-C the surface resolves it by presenting the code again rather than by
+            // finding a member of staff.
+            return { error: 'verification required', reason: 'STALE_QR_VERIFICATION_REQUIRED' };
+          }
+          // Every other refusal this path raises is named by the database, and a named
+          // domain refusal is not a server fault. Reporting one as a 500 is the defect
+          // the guest route already carried once, at M3-D, and four times in documents.ts.
+          const matched = /\b([A-Z][A-Z_]{4,})\b/.exec(message);
+          if (!matched) throw error;
+          reply.code(409);
+          return { error: 'refused', reason: matched[1] };
         }
       }),
   );
@@ -456,6 +533,60 @@ export function registerCustomerRoutes(app: FastifyInstance, deps: CustomerDepen
           // recording one against the idempotency key would answer the guest's retry
           // with the refusal instead of letting them try again.
           const message = error instanceof Error ? error.message : '';
+          const matched = /\b([A-Z][A-Z_]{4,})\b/.exec(message);
+          if (!matched) throw error;
+          reply.code(409);
+          return { error: 'refused', reason: matched[1] };
+        }
+      }),
+  );
+
+  /**
+   * Taking a line back out of the basket (FR-ORD-002).
+   *
+   * There was no way to until OP-C. service.add_cart_line() has existed since M3-D and
+   * nothing ever removed one — no function, no route, no control on the guest surface.
+   * Every golden journey adds items and places the order; none has ever changed its mind,
+   * which is how an absence this plain survived three gates of browser measurement.
+   *
+   * NOT idempotent-keyed, and the asymmetry with the POST above is deliberate. A repeated
+   * add is a second line and a duplicate charge, which is what the key exists to prevent.
+   * A repeated remove of a line that is already gone is CART_LINE_UNKNOWN and has removed
+   * nothing twice, so a retry needs no ledger to be safe.
+   */
+  app.delete<{ Params: { lineId: string }; Querystring: { cartId?: string } }>(
+    '/c/v1/cart/lines/:lineId',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['lineId'],
+          properties: { lineId: { type: 'string', format: 'uuid' } },
+        },
+        querystring: {
+          type: 'object',
+          properties: { cartId: { type: 'string', format: 'uuid' } },
+        },
+      },
+    },
+    async (request, reply) =>
+      asGuest(request, reply, async (client, tenantId) => {
+        try {
+          const { rows } = await client.query(
+            'SELECT service.remove_cart_line($1::uuid, $2::uuid, $3::uuid) AS cart_id',
+            [tenantId, request.params.lineId, request.query.cartId ?? null],
+          );
+          return { removed: request.params.lineId, cartId: rows[0].cart_id };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '';
+          // CART_LINE_UNKNOWN is a 404 and CART_ALREADY_SUBMITTED is a 409, and the
+          // difference matters to the surface: the first means the line is already gone
+          // and the basket should simply be redrawn without it, the second means the
+          // basket is frozen and redrawing would hide a refusal the guest needs to see.
+          if (message.includes('CART_LINE_UNKNOWN')) {
+            reply.code(404);
+            return { error: 'refused', reason: 'CART_LINE_UNKNOWN' };
+          }
           const matched = /\b([A-Z][A-Z_]{4,})\b/.exec(message);
           if (!matched) throw error;
           reply.code(409);

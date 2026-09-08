@@ -174,6 +174,18 @@ CONTROLS = [
     ("NC-OPB-006", "A destructive action proceeding with no reason", "DESTRUCTIVE_ACTION_WITHOUT_REASON", "opb"),
     ("NC-OPB-007", "The station screen driving a ticket into an illegal state", "ILLEGAL_TRANSITION_ACCEPTED", "opb"),
     ("NC-OPB-008", "A screen re-implementing a rule the route enforces", "CHANNEL_RULE_DIVERGENCE", "opb"),
+    # OP-C — being seated, and taking something back out. Four of these break a RULE and
+    # three break a SCREEN, which is the split the gate itself has: seating is a database
+    # function nothing had ever called, and the three missing controls were absences in
+    # the surfaces. The first is the one that matters most — it proves this gate did not
+    # buy its feature by weakening M2-B's stale-QR guarantee.
+    ("NC-OPC-001", "A scan bound to no occupancy admitted to one opened since", "STALE_QR_VERIFICATION_REQUIRED", "opc"),
+    ("NC-OPC-002", "A table seated twice, with two open occupancies", "OCCUPANCY_ALREADY_OPEN", "opc"),
+    ("NC-OPC-003", "An occupancy opened without saying who opened it", "OPENING_SOURCE_UNATTRIBUTED", "opc"),
+    ("NC-OPC-004", "A line removed from a basket somebody has ordered from", "CART_ALREADY_SUBMITTED", "opc"),
+    ("NC-OPC-005", "A basket a guest can add to and cannot take from", "REMOVE_CONTROL_ABSENT", "opc"),
+    ("NC-OPC-006", "A surface with a network layer and no way in", "SIGN_IN_UNREACHABLE", "opc"),
+    ("NC-OPC-007", "A bordered box that never says what it is", "BOX_UNLABELLED", "opc"),
 ]
 
 
@@ -280,7 +292,7 @@ def count() -> int:
 # rather than inventing a tenth gate for work that landed no new requirement. The mapping
 # is a single table rather than a wildcard, so an identifier this file has never heard of
 # still raises rather than being silently filed somewhere.
-REPAIR_PASS_GATE = {"OPA": "M4", "OPB": "M4"}
+REPAIR_PASS_GATE = {"OPA": "M4", "OPB": "M4", "OPC": "M4"}
 
 
 def gate_of(identifier: str) -> str | None:

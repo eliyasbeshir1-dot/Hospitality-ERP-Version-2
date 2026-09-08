@@ -12,6 +12,22 @@
   <h1>Floor</h1>
   <button id="accessibility" type="button" aria-pressed="false">Accessibility mode</button>
 </header>
+<!--
+  THE WAY IN (F-OPB-12).
+
+  OP-B gave this surface a network layer and no way to reach it: waiter.ts exported
+  signIn() and rendered nothing, so with no session the screen was blank and the only way
+  in was the browser console. The station board and the till each rendered a form; this
+  one did not, and it shipped that way.
+
+  Its own section rather than a form drawn into #next, because M3-B and M3-D measure this
+  page with no service behind it by calling render() directly — and render() replaces the
+  contents of #next. A sign-in form living there would be wiped by the first measurement
+  and present in none of them, which is the same "exists but is never reached" defect one
+  layer further in.
+-->
+<p id="notice" role="status" hidden></p>
+<section id="sign-in-panel" aria-label="Sign in"></section>
 <main id="next" tabindex="-1" aria-label="What needs doing next"></main>
 <section id="tables" aria-label="Tables"></section>
 <section id="notifications" aria-label="Notifications"></section>

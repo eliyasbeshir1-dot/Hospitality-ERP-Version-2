@@ -144,7 +144,7 @@ position is to write fresh.
 | `print/` | the print agent: the receipt rasteriser, the ESC/POS encoder, and the font it ships rather than resolves from the host |
 | `schema/` | `SCHEMA_CATALOG.md`, generated from the live database, never hand-written |
 | `seeds/` | demonstration tenants and reason-code sets, with their own ordered record |
-| `tests/` | verification suites — 14 that each verify one slice, and 4 that cut across gates |
+| `tests/` | verification suites — 14 that each verify one slice, and 5 that cut across gates |
 | `tools/` | migration and seed runners, generators, and the forbidden-surface verifier |
 
 ## Third-party assets, and what shipping them obliges
@@ -203,6 +203,7 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0032_the_null_sink_cannot_claim_paper.sql`
 - `0033_a_chosen_secret_must_be_key_stretched.sql`
 - `0034_a_printer_test_records_what_the_agent_did.sql`
+- `0035_a_table_can_be_seated.sql`
 
 ## Seeds
 
@@ -245,6 +246,7 @@ bash tests/m1d/run_verification.sh         # rebuilds from empty, runs every sli
 | `tests/m4c/verify_m4c.py` | the receipt and the report: every figure on a receipt compared against its own source at the write, an Amharic and an Arabic receipt rasterised by the printer path and checked per glyph against the fonts this repository ships, one original print per settlement refused twice over, a preview proved to be the same composer as the receipt, a signed-off shift snapshot proved unrewritable by a grant, by the source and by the attempt, an empty window proved to report nothing rather than zero where zero would be an invention, and the FR-GOV-004 audit of every requirement whose gate has landed |
 | `tests/opa/verify_opa.py` | the operator gate: whether a person can reach what the slices built. A credential turned into a session against storage that is salted and key-stretched, a quick PIN that is refused away from its registered terminal, lockout that fires and then clears, a guest order carried to a station and moved acknowledge to preparing to ready through routes rather than through the database, expo refusing to release an incomplete set, a seed proved unable to bypass its runner or to widen a grant, and the M4 review's printer forgery replayed over the route it was performed on (spans M1 · M2 · M3 · M4) |
 | `tests/opb/verify_opb.py` | the staff screens, measured in a browser: a station board that signs a cook in and draws its actions from the transition catalog rather than from a table of its own, a till that reads a bill in the bill's own language and keeps the tip beside it with nothing preselected, a waiter floor that fetches its own tables with the unpaid balance on them, confirmation friction graded by the database, and a manager override that takes the manager's own session (spans M1 · M2 · M3 · M4) |
+| `tests/opc/verify_opc.py` | being seated, and taking something back out: the step that came before everything the nineteen suites above had proved. A guest scanning an unoccupied table opens the occupancy and a member of staff can open one too, through one function with two opening sources that nothing had ever called; a waiter who seats a table becomes accountable for it, which is the origin FR-TAB-006's handover chain never had; a guest can take a dish back out of the basket; and M2-B's stale-QR guarantee is proved unweakened by any of it (spans M1 · M2 · M3 · M4) |
 
 Every suite runs against a real PostgreSQL through the least-privileged application role,
 and every negative control is proved red with a defect planted before it is trusted green.

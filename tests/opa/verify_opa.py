@@ -246,24 +246,55 @@ def an_order_ready_for_the_kitchen() -> tuple[str, str]:
 
     Built through the routes, because a fixture-built order would prove that the kitchen
     routes work on rows this suite wrote rather than on an order a guest placed.
+
+    THE OCCUPANCY IS OPENED BY THE SCAN, AND UNTIL OP-C IT WAS OPENED BY THIS FILE.
+
+    This helper used to begin with a direct INSERT INTO service.table_session, and so did
+    every fixture and every journey in the repository — F-OPB-9 counted four writers of
+    that table and all four were tests. Nothing in the delivered code path opened an
+    occupancy, so a real guest scanning a real placard got NO_OPEN_OCCUPANCY from the
+    cart and could not order at all, past nineteen green suites.
+
+    The INSERT is gone. This helper now seats the guest the way a guest is seated: it
+    scans, and POST /c/v1/seat opens the occupancy because the table is empty. The line
+    that used to hide the gap is the line that now proves it closed, which is worth more
+    than a check written beside it — every suite that chains through this helper walks
+    the step instead of stepping over it.
     """
     token = CONTEXT["token"]
+
+    # THE PREVIOUS PARTY LEAVES, AND THAT PART IS STILL A FIXTURE.
+    #
+    # This helper is called several times in a run and each call is a NEW party at the
+    # same table, which is what it was before OP-C and what the suites downstream of it
+    # expect: a fresh occupancy number, a fresh cart, a fresh check. A table with a party
+    # still at it would be JOINED by the next scan rather than opened, and every later
+    # order would land on one occupancy.
+    #
+    # So the previous occupancy is closed here directly. That is deliberate and it is not
+    # the gap F-OPB-9 was about. Closing a table is service.close_table_session(), which
+    # since 0021 refuses while anything financial is outstanding — a real rule, with real
+    # conditions, belonging to a different requirement than seating. Standing a party up
+    # to make room for the next one is fixture work; SEATING them is the product, and
+    # that half is no longer written here.
+    run(ADMIN, f"""
+        UPDATE service.table_session
+           SET state = 'closed', closed_at = now()
+         WHERE tenant_id = '{TENANT}' AND table_node_id = '{TABLE_1}'
+           AND state = 'open';""")
+
     qr = run(ADMIN, f"""
         SELECT service.issue_table_qr('{TENANT}'::uuid, '{TABLE_1}'::uuid,
                                       '{ADMIN_USER}'::uuid);""").scalar
-    run(ADMIN, f"""
-        INSERT INTO service.table_session
-            (tenant_id, outlet_id, table_node_id, occupancy_number, opening_source)
-        SELECT '{TENANT}', '{OUTLET}', '{TABLE_1}',
-               coalesce(max(occupancy_number), 0) + 1, 'qr_scan'
-          FROM service.table_session WHERE table_node_id = '{TABLE_1}';""")
 
     opened = call("POST", f"/c/v1/{TENANT}/{OUTLET}/session", {"code": qr})
     guest = opened.get("guestToken")
     if not guest:
         raise ProbeFailed("guest session", str(opened)[:200])
-    call("POST", "/c/v1/join", {"scanId": opened.get("scanId")},
-         token=guest, scheme="Guest")
+    seated = call("POST", "/c/v1/seat", {"scanId": opened.get("scanId")},
+                  token=guest, scheme="Guest")
+    if not seated.get("tableSessionId"):
+        raise ProbeFailed("seating the guest", str(seated)[:200])
     cart = call("GET", "/c/v1/cart", token=guest, scheme="Guest").get("cartId")
     nonce = secrets.token_hex(6)
     call("POST", "/c/v1/cart/lines",

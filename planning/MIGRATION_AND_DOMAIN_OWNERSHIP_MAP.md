@@ -56,7 +56,7 @@ Counted from `active_requirements` in the pinned package, by `introduced_at`.
 
 ## The migrations this repository has
 
-34 of them, `0001_organizational_model_and_rls.sql` through `0034_a_printer_test_records_what_the_agent_did.sql`, across
+35 of them, `0001_organizational_model_and_rls.sql` through `0035_a_table_can_be_seated.sql`, across
 20 domains. The owning domain of each is read out of its own SQL — the
 schemas it creates and the schemas it creates tables in — and the gate from the header
 comment every migration in this repository carries.
@@ -97,6 +97,7 @@ comment every migration in this repository carries.
 | `0032_the_null_sink_cannot_claim_paper.sql` | — | docs | M4-C |
 | `0033_a_chosen_secret_must_be_key_stretched.sql` | — | identity | M1-B |
 | `0034_a_printer_test_records_what_the_agent_did.sql` | — | docs | M4-C |
+| `0035_a_table_can_be_seated.sql` | — | service · pos | M2-B |
 
 ---
 

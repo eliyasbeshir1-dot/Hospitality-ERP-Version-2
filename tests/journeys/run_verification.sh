@@ -24,7 +24,10 @@ fi
 export PYTHON="$PY_BIN"
 
 slice_status=0
-bash "$REPO/tests/opb/run_verification.sh" || slice_status=$?
+# OP-C, which chains OP-B, which chains OP-A, which chains the rest. The chain is extended
+# at its head rather than beside it for the reason F-OPB-8 records: a suite that nothing
+# chains from would exist, pass locally, be enumerated in the CI matrix, and never run.
+bash "$REPO/tests/opc/run_verification.sh" || slice_status=$?
 
 PGHOST_DIR="${PGHOST_DIR:-/var/lib/m1apg/run}"
 PGPORT="${PGPORT:-5433}"

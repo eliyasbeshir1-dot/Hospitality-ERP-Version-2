@@ -74,6 +74,7 @@ SUITES = (
     ("m4c", "M4-C receipts, the printer path, reporting, the register audit"),
     ("opa", "OP-A login, the kitchen and expo routes, the product seed"),
     ("opb", "OP-B the station board, the till and the waiter floor"),
+    ("opc", "OP-C being seated, and taking something back out"),
     ("fenced_gate", "Fenced-domain gate, vocabulary and mutations"),
     ("journeys", "The golden journeys, end to end"),
 )

@@ -65,6 +65,20 @@ export interface TableRow {
   attention_reason: string | null;
 }
 
+/**
+ * A table with nobody at it (FR-TAB-003).
+ *
+ * pos.table_view() returns one row per OPEN occupancy, so free tables are correctly absent
+ * from TableRow above. This is the complement, from pos.seatable_tables(), and it is what
+ * the waiter seats from.
+ */
+export interface SeatableRow {
+  table_node_id: string;
+  table_reference: string;
+  display_name: string | null;
+  seat_count: number | null;
+}
+
 export interface NotificationRow {
   notice_id: string;
   event_id: string;
@@ -101,6 +115,7 @@ const state: {
   requirements: Map<string, ConfirmationRequirement>;
   home: HomeRow[];
   tables: TableRow[];
+  seatable: SeatableRow[];
   notifications: NotificationRow[];
   results: SearchRow[];
   pending: { actionCode: string; label: string; run: (reason: string | null) => void } | null;
@@ -108,6 +123,7 @@ const state: {
   requirements: new Map(),
   home: [],
   tables: [],
+  seatable: [],
   notifications: [],
   results: [],
   pending: null,
@@ -117,6 +133,17 @@ function $(id: string): HTMLElement {
   const node = document.getElementById(id);
   if (!node) throw new Error(`missing element: ${id}`);
   return node;
+}
+
+/** Optional by id. Used only where an element genuinely may not be on the page. */
+function maybe(id: string): HTMLElement | null { return document.getElementById(id); }
+
+function notice(message: string | null): void {
+  const bar = maybe('notice');
+  if (!bar) return;
+  if (message === null) { bar.hidden = true; bar.textContent = ''; return; }
+  bar.textContent = message;
+  bar.hidden = false;
 }
 
 function minutes(seconds: number): string {
@@ -207,6 +234,9 @@ function renderTables(): void {
   section.appendChild(heading);
 
   const list = document.createElement('ul');
+  // Named, because the free tables are a second list in this same section and a
+  // measurement that could not tell them apart would count a seated table twice.
+  list.id = 'occupied-tables';
   for (const row of state.tables) {
     const item = document.createElement('li');
     item.className = 'row';
@@ -236,6 +266,67 @@ function renderTables(): void {
     text.append(headline, meta);
 
     item.appendChild(text);
+    list.appendChild(item);
+  }
+  section.appendChild(list);
+  renderSeatable(section);
+}
+
+/**
+ * Seating a table (FR-TAB-003), below the occupied ones.
+ *
+ * BELOW, not above, and that is the only judgement in this function. FR-POS-002 says the
+ * order of the screen is the priority, and a table that needs something outranks a table
+ * that has nobody at it. Seating is the thing a waiter does when nothing is waiting.
+ *
+ * The list is empty when every table is busy, and then nothing is drawn at all — not an
+ * empty heading over a blank space, which reads as a screen that failed to load.
+ */
+function renderSeatable(section: HTMLElement): void {
+  if (state.seatable.length === 0) return;
+
+  const heading = document.createElement('h2');
+  heading.textContent = 'Seat a table';
+  section.appendChild(heading);
+
+  const list = document.createElement('ul');
+  list.id = 'seatable-tables';
+  for (const row of state.seatable) {
+    const item = document.createElement('li');
+    item.className = 'row';
+    item.dataset.seatable = row.table_reference;
+
+    const text = document.createElement('div');
+    const headline = document.createElement('span');
+    headline.className = 'headline';
+    headline.textContent = `Table ${row.table_reference}`;
+    const meta = document.createElement('span');
+    meta.className = 'meta';
+    // Seats in WORDS where the table declares them, and nothing at all where it does not.
+    // service.table_profile.seat_count is nullable and "0 seats" would be a number this
+    // screen invented for a table that simply has not said.
+    meta.textContent = row.seat_count === null ? ' · free'
+      : ` · free · ${row.seat_count} seat${row.seat_count === 1 ? '' : 's'}`;
+    text.append(headline, meta);
+
+    // Graded like every other action on this screen, through the one path that grades
+    // them. Seating is not a destructive act, so the database will almost certainly call
+    // it routine and it will run on one tap — but the grade is LOOKED UP, never assumed,
+    // and an action nobody has graded is treated as deliberate rather than waved through.
+    const grade = gradeFor('table.seat');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'primary';
+    button.dataset.consequence = grade.consequence;
+    button.dataset.action = 'table.seat';
+    button.dataset.tableNode = row.table_node_id;
+    button.textContent = 'Seat';
+    button.addEventListener('click', () => {
+      askThenRun('table.seat', `Seat table ${row.table_reference}`,
+                 () => { void seatTable(row.table_node_id, row.table_reference); });
+    });
+
+    item.append(text, button);
     list.appendChild(item);
   }
   section.appendChild(list);
@@ -395,6 +486,7 @@ export function render(payload: {
   requirements?: ConfirmationRequirement[];
   home?: HomeRow[];
   tables?: TableRow[];
+  seatable?: SeatableRow[];
   notifications?: NotificationRow[];
   results?: SearchRow[];
 }): void {
@@ -403,6 +495,7 @@ export function render(payload: {
   }
   if (payload.home) state.home = payload.home;
   if (payload.tables) state.tables = payload.tables;
+  if (payload.seatable) state.seatable = payload.seatable;
   if (payload.notifications) state.notifications = payload.notifications;
   if (payload.results) state.results = payload.results;
 
@@ -470,9 +563,10 @@ async function waiterApi(method: string, path: string, body?: unknown): Promise<
  */
 export async function refresh(): Promise<void> {
   if (!waiterSession) return;
-  const [home, tables, notifications, needs] = await Promise.all([
+  const [home, tables, seatable, notifications, needs] = await Promise.all([
     waiterApi('GET', '/s/v1/home'),
     waiterApi('GET', '/s/v1/tables'),
+    waiterApi('GET', '/s/v1/tables/seatable'),
     waiterApi('GET', '/s/v1/notifications'),
     waiterApi('GET', '/s/v1/confirmation-requirements'),
   ]);
@@ -483,8 +577,44 @@ export async function refresh(): Promise<void> {
     // GET /s/v1/home answers { queues: [...] } — pos.role_home()'s rows, one per queue.
     home: (home.data.queues ?? []) as HomeRow[],
     tables: (tables.data.tables ?? []) as TableRow[],
+    // The occupied list and the free list come from two functions over the same
+    // occupancies, in one pass, so the screen cannot draw a table as both.
+    seatable: (seatable.data.tables ?? []) as SeatableRow[],
     notifications: (notifications.data.notifications ?? []) as NotificationRow[],
   });
+}
+
+/**
+ * Seating a table (FR-TAB-003, F-OPB-9).
+ *
+ * Nothing in the delivered code path could open a table occupancy before OP-C: every
+ * INSERT INTO service.table_session was in a test file. This is one half of closing that —
+ * the other is the guest seating themselves by scanning — and both call the same
+ * service.open_table_session() with a different opening source.
+ *
+ * The screen is redrawn from the SERVICE afterwards rather than moved optimistically. A
+ * seated table has an occupancy number, an accountable waiter and a place in two lists,
+ * and a surface that decided any of that for itself would be inventing the floor rather
+ * than reading it.
+ */
+export async function seatTable(tableNodeId: string, reference: string): Promise<boolean> {
+  if (!waiterSession) return false;
+  const answer = await waiterApi('POST', `/s/v1/tables/${tableNodeId}/seat`);
+  if (answer.status === 200) {
+    notice(`Table ${reference} is seated. It is yours.`);
+    await refresh();
+    return true;
+  }
+  // 409 is OCCUPANCY_ALREADY_OPEN: somebody seated it between this screen's last poll and
+  // this tap. That is the ordinary race on a busy floor, not a fault, and the repair is to
+  // redraw — after which the table is in the occupied list where it belongs.
+  if (answer.status === 409) {
+    notice(`Table ${reference} was seated by somebody else.`);
+    await refresh();
+    return false;
+  }
+  notice(`Table ${reference} could not be seated: ${String(answer.data.reason ?? answer.status)}`);
+  return false;
 }
 
 export async function search(term: string): Promise<void> {
@@ -497,13 +627,78 @@ function waiterSignOut(): void {
   waiterSession = null;
   sessionStorage.removeItem(WAITER_SESSION_KEY);
   if (waiterPoller !== null) { clearInterval(waiterPoller); waiterPoller = null; }
+  renderSignIn();
 }
 
 function waiterStart(): void {
+  const panel = maybe('sign-in-panel');
+  if (panel) { panel.replaceChildren(); panel.hidden = true; }
   void refresh();
   if (waiterPoller === null) {
     waiterPoller = window.setInterval(() => { void refresh(); }, 5000);
   }
+}
+
+/**
+ * The way in (F-OPB-12).
+ *
+ * OP-B added this surface's network layer and no way to reach it. station.ts and
+ * cashier.ts each rendered a form; this file exported signIn() and rendered nothing, so a
+ * waiter opening the page saw a blank screen and the only way in was the browser console.
+ * The capability existed and the door did not, which is the same defect as a route with no
+ * caller, one layer further out — and it is the defect this whole gate exists to close.
+ */
+export function renderSignIn(): void {
+  const panel = maybe('sign-in-panel');
+  if (!panel) return;
+  panel.hidden = false;
+  panel.replaceChildren();
+
+  const heading = document.createElement('h2');
+  heading.textContent = 'Sign in';
+  panel.appendChild(heading);
+
+  const form = document.createElement('form');
+  form.id = 'sign-in';
+
+  function field(name: string, label: string, type: string): HTMLInputElement {
+    const row = document.createElement('label');
+    row.className = 'field';
+    row.textContent = label;
+    const input = document.createElement('input');
+    input.type = type;
+    input.name = name;
+    input.id = `sign-in-${name}`;
+    row.appendChild(input);
+    form.appendChild(row);
+    return input;
+  }
+
+  const tenantId = field('tenantId', 'Tenant', 'text');
+  const outletId = field('outletId', 'Outlet', 'text');
+  const channelValue = field('channelValue', 'Email', 'text');
+  const secret = field('secret', 'Password', 'password');
+
+  const submit = document.createElement('button');
+  submit.type = 'submit';
+  submit.className = 'primary';
+  submit.textContent = 'Sign in';
+  form.appendChild(submit);
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    void (async () => {
+      notice(null);
+      const ok = await signIn(tenantId.value, outletId.value,
+                              channelValue.value, secret.value);
+      // Refused, not "failed". A wrong password and an unreachable service are different
+      // situations and the route already tells them apart; what a waiter needs to know
+      // here is that they are not in, which is the same either way.
+      if (!ok) notice('Sign in refused.');
+    })();
+  });
+
+  panel.appendChild(form);
 }
 
 export async function signIn(tenantId: string, outletId: string,
@@ -526,6 +721,8 @@ declare global {
       gradeFor: typeof gradeFor;
       setAccessibilityMode: typeof setAccessibilityMode;
       signIn: typeof signIn;
+      renderSignIn: typeof renderSignIn;
+      seatTable: typeof seatTable;
       refresh: typeof refresh;
       search: typeof search;
     };
@@ -533,13 +730,14 @@ declare global {
 }
 
 window.waiterSurface = { render, askThenRun, gradeFor, setAccessibilityMode,
-                         signIn, refresh, search };
+                         signIn, renderSignIn, seatTable, refresh, search };
 
 try {
   const raw = sessionStorage.getItem(WAITER_SESSION_KEY);
   waiterSession = raw ? JSON.parse(raw) as WaiterSession : null;
 } catch { waiterSession = null; }
 if (waiterSession) waiterStart();
+else if (maybe('sign-in-panel')) renderSignIn();
 
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', start);
