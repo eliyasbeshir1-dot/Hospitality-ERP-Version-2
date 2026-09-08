@@ -66,6 +66,25 @@ export interface TableRow {
 }
 
 /**
+ * An order placed and not yet admitted to the kitchen (FR-ORD-004, FR-ORD-007A).
+ *
+ * Only exists where the outlet's ordering policy says a channel is `staff_confirmed`. On
+ * a floor whose guest_qr acceptance is `automatic` this list is always empty and the
+ * section is not drawn at all — which is the demonstration floor's case after seeds/0009,
+ * and is why the empty state here is silence rather than "nothing waiting".
+ */
+export interface PendingOrderRow {
+  order_id: string;
+  order_number: string;
+  table_reference: string | null;
+  origin: string;
+  waiting_seconds: number;
+  lines: number;
+  total_amount_minor: string;
+  currency_code: string;
+}
+
+/**
  * A table with nobody at it (FR-TAB-003).
  *
  * pos.table_view() returns one row per OPEN occupancy, so free tables are correctly absent
@@ -116,6 +135,7 @@ const state: {
   home: HomeRow[];
   tables: TableRow[];
   seatable: SeatableRow[];
+  pendingOrders: PendingOrderRow[];
   notifications: NotificationRow[];
   results: SearchRow[];
   pending: { actionCode: string; label: string; run: (reason: string | null) => void } | null;
@@ -124,6 +144,7 @@ const state: {
   home: [],
   tables: [],
   seatable: [],
+  pendingOrders: [],
   notifications: [],
   results: [],
   pending: null,
@@ -223,6 +244,78 @@ function renderHome(): void {
     list.appendChild(item);
   }
   main.appendChild(list);
+}
+
+/**
+ * Orders placed and not yet admitted to the kitchen (FR-ORD-004).
+ *
+ * ABOVE THE TABLES, AND THAT IS THE ONLY JUDGEMENT HERE. FR-POS-002 says the order of the
+ * screen is the priority. A guest who has ordered and is waiting for somebody to press a
+ * button outranks a table that merely exists — the food has not started, and every second
+ * is on the guest's meal rather than on the kitchen's.
+ *
+ * DRAWN ONLY WHEN THERE IS SOMETHING IN IT. Where the outlet accepts guest_qr orders
+ * automatically this list is permanently empty, and a permanent "Nothing waiting" heading
+ * is a heading a waiter learns to stop reading. Silence is the correct empty state for a
+ * section that exists only under one policy.
+ */
+function renderPendingOrders(): void {
+  const section = maybe('pending-orders');
+  if (!section) return;
+  section.replaceChildren();
+  section.hidden = state.pendingOrders.length === 0;
+  if (state.pendingOrders.length === 0) return;
+
+  const heading = document.createElement('h2');
+  heading.textContent = 'Waiting to be confirmed';
+  section.appendChild(heading);
+
+  const list = document.createElement('ul');
+  list.id = 'pending-order-list';
+  // NOT re-sorted. pos.pending_orders() returns oldest first, which is the order they
+  // should be dealt with, and a second opinion here would disagree with the server's.
+  for (const row of state.pendingOrders) {
+    const item = document.createElement('li');
+    item.className = 'row';
+    item.dataset.orderId = row.order_id;
+    item.dataset.orderNumber = row.order_number;
+    // Long waits read as overdue in words and weight, using the same signal the queue
+    // rows use rather than a second vocabulary. Five minutes is not a configured SLA and
+    // is not presented as one — it is the point past which this screen says so out loud.
+    item.dataset.overdue = String(row.waiting_seconds >= 300);
+
+    const text = document.createElement('div');
+    const headline = document.createElement('span');
+    headline.className = 'headline';
+    headline.textContent = row.table_reference
+      ? `Table ${row.table_reference} — ${row.lines} item${row.lines === 1 ? '' : 's'}`
+      : `${row.order_number} — ${row.lines} item${row.lines === 1 ? '' : 's'}`;
+
+    const meta = document.createElement('span');
+    meta.className = 'elapsed';
+    // Elapsed time in WORDS, as everywhere else on this screen. The order number travels
+    // too: it is what a waiter reads back to a guest who asks.
+    meta.textContent = ` · waiting ${minutes(row.waiting_seconds)} · ${row.order_number}`;
+    text.append(headline, meta);
+
+    const grade = gradeFor('order.accept');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'primary';
+    button.dataset.consequence = grade.consequence;
+    button.dataset.action = 'order.accept';
+    button.dataset.orderId = row.order_id;
+    button.textContent = 'Confirm';
+    button.addEventListener('click', () => {
+      askThenRun('order.accept',
+                 `Confirm ${row.table_reference ? `table ${row.table_reference}` : row.order_number}`,
+                 () => { void acceptOrder(row.order_id, row.table_reference ?? row.order_number); });
+    });
+
+    item.append(text, button);
+    list.appendChild(item);
+  }
+  section.appendChild(list);
 }
 
 function renderTables(): void {
@@ -487,6 +580,7 @@ export function render(payload: {
   home?: HomeRow[];
   tables?: TableRow[];
   seatable?: SeatableRow[];
+  pendingOrders?: PendingOrderRow[];
   notifications?: NotificationRow[];
   results?: SearchRow[];
 }): void {
@@ -496,10 +590,12 @@ export function render(payload: {
   if (payload.home) state.home = payload.home;
   if (payload.tables) state.tables = payload.tables;
   if (payload.seatable) state.seatable = payload.seatable;
+  if (payload.pendingOrders) state.pendingOrders = payload.pendingOrders;
   if (payload.notifications) state.notifications = payload.notifications;
   if (payload.results) state.results = payload.results;
 
   renderHome();
+  renderPendingOrders();
   renderTables();
   renderNotifications();
   renderSearch();
@@ -571,10 +667,11 @@ async function waiterApi(method: string, path: string, body?: unknown): Promise<
  */
 export async function refresh(): Promise<void> {
   if (!waiterSession) return;
-  const [home, tables, seatable, notifications, needs] = await Promise.all([
+  const [home, tables, seatable, pending, notifications, needs] = await Promise.all([
     waiterApi('GET', '/s/v1/home'),
     waiterApi('GET', '/s/v1/tables'),
     waiterApi('GET', '/s/v1/tables/seatable'),
+    waiterApi('GET', '/s/v1/orders/pending'),
     waiterApi('GET', '/s/v1/notifications'),
     waiterApi('GET', '/s/v1/confirmation-requirements'),
   ]);
@@ -588,8 +685,40 @@ export async function refresh(): Promise<void> {
     // The occupied list and the free list come from two functions over the same
     // occupancies, in one pass, so the screen cannot draw a table as both.
     seatable: (seatable.data.tables ?? []) as SeatableRow[],
+    // The orders nobody has admitted yet. Empty on a floor that accepts automatically,
+    // which is the demonstration floor after seeds/0009 — the section then draws nothing.
+    pendingOrders: (pending.data.orders ?? []) as PendingOrderRow[],
     notifications: (notifications.data.notifications ?? []) as NotificationRow[],
   });
+}
+
+/**
+ * Admitting an order to the kitchen (FR-ORD-004, F-OPD-1).
+ *
+ * The step that had no caller. POST /s/v1/orders/:orderId/accept has existed since OP-A
+ * and works; no surface called it, and no screen listed an order awaiting acceptance — so
+ * under `staff_confirmed` a guest's order was invisible everywhere and could not be
+ * admitted by anybody. The station board shows TICKETS, and an unaccepted order has none.
+ *
+ * The floor is redrawn from the SERVICE afterwards rather than the row being removed
+ * locally. Accepting releases the order to its stations and creates the tickets, which
+ * changes the tables, the queue and this list at once; a screen that hid one row would be
+ * telling the truth about the row and lying about everything around it.
+ */
+export async function acceptOrder(orderId: string, reference: string): Promise<boolean> {
+  if (!waiterSession) return false;
+  const answer = await waiterApi('POST', `/s/v1/orders/${orderId}/accept`, {});
+  if (answer.status === 200) {
+    notice(`${reference} is confirmed and with the kitchen.`);
+    await refresh();
+    return true;
+  }
+  // A refusal by name, not "failed". ORDER_NOT_SUBMITTED is the ordinary race — somebody
+  // else confirmed it between this screen's last poll and this tap — and the repair is to
+  // redraw, after which the row is gone because the order has left the list.
+  notice(`${reference} could not be confirmed: ${String(answer.data.reason ?? answer.status)}`);
+  await refresh();
+  return false;
 }
 
 /**
@@ -731,6 +860,7 @@ declare global {
       signIn: typeof signIn;
       renderSignIn: typeof renderSignIn;
       seatTable: typeof seatTable;
+      acceptOrder: typeof acceptOrder;
       refresh: typeof refresh;
       search: typeof search;
     };
@@ -738,7 +868,7 @@ declare global {
 }
 
 window.waiterSurface = { render, askThenRun, gradeFor, setAccessibilityMode,
-                         signIn, renderSignIn, seatTable, refresh, search };
+                         signIn, renderSignIn, seatTable, acceptOrder, refresh, search };
 
 try {
   const raw = sessionStorage.getItem(WAITER_SESSION_KEY);

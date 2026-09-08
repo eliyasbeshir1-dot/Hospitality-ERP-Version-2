@@ -163,6 +163,35 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
   );
 
   /**
+   * FR-ORD-004. The orders still waiting to be admitted to the kitchen.
+   *
+   * THE LIST THAT DID NOT EXIST, AND THE REASON A GUEST ORDER STOPPED DEAD.
+   *
+   * Where the outlet's ordering policy says a channel is `staff_confirmed`, a placed
+   * order sits in 'submitted' until a person accepts it. POST /s/v1/orders/:orderId/accept
+   * has existed since OP-A and works. No surface called it, and — worse — no screen
+   * anywhere listed an order awaiting acceptance: the station board shows TICKETS, and an
+   * unaccepted order has none. So the order was invisible on every screen in the system
+   * until somebody accepted it, and nobody could accept it because no screen showed it.
+   *
+   * It is a STAFF route and it belongs to the waiter floor, not the station board. A cook
+   * cooks; gating an order is a host act. Nothing stops the station surface calling this —
+   * routes are not addressed to screens — but the screen that draws it is the floor.
+   */
+  app.get('/s/v1/orders/pending', async (request, reply) =>
+    asStaff(request, reply, async (client, tenantId, outletId) => {
+      const { rows } = await client.query(
+        `SELECT order_id, order_number, table_session_id, table_reference, origin,
+                submitted_at, waiting_seconds, lines,
+                total_amount_minor::text AS total_amount_minor, currency_code
+           FROM pos.pending_orders($1::uuid, $2::uuid)`,
+        [tenantId, outletId],
+      );
+      return { orders: rows };
+    }),
+  );
+
+  /**
    * FR-TAB-003. A member of staff seats a table.
    *
    * The acting user is resolved FROM THE SESSION, as everything else in this file is: a

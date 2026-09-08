@@ -212,6 +212,12 @@ MIGRATION_SLICE = {
     # written reason — made seating unusable. The grade is the repair, and it repairs the
     # gate that owns the registry rather than the gate that added the button.
     "0036": "M3-D",
+    # 0037 is OP-D and belongs to M2-A, the slice that built the menu and the publication
+    # snapshot. FR-MNU-004's description, ingredients and preparation time were written by
+    # the seed and returned by nothing, so the requirement was met in the schema and
+    # invisible to a guest. The pending-orders half repairs M3-A's acceptance policy, which
+    # had a staff_confirmed branch no screen could serve; filed under the earlier slice.
+    "0037": "M2-A",
 }
 
 

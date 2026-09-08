@@ -75,6 +75,7 @@ SUITES = (
     ("opa", "OP-A login, the kitchen and expo routes, the product seed"),
     ("opb", "OP-B the station board, the till and the waiter floor"),
     ("opc", "OP-C being seated, and taking something back out"),
+    ("opd", "OP-D the order reaching the kitchen, and what a menu says"),
     ("fenced_gate", "Fenced-domain gate, vocabulary and mutations"),
     ("journeys", "The golden journeys, end to end"),
 )

@@ -262,6 +262,28 @@ _TS_REQUEST = re.compile(
 _TS_LOOSE = re.compile(r"\b(?:fetch|goto)\s*\(\s*([A-Za-z_$][\w$.]*)\s*[,)]")
 _TS_METHOD = re.compile(r"\bmethod\s*:\s*['\"`]([A-Za-z]+)['\"`]")
 
+# A SURFACE'S OWN REQUEST HELPER: helper('VERB', '/path') or helper('VERB', `/path/${x}`).
+#
+# Not one of the four surfaces calls fetch() with a literal path for its API traffic.
+# Every one wraps it — waiterApi('GET', '/s/v1/home'), api('POST', '/s/v1/bills', …),
+# stationApi(…), act(…) — and inside the wrapper the argument to fetch() is a VARIABLE,
+# which _TS_REQUEST correctly refuses to guess at. So every surface call landed in
+# `unresolved` and no route looked reachable from a screen.
+#
+# That did not matter while "called" pooled suites and surfaces: the Python readers saw
+# the suites and the count answered the question being asked. It matters the moment the
+# question becomes "can a PERSON reach this" — a reachability number built on a reader
+# that cannot see a single surface call would have reported 15 of 117 and been worse than
+# no number at all.
+#
+# The shape read here is the one _python_call_sites() has always read: a call whose first
+# two arguments are a verb and a path. Deliberately NOT "any function that eventually
+# reaches fetch" — that needs call-graph analysis, and a census that guesses is the defect
+# this file has already been repaired for twice.
+_TS_HELPER = re.compile(
+    r"\b[A-Za-z_$][\w$.]*\s*\(\s*(['\"])([A-Za-z]+)\1\s*,\s*"
+    r"(['\"`])((?:\\.|(?!\3).)*)\3", re.S)
+
 
 def _path_of(url: str) -> str:
     """The path part of a URL a surface names, or "" if it names no path.
@@ -314,6 +336,17 @@ def _ts_call_sites(source: str, name: str):
             if found:
                 verb = found.group(1).upper()
         sites.append(CallSite(verb, path, name, text.count("\n", 0, match.start()) + 1))
+    # The surfaces' own request helpers. See the note on _TS_HELPER: this is the only way
+    # any of the four screens is visible to this census at all.
+    for match in _TS_HELPER.finditer(text):
+        verb = match.group(2).upper()
+        if verb not in _VERBS:
+            continue
+        path = _path_of(re.sub(r"\$\{[^{}]*\}", PARAM, match.group(4)))
+        if not path:
+            continue
+        sites.append(CallSite(verb, path, name, text.count("\n", 0, match.start()) + 1))
+
     for match in _TS_LOOSE.finditer(text):
         unresolved.append(f"{name} {match.group(1)} <path built at runtime>")
     return sites, unresolved
@@ -410,24 +443,80 @@ def self_test() -> list:
                                   "\nsend({ method: 'POST' })", ".ts")),
         ("navigating to a surface is a call to it",
          called("GET", "/station", "page.goto(`${baseUrl}/station`)", ".ts")),
+
+        # OP-D. The shape every surface actually uses, and the shape that made the
+        # reachability split possible. Each of these was written to FAIL under the reader
+        # that preceded it, which saw only fetch() with a literal path.
+        ("a surface's request helper is a call, with the verb it names",
+         called("GET", "/s/v1/home", "waiterApi('GET', '/s/v1/home')", ".ts")),
+        ("and an interpolated segment in a helper call still matches its parameter",
+         called("POST", "/s/v1/orders/:orderId/accept",
+                "waiterApi('POST', `/s/v1/orders/${id}/accept`, {})", ".ts")),
+        ("a helper's verb is read from the argument, not assumed",
+         not called("GET", "/s/v1/home", "waiterApi('POST', '/s/v1/home')", ".ts")),
+        ("a two-string call whose first argument is not a verb is not a request",
+         not called("GET", "/s/v1/home",
+                    "translate('label', '/s/v1/home')", ".ts")),
     ]
     return [(name, ok) for name, ok in checks]
+
+
+# WHICH CALLERS ARE A PERSON, AND WHICH ARE A SUITE.
+#
+# THIS SPLIT IS THE POINT OF THE INSTRUMENT AND IT DID NOT EXIST FOR THREE GATES.
+#
+# The census pooled its callers: tests/** and the four surfaces went into one "called"
+# count, so it answered "does anything call this route" and never "can a person reach it".
+# A route driven only by a suite was indistinguishable from one a cook presses.
+#
+# Twice that hid the same defect, and the second time it hid it in plain sight.
+# POST /s/v1/orders/:orderId/accept — the step without which no guest order reaches a
+# kitchen under staff_confirmed — was called by tests/journeys and tests/opa and by NO
+# SURFACE AT ALL, and the census reported it green. F-OPB-9 had already named the shape:
+# "no amount of adding tests of this shape would have caught it." The instrument that was
+# supposed to find such things was averaging them away.
+#
+# So a route is now REACHABLE when a surface calls it and PROVED when a suite does, and
+# the two numbers are reported separately. A route that is proved and unreachable is the
+# interesting one: it works, it is tested, and nobody can get to it.
+SURFACE_ROOTS = ("pwa/", "waiter/", "station/", "cashier/")
+
+
+def _is_surface(relative_path: str) -> bool:
+    """Whether a call site is a screen a person uses, rather than a suite."""
+    return relative_path.startswith(SURFACE_ROOTS)
 
 
 def survey() -> dict:
     sites, unresolved = call_sites()
     uncalled, called = [], {}
+    unreachable = []
+    reachable = 0
     for verb, path, source in routes():
         rx = _matcher(path)
         who = sorted({site.file for site in sites
                       if site.verb == verb and rx.fullmatch(site.target)})
+        surfaces = [f for f in who if _is_surface(f)]
         if who:
             called[f"{verb} {path}"] = who
         else:
             uncalled.append({"verb": verb, "path": path, "file": source})
+        if surfaces:
+            reachable += 1
+        elif who:
+            # Called by a suite and by no screen. Not a defect on its own — an operator
+            # route or an integration endpoint has no surface by design — but it is the
+            # set every "the tests pass and a person cannot" finding has come out of, so
+            # it is named rather than counted.
+            unreachable.append({"verb": verb, "path": path, "file": source,
+                                "proved_by": who})
     return {"total": len(called) + len(uncalled), "called": len(called),
             "uncalled": uncalled, "unresolved": sorted(set(unresolved)),
-            "call_sites": len(sites)}
+            "call_sites": len(sites),
+            # Reachable: at least one of the four surfaces calls it.
+            # Unreachable-but-proved: a suite calls it and no surface does.
+            "reachable": reachable, "unreachable": unreachable,
+            "surface_call_sites": len([s for s in sites if _is_surface(s.file)])}
 
 
 # ---------------------------------------------------------------------------
@@ -511,15 +600,36 @@ def main() -> int:
         print(json.dumps(finding, indent=2))
         return 0
 
-    print(f"{finding['total']} addressable route(s); {finding['called']} called; "
-          f"{len(finding['uncalled'])} never called by any suite, journey or surface")
-    by_file: dict[str, list[str]] = {}
-    for route in finding["uncalled"]:
-        by_file.setdefault(route["file"], []).append(f"{route['verb']} {route['path']}")
-    for source in sorted(by_file):
-        print(f"\n  {source}")
-        for route in sorted(by_file[source]):
-            print(f"      {route}")
+    print(f"{finding['total']} addressable route(s); "
+          f"{finding['reachable']} REACHABLE BY A PERSON (a surface calls them); "
+          f"{len(finding['unreachable'])} proved by a suite and reachable by nobody; "
+          f"{len(finding['uncalled'])} called by nothing at all")
+
+    def by_source(routes: list) -> dict:
+        out: dict[str, list[str]] = {}
+        for route in routes:
+            out.setdefault(route["file"], []).append(f"{route['verb']} {route['path']}")
+        return out
+
+    # THE MIDDLE COLUMN IS PRINTED FIRST, because it is the one that has hidden two
+    # findings. A route with no caller at all is obvious and was always reported; a route
+    # a suite drives and no screen reaches looks green from every angle and is where
+    # "the tests pass and a person cannot" lives.
+    if finding["unreachable"]:
+        print("\n  PROVED BY A SUITE, REACHABLE BY NO SURFACE")
+        print("  (not a defect on its own — an operator or integration route has no "
+              "screen by design)")
+        for source, routes in sorted(by_source(finding["unreachable"]).items()):
+            print(f"\n  {source}")
+            for route in sorted(routes):
+                print(f"      {route}")
+
+    if finding["uncalled"]:
+        print("\n  CALLED BY NOTHING")
+        for source, routes in sorted(by_source(finding["uncalled"]).items()):
+            print(f"\n  {source}")
+            for route in sorted(routes):
+                print(f"      {route}")
     return 0
 
 

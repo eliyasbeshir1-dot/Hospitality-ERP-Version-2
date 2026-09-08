@@ -144,7 +144,7 @@ position is to write fresh.
 | `print/` | the print agent: the receipt rasteriser, the ESC/POS encoder, and the font it ships rather than resolves from the host |
 | `schema/` | `SCHEMA_CATALOG.md`, generated from the live database, never hand-written |
 | `seeds/` | demonstration tenants and reason-code sets, with their own ordered record |
-| `tests/` | verification suites — 14 that each verify one slice, and 5 that cut across gates |
+| `tests/` | verification suites — 14 that each verify one slice, and 6 that cut across gates |
 | `tools/` | migration and seed runners, generators, and the forbidden-surface verifier |
 
 ## Third-party assets, and what shipping them obliges
@@ -205,6 +205,7 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0034_a_printer_test_records_what_the_agent_did.sql`
 - `0035_a_table_can_be_seated.sql`
 - `0036_seating_is_an_action_and_actions_are_graded.sql`
+- `0037_a_menu_says_what_a_dish_is_and_an_order_can_be_admitted.sql`
 
 ## Seeds
 
@@ -219,6 +220,8 @@ history: seeds are data, not structure.
 - `0006_the_demonstration_floor_can_take_money.provision.sql`
 - `0007_the_demonstration_floor_can_escalate.sql`
 - `0008_the_demonstration_floor_can_seat.provision.sql`
+- `0009_qr_ordering_does_not_wait_for_a_waiter.sql`
+- `0010_an_order_can_be_confirmed.provision.sql`
 
 ## Verification
 
@@ -249,6 +252,7 @@ bash tests/m1d/run_verification.sh         # rebuilds from empty, runs every sli
 | `tests/opa/verify_opa.py` | the operator gate: whether a person can reach what the slices built. A credential turned into a session against storage that is salted and key-stretched, a quick PIN that is refused away from its registered terminal, lockout that fires and then clears, a guest order carried to a station and moved acknowledge to preparing to ready through routes rather than through the database, expo refusing to release an incomplete set, a seed proved unable to bypass its runner or to widen a grant, and the M4 review's printer forgery replayed over the route it was performed on (spans M1 · M2 · M3 · M4) |
 | `tests/opb/verify_opb.py` | the staff screens, measured in a browser: a station board that signs a cook in and draws its actions from the transition catalog rather than from a table of its own, a till that reads a bill in the bill's own language and keeps the tip beside it with nothing preselected, a waiter floor that fetches its own tables with the unpaid balance on them, confirmation friction graded by the database, and a manager override that takes the manager's own session (spans M1 · M2 · M3 · M4) |
 | `tests/opc/verify_opc.py` | being seated, and taking something back out: the step that came before everything the nineteen suites above had proved. A guest scanning an unoccupied table opens the occupancy and a member of staff can open one too, through one function with two opening sources that nothing had ever called; a waiter who seats a table becomes accountable for it, which is the origin FR-TAB-006's handover chain never had; a guest can take a dish back out of the basket; and M2-B's stale-QR guarantee is proved unweakened by any of it (spans M1 · M2 · M3 · M4) |
+| `tests/opd/verify_opd.py` | the order reaching the kitchen, and what a menu says a dish is. A QR order is admitted without a waiter having to tap anything, and where an outlet chooses staff confirmation instead the waiter floor lists the orders waiting and admits them; the guest is told which of the two happened rather than always the first; the menu carries the description, ingredients and preparation time the seed has always written and nothing returned; and the route census stops averaging "a suite calls this" together with "a person can reach this" (spans M1 · M2 · M3 · M4) |
 
 Every suite runs against a real PostgreSQL through the least-privileged application role,
 and every negative control is proved red with a defect planted before it is trusted green.

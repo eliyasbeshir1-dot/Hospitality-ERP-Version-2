@@ -312,11 +312,15 @@ What makes this worth a reviewer's attention is not that a gap exists. It is tha
 **So read the delivered count as what it is: a count of requirements that something in the run names.** It does not assert that a person can perform the behaviour the clause describes. Recorded in `planning/requirement_coverage.json` as absent, security, buildable now, closing at M6. It is not built here, and this brief does not build it: a repair that quietly added an authentication flow would be a far worse defect than the one it fixed.
 
 
-## 25 routes the service exposes that nothing has ever called
+## 20 routes the service exposes that nothing has ever called
 
 **This is a finding in its own right, not a footnote.** GJ-01A's lesson was that `ordering.preview_cart()` and `ordering.submit_order()` were both proved against the database while no route called either and no button reached one: every unit check passed and the feature was unreachable. M4-A shipped its billing routes the same way. The first HTTP call ever made to `POST /s/v1/checks` — made while repairing the journeys, after the slice had closed — failed on two production defects at once, because nothing had ever called it.
 
-Of 116 addressable routes, 91 are called by some suite, journey or surface and **25 are called by nothing**. A route with no caller is not necessarily broken. It is unproved, which is the condition both of those defects were hiding in.
+Of 117 addressable routes, 97 are called by some suite, journey or surface and **20 are called by nothing**. A route with no caller is not necessarily broken. It is unproved, which is the condition both of those defects were hiding in.
+
+**And that number pooled two different questions until OP-D.** 50 of 117 routes are REACHABLE BY A PERSON — one of the four surfaces calls them. 47 are proved by a suite and reached by no screen at all. That second set is not a defect on its own: an operator route or an integration endpoint has no surface by design. It is where every "the tests pass and a person cannot" finding in this repository has come from, and it was invisible while one count answered both questions.
+
+`POST /s/v1/orders/:orderId/accept` is the case that forced the split. It is the step without which no guest order reaches a kitchen under `staff_confirmed`; it was called by `tests/journeys` and `tests/opa` and by no surface; and the census reported it green while a guest's order sat in `submitted` with no screen in the system able to show it, let alone admit it.
 
 Derived by `tools/uncalled_routes.py` on every generation, so this list cannot go stale the way a typed one would.
 
@@ -326,13 +330,13 @@ Derived by `tools/uncalled_routes.py` on every generation, so this list cannot g
 
 | Route file | Never called |
 |---|---|
-| `billing.ts` | `GET /s/v1/bills/:billId`<br>`GET /s/v1/bills/:billId/tip-options`<br>`GET /s/v1/checks`<br>`POST /s/v1/bills/:billId/corrections`<br>`POST /s/v1/bills/:billId/dispositions`<br>`POST /s/v1/bills/:billId/finalize`<br>`POST /s/v1/checks/merge` |
+| `billing.ts` | `POST /s/v1/bills/:billId/corrections`<br>`POST /s/v1/bills/:billId/dispositions`<br>`POST /s/v1/bills/:billId/finalize`<br>`POST /s/v1/checks/merge` |
 | `customer.ts` | `POST /c/v1/allergy-concerns` |
-| `documents.ts` | `GET /s/v1/documents/preview`<br>`GET /s/v1/fiscal/reconciliation`<br>`GET /s/v1/receipts/:receiptId`<br>`POST /s/v1/receipts/:receiptId/renders` |
+| `documents.ts` | `GET /s/v1/documents/preview`<br>`GET /s/v1/fiscal/reconciliation`<br>`POST /s/v1/receipts/:receiptId/renders` |
 | `payments.ts` | `GET /s/v1/payments/:paymentId/allocations` |
 | `reports.ts` | `GET /s/v1/reports/catalog`<br>`GET /s/v1/reports/metrics`<br>`GET /s/v1/reports/sales`<br>`GET /s/v1/reports/shifts/:shiftId/snapshot`<br>`POST /s/v1/reports/shifts/:shiftId/recomputations` |
 | `service.ts` | `GET /s/v1/service/queue` |
-| `staff.ts` | `GET /s/v1/fast-picks`<br>`GET /s/v1/handovers`<br>`GET /s/v1/tables/seatable`<br>`GET /s/v1/terminals`<br>`POST /s/v1/terminals`<br>`POST /s/v1/terminals/:deviceId/revoke` |
+| `staff.ts` | `GET /s/v1/fast-picks`<br>`GET /s/v1/handovers`<br>`GET /s/v1/terminals`<br>`POST /s/v1/terminals`<br>`POST /s/v1/terminals/:deviceId/revoke` |
 
 ## A check that reports a cause it cannot distinguish
 

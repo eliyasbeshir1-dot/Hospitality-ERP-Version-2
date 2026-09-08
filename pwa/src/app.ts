@@ -40,6 +40,14 @@ type StringKey =
   | 'placeOrder' | 'orderPlaced' | 'orderRefused'
   // M4-A. The bill, and then the tip. Separate keys because they are separate blocks.
   | 'billHeading' | 'billTotal' | 'tipHeading' | 'tipHint' | 'tipChosen' | 'tipRefused'
+  // OP-D. What actually became of the order. "with the kitchen" is only true when the
+  // outlet accepted it; under FR-ORD-007A's staff_confirmed it is waiting for a person,
+  // and saying otherwise is the surface telling the guest something that is not so.
+  | 'orderWaiting'
+  // OP-D. FR-MNU-004's labels. `minutes` is the unit, appended to a number the server
+  // sent — never a formatted duration built here, for the same reason a price travels as
+  // minor units and a currency code.
+  | 'ingredients' | 'prepTime' | 'minutes'
   // OP-C. Taking something back out. `remove` is the control's own label and
   // `removeLine` is what a screen reader announces for a particular line, because "Remove"
   // repeated down a list tells somebody who cannot see the list nothing about which one.
@@ -64,6 +72,8 @@ const STRINGS: Record<Locale, Record<StringKey, string>> = {
     completed: 'Done', withdrawn: 'Withdrawn', closed: 'Closed',
     placeOrder: 'Place the order',
     orderPlaced: 'Your order is with the kitchen.',
+    orderWaiting: 'Your order has been sent and is waiting to be confirmed by a member of staff.',
+    ingredients: 'Ingredients', prepTime: 'Ready in', minutes: 'min',
     orderRefused: 'That could not be sent. Please ask a member of staff.',
     billHeading: 'Your bill', billTotal: 'Total',
     tipHeading: 'Add a tip',
@@ -91,6 +101,8 @@ const STRINGS: Record<Locale, Record<StringKey, string>> = {
     completed: 'ተጠናቋል', withdrawn: 'ተሰርዟል', closed: 'ተዘግቷል',
     placeOrder: 'ትዕዛዙን ያስገቡ',
     orderPlaced: 'ትዕዛዝዎ ወደ ማብሰያው ደርሷል።',
+    orderWaiting: 'ትዕዛዝዎ ተልኳል፤ በሠራተኛ እስኪረጋገጥ በመጠባበቅ ላይ ነው።',
+    ingredients: 'ግብዓቶች', prepTime: 'የሚዘጋጅበት', minutes: 'ደቂቃ',
     orderRefused: 'መላክ አልተቻለም። እባክዎ ሰራተኛ ይጠይቁ።',
     billHeading: 'ሂሳብዎ', billTotal: 'ጠቅላላ ድምር',
     tipHeading: 'ጉርሻ ይጨምሩ',
@@ -118,6 +130,8 @@ const STRINGS: Record<Locale, Record<StringKey, string>> = {
     completed: 'تم', withdrawn: 'تم السحب', closed: 'مغلق',
     placeOrder: 'أرسل الطلب',
     orderPlaced: 'طلبك في المطبخ الآن.',
+    orderWaiting: 'تم إرسال طلبك وهو بانتظار تأكيد أحد الموظفين.',
+    ingredients: 'المكونات', prepTime: 'جاهز خلال', minutes: 'دقيقة',
     orderRefused: 'تعذّر الإرسال. من فضلك اسأل أحد الموظفين.',
     billHeading: 'فاتورتك', billTotal: 'المجموع',
     tipHeading: 'أضف بقشيشًا',
@@ -222,6 +236,14 @@ interface Item {
   name: string;
   currencyCode: string;
   amountMinor: string;
+  // FR-MNU-004. Nullable, and null means the dish has no such text — not an empty string
+  // to render as a blank line. The seed has written all three since 0003 and the menu
+  // function returned none of them until OP-D, so a guest chose between five dishes
+  // knowing a name and a price.
+  shortDescription: string | null;
+  longDescription: string | null;
+  ingredients: string | null;
+  preparationMinutes: number | null;
   allergens: Allergen[];
 }
 
@@ -358,6 +380,43 @@ function renderMenu(): void {
 
     head.append(name, price);
     li.append(head);
+
+    // WHAT THE DISH IS (FR-MNU-004). Each part is drawn only if the server sent it: a
+    // missing description is a missing paragraph, never an empty one, and never a label
+    // with nothing after it.
+    //
+    // The long description is deliberately NOT drawn. The short one is what a guest reads
+    // while choosing; putting both on every card makes a five-dish menu a page of prose
+    // and buries the price and the allergens under it. The long text is carried to the
+    // surface and is there for a detail view somebody may build — recorded in
+    // planning/OPD_FINDINGS.md rather than rendered because it happens to have arrived.
+    if (item.shortDescription) {
+      const description = document.createElement('p');
+      description.className = 'item-description';
+      description.textContent = item.shortDescription;
+      li.append(description);
+    }
+
+    // Ingredients and preparation time on one line, each labelled. menu.translatable_field
+    // marks customer_visible_ingredients SAFETY CRITICAL, so it is never abbreviated,
+    // never truncated and never behind a control somebody has to find: a guest avoiding
+    // an ingredient reads it where they are already reading.
+    const facts = document.createElement('p');
+    facts.className = 'item-facts';
+    if (item.ingredients) {
+      const ingredients = document.createElement('span');
+      ingredients.className = 'item-ingredients';
+      ingredients.textContent = `${strings.ingredients}: ${item.ingredients}`;
+      facts.append(ingredients);
+    }
+    if (item.preparationMinutes !== null) {
+      const minutes = document.createElement('span');
+      minutes.className = 'item-prep';
+      // In words with a unit, not a bare number. "35" beside a price is a second price.
+      minutes.textContent = `${strings.prepTime}: ${item.preparationMinutes} ${strings.minutes}`;
+      facts.append(minutes);
+    }
+    if (facts.childElementCount > 0) li.append(facts);
 
     if (item.allergens.length > 0) {
       const allergens = document.createElement('ul');
@@ -1225,8 +1284,16 @@ async function placeOrder(): Promise<void> {
     const result = await placed.json();
     outcome.hidden = false;
     if (result.orderId) {
-      outcome.textContent = strings.orderPlaced;
+      // WHAT IS TRUE, PER CASE. The route now reports the state the order landed in.
+      // `accepted` means a kitchen has it; 'submitted' means it is sent and waiting for a
+      // member of staff to admit it. Read from the answer rather than from the policy,
+      // because the surface recomputing the policy would be a second opinion about what
+      // just happened — and it would still be wrong the day FR-ORD-007B holds an order
+      // pending a verified payment.
+      const accepted = result.accepted === true || result.state === 'accepted';
+      outcome.textContent = accepted ? strings.orderPlaced : strings.orderWaiting;
       outcome.dataset.orderId = String(result.orderId);
+      outcome.dataset.orderState = String(result.state ?? '');
       delete outcome.dataset.reason;
       // The basket that was ordered from is frozen — changing it would change what
       // somebody agreed to — so the next round needs a new one. Asked for rather than

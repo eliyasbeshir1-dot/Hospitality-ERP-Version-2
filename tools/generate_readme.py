@@ -206,6 +206,9 @@ SUITE_SPANS = {
     # tables for, the order and the handover M3 built on top, and the bill M4 settles —
     # none of which a real guest could reach, because nobody could be seated.
     "opc": ["M1", "M2", "M3", "M4"],
+    # The same four again: acceptance is M3-A's policy, the menu is M2-A's, the screens
+    # are M2-C's and M3-D's, and signing in to admit an order is M1-B's.
+    "opd": ["M1", "M2", "M3", "M4"],
 }
 
 
@@ -277,6 +280,14 @@ SUITE_PURPOSE = {
            "waiter who seats a table becomes accountable for it, which is the origin "
            "FR-TAB-006's handover chain never had; a guest can take a dish back out of "
            "the basket; and M2-B's stale-QR guarantee is proved unweakened by any of it",
+    "opd": "the order reaching the kitchen, and what a menu says a dish is. A QR order "
+           "is admitted without a waiter having to tap anything, and where an outlet "
+           "chooses staff confirmation instead the waiter floor lists the orders waiting "
+           "and admits them; the guest is told which of the two happened rather than "
+           "always the first; the menu carries the description, ingredients and "
+           "preparation time the seed has always written and nothing returned; and the "
+           "route census stops averaging \"a suite calls this\" together with \"a person "
+           "can reach this\"",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
     "journeys": "the golden journeys end to end in a browser against real "
                 "persistence, plus the duplicate-submit race: what a guest and a waiter "

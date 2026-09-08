@@ -334,6 +334,10 @@ export function registerCustomerRoutes(app: FastifyInstance, deps: CustomerDepen
                   g.amount_minor::text AS amount_minor,
                   g.allergen_kitchen_code, g.declaration_class::text AS declaration_class,
                   g.written_warning, g.icon_key,
+                  -- FR-MNU-004. Present in the seed since 0003 and returned by nothing
+                  -- until OP-D, so a guest read a name and a price and decided on that.
+                  g.short_description, g.long_description,
+                  g.customer_visible_ingredients, g.preparation_minutes,
                   l.item_id, l.variant_id
              FROM menu.published_menu_for_guest($1::uuid, $2::uuid, $3::menu.customer_locale) g
              JOIN menu.publication_snapshot_line l
@@ -345,6 +349,8 @@ export function registerCustomerRoutes(app: FastifyInstance, deps: CustomerDepen
         const byItem = new Map<string, {
           itemCode: string; itemId: string; variantId: string; name: string;
           currencyCode: string; amountMinor: string;
+          shortDescription: string | null; longDescription: string | null;
+          ingredients: string | null; preparationMinutes: number | null;
           allergens: { kitchenCode: string; declarationClass: string; writtenWarning: string;
                        iconKey: string | null }[];
         }>();
@@ -359,6 +365,13 @@ export function registerCustomerRoutes(app: FastifyInstance, deps: CustomerDepen
               name: row.display_name,
               currencyCode: row.currency_code,
               amountMinor: row.amount_minor,
+              // Null travels as null. A dish with no description gets no description on
+              // the screen; substituting the name, or an empty string the surface would
+              // render as a blank line, would be this route inventing prose nobody wrote.
+              shortDescription: row.short_description ?? null,
+              longDescription: row.long_description ?? null,
+              ingredients: row.customer_visible_ingredients ?? null,
+              preparationMinutes: row.preparation_minutes ?? null,
               allergens: [],
             });
           }
@@ -688,7 +701,29 @@ export function registerCustomerRoutes(app: FastifyInstance, deps: CustomerDepen
              JSON.stringify(request.body.allergyDeclarations ?? []),
              JSON.stringify(request.body.notes ?? [])],
           );
-          return { orderId: rows[0].id as string };
+          // THE STATE TRAVELS BACK, AND THE SURFACE NEEDS IT TO TELL THE TRUTH.
+          //
+          // This used to answer with an id alone, so the guest surface had no way to know
+          // what had become of the order and said "Your order is with the kitchen" in
+          // every case. Under FR-ORD-007A's `staff_confirmed` that sentence is false: the
+          // order is in 'submitted', no kitchen has seen it, and it waits for a person.
+          // The surface cannot be truthful about an outcome it was not told.
+          //
+          // Read back rather than inferred from the policy. ordering.submit_order() may
+          // accept automatically, may leave the order submitted, and at FR-ORD-007B may
+          // hold it pending a verified payment; asking the row what happened is one
+          // answer, and a surface that recomputed the policy would be a second.
+          const placed = await client.query(
+            `SELECT state::text AS state, accepted_at IS NOT NULL AS accepted
+               FROM ordering.customer_order
+              WHERE tenant_id = $1::uuid AND id = $2::uuid`,
+            [tenantId, rows[0].id],
+          );
+          return {
+            orderId: rows[0].id as string,
+            state: placed.rows[0]?.state ?? null,
+            accepted: placed.rows[0]?.accepted ?? false,
+          };
         } catch (error) {
           const message = error instanceof Error ? error.message : '';
           const matched = /\b([A-Z][A-Z_]{4,})\b/.exec(message);

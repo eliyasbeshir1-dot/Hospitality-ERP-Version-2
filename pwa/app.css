@@ -187,6 +187,31 @@ body {
 .allergen-glyph { flex: none; }
 .allergen-text { min-inline-size: 0; }
 
+/*
+ * OP-D. What the dish IS (FR-MNU-004), between the name and the allergens.
+ *
+ * Quieter than the name, not smaller than readable: --ink-quiet at full body size rather
+ * than black at 0.8rem, because the ingredient line is the one a guest avoiding a food
+ * reads and shrinking it is the opposite of what that requires. Nothing here is truncated
+ * and nothing is behind a control — menu.translatable_field marks
+ * customer_visible_ingredients safety-critical, and a safety-critical string with an
+ * ellipsis in it is a string somebody did not finish reading.
+ */
+.item-description {
+  margin: 0.25rem 0 0;
+  color: var(--ink-quiet);
+}
+
+.item-facts {
+  margin: 0.25rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  color: var(--ink-quiet);
+}
+
+.item-facts .item-prep { font-variant-numeric: tabular-nums; }
+
 .add {
   font: inherit;
   min-block-size: 44px;

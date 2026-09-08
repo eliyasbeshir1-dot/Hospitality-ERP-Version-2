@@ -186,6 +186,16 @@ CONTROLS = [
     ("NC-OPC-005", "A basket a guest can add to and cannot take from", "REMOVE_CONTROL_ABSENT", "opc"),
     ("NC-OPC-006", "A surface with a network layer and no way in", "SIGN_IN_UNREACHABLE", "opc"),
     ("NC-OPC-007", "A bordered box that never says what it is", "BOX_UNLABELLED", "opc"),
+    # OP-D — the order reaching the kitchen. Two break a rule and three break a screen.
+    # The first is the one that keeps repeating: a new action on a staff surface is
+    # ungraded until somebody grades it, and the fail-closed default then makes the button
+    # demand a written reason and do nothing. table.seat behaved that way at OP-C and
+    # order.accept would have here.
+    ("NC-OPD-001", "A new staff action offered before it was graded", "ACTION_OFFERED_UNGRADED", "opd"),
+    ("NC-OPD-002", "Acceptance working under only one of its policy values", "ACCEPTANCE_POLICY_UNHONOURED", "opd"),
+    ("NC-OPD-003", "A menu that says only what a dish costs", "MENU_SAYS_ONLY_NAME_AND_PRICE", "opd"),
+    ("NC-OPD-004", "A guest told the kitchen has an order it has not seen", "SURFACE_CLAIMS_THE_KITCHEN_HAS_IT", "opd"),
+    ("NC-OPD-005", "An order waiting on no screen anybody can open", "NO_SCREEN_SHOWS_A_WAITING_ORDER", "opd"),
 ]
 
 
@@ -292,7 +302,7 @@ def count() -> int:
 # rather than inventing a tenth gate for work that landed no new requirement. The mapping
 # is a single table rather than a wildcard, so an identifier this file has never heard of
 # still raises rather than being silently filed somewhere.
-REPAIR_PASS_GATE = {"OPA": "M4", "OPB": "M4", "OPC": "M4"}
+REPAIR_PASS_GATE = {"OPA": "M4", "OPB": "M4", "OPC": "M4", "OPD": "M4"}
 
 
 def gate_of(identifier: str) -> str | None:

@@ -29,6 +29,16 @@
 <p id="notice" role="status" hidden></p>
 <section id="sign-in-panel" aria-label="Sign in"></section>
 <main id="next" tabindex="-1" aria-label="What needs doing next"></main>
+<!--
+  Orders waiting to be admitted to the kitchen (FR-ORD-004).
+
+  ABOVE the tables, because FR-POS-002 makes the order of this screen the priority and a
+  guest whose food has not started outranks a table that merely exists. Hidden by default
+  and drawn only when the list is non-empty: where the outlet accepts guest_qr orders
+  automatically it is permanently empty, and a permanent empty heading is one a waiter
+  learns to stop reading.
+-->
+<section id="pending-orders" aria-label="Orders waiting to be confirmed" hidden></section>
 <section id="tables" aria-label="Tables"></section>
 <section id="notifications" aria-label="Notifications"></section>
 <section id="search-panel" aria-label="Find an item">

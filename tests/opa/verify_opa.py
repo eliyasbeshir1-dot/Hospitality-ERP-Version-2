@@ -338,10 +338,25 @@ def an_order_ready_for_the_kitchen() -> tuple[str, str]:
     if not order:
         raise ProbeFailed("POST /c/v1/orders", str(placed)[:200])
 
-    accepted = call("POST", f"/s/v1/orders/{order}/accept", token=token)
-    if accepted.get("status") != 200:
-        raise ProbeFailed("POST /s/v1/orders/:orderId/accept",
-                          f"order {order}: {accepted.get('signature') or accepted}")
+    # ACCEPTED ONLY IF IT IS STILL WAITING, WHICH DEPENDS ON THE OUTLET'S POLICY.
+    #
+    # FR-ORD-007A makes acceptance a policy per origin. seeds/0003 made guest_qr orders
+    # `staff_confirmed`, so this helper accepted every order it placed; seeds/0009 makes
+    # them `automatic`, because a QR order that waits for a waiter puts the bottleneck
+    # back that QR ordering exists to remove — and ordering.accept_order() then refuses
+    # the second acceptance by name, ORDER_NOT_AWAITING_ACCEPTANCE, correctly.
+    #
+    # A walker that called accept unconditionally would report that correct refusal as a
+    # failure. tests/journeys has read the state first since M3-D for exactly this reason,
+    # on the waiter-entered channel; this is the same repair on the guest channel, which
+    # became necessary the moment the policy changed. The helper works under either value.
+    state = run(ADMIN, f"""
+        SELECT state::text FROM ordering.customer_order WHERE id = '{order}';""").scalar
+    if (state or "").strip() == "submitted":
+        accepted = call("POST", f"/s/v1/orders/{order}/accept", token=token)
+        if accepted.get("status") != 200:
+            raise ProbeFailed("POST /s/v1/orders/:orderId/accept",
+                              f"order {order}: {accepted.get('signature') or accepted}")
     ticket = run(ADMIN, f"""
         SELECT id::text FROM fulfillment.ticket
          WHERE order_id = '{order}' AND station_node_id = '{STATION_HOT}' LIMIT 1;""").scalar

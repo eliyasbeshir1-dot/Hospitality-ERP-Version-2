@@ -2262,11 +2262,23 @@ def section_controls() -> None:
           break_sql="""
               CREATE OR REPLACE FUNCTION menu.published_menu_for_guest(
                   p_tenant_id uuid, p_snapshot_id uuid, p_locale menu.customer_locale)
+              -- THE SIGNATURE MUST BE THE ONE THE FUNCTION HAS, and it changed at OP-D.
+              -- `CREATE OR REPLACE` cannot alter a return type, so when 0037 added the
+              -- four FR-MNU-004 columns this plant stopped being plantable and the
+              -- control failed with "cannot change return type of existing function" —
+              -- a control carrying its own frozen copy of a signature, which is the same
+              -- shape as M4-A's private copy of handler_block().
+              --
+              -- The four are returned NULL: this control is about WHERE allergen text is
+              -- read from, and the descriptive fields are no part of what it plants.
               RETURNS TABLE (item_code text, canonical_name text, display_name text,
                              currency_code char(3), amount_minor money.amount_minor,
                              allergen_kitchen_code text,
                              declaration_class safety.declaration_class,
-                             written_warning text, icon_key text)
+                             written_warning text, icon_key text,
+                             short_description text, long_description text,
+                             customer_visible_ingredients text,
+                             preparation_minutes integer)
               LANGUAGE sql STABLE SECURITY DEFINER
               SET search_path = pg_catalog, safety, menu, public AS $break$
                   -- The defect: the natural symmetry. Allergen text is read from what was
@@ -2274,7 +2286,8 @@ def section_controls() -> None:
                   -- afterwards never reaches a guest holding an older link.
                   SELECT l.item_code, l.canonical_name, l.canonical_name,
                          l.currency_code, l.amount_minor,
-                         a.kitchen_code, d.declaration_class, t.translated_text, a.icon_key
+                         a.kitchen_code, d.declaration_class, t.translated_text, a.icon_key,
+                         NULL::text, NULL::text, NULL::text, NULL::integer
                   FROM menu.publication_snapshot_line l
                   JOIN safety.declaration_reference r
                     ON r.context = 'publication_snapshot' AND r.context_id = l.snapshot_id

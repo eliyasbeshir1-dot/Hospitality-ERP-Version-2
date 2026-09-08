@@ -29,8 +29,36 @@ KEEP=0
 : "${SUPERUSER:=postgres}"
 : "${DB:=hospitality_os}"
 : "${PORT:=8080}"
-PY_BIN="${PYTHON:-python3}"
-command -v "$PY_BIN" >/dev/null 2>&1 || PY_BIN=python
+# AN INTERPRETER THAT EXISTS IS NOT AN INTERPRETER THAT RUNS.
+#
+# This asked `command -v python3` and took yes for an answer. On Windows that resolves to
+# the Microsoft Store alias in WindowsApps — a zero-byte stub that prints "Python was not
+# found" and exits non-zero — so the check passed, the fallback to `python` never fired,
+# and the rebuild died on the migration step with the Store's advertisement as its error
+# message.
+#
+# tests/*/run_verification.sh met this at the cross-platform gate and was repaired then;
+# docs-local/CROSS_PLATFORM_COMMANDS.md records it by name as one of the seven defects
+# Linux could not expose. This script kept the weaker check, so the one entry point a
+# person actually types was the one place the repair never reached.
+#
+# The probe below is the drivers' own: every candidate is RUN, not merely located.
+PY_BIN="${PYTHON:-}"
+if [ -z "$PY_BIN" ]; then
+    for candidate in python3 python; do
+        if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c "" >/dev/null 2>&1; then
+            PY_BIN="$candidate"
+            break
+        fi
+    done
+fi
+if [ -z "$PY_BIN" ]; then
+    echo "FAIL PREREQUISITE_ABSENT: no runnable Python on PATH. On Windows the python3 in" >&2
+    echo "  WindowsApps is the Microsoft Store alias and runs nothing; install Python or" >&2
+    echo "  set PYTHON to an interpreter that does." >&2
+    exit 1
+fi
+export PYTHON="$PY_BIN"
 
 dsn() { echo "postgresql://$1@$PGTCP_HOST:$PGPORT/$2"; }
 export M1A_ADMIN_DSN="$(dsn "$SUPERUSER" "$DB")"
@@ -115,8 +143,20 @@ cat <<INFO
       A waiter who seats it becomes accountable for it; a guest who
       seats themselves leaves the table reading "no waiter is
       accountable", which is the floor screen telling the truth.
-    - a guest can order; the kitchen can cook it; the till can bill it,
-      split it, take cash, a card, Telebirr or CBE Birr, and settle it.
+    - a guest can order and the kitchen has it IMMEDIATELY: this floor
+      accepts QR orders automatically (seeds/0009), so the ticket
+      appears on the station board without anybody confirming it. An
+      outlet that chooses staff confirmation instead gets a "Waiting to
+      be confirmed" list at the top of the waiter floor, and the guest
+      is told their order is waiting rather than that the kitchen has
+      it. Both paths are real; this floor is on the first.
+    - the kitchen can cook it; the till can bill it, split it, take
+      cash, a card, Telebirr or CBE Birr, and settle it.
+    - the menu says what a dish IS — description, ingredients and how
+      long it takes — and not only what it costs. There are no IMAGES:
+      menu.image is private by constraint and reachable only through a
+      signed URL path that this build does not have, so seeding one
+      would give the surface a key it cannot render. F-OPD-3.
     - anyone holding this link can seat themselves at table 11 from
       anywhere, including before you sit down at it. That is F-OPC-3 in
       planning/OPC_FINDINGS.md: a placard is a long-lived secret and

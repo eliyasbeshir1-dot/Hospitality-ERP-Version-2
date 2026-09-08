@@ -467,6 +467,20 @@ def build() -> str:
       "with no caller is not necessarily broken. It is unproved, which is the condition "
       "both of those defects were hiding in.")
     w("")
+    w(f"**And that number pooled two different questions until OP-D.** "
+      f"{survey['reachable']} of {survey['total']} routes are REACHABLE BY A PERSON — one "
+      f"of the four surfaces calls them. {len(survey['unreachable'])} are proved by a "
+      f"suite and reached by no screen at all. That second set is not a defect on its own: "
+      "an operator route or an integration endpoint has no surface by design. It is where "
+      "every \"the tests pass and a person cannot\" finding in this repository has come "
+      "from, and it was invisible while one count answered both questions.")
+    w("")
+    w("`POST /s/v1/orders/:orderId/accept` is the case that forced the split. It is the "
+      "step without which no guest order reaches a kitchen under `staff_confirmed`; it "
+      "was called by `tests/journeys` and `tests/opa` and by no surface; and the census "
+      "reported it green while a guest's order sat in `submitted` with no screen in the "
+      "system able to show it, let alone admit it.")
+    w("")
     w("Derived by `tools/uncalled_routes.py` on every generation, so this list cannot go "
       "stale the way a typed one would.")
     w("")

@@ -287,7 +287,7 @@ jobs:
           # M1A..M4A while it ran through M4-B — and each time two suites were passing on
           # Windows without anybody requiring them to. tests/ is where the suites are, so
           # tests/ is what the loop reads.
-          for suite in $(ls -d tests/m[0-9]* tests/opa tests/opb tests/opc | sed 's#tests/##' | sort); do
+          for suite in $(ls -d tests/m[0-9]* tests/opa tests/opb tests/opc tests/opd | sed 's#tests/##' | sort); do
             verdict="$(echo "$suite" | tr '[:lower:]' '[:upper:]')"
             grep -q "^PASS ${verdict}_VERIFICATION" "$LOG_DIR/windows-suites.log" || {
               echo "::error::${verdict} did not report PASS on Windows"; exit 1; }
@@ -882,6 +882,33 @@ jobs:
           done
           echo "OP-C: $checks checks ($measured measured), 0 failures, 7 controls red then green"
 
+      - name: "OP-D — the order reaching the kitchen, and what a menu says (FR-ORD-004, FR-ORD-007A, FR-MNU-004, FR-UX-015)"
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Chains from OP-C. This gate closes the step AFTER being seated: a guest could
+          # place an order and it stopped dead, because the outlet's policy made guest_qr
+          # staff_confirmed and no screen in the system listed an order awaiting
+          # acceptance — the station board shows tickets, and an unaccepted order has none.
+          export M4C_LOG_DIR="$LOG_DIR"
+          bash tests/opd/run_verification.sh 2>&1 | tee "$LOG_DIR/opd.log"
+          grep -q '^PASS OPD_VERIFICATION' "$LOG_DIR/opd.log" || {
+            echo "::error::OP-D suite did not report PASS"; exit 1; }
+          checks="$(grep -oP 'checks run\s+:\s+\K[0-9]+' "$LOG_DIR/opd.log" | tail -1)"
+          failed="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/opd.log" | tail -1)"
+          test "${checks:-0}" -ge 25 || { echo "::error::only ${checks:-0} OP-D checks ran"; exit 1; }
+          test "${failed:-1}" -eq 0 || { echo "::error::${failed} OP-D check(s) failed"; exit 1; }
+          measured="$(grep -oP 'measured\s+:\s+\K[0-9]+' "$LOG_DIR/opd.log" | tail -1)"
+          test "${measured:-0}" -ge 6 || {
+            echo "::error::only ${measured:-0} OP-D checks were measured in a browser"; exit 1; }
+          for control in NC-OPD-001 NC-OPD-002 NC-OPD-003 NC-OPD-004 NC-OPD-005; do
+            grep -q "$control — RED with the defect planted" "$LOG_DIR/opd.log" || {
+              echo "::error::$control was never proved red"; exit 1; }
+            grep -q "$control — GREEN after revert" "$LOG_DIR/opd.log" || {
+              echo "::error::$control was never proved green"; exit 1; }
+          done
+          echo "OP-D: $checks checks ($measured measured), 0 failures, 5 controls red then green"
+
       - name: "The route census reads code, not prose (the instrument behind GJ-01A)"
         shell: bash
         run: |
@@ -971,7 +998,7 @@ jobs:
           export M4C_LOG_DIR="$LOG_DIR"
           # Reverse order, same database, no rebuild. A suite that only passes when it runs
           # first is depending on state another suite left behind.
-          for suite in opc opb opa m4c m4b m4a m3d m3c m3b m3a m2c m2b m2a m1d m1c m1b m1a; do
+          for suite in opd opc opb opa m4c m4b m4a m3d m3c m3b m3a m2c m2b m2a m1d m1c m1b m1a; do
             python3 "tests/$suite/verify_${suite}.py" > "$LOG_DIR/reorder/$suite.log" 2>&1 || true
           done
           # AND THE JOURNEYS, which this sweep did not run until M4's second repair.
@@ -984,7 +1011,7 @@ jobs:
           # the journeys are what has to survive it.
           python3 tests/journeys/verify_journeys.py > "$LOG_DIR/reorder/journeys.log" 2>&1 || true
           fail=0
-          for suite in m1a m1b m1c m1d m2a m2b m2c m3a m3b m3c m3d m4a m4b m4c opa opb opc journeys; do
+          for suite in m1a m1b m1c m1d m2a m2b m2c m3a m3b m3c m3d m4a m4b m4c opa opb opc opd journeys; do
             tag="$(echo "$suite" | tr '[:lower:]' '[:upper:]')"
             if [ "$suite" = journeys ]; then tag=GOLDEN_JOURNEY; fi
             declared="$(grep -oP 'failed\s+:\s+\K[0-9]+' "$LOG_DIR/$suite.log" | tail -1)"
