@@ -237,14 +237,101 @@ service behind it, still measures exactly what it did before.
 
 ---
 
+# Found by using it — the first person to open the floor
+
+Everything above was found by building. This section was found by a person opening the
+demonstration floor and trying to order, which took minutes and found what nineteen green
+suites did not.
+
+## F-OPB-9 — the journeys drive something a person cannot: nobody can be seated
+
+**This is the answer to the question the founder asked**: do the journeys drive something a
+person cannot, or does the surface break under real interaction? It is the first, and the
+evidence is unambiguous.
+
+A guest scanned the QR link, chose dishes, and could not place the order. On the floor
+afterwards:
+
+| | |
+|---|---|
+| `service.guest_session` | **3** — scanning and opening a session works |
+| `service.table_session` | **0** |
+| `service.cart` | 0 |
+| `ordering.customer_order` | 0 |
+
+And the reason, stated by the service itself:
+
+    POST /c/v1/join   ->  500  {"error":"internal error"}
+    GET  /c/v1/cart   ->  409  {"reason":"NO_OPEN_OCCUPANCY"}
+
+`INSERT INTO service.table_session` occurs in exactly four files in this repository:
+`tests/m2b/fixtures.py`, `tests/m2b/verify_m2b.py`, `tests/m3a/fixtures.py` and
+`tests/opa/verify_opa.py`. **All four are tests.** No route, no migration and no seed opens
+a table occupancy. `/c/v1/join` JOINS an existing one — `service.join_table_session()` —
+and there is never one to join.
+
+So every journey, every fixture and OP-A's own order helper creates the occupancy with a
+direct SQL INSERT, and then proves that everything downstream works. They are all correct
+about what they test and all silent about the step none of them takes. A person starts one
+step earlier than any test does, and that step does not exist.
+
+**This is F-OPA-3, unchanged.** OP-A recorded it — "nothing opens a table occupancy" — and
+recorded the open product question with it: *does a guest scanning a QR seat themselves, or
+does a waiter seat them?* It was recorded, correctly, as a question rather than answered by
+guessing. What was not foreseen is that OP-B would build three screens on top of it and
+nineteen suites would stay green, because the gap sits upstream of everything any of them
+drives.
+
+**The two consequences the founder met are the same defect:**
+
+- *Place order does not work.* The cart lines never reach the server. The service log shows
+  `POST /c/v1/cart/lines -> 400` for the attempts, and the basket on screen is the guest
+  surface's optimistic local render (FR-UX-007 holds a tap on the device and sends it
+  after), so items appear and nothing is stored.
+- *The till says "no open table".* `pos.table_view` returns rows per table session, and
+  there are none. The till is reporting the floor accurately.
+
+**What this says about the test suite is the finding, not the bug.** Nineteen suites and ten
+browser-tier journeys pass while the first action a real guest takes is impossible. Every
+one of them steps over the same missing step in the same way, which is why no amount of
+adding tests of this shape would have caught it. The instrument that would have caught it is
+the one applied here: open it and use it.
+
+## F-OPB-10 — the guest surface has no way to remove a line from the basket
+
+Reported as "remove from basket does not work". It does not work because it does not exist:
+there is no remove, decrement or delete control anywhere in `pwa/src/app.ts`. A guest can
+add and cannot take away.
+
+Recorded separately from F-OPB-9 because it is a different kind of gap — not a step tests
+walk around, but a capability nobody built and no journey ever wanted. Every golden journey
+adds items and places the order; none has ever changed its mind, which is why an absence
+this plain survived M2-B, M2-C and three gates of browser measurement.
+
+## F-OPB-11 — the till shows two unlabelled boxes before a bill is loaded
+
+`#bill` and `#tip-box` are sections with a border and no heading, so a cashier who has
+signed in and has no bill open sees two empty rectangles and nothing telling them what they
+are or what to do next. Mine, from this gate, and visible on first sight to somebody who had
+not read the code.
+
+## F-OPB-12 — the waiter surface has no sign-in form
+
+`station.ts` and `cashier.ts` each render one; `waiter.ts` exports `signIn()` and renders
+nothing. With no session the screen is blank and the only way in is the browser console.
+Shipped that way in this gate — the network layer was added and the way to reach it was not.
+
+---
+
 ## What OP-B delivered
 
 | the brief | status after OP-B |
 |---|---|
 | **The station screen** | **MET.** Signs a cook in, fetches its own queue, and draws each ticket's actions from `fulfillment.transition` — one button per legal move, labelled with the database's own reason for that pair. The screen holds no state table. Smallest touch target measures 54px, above the 44px floor, measured rather than asserted. |
-| **The cashier screen** | **MET.** Reads a bill in the bill's own language, splits it four ways, keeps the tip box beside the summary with nothing preselected, takes cash, card, Telebirr and CBE Birr, grades confirmation friction from `pos.confirmation_requirement`, and takes a manager's override on the manager's own session. A receipt is produced wherever the wording exists (F-OPB-3). |
+| **The cashier screen** | **BUILT, AND UNREACHABLE ON A REAL FLOOR.** Every capability below is proved by tests/opb and the journeys, against bills those suites created. On a floor where a guest seats themselves it has nothing to show, because nobody can be seated — F-OPB-9. |
+| *(the cashier screen, as tested)* | **MET.** Reads a bill in the bill's own language, splits it four ways, keeps the tip box beside the summary with nothing preselected, takes cash, card, Telebirr and CBE Birr, grades confirmation friction from `pos.confirmation_requirement`, and takes a manager's override on the manager's own session. A receipt is produced wherever the wording exists (F-OPB-3). |
 | **The waiter network layer** | **MET.** Signs in, fetches home, tables, notifications and requirements in one pass, and renders the unpaid balance `pos.table_view` has returned since M3-D and nothing had ever drawn. |
-| **The journeys, browser tier** | **MET and then some.** 4 browser / 7 service became **10 browser / 1 service**, derived from the run. The one that stays service is FR-TST-007A, which opens no browser and races two HTTP requests — the tier rule's own example of a journey that must not be mislabelled. |
+| **The journeys, browser tier** | **MET, with the caveat F-OPB-9 states.** 4 browser / 7 service became **10 browser / 1 service**, derived from the run. The one that stays service is FR-TST-007A, which opens no browser and races two HTTP requests — the tier rule's own example of a journey that must not be mislabelled. |
 
 ### Which half of each journey was walked, stated rather than implied
 
