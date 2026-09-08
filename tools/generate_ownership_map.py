@@ -206,6 +206,12 @@ MIGRATION_SLICE = {
     # M2-C's guest surface, which could add and not take away. One migration, three
     # slices' omissions, filed under the earliest.
     "0035": "M2-B",
+    # 0036 is OP-C's second migration and belongs to M3-D, the slice that built the
+    # confirmation registry and the waiter surface that reads it. A screen gained an action
+    # the registry had never been told about, and the ungraded default — deliberate, with a
+    # written reason — made seating unusable. The grade is the repair, and it repairs the
+    # gate that owns the registry rather than the gate that added the button.
+    "0036": "M3-D",
 }
 
 

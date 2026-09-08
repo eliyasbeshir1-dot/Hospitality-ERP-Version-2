@@ -204,6 +204,7 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0033_a_chosen_secret_must_be_key_stretched.sql`
 - `0034_a_printer_test_records_what_the_agent_did.sql`
 - `0035_a_table_can_be_seated.sql`
+- `0036_seating_is_an_action_and_actions_are_graded.sql`
 
 ## Seeds
 
@@ -217,6 +218,7 @@ history: seeds are data, not structure.
 - `0005_the_demonstration_floor_can_be_billed.sql`
 - `0006_the_demonstration_floor_can_take_money.provision.sql`
 - `0007_the_demonstration_floor_can_escalate.sql`
+- `0008_the_demonstration_floor_can_seat.provision.sql`
 
 ## Verification
 

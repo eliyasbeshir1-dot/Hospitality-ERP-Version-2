@@ -153,6 +153,39 @@ product decision and this gate has consistently refused to make those:
 Whoever closes it needs the choices, so the choices are written here rather than a
 recommendation being smuggled in as one.
 
+## F-OPC-3b — F-OPB-3 has a fourth member, and seating is what made it reachable
+
+F-OPB-3 named three tenant-unique catalogues written only by test fixtures. **There are
+four.** `service.verification_policy` is tenant-unique — `tenant_id` is its primary key —
+and it has exactly one writer anywhere in this repository: `tests/m2b/fixtures.py`, for
+the same tenant the demonstration floor uses.
+
+It went unnoticed for the reason everything in this document went unnoticed: **nothing had
+ever got far enough to need it.** The policy is read by one branch of
+`join_table_session()`, the one that decides how a stale scan may be resolved — and before
+OP-C nobody could be seated, so no occupancy existed for a scan to be stale *against*.
+Seating made the branch reachable, and the first thing to reach it found the row missing.
+
+The consequence is worse than the other three members', because those three degrade a
+document and this one closes a door:
+
+> On a database built from migrations and seeds alone, a guest whose scan is stale
+> **cannot be admitted by any means at all.** Not with a table code, not with a member of
+> staff standing at the table confirming them in person. The tenant has configured no
+> method, `join_table_session()` fails closed — correctly, by the rule that says absent
+> configuration is not a licence — and there is no second branch. FR-TAB-010 describes a
+> resolution path that product data cannot walk.
+
+The suite reports which branch the floor is on rather than assuming, and NC-OPC-001 says
+loudly when its green half went unexercised, because a control whose green side is "there
+is no green side" is weaker than one that runs the branch and a reader should be told
+which they got. In the full chain the row exists — `tests/m2b` ran first — and that is
+precisely the shape F-OPB-3 is about: green because a fixture wrote it.
+
+**Not worked around.** Seeding a policy row would race the fixtures for a unique key,
+which is the thing F-OPB-3 says cannot be done. It is the same product decision, now with
+a fourth symptom and a sharper consequence attached to it.
+
 ## F-OPC-4 — a fifth unmapped refusal, and the one a person actually met
 
 `POST /c/v1/join` mapped exactly one database refusal to a status and answered **500** to
@@ -170,6 +203,74 @@ of a path, never by a test written for it.
 
 Both guest seating routes now derive the reason from the refusal rather than listing the
 ones somebody remembered, so a refusal added tomorrow does not become a 500 by being new.
+
+## F-OPC-4b — a new action on a screen has no grade, and the screen was right to stop
+
+Found by pressing the Seat button, and by nothing else that ran before it.
+
+The waiter surface routes every action through one path, `askThenRun()`, which looks the
+action up in `pos.confirmation_requirement` and treats an **ungraded** action as
+`deliberate` — a confirmation panel and a typed reason. That default is written down and
+argued for: *"a new destructive action that nobody remembered to grade would otherwise be
+confirmed with a single tap."*
+
+`table.seat` was a new action, and nobody had graded it because until this gate it did not
+exist. So the first waiter to press Seat was asked to write a reason for sitting somebody
+at an empty table, and the seating never happened. **Every layer was correct.** The route
+worked, the function worked, the surface obeyed its own fail-closed rule, and the suite's
+route-level checks all passed — because the gap was between a screen and a configuration
+table, which is the seam this gate exists to walk.
+
+Closed by migration 0036, which grades it `routine` for the same reason the other routine
+actions are: a waiter seats tables dozens of times a shift, it destroys nothing, and it is
+undone by closing the occupancy. Seating is deliberately **not** added to
+`identity.governed_action` — grading an action and governing it are different questions,
+and seating needs a signed-in waiter and nothing further.
+
+**Two lists again.** The grades are stated twice in migration 0015: once in the tenant
+trigger that installs them for a new tenant, once in `pos.install_registries_for()` for a
+tenant that predates them. That is the fourth instance of this shape in this file's history
+— the surface list (F-OPB-4), the refusal map (F-OPB-4b), the route census (F-OPB-7). It is
+not collapsed here, because collapsing it means rewriting a trigger and an installer that
+eleven grades and four governed actions already depend on, in a migration whose subject is
+one row. **It is the next thing worth deriving**, and it is written down rather than left
+for a fifth instance to find.
+
+Seed 0008 reaches the tenants that already exist, because a migration cannot: it runs with
+no tenant context, `org.tenant` carries FORCE row-level security, and a backfill `SELECT`
+over it matches nothing — which is the reason `pos.install_registries_for()` exists at all.
+
+## F-OPC-4c — the provisioning boundary could not see through a function call
+
+Seed 0008 is the first provisioning seed in this repository to call a function rather than
+write rows as statements, and that turned out to be a hole in the guard that keeps the
+privileged pass narrow.
+
+`assert_provisioning_is_narrow()` reads `INSERT`, `UPDATE` and `DELETE` statements and
+compares the tables they name against a declared set. **A write performed inside a function
+is none of those.** The seed's text names a function and no table at all, so the check saw
+an empty set and passed. A provisioning seed could have called any `SECURITY DEFINER`
+function in the database and written anything, under the migration identity, and the guard
+whose entire job is to prevent that would have reported nothing — not a refusal, an empty
+set and a pass.
+
+Nothing exploited it, and it had never come up because for as long as every provisioning
+seed wrote literal statements, the statement scanner and the truth were the same thing.
+
+Closed by allowlisting **calls** on the same terms as tables: `PROVISIONABLE_FUNCTIONS`
+holds one entry, `pos.install_registries_for`, with a note saying which two tables it
+writes and why both are configuration by the set's own test. The tables themselves are
+deliberately **not** added to `PROVISIONABLE_TABLES`, which names what a seed may write
+*directly* — admitting a table no seed writes would widen the boundary for nothing, which
+is the reasoning that kept `billing.service_charge_setting` out of it.
+
+**And the new check had a defect of its own, caught within minutes by a control from an
+earlier gate.** The first version read "a schema-qualified name followed by a bracket",
+which is also the shape of `INSERT INTO menu.sellable_item (id)`. NC-OPA-007 plants exactly
+that statement and requires `PROVISIONING_SEED_TOO_BROAD`; it got
+`PROVISIONING_SEED_CALLS_UNVETTED_FUNCTION` and failed. Relation references are now removed
+before calls are read, and the table check runs first so a new check cannot rename an
+existing refusal. A nine-gate-old control failing on a new checker is the control working.
 
 ## F-OPC-5 — the three smaller absences, closed
 
@@ -192,6 +293,22 @@ never had a delete to fire on.
 that page with no service behind it by calling `render()` directly, and `render()` replaces
 the contents of `#next`. A form living there would have been wiped by the first measurement
 and present in none of them — which is "exists but is never reached" again, one layer in.
+
+## F-OPC-5b — the waiter surface declared a JSON body on requests that had none
+
+Seating is the first write this surface makes that carries **no payload**: the table is
+named in the path and there is nothing else to say. `waiterApi()` set
+`content-type: application/json` on every request regardless, and Fastify answers that
+**400** — a request declaring a JSON body and carrying none is malformed, and refusing it
+is correct.
+
+So the Seat button reached the network and was rejected before it reached the route. It had
+gone unnoticed because every previous write from this surface carried a payload, which is
+the same reason as everything else in this document: the code was right for every case
+anybody had walked, and the first new case was the one that exposed it.
+
+The header is now claimed only when there is content. The till and the station board were
+checked for the same shape and neither has it — every POST they make carries a body.
 
 ## F-OPC-6 — the line that hid the gap is the line that now proves it closed
 
@@ -229,6 +346,8 @@ have proved nothing.
 | **The waiter sign-in form** | **MET.** Four fields and a submit, in its own section, and the floor is fetched only after it returns. |
 | *(not asked for)* | **FR-TAB-006 given an origin.** F-OPC-2. Seating by staff establishes the first ownership row, and the handover chain is walked end to end for the first time. |
 | *(not asked for)* | **A fifth 500 on a working rule, removed.** F-OPC-4. |
+| *(not asked for)* | **A grade for the action seating became.** F-OPC-4b: migration 0036 and seed 0008, without which the Seat button asked a waiter to write a reason and then did nothing. |
+| *(not asked for)* | **A hole in the provisioning privilege boundary, closed.** F-OPC-4c. |
 
 Seven controls, each planted, required to produce its registered signature, reverted and
 required to pass again. Four break a rule and three break a screen, which is the split the
@@ -236,11 +355,13 @@ gate itself has.
 
 ## What OP-C did not do
 
-**F-OPB-3 is unchanged and is still the open structural question.** The demonstration floor
-and the test fixtures are the same tenant, and `safety.allergen`, `safety.approved_wording`,
-`billing.component_wording` and `docs.line_wording` are unique per tenant. A guest on a
-product-only database still cannot declare an allergy and a bill still has no words for its
-components. Nothing here worked around it, for the same reason OP-B did not.
+**F-OPB-3 is unchanged and is still the open structural question — and it grew a fourth
+member.** The demonstration floor and the test fixtures are the same tenant, and
+`safety.allergen`, `safety.approved_wording`, `billing.component_wording`, `docs.line_wording`
+and now `service.verification_policy` are unique per tenant. A guest on a product-only
+database still cannot declare an allergy, a bill still has no words for its components, and
+a stale scan now cannot be resolved by anybody (F-OPC-3b). Nothing here worked around any of
+it, for the same reason OP-B did not.
 
 **F-OPC-3 is open by decision.** Guest seating ships with the exposure recorded, at full
 strength, with three ways to close it and no recommendation between them.
@@ -248,6 +369,40 @@ strength, with three ways to close it and no recommendation between them.
 Nothing here touched M5a's outlet node, sync or print queue; M5b's DNS, TLS or authority
 lease; or M6. No fenced domain is named anywhere in this gate's migration, routes, surfaces
 or suite — checked programmatically against all 63 terms.
+
+## What was run locally, and what was not
+
+Run against a real PostgreSQL 16.15 in Docker on `localhost:5434`, a real compiled service
+and a real browser, on Windows 11 with Python 3.12.10 and psql 18.4. Migrations 0035 and
+0036 applied through `tools/migrate.py`; seed 0008 through `tools/seed.py`.
+
+| suite | result |
+|---|---|
+| OP-C | **39 checks, 0 failures, 9 measured in a browser, 7 controls red then green** |
+| OP-A | 49 / 49 |
+| OP-B | 25 / 25, 16 measured |
+| M2-B | 107 / 107 |
+| The golden journeys | **107 steps, 0 failures — ten browser-tier journeys and FR-TST-007A** |
+
+Four of OP-C's own defects were found by that run and by nothing before it: the till's
+`needs_attention` compared against the wrong text, a self-check that matched its own
+docstring, the bodyless POST (F-OPC-5b) and the ungraded action (F-OPC-4b). Two more —
+the false positive in the new seed checker and the control plant that would not compile —
+were found by running the chain rather than the gate alone.
+
+**The browser caveat, stated because it is a real limit on this evidence.** The pinned
+Chromium build for Playwright 1.56 (build 1194) could not be downloaded: both CDN mirrors
+served at roughly 11 KB/s and the install failed twice. The browser tier therefore ran
+against the Chromium already on this machine (build 1234, Chrome 141) placed in the
+expected location. Every measurement below is a real browser measuring real layout, and
+none of them is version-sensitive — a 44px target and a rendered heading are the same
+facts on either build — but this is **not** the pinned build, and CI is where that claim
+gets made.
+
+**What did not run here.** The full chain from an empty database — M1-A through M4-C, the
+fenced-domain gate, the reordered sweep, the Windows job — and the evidence report, which
+needs every suite's log plus a live DSN. Those are CI's, and the evidence report will need
+re-anchoring there as it has at every gate.
 
 ## The gate does not close on a green chain
 

@@ -4,8 +4,8 @@
 WHAT THIS SUITE IS FOR. OP-A gave the kitchen routes no cook could press and OP-B built
 the screens that press them. Both were green, and a person who opened the demonstration
 floor could not order a plate of food, because nothing in the delivered code path had ever
-opened a table occupancy. `INSERT INTO service.table_session` occurred in four files and
-all four were tests. Every journey, every fixture and OP-A's own order helper created the
+opened a table occupancy. A direct INSERT into `service.table_session` occurred in four
+files and all four were tests. Every journey, every fixture and OP-A's own order helper created the
 occupancy with a direct INSERT and then proved that everything downstream worked — all of
 them correct about what they tested, all of them silent about the step none of them took.
 
@@ -23,6 +23,7 @@ Usage:
 """
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -237,7 +238,7 @@ def section_seating() -> None:
            and seated.get("opened") is True,
            f"before: {before}; after: {after}; the route reported opened="
            f"{seated.get('opened')!r} and session {str(seated.get('tableSessionId'))[:8]}. "
-           f"No INSERT INTO service.table_session was executed by this suite")
+           f"No direct write to service.table_session was executed by this suite")
 
     record("and the occupancy records that a scan was what opened it",
            bool(after) and after[2] == "qr_scan" and after[3] == "-",
@@ -261,7 +262,7 @@ def section_seating() -> None:
          WHERE table_session_id = '{session_id}';""")
     seen = view.rows[0] if view.rows else None
     record("and pos.table_view draws it as needing attention, not as an error or a blank",
-           bool(seen) and seen[1] == "t" and "no waiter" in seen[2],
+           bool(seen) and seen[1] == "true" and "no waiter" in seen[2],
            f"{seen!r} — the till reported 'no open table' before OP-C because this "
            f"function returns one row per occupancy and there were none")
 
@@ -365,6 +366,34 @@ def section_seating() -> None:
            f"{stale.get('status')} {stale.get('reason')!r}. M2-B's guarantee is untouched: "
            f"service.join_table_session() is called unchanged and this gate added no "
            f"branch in which a join simply proceeds")
+
+    # ---- and what a guest can do about it on THIS floor ------------------
+    #
+    # F-OPB-3's fourth member, found by being the first thing to need it. Seating made the
+    # stale-QR RESOLUTION path reachable for the first time — before OP-C nobody could be
+    # seated, so nothing ever got as far as asking how a stale scan is resolved — and the
+    # answer on product data is that it cannot be. service.verification_policy is
+    # tenant-unique and has exactly one writer in this repository, tests/m2b/fixtures.py,
+    # so the demonstration tenant has no row of its own and every stale scan meets the
+    # fail-closed branch with no method a member of staff could use.
+    #
+    # Reported rather than repaired. Seeding a row would race the fixtures for a unique
+    # key, which is the thing F-OPB-3 says cannot be worked around.
+    policy = run(ADMIN, f"""
+        SELECT array_to_string(accepted_methods, ',') FROM service.verification_policy
+         WHERE tenant_id = '{TENANT}';""")
+    configured = (policy.scalar or "").strip()
+    CONTEXT["verification_methods"] = configured
+    record("the floor's stale-scan resolution path is reported, whichever branch it is on",
+           True,
+           (f"this tenant accepts {configured!r}, written by tests/m2b/fixtures.py — the "
+            f"only writer of service.verification_policy in this repository"
+            if configured else
+            "NO verification policy exists for this tenant, so a genuinely stale scan "
+            "cannot be resolved by anybody: not by a table code, not by a member of "
+            "staff standing at the table. service.verification_policy is tenant-unique "
+            "and fixture-owned, which makes it F-OPB-3's FOURTH member — see "
+            "planning/OPC_FINDINGS.md"))
 
 
 # ===========================================================================
@@ -610,9 +639,18 @@ def section_controls() -> None:
             SELECT accepted_methods[1]::text FROM service.verification_policy
              WHERE tenant_id = '{TENANT}';""").scalar or "").strip()
         if not method:
-            return (True, "this tenant has configured no verification method, so every "
-                          "stale join fails closed — which is the same guarantee, "
-                          "reached by the branch that has no green side")
+            # SAID LOUDLY, because a control whose green side is "there is no green side"
+            # is weaker than one that exercises the branch, and a reader should be told
+            # which of the two they got rather than having to infer it from the absence of
+            # a method name. The guarantee is the same either way — this is the fail-closed
+            # branch, not a gap in it — but the accepted-method branch went unexercised.
+            return (True,
+                    "NO ACCEPTED-METHOD BRANCH WAS EXERCISED: this tenant has configured "
+                    "no verification method, so every stale join meets the fail-closed "
+                    "branch and there is no green side to reach. That is F-OPB-3's fourth "
+                    "member — service.verification_policy is tenant-unique and written "
+                    "only by tests/m2b/fixtures.py — and it means a guest on a "
+                    "product-only floor cannot resolve a stale scan by any means at all")
         answer = opa.call("POST", "/c/v1/seat",
                           {"scanId": scan.get("scanId"), "verification": method,
                            "evidence": "a member of staff confirmed the table"},
@@ -705,10 +743,16 @@ def section_controls() -> None:
           "li.append(name, price, state);")])
 
     # NC-OPC-006 — the waiter's way in.
+    #
+    # The defect is the form never reaching the page, which is exactly the state OP-B
+    # shipped: signIn() existed, was exported, and nothing rendered a way to call it.
+    # Planted by dropping the one line that puts the form in the document rather than by
+    # returning early — an early return leaves the rest of the function unreachable and
+    # TypeScript refuses to compile it, so the control would fail as a build error instead
+    # of as the gate it owns. A control that cannot compile proves nothing.
     prove_surface(
         "NC-OPC-006", "SIGN_IN_UNREACHABLE", "waiter", waiter_gate,
-        [(WAITER_TS, "  panel.hidden = false;\n  panel.replaceChildren();",
-          "  panel.hidden = false;\n  panel.replaceChildren();\n  return;")])
+        [(WAITER_TS, "  panel.appendChild(form);", "  void form;")])
 
     # NC-OPC-007 — the till's two boxes.
     prove_surface(
@@ -759,13 +803,39 @@ def section_signatures() -> None:
     # The whole finding was that four files inserted a table session and all four were
     # tests. A gate that closed it and then arranged its own occupancies would have proved
     # nothing, so this is checked from the source rather than promised in a docstring.
-    own = (HERE / "verify_opc.py").read_text(encoding="utf-8")
-    inserts = re.findall(r"INSERT\s+INTO\s+service\.table_session", own, re.I)
+    # READ FROM THE SQL THIS FILE EXECUTES, NOT FROM ITS PROSE.
+    #
+    # The first version of this check was a grep for the phrase over the whole file, and it
+    # failed on its own docstring — which describes the defect and therefore contains the
+    # words. That is the reader that cannot tell prose from code, and this repository has
+    # met it three times. Here the honest instrument is available: every statement this
+    # suite runs goes through run(dsn, sql), so the AST can be asked for those arguments
+    # and nothing else. A comment can no longer trip it and, more importantly, a comment
+    # can no longer be used to hide an INSERT from it.
+    #
+    # CI keeps the blunt grep as well. Two instruments, one precise and one that cannot be
+    # reasoned around, and the prose is written so as not to trip the blunt one.
+    executed: list[str] = []
+    for node in ast.walk(ast.parse((HERE / "verify_opc.py").read_text(encoding="utf-8"))):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "run" and len(node.args) >= 2):
+            continue
+        argument = node.args[1]
+        if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
+            executed.append(argument.value)
+        elif isinstance(argument, ast.JoinedStr):
+            executed.append(" ".join(
+                part.value for part in argument.values
+                if isinstance(part, ast.Constant) and isinstance(part.value, str)))
+
+    writes = [sql for sql in executed
+              if re.search(r"INSERT\s+INTO\s+service\.table_session", sql, re.I)]
     record("this suite never writes the row it exists to prove somebody else writes",
-           not inserts,
-           f"{len(inserts)} direct INSERT(s) into service.table_session in this file. "
-           f"Every occupancy below came out of POST /c/v1/seat or "
-           f"POST /s/v1/tables/:tableNodeId/seat")
+           not writes and len(executed) > 0,
+           f"{len(executed)} statement(s) executed by this suite, {len(writes)} of them "
+           f"writing service.table_session. Every occupancy came out of POST /c/v1/seat "
+           f"or POST /s/v1/tables/:tableNodeId/seat"
+           + (f"\n{writes}" if writes else ""))
 
     sys.path.insert(0, str(REPO / "tools"))
     import uncalled_routes

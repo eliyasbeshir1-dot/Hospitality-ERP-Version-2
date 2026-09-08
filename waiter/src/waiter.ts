@@ -540,10 +540,18 @@ let waiterPoller: number | null = null;
 async function waiterApi(method: string, path: string, body?: unknown): Promise<{
   status: number; data: Record<string, unknown>;
 }> {
+  // THE CONTENT TYPE IS CLAIMED ONLY WHEN THERE IS CONTENT.
+  //
+  // This used to send `content-type: application/json` on every request including the
+  // ones with no body, and Fastify answers that 400: a request that declares a JSON body
+  // and carries none is malformed, and it is right to refuse it. It went unnoticed for as
+  // long as every write this surface made carried a payload. Seating does not — the table
+  // is named in the path and there is nothing else to say — so it was the first bodyless
+  // POST here, and it was refused before it reached the route.
   const response = await fetch(path, {
     method,
     headers: {
-      'content-type': 'application/json',
+      ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       ...(waiterSession ? { authorization: `Bearer ${waiterSession.token}` } : {}),
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),

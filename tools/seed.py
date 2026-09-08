@@ -132,9 +132,57 @@ def assert_the_provisionable_set_is_declared() -> None:
             f"list and not the other is a privilege boundary moved without anybody "
             f"saying so.")
 
+"""Which FUNCTIONS a provisioning seed may call, and why there is a second list at all.
+
+THE HOLE THIS CLOSES, FOUND BY THE FIRST SEED THAT CALLED ONE.
+
+`written_tables()` below reads INSERT, UPDATE and DELETE statements. A write performed
+INSIDE a function is none of those: the seed's text names a function and no table at all,
+so the narrowness check saw an empty set and passed. A provisioning seed could therefore
+call any SECURITY DEFINER function in the database and write anything it liked, under the
+migration identity, and the guard whose whole job is to stop that would have reported
+nothing — not a refusal, not a warning, an empty set and a pass.
+
+Nothing exploited it. seeds/0008 is the first provisioning seed to call a function at all,
+which is why it had never come up: for as long as every such seed wrote its rows as
+literal statements, the statement scanner and the truth were the same thing.
+
+So calls are allowlisted on the same terms as tables. A function here is one whose writes
+have been read and found to be within the boundary the table set already declares:
+
+  pos.install_registries_for   writes pos.confirmation_requirement and
+                               identity.governed_action — the confirmation grades and
+                               governed actions a tenant needs. Both are configuration by
+                               the same test the table set uses: decided when a tenant is
+                               installed, then read and never written by the running
+                               service. Idempotent, and it takes a tenant id rather than
+                               a row, so a seed cannot use it to smuggle content in.
+
+The tables it writes are deliberately NOT added to PROVISIONABLE_TABLES. That set names
+what a seed may write DIRECTLY, and no seed writes those two directly; admitting a table
+no seed writes would widen the boundary for nothing, which is the reasoning that kept
+billing.service_charge_setting out of it.
+"""
+PROVISIONABLE_FUNCTIONS = frozenset({
+    "pos.install_registries_for",
+})
+
 _COMMENT = re.compile(r"--[^\n]*")
 _WRITE_TARGET = re.compile(
     r"\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+([a-z_]+\.[a-z_]+)", re.IGNORECASE)
+# A schema-qualified call. Unqualified builtins (set_config, now) do not match and are not
+# the exposure: they write nothing. A qualified call is the shape that can reach a table.
+#
+# RELATION REFERENCES ARE REMOVED FIRST, and the reason is a defect this pattern had for
+# the length of one test run. `INSERT INTO menu.sellable_item (id) VALUES (…)` puts a
+# schema-qualified name immediately before an open bracket, so a bare "name followed by a
+# bracket" reader calls the column list a function call and refuses the seed by the wrong
+# name. NC-OPA-007 caught it within minutes — it plants exactly that statement and requires
+# PROVISIONING_SEED_TOO_BROAD, and got PROVISIONING_SEED_CALLS_UNVETTED_FUNCTION instead.
+# A control from an earlier gate failing on a new checker is the control working.
+_RELATION_REFERENCE = re.compile(
+    r"\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|FROM|JOIN)\s+[a-z_]+\.[a-z_]+", re.IGNORECASE)
+_CALLED_FUNCTION = re.compile(r"\b([a-z_]+\.[a-z_]+)\s*\(", re.IGNORECASE)
 _GRANT = re.compile(r"\bGRANT\b", re.IGNORECASE)
 
 
@@ -154,8 +202,32 @@ def written_tables(path: Path) -> set[str]:
     return {match.group(1).lower() for match in _WRITE_TARGET.finditer(text)}
 
 
+def called_functions(path: Path) -> set[str]:
+    """Every schema-qualified function a seed calls.
+
+    Comments go first, then relation references: a table named in an INSERT, an UPDATE,
+    a DELETE, a FROM or a JOIN is a table however closely a bracket follows it, and the
+    table check is what reads those.
+    """
+    text = _COMMENT.sub("", path.read_text(encoding="utf-8"))
+    text = _RELATION_REFERENCE.sub(" ", text)
+    return {match.group(1).lower() for match in _CALLED_FUNCTION.finditer(text)}
+
+
 def assert_provisioning_is_narrow(path: Path) -> None:
-    """A provisioning seed writes the configuration tables and nothing else."""
+    """A provisioning seed writes the configuration tables and nothing else.
+
+    Two questions, because a seed can reach a table two ways. WHICH TABLES it writes is
+    read from its statements; WHICH FUNCTIONS it calls is read separately, because a write
+    performed inside a function appears in neither an INSERT nor an UPDATE nor a DELETE and
+    was invisible to the first question until seeds/0008 became the first provisioning seed
+    to call one.
+    """
+    # THE TABLE CHECK RUNS FIRST, and the order is load-bearing rather than incidental.
+    # A seed that both writes a forbidden table and calls an unvetted function has done
+    # the more concrete wrong thing, and PROVISIONING_SEED_TOO_BROAD is the signature that
+    # names it — a signature four gates of controls already assert on. A new check that
+    # answered first would rename an existing refusal.
     reached = written_tables(path)
     beyond = sorted(reached - PROVISIONABLE_TABLES)
     if beyond:
@@ -172,6 +244,17 @@ def assert_provisioning_is_narrow(path: Path) -> None:
             f"{path.name} issues a GRANT. A provisioning seed provisions data; widening a "
             f"privilege is a migration, and doing it here would defeat the check that the "
             f"runtime grant is unchanged.")
+
+    calls = sorted(called_functions(path) - PROVISIONABLE_FUNCTIONS)
+    if calls:
+        raise MigrationFailure(
+            "PROVISIONING_SEED_CALLS_UNVETTED_FUNCTION",
+            f"{path.name} calls {', '.join(calls)} under the migration identity. A "
+            f"function can write tables this seed never names, so the check above cannot "
+            f"see through it: the call has to be vetted instead. The provisioning pass may "
+            f"call {', '.join(sorted(PROVISIONABLE_FUNCTIONS))} and nothing else. Add it to "
+            f"PROVISIONABLE_FUNCTIONS with a note saying what it writes, or write the rows "
+            f"as statements so the table check can read them.")
 
 
 def assert_content_is_unprivileged(path: Path) -> None:
