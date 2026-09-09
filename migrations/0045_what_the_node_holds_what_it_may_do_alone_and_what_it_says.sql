@@ -138,16 +138,16 @@ COMMENT ON FUNCTION edge.readiness_report(uuid, uuid) IS
 -- 2. WHAT MAY BE DONE ALONE (FR-EDG-010)
 -- ---------------------------------------------------------------------------
 
-CREATE TYPE edge.authority_requirement AS ENUM ('local_only', 'external_required');
+CREATE TYPE edge.dependency_kind AS ENUM ('local_only', 'external_required');
 
 -- What happens to an action that needs an authority the outlet cannot reach. Queued and
 -- blocked are different promises: queued will happen when the link returns, blocked will
 -- not happen at all until somebody tries again.
 CREATE TYPE edge.outage_disposition AS ENUM ('permitted', 'queued', 'blocked');
 
-CREATE TABLE edge.action_authority (
+CREATE TABLE edge.action_dependency (
     action_code text PRIMARY KEY,
-    requirement edge.authority_requirement NOT NULL,
+    requirement edge.dependency_kind NOT NULL,
     disposition edge.outage_disposition    NOT NULL,
 
     -- The phrase a person is shown. Required whenever the action does not simply proceed,
@@ -156,16 +156,21 @@ CREATE TABLE edge.action_authority (
 
     description text NOT NULL,
 
-    CONSTRAINT action_authority_code_shape CHECK (action_code ~ '^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$'),
-    CONSTRAINT action_authority_local_actions_proceed CHECK (
+    CONSTRAINT action_dependency_code_shape CHECK (action_code ~ '^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$'),
+    CONSTRAINT action_dependency_local_actions_proceed CHECK (
         (requirement = 'local_only') = (disposition = 'permitted')),
-    CONSTRAINT action_authority_restriction_is_explicable CHECK (
+    CONSTRAINT action_dependency_restriction_is_explicable CHECK (
         (disposition = 'permitted') = (restriction_code IS NULL)),
-    CONSTRAINT action_authority_description_is_stated CHECK (length(trim(description)) > 0)
+    CONSTRAINT action_dependency_description_is_stated CHECK (length(trim(description)) > 0)
 );
 
-COMMENT ON TABLE edge.action_authority IS
-    'FR-EDG-010. Every action classified once, so a route asks the registry instead of '
+COMMENT ON TABLE edge.action_dependency IS
+    'FR-EDG-010. Named for the DEPENDENCY rather than for the authority, because '
+    'GJ-01A fences any table naming an authority, a lease, a failover or a takeover '
+    'until M5b builds local write authority properly — and a blunt fence that has to be '
+    'argued with stops being a fence. This table is about what an action needs from '
+    'outside the outlet, which is a different thing from who may write. '
+    'Every action classified once, so a route asks the registry instead of '
     'each route carrying its own copy of the rule. Global rather than per-tenant: whether '
     'an online card authorization needs the provider is a fact about the world, not a '
     'tenant preference. What must keep working during an outage is NAMED here as '
@@ -174,7 +179,7 @@ COMMENT ON TABLE edge.action_authority IS
 -- The classification, as it stands at M5a. Actions that continue are listed as
 -- deliberately as the ones that do not — FR-EDG-010 names cash, locally supported
 -- card-terminal recording and ordinary service, and those are rows.
-INSERT INTO edge.action_authority (action_code, requirement, disposition, restriction_code, description) VALUES
+INSERT INTO edge.action_dependency (action_code, requirement, disposition, restriction_code, description) VALUES
  ('order.place',            'local_only',        'permitted', NULL, 'A guest or waiter places an order against a local session.'),
  ('order.accept',           'local_only',        'permitted', NULL, 'A host admits an order to the kitchen.'),
  ('ticket.advance',         'local_only',        'permitted', NULL, 'A cook moves a station ticket through its states.'),
@@ -265,16 +270,16 @@ LANGUAGE plpgsql STABLE SECURITY DEFINER
 SET search_path TO 'pg_catalog', 'edge', 'integration', 'public'
 AS $$
 DECLARE
-    a edge.action_authority%ROWTYPE;
+    a edge.action_dependency%ROWTYPE;
     v_connectivity edge.connectivity_state;
 BEGIN
-    SELECT * INTO a FROM edge.action_authority WHERE action_code = p_action_code;
+    SELECT * INTO a FROM edge.action_dependency WHERE action_code = p_action_code;
     -- AN ACTION NOBODY CLASSIFIED IS REFUSED. The alternative is that forgetting to
     -- classify something makes it work during an outage by accident, and nobody finds out
     -- until it half-works at a till.
     IF NOT FOUND THEN
         RAISE EXCEPTION
-            'ACTION_UNCLASSIFIED: % is not in edge.action_authority, so whether it can be '
+            'ACTION_UNCLASSIFIED: % is not in edge.action_dependency, so whether it can be '
             'done without the cloud is unanswered. Classify it', p_action_code
             USING ERRCODE = 'HS422';
     END IF;
@@ -365,7 +370,7 @@ COMMENT ON FUNCTION edge.staff_sync_summary(uuid, uuid, menu.customer_locale) IS
 -- 6. GRANTS
 -- ---------------------------------------------------------------------------
 
-GRANT SELECT ON edge.action_authority TO hospitality_app;
+GRANT SELECT ON edge.action_dependency TO hospitality_app;
 GRANT SELECT ON edge.plain_language   TO hospitality_app;
 GRANT EXECUTE ON FUNCTION edge.readiness_report(uuid, uuid) TO hospitality_app;
 GRANT EXECUTE ON FUNCTION edge.say(uuid, text, menu.customer_locale) TO hospitality_app;

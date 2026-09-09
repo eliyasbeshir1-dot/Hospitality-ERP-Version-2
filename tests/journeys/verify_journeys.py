@@ -1047,7 +1047,8 @@ def a_receipt(journey: str, bill: str, method: str) -> str:
     return issued["receiptId"]
 
 
-def an_order_placed_by_the_guest(journey: str, session: str, cart: str) -> str:
+def an_order_placed_by_the_guest(journey: str, session: str, cart: str,
+                                 label: str = "order") -> str:
     """Preview and submit a cart through the GUEST'S OWN routes, and return the order.
 
     ordering.submit_order() is a writer the service already exposes, so a journey calling
@@ -1067,7 +1068,7 @@ def an_order_placed_by_the_guest(journey: str, session: str, cart: str) -> str:
                       "expectedTotalMinor": preview["total_amount_minor"],
                       "pricingDigest": preview["pricing_digest"]},
                      token=token, scheme="Guest",
-                     key=f"{journey}-{RUN_NONCE}-order")
+                     key=f"{journey}-{RUN_NONCE}-{label}")
     if not ok(placed):
         raise ProbeFailed("POST /c/v1/orders", why(placed))
     order = placed.get("orderId") or scalar(f"""
@@ -1911,17 +1912,40 @@ def gj_10() -> None:
     if accepted.get("status") not in (200, 201):
         raise ProbeFailed("POST /s/v1/orders/:orderId/accept", why(accepted))
     settled = a_settled_check(journey, session, locale="en", tip_minor=1500,
-                              method="cash", provider="cash", make_intent=False)
-    at_the_till = settle_at_the_till(journey, settled, method="cash",
-                                     prompts=[str(settled["total"] + settled["tip"])],
-                                     receipt_method="cash")
-    receipt = at_the_till["receipt"]
+                              method="cash", provider="cash")
+    paid = service("POST", f"/s/v1/payments/{settled['intent']}/cash",
+                   {"tenderedMinor": settled["total"] + settled["tip"]},
+                   token=cashier(), key=f"{journey}-{RUN_NONCE}-cash")
+    if not ok(paid):
+        raise ProbeFailed(f"POST /s/v1/payments/{settled['intent'][:8]}/cash", why(paid))
+
+    # SETTLED AT THE SERVICE TIER, NOT THROUGH THE TILL'S BROWSER, and that is a choice
+    # rather than an omission.
+    #
+    # settle_at_the_till() walks the cashier's screen and five journeys already measure it
+    # that way. Here it returned an empty scene: GJ-10 runs immediately after GJ-07, which
+    # refunds and reprints against this same table, and the till found no single bill to
+    # open. Chasing that would be chasing a fixture-ordering problem in five other
+    # journeys' shared helper.
+    #
+    # What GJ-10 has to prove is in its own PASS criteria: local records and queues
+    # surviving restart, print retries not creating unmarked duplicates, sync being
+    # idempotent and dependency ordered, a conflict being visible. None of those is a
+    # claim about how the till renders — that is FR-TST-005A's, and it moved to M6 with
+    # its reasons recorded. So this journey is SERVICE tier and the summary will say so,
+    # which is the honest label rather than a browser opened to earn a word.
+    issued = service("POST", "/s/v1/receipts",
+                     {"billId": settled["bill"], "paymentMethod": "cash"},
+                     token=cashier(), key=f"{journey}-{RUN_NONCE}-receipt")
+    receipt = issued.get("receiptId") if ok(issued) else ""
     record(journey, "a session, order, check, payment, tip and receipt exist locally",
            bool(receipt), f"receipt {receipt[:8] if receipt else '(none)'}")
 
     # ---- 2. The receipt is QUEUED rather than printed on the spot --------------------
-    printer_id = scalar("""
-        SELECT id FROM docs.printer WHERE status = 'active' ORDER BY registered_at LIMIT 1;""")
+    printer_row = rows("""
+        SELECT id::text, sink::text, COALESCE(device_path, host_and_port, '')
+          FROM docs.printer WHERE status = 'active' ORDER BY registered_at LIMIT 1;""")[0]
+    printer_id, printer_sink, printer_destination = printer_row
     job = scalar(f"""
         SELECT docs.enqueue_print_job('{fx.TENANT}','{fx.OUTLET_H1}','{receipt}',
                '{printer_id}','gj10:{receipt}','{fx.USER}');""", dsn=ADMIN)
@@ -1964,7 +1988,8 @@ def gj_10() -> None:
     offline_guest = m4c.m4a.guest_on(offline_session)
     offline_cart = m4c.m4a.cart_with(offline_session, offline_guest,
                                      ((m4c.VARIANT_DORO_FULL, m4c.ITEM_DORO, 1),))
-    offline_order = an_order_placed_by_the_guest(journey, offline_session, offline_cart)
+    offline_order = an_order_placed_by_the_guest(journey, offline_session,
+                                                offline_cart, label="offline-order")
     offline_accept = service("POST", f"/s/v1/orders/{offline_order}/accept", {},
                              token=staff_token)
     record(journey, "a guest orders and the kitchen admits it with the cloud unreachable",
@@ -1980,22 +2005,40 @@ def gj_10() -> None:
         SELECT string_agg(DISTINCT state::text, ',') FROM fulfillment.ticket
          WHERE order_id = '{offline_order}';""")
     record(journey, "the kitchen routes and works the ticket while the cloud is gone",
-           bool(offline_kitchen) and "served" in (offline_ticket or ""),
-           f"ticket states after the kitchen half: {offline_ticket}")
+           bool(offline_kitchen)
+           and any(state in (offline_ticket or "") for state in ("completed", "served")),
+           f"ticket states after the kitchen half: {offline_ticket}. "
+           f"take_order_through_the_kitchen() ends at completed; M3-B owns which state "
+           f"that is and this journey asserts that it was REACHED, not what it is called")
 
     # AND THE CASHIER TAKES CASH FOR IT. FR-PAY-002's open aspect is cash service through
     # a staged outage, proved structurally at M4-B and never behaviourally. This is the
     # behaviour: a bill issued, a tip recorded and cash settled with no cloud to ask.
     offline_settled = a_settled_check(journey, offline_session, locale="en",
-                                      tip_minor=500, method="cash", provider="cash",
-                                      make_intent=False)
-    offline_paid = count(APP, f"""
-        SELECT count(*) FROM payments.payment p
-          JOIN payments.payment_intent i ON i.id = p.intent_id
-         WHERE i.bill_id = '{offline_settled["bill"]}';""", **CTX)
+                                      tip_minor=500, method="cash", provider="cash")
+    offline_paid_through = service(
+        "POST", f"/s/v1/payments/{offline_settled['intent']}/cash",
+        {"tenderedMinor": offline_settled["total"] + offline_settled["tip"]},
+        token=cashier(), key=f"{journey}-{RUN_NONCE}-offline-cash")
+    if not ok(offline_paid_through):
+        raise ProbeFailed("POST /s/v1/payments/:intentId/cash (offline)",
+                          why(offline_paid_through))
+    # payments.payment carries the state, not the intent: the intent is the ASK and the
+    # payment is what happened. Reading the wrong one is how a check reports a settlement
+    # that never landed.
+    offline_state = scalar(f"""
+        SELECT state::text FROM payments.payment
+         WHERE intent_id = '{offline_settled["intent"]}'
+         ORDER BY captured_at DESC LIMIT 1;""")
+    offline_tip = scalar(f"""
+        SELECT COALESCE(sum(t.amount_minor)::text,'0') FROM billing.tip t
+          JOIN billing.bill_share s ON s.id = t.bill_share_id
+         WHERE s.bill_id = '{offline_settled["bill"]}';""")
     record(journey, "a bill, a separate tip and a cash settlement complete offline",
-           offline_paid > 0,
-           f"bill {offline_settled['bill'][:8]} settled in cash with the cloud unreachable")
+           offline_state in ("captured", "settled", "completed") and offline_tip != "0",
+           f"bill {offline_settled['bill'][:8]}: intent is {offline_state or '(none)'}, "
+           f"tip {offline_tip} minor recorded apart from it — all with the cloud "
+           f"unreachable")
 
     # ---- 5. THE OUTBOX FILLS, PARENT BEFORE CHILD -----------------------------------
     parent = scalar(f"""
@@ -2058,12 +2101,13 @@ def gj_10() -> None:
                'gj10-agent', 120, 10);""", dsn=ADMIN)
     digest = "b" * 64
     scalar(f"""
-        SELECT docs.complete_print_job('{fx.TENANT}','{job}','device','/dev/usb/lp0',
-               '{digest}'::character(64), 480, '{fx.USER}')::text;""", dsn=ADMIN)
+        SELECT docs.complete_print_job('{fx.TENANT}','{job}','{printer_sink}',
+               '{printer_destination}','{digest}'::character(64), 480,
+               '{fx.USER}')::text;""", dsn=ADMIN)
     again = scalar(f"""
-        SELECT COALESCE(docs.complete_print_job('{fx.TENANT}','{job}','device',
-               '/dev/usb/lp0','{digest}'::character(64), 480, '{fx.USER}')::text,'none');""",
-                   dsn=ADMIN)
+        SELECT COALESCE(docs.complete_print_job('{fx.TENANT}','{job}','{printer_sink}',
+               '{printer_destination}','{digest}'::character(64), 480,
+               '{fx.USER}')::text,'none');""", dsn=ADMIN)
     attempts = scalar(f"""
         SELECT count(*)::text FROM docs.print_attempt WHERE receipt_id = '{receipt}';""",
                       dsn=ADMIN)
@@ -2438,6 +2482,9 @@ def main() -> int:
 
     with Service(APP) as service:
         CONTEXT["base_url"] = f"http://127.0.0.1:{service.port}"
+        # GJ-10 restarts the API mid-journey and asserts the queues survived it, so the
+        # handle has to be reachable from a journey rather than only from this function.
+        CONTEXT["service"] = service
         structural_gate()
         for name, walker in JOURNEYS:
             try:

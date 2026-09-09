@@ -419,7 +419,7 @@ def section_readiness_and_authority() -> None:
 
     counts = q(f"""
         SELECT string_agg(d.disposition::text, ',' ORDER BY d.disposition)
-          FROM edge.action_authority a
+          FROM edge.action_dependency a
           CROSS JOIN LATERAL edge.action_disposition('{TENANT}','{OUTLET}', a.action_code,
                                                      'en') d;""").scalar or ""
     permitted = counts.count("permitted")

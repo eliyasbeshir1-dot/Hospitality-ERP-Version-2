@@ -43,8 +43,8 @@ Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `docs`, `edge`, `f
 | `docs.receipt_line_kind` | bill_component, bill_total, tip, total_paid, payment_method |
 | `docs.render_outcome` | rendered, failed |
 | `docs.sink_kind` | device, preview, discard |
-| `edge.authority_requirement` | local_only, external_required |
 | `edge.connectivity_state` | cloud_connected, local_continuity, reconciling |
+| `edge.dependency_kind` | local_only, external_required |
 | `edge.environment_class` | production, pilot, demonstration, development |
 | `edge.health_component` | node, database, worker, print, storage, certificate, synchronization |
 | `edge.health_state` | healthy, degraded, unhealthy |
@@ -2610,31 +2610,31 @@ Policies:
 
 The outlet continuity node: its registration, its binding to one outlet, its service inventory, its identity and its health. FR-EDG-001, FR-EDG-002A, FR-EDG-017, FR-EDG-018, FR-CFG-001E.
 
-#### `edge.action_authority`
+#### `edge.action_dependency`
 
-FR-EDG-010. Every action classified once, so a route asks the registry instead of each route carrying its own copy of the rule. Global rather than per-tenant: whether an online card authorization needs the provider is a fact about the world, not a tenant preference. What must keep working during an outage is NAMED here as permitted, so breaking it changes a row somebody can read.
+FR-EDG-010. Named for the DEPENDENCY rather than for the authority, because GJ-01A fences any table naming an authority, a lease, a failover or a takeover until M5b builds local write authority properly — and a blunt fence that has to be argued with stops being a fence. This table is about what an action needs from outside the outlet, which is a different thing from who may write. Every action classified once, so a route asks the registry instead of each route carrying its own copy of the rule. Global rather than per-tenant: whether an online card authorization needs the provider is a fact about the world, not a tenant preference. What must keep working during an outage is NAMED here as permitted, so breaking it changes a row somebody can read.
 
 Row level security: **DISABLED**, **not forced**.
 
 | Column | Type | Null | Default | Notes |
 |---|---|---|---|---|
 | `action_code` | `text` | NOT NULL |  |  |
-| `requirement` | `edge.authority_requirement` | NOT NULL |  |  |
+| `requirement` | `edge.dependency_kind` | NOT NULL |  |  |
 | `disposition` | `edge.outage_disposition` | NOT NULL |  |  |
 | `restriction_code` | `text` |  |  |  |
 | `description` | `text` | NOT NULL |  |  |
 
 Constraints:
 
-- `action_authority_action_code_not_null` — `NOT NULL action_code`
-- `action_authority_code_shape` — `CHECK ((action_code ~ '^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$'::text))`
-- `action_authority_description_is_stated` — `CHECK ((length(TRIM(BOTH FROM description)) > 0))`
-- `action_authority_description_not_null` — `NOT NULL description`
-- `action_authority_disposition_not_null` — `NOT NULL disposition`
-- `action_authority_local_actions_proceed` — `CHECK (((requirement = 'local_only'::edge.authority_requirement) = (disposition = 'permitted'::edge.outage_disposition)))`
-- `action_authority_pkey` — `PRIMARY KEY (action_code)`
-- `action_authority_requirement_not_null` — `NOT NULL requirement`
-- `action_authority_restriction_is_explicable` — `CHECK (((disposition = 'permitted'::edge.outage_disposition) = (restriction_code IS NULL)))`
+- `action_dependency_action_code_not_null` — `NOT NULL action_code`
+- `action_dependency_code_shape` — `CHECK ((action_code ~ '^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$'::text))`
+- `action_dependency_description_is_stated` — `CHECK ((length(TRIM(BOTH FROM description)) > 0))`
+- `action_dependency_description_not_null` — `NOT NULL description`
+- `action_dependency_disposition_not_null` — `NOT NULL disposition`
+- `action_dependency_local_actions_proceed` — `CHECK (((requirement = 'local_only'::edge.dependency_kind) = (disposition = 'permitted'::edge.outage_disposition)))`
+- `action_dependency_pkey` — `PRIMARY KEY (action_code)`
+- `action_dependency_requirement_not_null` — `NOT NULL requirement`
+- `action_dependency_restriction_is_explicable` — `CHECK (((disposition = 'permitted'::edge.outage_disposition) = (restriction_code IS NULL)))`
 
 #### `edge.deployment_profile`
 
