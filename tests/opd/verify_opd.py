@@ -164,8 +164,20 @@ def clear_the_kitchen() -> None:
     and removing the row while leaving the events would desynchronise the two — which is
     the thing M3-A's rebuild determinism check exists to catch.
     """
+    # THE TICKET'S OWN OUTLET, NOT THIS SUITE'S.
+    #
+    # Selected with the row rather than assumed. This used to set the context to Sarbet
+    # for every ticket while selecting across the whole tenant — which passed locally on a
+    # database rebuilt from empty, where every ticket was Sarbet's, and failed in CI where
+    # M4-A's counter orders had left tickets at Kazanchis. The fold reads
+    # fulfillment.ticket_event under row level security, so a Kazanchis ticket folded
+    # under a Sarbet context cannot see the event it just wrote and raises
+    # TICKET_EVENT_ABSENT against its own row.
+    #
+    # A fixture that hard-codes one outlet while reading many is the same shape as a check
+    # that passes because the fixtures happened to line up.
     live = run(ADMIN, f"""
-        SELECT id::text FROM fulfillment.ticket
+        SELECT id::text, outlet_id::text FROM fulfillment.ticket
          WHERE tenant_id = '{TENANT}' AND state = 'queued';""")
     for row in live.rows:
         # CONTEXT AND A TRANSACTION, both required and both easy to leave out.
@@ -178,10 +190,11 @@ def clear_the_kitchen() -> None:
             SELECT fulfillment.transition_ticket('{TENANT}'::uuid, '{row[0]}'::uuid,
                                                  'cancelled'::fulfillment.ticket_state,
                                                  '{opa.MANAGER}'::uuid);""",
-                        tenant=TENANT, outlet=OUTLET, tx=True)
+                        tenant=TENANT, outlet=row[1], tx=True)
         if not cancelled.ok:
             raise ProbeFailed("standing the station down",
-                              f"ticket {row[0][:8]}: {cancelled.why()[:160]}")
+                              f"ticket {row[0][:8]} at outlet {row[1][:8]}: "
+                              f"{cancelled.why()[:160]}")
 
 
 def a_seated_guest() -> str:

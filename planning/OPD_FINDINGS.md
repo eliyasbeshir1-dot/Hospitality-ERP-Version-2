@@ -125,6 +125,88 @@ the correct password** — is refused 429.
 One line of intent. Nobody wrote it because *"a success is not a failure"* is too obvious
 to state, which is exactly the class of property that goes unchecked.
 
+## F-OPD-8b — local verification was cleaner than the chain, and that hid a defect
+
+OP-D passed locally 46/46 and **failed in CI**, on a fixture this gate wrote.
+
+`clear_the_kitchen()` sets a tenant/outlet context and cancels every queued ticket, because
+automatic acceptance turns each order into live tickets and the station's concurrent
+threshold would otherwise throttle the suite. It set the context to **Sarbet** for every
+ticket while selecting across the **whole tenant**.
+
+Locally that was invisible: the database had been rebuilt from empty and every ticket was
+Sarbet's. In CI the chain has run M4-A first, whose counter orders leave tickets at
+**Kazanchis** — and `fulfillment.apply_ticket_event()` reads the ticket ledger under row
+level security, so a Kazanchis ticket folded under a Sarbet context cannot see the event it
+has just written and raises `TICKET_EVENT_ABSENT` against its own row.
+
+The context now comes from each ticket's own row.
+
+**The finding is not the line, it is the practice.** Local verification was being done by
+running a suite against a database assembled by hand, which produced state *cleaner* than
+the chain's. That direction is the dangerous one:
+
+- state **dirtier** than the chain causes false failures — a gate run alone against a
+  seeds-only database fails on the tenant-unique catalogues `tests/m2b` owns, which is
+  noisy and obvious;
+- state **cleaner** than the chain causes false **passes**, and a false pass is what
+  reaches CI, and what would reach a reviewer.
+
+A fixture that hard-codes one outlet while reading many is the same shape as a check that
+passes because the fixtures happened to line up — the shape this repository has spent four
+gates finding. It appeared here in the verification method itself.
+
+### The repair — `tools/verify_locally.sh`
+
+The first attempt at this was to enter the chain at `tests/opd/run_verification.sh`. That
+is better than a single suite and still not what CI runs: it stops short of the journeys,
+and it dies at `M4C_VERIFICATION_UNUSABLE`, because `tests/m4c` runs FR-GOV-004 over the
+logs the run produced and **refuses** when it cannot read them rather than reporting every
+requirement missing. Correct behaviour by M4-C; a local runner that had never met it.
+
+Three defects were found by trying to make the local run match, all in the scripts that
+run the checks rather than in the checks:
+
+1. **The interpreter probe.** `tests/opb`, `tests/opc` and `tests/opd` asked
+   `command -v python3`, took yes for an answer, and **exported** the result. On Windows
+   `python3` is a Microsoft Store stub that runs nothing, so these drivers poisoned every
+   driver they chain — the chain died at the first migration with the Store's
+   advertisement as its error message, and `tests/m1a`'s own correct probe never ran
+   because `PYTHON` was already set. Sixteen drivers carry the strong probe, which *runs*
+   each candidate. OP-B copied the weak form, OP-C copied OP-B, OP-D copied OP-C: the same
+   inherited-misreading shape as F-OPD-8, one layer down.
+2. **The wrong entry point.** The chain root is `tests/journeys/run_verification.sh`,
+   which runs OP-D — and therefore everything beneath it — and then walks the journeys.
+3. **The audit's logs.** `M4C_LOG_DIR` was never set locally.
+
+None of this needed inventing. CI's **Windows job already runs exactly this run**: one
+entry point, one streamed log, `M4C_LOG_DIR` pointed at it. The audit is explicit that a
+single combined log is enough — it reads verdicts out of file *content*, not file names —
+and that a partial set must be refused rather than graded, which is what M4-C asserts.
+`tools/verify_locally.sh` is that CI step with the machine-specific parts named. It is not
+a second opinion about how to verify.
+
+Two things in it are deliberate:
+
+- **It refuses to run if CI moved.** A copy of a CI step that cannot notice the original
+  changed is the defect it exists to prevent: a local green over a sequence nobody runs is
+  worse than no local run. It checks the workflow still contains the entry point and the
+  `M4C_LOG_DIR` export, and fails with `LOCAL_RUNNER_STALE` if not. Its suite and journey
+  lists are **derived from the repository**, not typed — the workflow's own copy of that
+  loop went stale twice, and each time suites were passing without anybody requiring them
+  to.
+- **One divergence, declared rather than silent.** `NODE_OPTIONS=--max-old-space-size=1024`,
+  because `tsc` over the four surfaces aborts with a V8 zone-allocation failure on a
+  machine with under a gigabyte free. It bounds what the compiler may allocate, not what it
+  emits. CI's runners have the headroom and set nothing, so it is the one line here with no
+  CI counterpart, and the script prints it at startup.
+
+Verified: the whole chain from empty, **1568 checks and journey steps across 19 suites, 0
+failures**, all eleven journeys. The state it built carries **76 queued tickets at
+Kazanchis** — the rows the hand-assembled database could never produce, and the exact
+condition that failed in CI. Single suites remain useful for iterating on one failure;
+nothing is called verified until the chain has run.
+
 ## F-OPD-9 — a documented override silently granted on the wrong database
 
 `tools/open_the_floor.sh` takes `DB` as overridable, creates `$DB`, then ran

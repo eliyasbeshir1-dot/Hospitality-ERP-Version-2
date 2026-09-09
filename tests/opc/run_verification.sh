@@ -8,8 +8,31 @@
 # exercising the thing this suite is about.
 set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-PY_BIN="${PYTHON:-python3}"
-command -v "$PY_BIN" >/dev/null 2>&1 || PY_BIN=python
+# AN INTERPRETER THAT EXISTS IS NOT AN INTERPRETER THAT RUNS.
+#
+# This asked `command -v python3` and took yes for an answer, then EXPORTED the result —
+# so on Windows, where python3 resolves to the Microsoft Store alias in WindowsApps (a
+# zero-byte stub that runs nothing), this driver poisoned every driver it chains. The
+# chain died at the first migration with the Store's advertisement as its error message,
+# and m1a's own correct probe never got to run because PYTHON was already set.
+#
+# Sixteen drivers carry the probe below. OP-B copied the weak form, OP-C copied OP-B and
+# OP-D copied OP-C — the same inherited-misreading shape as F-OPD-8, in the scripts that
+# run the checks rather than in the checks. Every candidate is RUN, not merely located.
+PY_BIN="${PYTHON:-}"
+if [ -z "$PY_BIN" ]; then
+    for candidate in python3 python; do
+        if command -v "$candidate" >/dev/null 2>&1 && "$candidate" -c "" >/dev/null 2>&1; then
+            PY_BIN="$candidate"
+            break
+        fi
+    done
+fi
+if [ -z "$PY_BIN" ]; then
+    echo "FAIL PREREQUISITE_ABSENT: no runnable interpreter on PATH" >&2
+    echo "  tried python3 then python; a name on PATH that cannot run is not a tool" >&2
+    exit 1
+fi
 export PYTHON="$PY_BIN"
 
 bash "$REPO/tests/opb/run_verification.sh"
