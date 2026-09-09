@@ -1857,8 +1857,9 @@ def section_health_and_versions() -> None:
           FROM integration.protocol ORDER BY protocol;""")}
     record("the protocols this deployment speaks are declared with a version range",
            len(protocols) >= 3 and all(c >= m for c, m in protocols.values()),
-           f"{protocols}. Only the protocols that EXIST: the outlet-node synchronization "
-           f"protocol is M5a's and is absent rather than declared at version zero")
+           f"{protocols}. Only the protocols that EXIST, which is why this count is a floor "
+           f"and not an equality: sync.event and node.api joined the table at M5a, "
+           f"and until then were absent rather than declared at version zero")
 
     agreed = int(scalar("SELECT integration.negotiate('adapter.payment', 1);"))
     record("a peer speaking a version in range is agreed with",

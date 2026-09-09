@@ -30,6 +30,7 @@ use_utf8_output()
 
 
 HERE = Path(__file__).resolve().parent
+REPO = HERE.parents[1]
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / "m1a"))
 
@@ -617,37 +618,36 @@ def section_scope_boundary() -> None:
     # FR-CFG-001D requires the printer registered and tested, so docs.print_attempt is the
     # requirement rather than a violation of it.
     #
-    # What has NOT changed is the M5a boundary, and it is now asserted directly instead of
-    # by proxy. M5a owns the outlet node, its synchronization, and the RESILIENT LOCAL
-    # PRINT QUEUE. So: no sync, outbox, inbox or edge table at all, and printing exists
-    # with NO QUEUE — nothing pending, nothing retried, nothing scheduled for a later
-    # attempt. A queue is what makes a print survive an outage, and surviving an outage is
-    # exactly what this gate does not build.
+    # THIS FENCE HAS FALLEN, AND IS REPLACED BY WHAT OUTLIVES IT.
     #
-    # Strictly stronger than what it replaces: "no printing" was a fence that a correct
-    # change had to break, and "no queued printing" is one that stays true through M5a's
-    # arrival and fails if the queue lands early.
-    outlet_node_behaviour = count(ADMIN, """
+    # It asserted that no sync, outbox, inbox or edge table existed and that printing had
+    # no queue. Both were true until M5a and both are now false: migrations 0039 to 0048
+    # build the outlet continuity node, its synchronization and docs.print_job. A fence a
+    # correct change must break is doing its job when it breaks — the same retirement
+    # M4-A performed on six of these, "each replaced by what outlives the gate".
+    #
+    # What outlives it is the boundary the fence was standing in for: M1-B did not build
+    # the node, and no later edit may move it here. That claim stays checkable forever,
+    # and it fails if somebody adds an edge table to an M1 migration — which the absence
+    # check could never have caught, because by then the absence was already gone.
+    m1_migrations = sorted((REPO / "migrations").glob("000[1-5]_*.sql"))
+    trespass = sorted({
+        f"{path.name}: {schema}"
+        for path in m1_migrations
+        for schema in re.findall(r"^\s*CREATE TABLE (?:IF NOT EXISTS )?(edge|ops|integration)\.",
+                                 path.read_text(encoding="utf-8"), re.MULTILINE | re.IGNORECASE)})
+    node_landed = count(ADMIN, """
         SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND c.relname ~* '(^|_)(sync|outbox|inbox|edge)($|_)';
+        WHERE c.relkind = 'r' AND n.nspname IN ('edge', 'ops', 'integration');
     """)
-    print_queue = count(ADMIN, """
-        SELECT count(*) FROM pg_attribute a
-          JOIN pg_class c ON c.oid = a.attrelid
-          JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND a.attnum > 0 AND NOT a.attisdropped
-          AND c.relname ~* '(^|_)print($|_)'
-          AND a.attname ~* '(queue|pending|retry|attempts_remaining|next_attempt)';
-    """)
-    record("the outlet node and its print queue are still M5a's, and printing has no queue",
-           principal_classes == 4 and outlet_node_behaviour == 0 and print_queue == 0,
-           f"{principal_classes} principal classes registered; "
-           f"{outlet_node_behaviour} sync, outbox, inbox or edge table(s); "
-           f"{print_queue} queue-shaped column(s) on a print table. FR-BIL-017 makes the "
-           f"minimum print path this gate's; the queue that would make it survive an "
-           f"outage stays M5a's")
+    record("the outlet node landed at M5a, and none of it was built here",
+           principal_classes == 4 and not trespass,
+           f"{principal_classes} principal classes registered — edge_node and print_agent "
+           f"among them, declared here at M1-B and given their first holder at M5a; "
+           f"{node_landed} table(s) now in edge, ops and integration, and "
+           f"{trespass or 'none'} of them created by an M1 migration. The fence that said "
+           f"they did not exist retired when they did; what replaces it is that they may "
+           f"not move here")
 
 
 def session_context_leak_gate() -> tuple[bool, str, str]:

@@ -435,9 +435,10 @@ def gj_01a() -> None:
         dsn=ADMIN)
     record(journey, "and the cloud is still the only authority that serves this journey",
            outlet_node == [],
-           f"{outlet_node or 'none'}. Every step above went to the one cloud service; "
-           f"there is no outlet node to fail over to, which is M5a's, and nothing claims "
-           f"the right to decide locally, which is M5b's")
+           f"{outlet_node or 'none'}. Every step above went to the one cloud service. The "
+           f"outlet node landed at M5a and is schema `edge`: it did NOT arrive as a "
+           f"shadow `sync` or `replication` schema, which is what this check now means. "
+           f"Nothing yet claims the right to decide locally, which is M5b's")
 
 
 # ===========================================================================

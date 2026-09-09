@@ -1322,7 +1322,8 @@ def section_governance() -> None:
     record("nothing belonging to a later slice was built here",
            later == [],
            f"{later or 'none'} — payment capture is M4-B and receipts M4-C; the outlet "
-           f"node, synchronization and the print queue are M5a. Billing landed at M4-A "
+           f"node, synchronization and the print queue landed at M5a as edge, "
+           f"integration and docs, never as schemas of these names. Billing landed at M4-A "
            f"and left this list, as the order surface left M2-A's when M3-A built it")
 
     secrets = []

@@ -1446,12 +1446,29 @@ def section_boundary() -> None:
            AND c.relname ~* 'print'
            AND a.attname ~* '(queue|pending|retry|attempts_remaining|next_attempt)'
          ORDER BY 1;""", dsn=ADMIN)
-    record("printing has no queue, and that is M5a's to build",
-           not queued,
-           f"queue-shaped columns on a print table: {[r[0] for r in queued] or 'none'}. "
-           f"FR-BIL-017's later_behavior places durable local queueing, retry, restart "
-           f"recovery and outage continuity at M5a. What M4-C proves is a print that "
-           f"happened, once, and said so")
+    # THE FENCE HAS FALLEN. M5a's 0044 builds docs.print_job, so "printing has no queue"
+    # is now false — which is what a fence a correct change must break looks like when the
+    # change arrives. Replaced by the boundary it stood for: M4-C proves a print that
+    # HAPPENED, and the queue in front of it is somebody else's migration.
+    m4c_migrations = sorted(
+        p for p in (REPO / "migrations").glob("00[23][0-9]_*.sql")
+        if 26 <= int(p.name[:4]) <= 34)
+    built_here = sorted({
+        path.name for path in m4c_migrations
+        if re.search(r"^\s*CREATE TABLE (?:IF NOT EXISTS )?docs\.print_job",
+                     path.read_text(encoding="utf-8"), re.MULTILINE | re.IGNORECASE)})
+    queue_landed = rows("""
+        SELECT n.nspname || '.' || c.relname
+          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE c.relkind = 'r' AND n.nspname = 'docs' AND c.relname = 'print_job';""",
+        dsn=ADMIN)
+    record("the durable print queue landed at M5a, and M4-C did not build it",
+           bool(queue_landed) and not built_here,
+           f"{[r[0] for r in queue_landed] or 'no queue yet'}; created by "
+           f"{built_here or 'no M4-C migration'}. FR-BIL-017's later_behavior places "
+           f"durable local queueing, retry, restart recovery and outage continuity at "
+           f"M5a. What M4-C proves is a print that happened, once, and said so — and the "
+           f"queue may not migrate backwards into this slice")
 
     sync = rows("""
         SELECT n.nspname || '.' || c.relname
