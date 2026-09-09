@@ -266,6 +266,10 @@ MIGRATION_SLICE = {
     # the outlet it was about to check, so a node at the wrong outlet was told it did not
     # exist. Found by starting the process rather than by reading the function.
     "0046": "M5a",
+    # 0047 gives edge.plain_language a third namespace and adds the banner FR-EDG-009's
+    # strip reads. Also M5a's, and also a repair: the first connectivity_banner() treated
+    # "I could not see a node" as "there is no node" and answered CONNECTED.
+    "0047": "M5a",
 }
 
 

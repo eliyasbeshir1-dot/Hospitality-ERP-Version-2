@@ -25,6 +25,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { Client } from 'pg';
 import { StructuredLogger } from '../logging';
+import { withNodeContext } from './context';
 import { authenticateNode } from './identity';
 
 export interface GatewayOptions {
@@ -45,9 +46,11 @@ interface Watermark {
 
 async function readWatermark(client: Client, tenantId: string, outletId: string,
                              nodeId: string): Promise<Watermark> {
-  await client.query('SELECT set_config($1,$2,true), set_config($3,$4,true)',
-                     ['app.tenant_id', tenantId, 'app.outlet_id', outletId]);
-  const { rows } = await client.query(
+  // Inside a transaction, because context set outside one is gone before the next
+  // statement — the watermark then read zeros forever and the screens silently stopped
+  // updating. See api/src/node/context.ts.
+  const rows = await withNodeContext(client, { tenantId, outletId }, async (scoped) =>
+    (await scoped.query(
     `SELECT (SELECT s.connectivity::text FROM integration.sync_state s
               WHERE s.node_id = $3::uuid)                                AS connectivity,
             (SELECT s.paused_reason FROM integration.sync_state s
@@ -59,7 +62,7 @@ async function readWatermark(client: Client, tenantId: string, outletId: string,
             (SELECT count(*) FROM docs.print_job j
               WHERE j.tenant_id = $1::uuid AND j.outlet_id = $2::uuid
                 AND j.state IN ('queued','claimed','failed'))            AS queued_print_jobs`,
-    [tenantId, outletId, nodeId]);
+    [tenantId, outletId, nodeId])).rows);
   const row = rows[0] ?? {};
   return {
     connectivity: row.connectivity ?? null,

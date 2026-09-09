@@ -65,6 +65,9 @@ ENTRY_PURPOSE = {
     "schema": "the schema catalog, generated from the live database",
     "seeds": "demonstration tenants and reason-code sets, with their own ordered record",
     "station": "the kitchen display surface",
+    "surfaces": "what more than one surface needs and none of them owns — at M5a, the "
+                "continuity banner FR-EDG-009 puts on all four screens, compiled once "
+                "rather than copied four times",
     "tests": "verification suites and the cross-cutting suites",
     "tools": "migration and seed runners, generators, verifiers",
     "waiter": "the staff surface",

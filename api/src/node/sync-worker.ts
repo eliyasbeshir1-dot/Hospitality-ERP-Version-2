@@ -26,6 +26,7 @@
  */
 import { Client } from 'pg';
 import { StructuredLogger } from '../logging';
+import { withNodeContext } from './context';
 import { authenticateNode } from './identity';
 import { CloudUnreachable, cloudLinkFrom, type CloudLink } from './link';
 
@@ -49,12 +50,13 @@ export async function runOneRound(
 ): Promise<{ offered: number; accepted: number; connected: boolean }> {
   const { tenantId, nodeId } = profile;
 
-  await client.query('SELECT set_config($1,$2,true), set_config($3,$4,true)',
-                     ['app.tenant_id', tenantId, 'app.outlet_id', profile.outletId]);
-
-  // 1. Anything in flight when we last stopped belongs back in the queue.
-  await client.query('SELECT integration.recover_in_flight($1::uuid, $2::uuid)',
-                     [tenantId, nodeId]);
+  // 1. Anything in flight when we last stopped belongs back in the queue. Inside a
+  // transaction with context, because context set outside one does not survive to the
+  // next statement — see api/src/node/context.ts for what that cost.
+  await withNodeContext(client, { tenantId, outletId: profile.outletId }, async (scoped) => {
+    await scoped.query('SELECT integration.recover_in_flight($1::uuid, $2::uuid)',
+                       [tenantId, nodeId]);
+  });
 
   // 2. Can we talk to them at all, and do we speak the same thing?
   let acknowledgement;
@@ -62,10 +64,11 @@ export async function runOneRound(
     acknowledgement = await link.exchange({ events: [] });
   } catch (error) {
     if (error instanceof CloudUnreachable) {
-      await client.query(
-        `SELECT integration.set_connectivity($1::uuid, $2::uuid,
-                  'local_continuity'::edge.connectivity_state)`,
-        [tenantId, nodeId]);
+      await withNodeContext(client, { tenantId, outletId: profile.outletId }, (scoped) =>
+        scoped.query(
+          `SELECT integration.set_connectivity($1::uuid, $2::uuid,
+                    'local_continuity'::edge.connectivity_state)`,
+          [tenantId, nodeId]));
       logger.info('cloud unreachable; the outlet continues', {
         event: 'sync.local_continuity', endpoint: link.endpoint,
       });
@@ -74,9 +77,11 @@ export async function runOneRound(
     throw error;
   }
 
-  const { rows: compatible } = await client.query(
-    'SELECT integration.check_peer_compatibility($1::uuid, $2::uuid, $3, $4) AS ok',
-    [tenantId, nodeId, PROTOCOL, acknowledgement.protocolVersion]);
+  const compatible = await withNodeContext(client,
+    { tenantId, outletId: profile.outletId },
+    async (scoped) => (await scoped.query(
+      'SELECT integration.check_peer_compatibility($1::uuid, $2::uuid, $3, $4) AS ok',
+      [tenantId, nodeId, PROTOCOL, acknowledgement.protocolVersion])).rows);
   if (!compatible[0]?.ok) {
     // FR-EDG-012. Paused, recorded, and local service is untouched.
     logger.warn('peer protocol incompatible; synchronization paused', {
@@ -85,17 +90,19 @@ export async function runOneRound(
     return { offered: 0, accepted: 0, connected: true };
   }
 
-  await client.query(
-    `SELECT integration.set_connectivity($1::uuid, $2::uuid,
-              'cloud_connected'::edge.connectivity_state)`,
-    [tenantId, nodeId]);
-
   // 3. What may travel — the claim refuses a child whose parent is unacknowledged.
-  const { rows: batch } = await client.query(
-    `SELECT event_id, sequence::text AS sequence, subject::text, subject_id,
-            event_kind, payload, occurred_at
-       FROM integration.claim_outbox_batch($1::uuid, $2::uuid, $3)`,
-    [tenantId, nodeId, batchSize]);
+  const batch = await withNodeContext(client, { tenantId, outletId: profile.outletId },
+    async (scoped) => {
+      await scoped.query(
+        `SELECT integration.set_connectivity($1::uuid, $2::uuid,
+                  'cloud_connected'::edge.connectivity_state)`,
+        [tenantId, nodeId]);
+      return (await scoped.query(
+        `SELECT event_id, sequence::text AS sequence, subject::text, subject_id,
+                event_kind, payload, occurred_at
+           FROM integration.claim_outbox_batch($1::uuid, $2::uuid, $3)`,
+        [tenantId, nodeId, batchSize])).rows;
+    });
   if (batch.length === 0) return { offered: 0, accepted: 0, connected: true };
 
   const sent = await link.exchange({
@@ -110,10 +117,12 @@ export async function runOneRound(
   });
 
   // 4. Only what they named.
-  for (const eventId of sent.accepted) {
-    await client.query('SELECT integration.acknowledge_outbox($1::uuid, $2::uuid, $3::uuid)',
-                       [tenantId, nodeId, eventId]);
-  }
+  await withNodeContext(client, { tenantId, outletId: profile.outletId }, async (scoped) => {
+    for (const eventId of sent.accepted) {
+      await scoped.query('SELECT integration.acknowledge_outbox($1::uuid, $2::uuid, $3::uuid)',
+                         [tenantId, nodeId, eventId]);
+    }
+  });
 
   logger.info('synchronization round complete', {
     event: 'sync.round', offered: batch.length, accepted: sent.accepted.length,

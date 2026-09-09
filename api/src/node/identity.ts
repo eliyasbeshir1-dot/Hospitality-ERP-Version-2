@@ -19,6 +19,7 @@
  */
 import { Client } from 'pg';
 import { StartupRefusal } from '../env';
+import { withFingerprintContext } from './context';
 
 export interface NodeProfile {
   nodeId: string;
@@ -80,30 +81,27 @@ export async function authenticateNode(
     // row, and refused. The refusal looked like a sensible answer to a wrong fingerprint,
     // which is why it survived being tested three ways: all three arms of the test agreed,
     // and they agreed because none of them was reaching the check.
-    await client.query('BEGIN');
-    await client.query('SELECT set_config($1, $2, true), set_config($3, $4, true)',
-                       ['app.tenant_id', tenantId, 'app.node_fingerprint', fingerprint]);
-    const { rows } = await client.query(
-      'SELECT edge.authenticate_node($1::uuid, $2, $3::character(64), $4::uuid) AS node_id',
-      [tenantId, nodeCode, fingerprint, outletId],
-    );
-    const nodeId = rows[0]?.node_id as string;
+    return await withFingerprintContext(client, tenantId, fingerprint, async (scoped) => {
+      const { rows } = await scoped.query(
+        'SELECT edge.authenticate_node($1::uuid, $2, $3::character(64), $4::uuid) AS node_id',
+        [tenantId, nodeCode, fingerprint, outletId],
+      );
+      const nodeId = rows[0]?.node_id as string;
 
-    const { rows: detail } = await client.query(
-      'SELECT lan_endpoint FROM edge.node WHERE tenant_id = $1::uuid AND id = $2::uuid',
-      [tenantId, nodeId],
-    );
-    await client.query('COMMIT');
+      const { rows: detail } = await scoped.query(
+        'SELECT lan_endpoint FROM edge.node WHERE tenant_id = $1::uuid AND id = $2::uuid',
+        [tenantId, nodeId],
+      );
 
-    return {
-      nodeId,
-      nodeCode,
-      tenantId,
-      outletId,
-      lanEndpoint: detail[0]?.lan_endpoint ?? '',
-    };
+      return {
+        nodeId,
+        nodeCode,
+        tenantId,
+        outletId,
+        lanEndpoint: detail[0]?.lan_endpoint ?? '',
+      };
+    });
   } catch (error) {
-    await client.query('ROLLBACK').catch(() => undefined);
     // The database named the refusal. Carrying it through is the difference between "the
     // node would not start" and "this node is bound to the other outlet".
     const message = error instanceof Error ? error.message : String(error);

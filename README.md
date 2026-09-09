@@ -215,6 +215,7 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0044_a_receipt_asked_for_is_printed_exactly_once.sql`
 - `0045_what_the_node_holds_what_it_may_do_alone_and_what_it_says.sql`
 - `0046_a_node_at_the_wrong_outlet_is_told_so.sql`
+- `0047_the_room_is_told_which_way_the_outlet_is_running.sql`
 
 ## Seeds
 
@@ -234,6 +235,7 @@ history: seeds are data, not structure.
 - `0011_the_demonstration_floor_has_node_hardware.sql`
 - `0012_the_demonstration_floor_can_stand_alone.provision.sql`
 - `0013_the_demonstration_floor_knows_its_estate.sql`
+- `0014_the_room_can_be_told.provision.sql`
 
 ## Verification
 

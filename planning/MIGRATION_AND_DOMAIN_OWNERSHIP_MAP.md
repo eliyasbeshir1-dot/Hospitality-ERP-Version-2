@@ -56,7 +56,7 @@ Counted from `active_requirements` in the pinned package, by `introduced_at`.
 
 ## The migrations this repository has
 
-46 of them, `0001_organizational_model_and_rls.sql` through `0046_a_node_at_the_wrong_outlet_is_told_so.sql`, across
+47 of them, `0001_organizational_model_and_rls.sql` through `0047_the_room_is_told_which_way_the_outlet_is_running.sql`, across
 22 domains. The owning domain of each is read out of its own SQL — the
 schemas it creates and the schemas it creates tables in — and the gate from the header
 comment every migration in this repository carries.
@@ -109,6 +109,7 @@ comment every migration in this repository carries.
 | `0044_a_receipt_asked_for_is_printed_exactly_once.sql` | docs | app | M5a |
 | `0045_what_the_node_holds_what_it_may_do_alone_and_what_it_says.sql` | edge | — | M5a |
 | `0046_a_node_at_the_wrong_outlet_is_told_so.sql` | — | edge | M5a |
+| `0047_the_room_is_told_which_way_the_outlet_is_running.sql` | — | edge | M5a |
 
 ---
 

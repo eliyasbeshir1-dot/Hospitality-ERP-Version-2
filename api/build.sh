@@ -74,6 +74,17 @@ cp "$WORKSPACE/cashier/index.html" "$WORKSPACE/dist/public/cashier.html"
 cp "$WORKSPACE/cashier/cashier.css" "$WORKSPACE/dist/public/cashier.css"
 ./node_modules/.bin/tsc -p "$WORKSPACE/cashier/tsconfig.json" --outDir "$WORKSPACE/dist/public"
 
+# THE CONTINUITY BANNER (M5a), and it is the first thing here that is NOT a surface.
+#
+# FR-EDG-009 puts the same connectivity strip on all four screens. Four copies of twenty
+# lines is how the CSP list, the route-block reader and the interpreter probe each ended up
+# with a stale copy nobody noticed, so this is one module compiled once and imported by all
+# four documents. It has no HTML and no stylesheet of its own: it installs into whatever
+# document loads it.
+rm -rf "$WORKSPACE/surfaces"
+cp -r "$REPO/surfaces" "$WORKSPACE/surfaces"
+./node_modules/.bin/tsc -p "$WORKSPACE/surfaces/continuity/tsconfig.json"     --outDir "$WORKSPACE/dist/public"
+
 echo "built into $WORKSPACE/dist"
 
 if [ "${1:-}" = "--run" ]; then

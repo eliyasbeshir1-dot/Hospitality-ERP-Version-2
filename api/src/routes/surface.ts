@@ -45,6 +45,9 @@ const FILES = [
   'cashier.html',
   'cashier.css',
   'cashier.js',
+  // The continuity banner (M5a). Not a fifth surface: one module all four documents
+  // import, so FR-EDG-009's strip has one implementation rather than four that drift.
+  'continuity.js',
 ] as const;
 
 /**

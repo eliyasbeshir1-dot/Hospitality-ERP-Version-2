@@ -40,6 +40,7 @@ pwa/             the customer surface: vanilla TypeScript, no runtime dependency
 schema/          the schema catalog, generated from the live database
 seeds/           demonstration tenants and reason-code sets, with their own ordered record
 station/         the kitchen display surface
+surfaces/        what more than one surface needs and none of them owns — at M5a, the continuity banner FR-EDG-009 puts on all four screens, compiled once rather than copied four times
 tests/           verification suites and the cross-cutting suites
 tools/           migration and seed runners, generators, verifiers
 waiter/          the staff surface
@@ -155,7 +156,7 @@ Every gate begins only when **all** of the following hold:
 - CI runs the validators and fails closed
 
 A gate's first migration is created at that gate, not before. This repository holds
-46, `0001` through `0046`.
+47, `0001` through `0047`.
 
 ---
 

@@ -24,6 +24,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { PoolClient } from 'pg';
 import { ContextRefused, signatureOf, type Database } from '../db';
 import type { StructuredLogger } from '../logging';
+import { withNodeContext } from '../node/context';
 import type { NodeProfile } from '../node/identity';
 
 export interface NodeDependencies {
@@ -101,29 +102,32 @@ export function registerNodeRoutes(app: FastifyInstance, deps: NodeDependencies)
 
   app.get('/n/v1/connectivity', async (request) => {
     const wanted = locale(request);
-    return deps.db.withoutContext(async (client) => {
+    return deps.db.withoutContext((client) =>
       // Read under the node's own context rather than a caller's: this is the node
-      // describing itself, and there is no session to take a scope from.
-      await client.query('SELECT set_config($1,$2,true), set_config($3,$4,true)',
-                         ['app.tenant_id', tenantId, 'app.outlet_id', outletId]);
-      const { rows } = await client.query(
-        `SELECT COALESCE(s.connectivity::text, 'local_continuity') AS connectivity,
-                s.paused_reason,
-                s.last_contact_at
-           FROM edge.node n
-           LEFT JOIN integration.sync_state s ON s.node_id = n.id
-          WHERE n.tenant_id = $1::uuid AND n.id = $2::uuid`,
-        [tenantId, nodeId],
-      );
-      return {
-        node: deps.profile.nodeCode,
-        outletId,
-        connectivity: rows[0]?.connectivity ?? 'local_continuity',
-        pausedReason: rows[0]?.paused_reason ?? null,
-        lastContactAt: rows[0]?.last_contact_at ?? null,
-        locale: wanted,
-      };
-    });
+      // describing itself, and there is no session to take a scope from. withNodeContext()
+      // supplies the transaction that makes that context exist for the statements inside —
+      // see api/src/node/context.ts for the four ways this went wrong before there was one
+      // place to get it right.
+      withNodeContext(client, { tenantId, outletId }, async (scoped) => {
+        // The wording comes from the database, not from this file. A banner whose English
+        // lived in a route and whose Amharic lived in a table would be two places to
+        // change one sentence, and the second is always the one that is missed.
+        const { rows } = await scoped.query(
+          `SELECT state::text, wording, paused_reason, open_conflicts, blocks_service
+             FROM edge.connectivity_banner($1::uuid, $2::uuid, $3::menu.customer_locale)`,
+          [tenantId, outletId, wanted],
+        );
+        return {
+          node: deps.profile.nodeCode,
+          outletId,
+          connectivity: rows[0]?.state ?? 'local_continuity',
+          wording: rows[0]?.wording ?? null,
+          pausedReason: rows[0]?.paused_reason ?? null,
+          openConflicts: rows[0]?.open_conflicts ?? 0,
+          blocksService: rows[0]?.blocks_service ?? false,
+          locale: wanted,
+        };
+      }));
   });
 
   // -------------------------------------------------------------------------
