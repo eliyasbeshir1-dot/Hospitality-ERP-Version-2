@@ -23,6 +23,7 @@
 | **M4-A** | checks and allocation that cannot bill a unit twice, exact calculation carrying a persisted version, five split modes with deterministic rounding, merge and split of checks, tips kept structurally out of every bill balance, and the counter channel on the same order aggregate | `7593357` |
 | **M4-B** | payment capture, verification and reversal: a live/simulated boundary held by a derived mode, two distinct outcome types and a refusal at the write; cash with change computed in the database; an external terminal's result with no card data anywhere; Telebirr and CBE Birr proof attested by a named person on their own session; separate bill and tip allocations that are stored rather than recomputed; independently reversible refunds under maker-checker; and cash shifts a reopened drawer cannot quietly close | `184a008` |
 | **M4-C** | the receipt and the report: a digital receipt in the bill's own language showing bill total, optional tip and total paid as three lines; a printer path that composes, rasterises and encodes to ESC/POS with every glyph checked against the fonts this repository ships; one original print per settlement and a reprint that carries its operator and its reason; a print preview built by the same composer as the receipt; a printer that must be tested before it can print for a customer; a fiscal-document port with no provider's schema inside it; counter orders bound to the POS terminal they were entered at; a metric catalog that IS the metrics, readings that carry their source and their freshness, a shift snapshot no recomputation can rewrite, and the FR-GOV-004 audit of every requirement whose gate has landed | `2554f11` |
+| **M5-A** | the outlet continuity node: an outlet that keeps trading when the cloud is unreachable. A node bound to exactly one outlet, made of the five services FR-EDG-002A names, refusing to start anywhere else; a production outlet that cannot be RECORDED as cloud-only; a transactional outbox whose events keep the identity and the time they were given at the outlet, travel parent before child, and are acknowledged only when the cloud names them; an idempotent inbox that makes a repeated delivery a no-op it reports rather than swallows; conflicts over the six domains that cannot be settled without a person and a sentence; a durable print queue where a lease expires but a printed job never returns; readiness counted out of the tables service reads; every action classified once so a route asks a registry instead of carrying its own copy of the rule, and an unclassified one refused rather than allowed by omission; one connectivity banner compiled once for all four screens, worded in three locales from the database; and signed updates whose rollback refuses if the local queues have shrunk | `unreleased` |
 
 The M1 evidence report is at `evidence/M1_EVIDENCE_REPORT.md`.
 
@@ -74,26 +75,26 @@ not have, or is still open after its completing gate has landed.
 | **FR-BIL-008** | settlement by tender | M4-B |
 | **FR-BIL-014** | total tendered | M4-B |
 | **FR-BIL-016** | tip refund through a provider | M4-B |
-| **FR-BIL-017** | paper out of a physical machine | M5a |
+| **FR-BIL-017** | paper out of a physical machine | M6 |
 | **FR-CFG-001C** | permitted payment methods | M4-B |
 | **FR-DAT-008B** | receipts in the financial ledgers | M4-C |
 | **FR-DAT-010** | financial projections | M4-A |
 | **FR-FUL-001** | routing during an outage | M5a |
 | **FR-FUL-003** | KDS from the local node | M5a |
-| **FR-FUL-008** | salience on real paper | M5a |
+| **FR-FUL-008** | salience on real paper | M6 |
 | **FR-FUL-010** | notification delivery | M3-C |
 | **FR-FUL-012** | analytical consumption | M6 |
-| **FR-FUL-014** | physical printing and dedup across restart | M5a |
-| **FR-FUL-015** | rerouting with the outlet node authoritative | M5a |
+| **FR-FUL-014** | physical printing and dedup across restart | M6 |
+| **FR-FUL-015** | rerouting with the outlet node authoritative | M6 |
 | **FR-GOV-004** | every landed requirement audited, not only named completers | M4-C |
 | **FR-I18N-008** | receipt communications | M4-C |
-| **FR-INT-007** | transport failures in the dead-letter queue | M5a |
+| **FR-INT-007** | transport failures in the dead-letter queue | M5b |
 | **FR-INT-011** | node connectivity, sync lag and printer status | M5a |
 | **FR-INT-014** | bill, payment and tip in the chain | M4-B |
 | **FR-INT-014** | the sync record in the chain | M5a |
 | **FR-NOT-001** | bill, payment and tip producers | M4-B |
-| **FR-NOT-001** | outage and sync producers | M5a |
-| **FR-NOT-005** | operational alert producers | M5a |
+| **FR-NOT-001** | outage and sync producers | M5b |
+| **FR-NOT-005** | operational alert producers | M5b |
 | **FR-NOT-012** | staff notification centre render | M3-D |
 | **FR-NOT-012** | the customer status timeline in the session language | M3-D |
 | **FR-ORD-002** | no financial commitment | M4-A |
@@ -116,7 +117,7 @@ not have, or is still open after its completing gate has landed.
 | **FR-TAB-007A** | service requests consolidated by a merge | M3-C |
 | **FR-TAB-008** | service requests preserved by a move | M3-C |
 | **FR-TAB-009** | financial closure condition | M4-A |
-| **FR-TST-005A** | settlement proved at the service tier, not the browser tier | M5a |
+| **FR-TST-005A** | settlement proved at the service tier, not the browser tier | M6 |
 | **FR-UX-012** | budgets calibrated against the runner, not against wall clock alone | M4-A |
 | **SM-ORDER** | fulfillment labels derived rather than stored | M4-A |
 
@@ -144,7 +145,7 @@ position is to write fresh.
 | `print/` | the print agent: the receipt rasteriser, the ESC/POS encoder, and the font it ships rather than resolves from the host |
 | `schema/` | `SCHEMA_CATALOG.md`, generated from the live database, never hand-written |
 | `seeds/` | demonstration tenants and reason-code sets, with their own ordered record |
-| `tests/` | verification suites — 14 that each verify one slice, and 6 that cut across gates |
+| `tests/` | verification suites — 15 that each verify one slice, and 6 that cut across gates |
 | `tools/` | migration and seed runners, generators, and the forbidden-surface verifier |
 
 ## Third-party assets, and what shipping them obliges
@@ -264,6 +265,7 @@ bash tests/m1d/run_verification.sh         # rebuilds from empty, runs every sli
 | `tests/m4a/verify_m4a.py` | checks, bills and tips: allocation that cannot bill a unit twice across a set of checks, every component recomputed independently and compared, five split modes exercised at payer counts that do not divide evenly, tip separation proved from the catalog before it is proved by behaviour, and the bill summary and tip box measured as two rectangles in a real browser |
 | `tests/m4b/verify_m4b.py` | payment and the drawer: a simulated result proved unable to become a live one from the catalog before it is attempted through the real route, change and allocations recomputed in Python and required to match, card data refused at the write on every textual column the catalog knows about, the cash path proved to have no outbound dependency anywhere in its transitive call graph, and a reopened cash shift that cannot reach a terminal state without a recount and somebody else's approval |
 | `tests/m4c/verify_m4c.py` | the receipt and the report: every figure on a receipt compared against its own source at the write, an Amharic and an Arabic receipt rasterised by the printer path and checked per glyph against the fonts this repository ships, one original print per settlement refused twice over, a preview proved to be the same composer as the receipt, a signed-off shift snapshot proved unrewritable by a grant, by the source and by the attempt, an empty window proved to report nothing rather than zero where zero would be an invention, and the FR-GOV-004 audit of every requirement whose gate has landed |
+| `tests/m5a/verify_m5a.py` | the outlet continuity node, and what an outlet can still do when the cloud cannot be reached. A node that refuses to start at the wrong outlet and says which outlet it is bound to; an outbox that carries a child only after its parent and an inbox that makes a repeated delivery a reported no-op; conflicts over orders, bills, payments, tips, cash and permissions that no machine can settle; a print queue where a lease expires and a printed job never returns; readiness counted rather than claimed; cash, terminal recording and ordinary service permitted during an outage while what needs the cloud is blocked or queued with a translated explanation; and a rollback that refuses if the local queues have shrunk |
 | `tests/opa/verify_opa.py` | the operator gate: whether a person can reach what the slices built. A credential turned into a session against storage that is salted and key-stretched, a quick PIN that is refused away from its registered terminal, lockout that fires and then clears, a guest order carried to a station and moved acknowledge to preparing to ready through routes rather than through the database, expo refusing to release an incomplete set, a seed proved unable to bypass its runner or to widen a grant, and the M4 review's printer forgery replayed over the route it was performed on (spans M1 · M2 · M3 · M4) |
 | `tests/opb/verify_opb.py` | the staff screens, measured in a browser: a station board that signs a cook in and draws its actions from the transition catalog rather than from a table of its own, a till that reads a bill in the bill's own language and keeps the tip beside it with nothing preselected, a waiter floor that fetches its own tables with the unpaid balance on them, confirmation friction graded by the database, and a manager override that takes the manager's own session (spans M1 · M2 · M3 · M4) |
 | `tests/opc/verify_opc.py` | being seated, and taking something back out: the step that came before everything the nineteen suites above had proved. A guest scanning an unoccupied table opens the occupancy and a member of staff can open one too, through one function with two opening sources that nothing had ever called; a waiter who seats a table becomes accountable for it, which is the origin FR-TAB-006's handover chain never had; a guest can take a dish back out of the basket; and M2-B's stale-QR guarantee is proved unweakened by any of it (spans M1 · M2 · M3 · M4) |

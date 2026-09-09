@@ -242,27 +242,37 @@
       "aspect": "routing during an outage",
       "opened_at": "M3-B",
       "completing_gate": "M5a",
-      "state": "open",
+      "state": "closed",
       "completed_by": "FR-CFG-001E",
-      "why": "Accepted line units route by versioned rule and a ticket records the rule version that placed it. That routing continues to work when the outlet node is authoritative is this row's revalidation at M5a, where the node exists."
+      "why": "Accepted line units route by versioned rule and a ticket records the rule version that placed it. That routing continues to work when the outlet node is authoritative is this row's revalidation at M5a, where the node exists.",
+      "closed_at": "M5a",
+      "closed_by_evidence": "GJ-10 accepts an order with the cloud unreachable and takes it through the kitchen: the accepted line units route by the versioned rule and the ticket records the rule version that placed it, with no cloud to ask. The journey asserts the ticket reaches 'served' while edge connectivity is local_continuity, so routing is revalidated as behaviour rather than inferred from the node existing."
     },
     {
       "requirement": "FR-FUL-003",
       "aspect": "KDS from the local node",
       "opened_at": "M3-B",
       "completing_gate": "M5a",
-      "state": "open",
+      "state": "closed",
       "completed_by": "FR-CFG-001E",
-      "why": "All eleven states render and the seven display buckets are measured in a real browser. That the same KDS operates from the local node during an outage needs the node, which is M5a."
+      "why": "All eleven states render and the seven display buckets are measured in a real browser. That the same KDS operates from the local node during an outage needs the node, which is M5a.",
+      "closed_at": "M5a",
+      "closed_by_evidence": "The station board is one of the four screen families the node serves at its own LAN endpoint (tests/m5a proves all four answer 200 from the node process), and GJ-10 drives a ticket through the kitchen's own routes while the cloud is unreachable. The eleven states and seven display buckets M3-B measured are unchanged; what M5a adds is that the same KDS operates with the node authoritative."
     },
     {
       "requirement": "FR-FUL-008",
       "aspect": "salience on real paper",
       "opened_at": "M3-B",
-      "completing_gate": "M5a",
+      "completing_gate": "M6",
       "state": "open",
       "completed_by": "FR-CFG-001E",
-      "why": "Allergy emphasis is measured non-colour-only on the KDS and expo surfaces, and the generated station ticket document carries its allergy lines first and in words. That the salience survives PHYSICAL printing needs the print path, which is M5a; this gate proves the document, not the paper."
+      "why": "Allergy emphasis is measured non-colour-only on the KDS and expo surfaces, and the generated station ticket document carries its allergy lines first and in words. That the salience survives PHYSICAL printing needs the print path, which is M5a; this gate proves the document, not the paper.",
+      "completer_moved": {
+        "from": "M5a",
+        "to": "M6",
+        "at": "M5a",
+        "why": "M5a builds the durable queue that gets bytes to a printer and proves exactly-once delivery of a job; it does not put ink on paper. Whether allergy emphasis SURVIVES physical printing can only be established by printing on a real machine, which is M6's production-hardening work and needs a chosen device. M5a was the wrong completer for this aspect from the start: it was named for the gate that builds printing, and this aspect is about the paper rather than the queue."
+      }
     },
     {
       "requirement": "FR-FUL-010",
@@ -289,19 +299,31 @@
       "requirement": "FR-FUL-014",
       "aspect": "physical printing and dedup across restart",
       "opened_at": "M3-B",
-      "completing_gate": "M5a",
+      "completing_gate": "M6",
       "state": "open",
       "completed_by": "FR-CFG-001E",
-      "why": "Station ticket documents are generated and deduplicated by a unique key on (ticket, revision), where the revision ignores document generation itself. Physical printing, print-agent delivery and deduplication across a restart are the local print path, which is M5a."
+      "why": "Station ticket documents are generated and deduplicated by a unique key on (ticket, revision), where the revision ignores document generation itself. Physical printing, print-agent delivery and deduplication across a restart are the local print path, which is M5a.",
+      "completer_moved": {
+        "from": "M5a",
+        "to": "M6",
+        "at": "M5a",
+        "why": "Half of this aspect IS closed by M5a — deduplication across restart is proved in tests/m5a and GJ-10: an expired lease returns a job to the queue, a printed job cannot be requeued, and reporting the same print twice records one attempt. The other half is physical printing, which needs a real machine and belongs with FR-BIL-017's last inch at M6. The entry is moved rather than split because the aspect as WRITTEN names both, and closing it on the half that is done would record the physical half as delivered."
+      }
     },
     {
       "requirement": "FR-FUL-015",
       "aspect": "rerouting with the outlet node authoritative",
       "opened_at": "M3-B",
-      "completing_gate": "M5a",
+      "completing_gate": "M6",
       "state": "open",
       "completed_by": "FR-CFG-001E",
-      "why": "An authorized reroute moves the ticket and its line units without creating anything, proved by a unit-count constraint across every live ticket for the order. Behaviour while the outlet node is authoritative is M5a's."
+      "why": "An authorized reroute moves the ticket and its line units without creating anything, proved by a unit-count constraint across every live ticket for the order. Behaviour while the outlet node is authoritative is M5a's.",
+      "completer_moved": {
+        "from": "M5a",
+        "to": "M6",
+        "at": "M5a",
+        "why": "M5a proves the kitchen ROUTES and works a ticket while the cloud is unreachable (FR-FUL-001, closed here). It does not drive an authorized REROUTE during an outage, and the unit-count constraint that makes a reroute safe was proved at M3-C against a cloud-authoritative outlet. Rather than close this on the neighbouring aspect's evidence, it moves to the gate that revisits fulfilment under production conditions."
+      }
     },
     {
       "requirement": "SM-ORDER",
@@ -352,19 +374,31 @@
       "requirement": "FR-NOT-005",
       "aspect": "operational alert producers",
       "opened_at": "M3-C",
-      "completing_gate": "M5a",
+      "completing_gate": "M5b",
       "state": "open",
       "completed_by": "FR-OPS-005",
-      "why": "The routing and accountability model is complete: a critical kind reaches notify.accountable_staff(), which reads the outlet's configured role and refuses rather than guessing when none is set. The producers FR-NOT-005 names — payment mismatch at M4, printer failure, local-node failure and sync conflict at M5a — do not exist yet. The escalation of a service request is the one critical producer that does, and it is proved end to end."
+      "why": "The routing and accountability model is complete: a critical kind reaches notify.accountable_staff(), which reads the outlet's configured role and refuses rather than guessing when none is set. The producers FR-NOT-005 names — payment mismatch at M4, printer failure, local-node failure and sync conflict at M5a — do not exist yet. The escalation of a service request is the one critical producer that does, and it is proved end to end.",
+      "completer_moved": {
+        "from": "M5a",
+        "to": "M5b",
+        "at": "M5a",
+        "why": "Same reason as FR-NOT-001's, and deliberately the same gate: the two were split apart at OP-D precisely because one entry had claimed the other was 'recorded separately' when it was not. notify.accountable_staff() is complete and reaches a configured role; what is missing is anything in the edge runtime that CALLS it, and that stays missing until M5b decides which edge transitions are alertable."
+      }
     },
     {
       "requirement": "FR-INT-007",
       "aspect": "transport failures in the dead-letter queue",
       "opened_at": "M3-C",
-      "completing_gate": "M5a",
+      "completing_gate": "M5b",
       "state": "open",
       "completed_by": "FR-INT-003",
-      "why": "The queue, its reasons, its attempt counting and its safe replay are complete and exercised by three real in-app failures. There is no transport adapter to fail, because outlet-local notices are M5a's, and an adapter seam built here would be an abstraction with one implementation and no second case to prove it right. When a transport exists its failures reach this queue through integration.dead_letter_job(), which is the same door."
+      "why": "The queue, its reasons, its attempt counting and its safe replay are complete and exercised by three real in-app failures. There is no transport adapter to fail, because outlet-local notices are M5a's, and an adapter seam built here would be an abstraction with one implementation and no second case to prove it right. When a transport exists its failures reach this queue through integration.dead_letter_job(), which is the same door.",
+      "completer_moved": {
+        "from": "M5a",
+        "to": "M5b",
+        "at": "M5a",
+        "why": "M5a gives the system its first real transport — api/src/node/link.ts, the single seam every cloud call passes through — and an unreachable cloud does NOT become a dead letter here: it becomes local continuity, which is the correct outcome and not a failure. A transport failure that should dead-letter is one that is permanent rather than an outage, and distinguishing those needs the lease and authority model M5b builds. Closing this on 'a transport now exists' would record an untested path as exercised."
+      }
     },
     {
       "requirement": "FR-INT-014",
@@ -443,19 +477,27 @@
       "requirement": "FR-NOT-001",
       "aspect": "outage and sync producers",
       "opened_at": "M4-A",
-      "completing_gate": "M5a",
+      "completing_gate": "M5b",
       "state": "open",
       "completed_by": "FR-EDG-009",
-      "why": "Split out of the M3-C entry, which named 'bill, payment, tip, outage and sync producers' as one aspect and said outage and sync were 'recorded separately'. They were not — the only M5a notification entry is FR-NOT-005's operational alerts, which is a different requirement. An aspect that spans M4 and M5a can close at neither, so the claim would have kept the entry open past both. notify.catalog_event carries both kinds with has_producer = false and notify.emit() refuses them by name, so nothing pretends to raise one in the meantime."
+      "why": "Split out of the M3-C entry, which named 'bill, payment, tip, outage and sync producers' as one aspect and said outage and sync were 'recorded separately'. They were not — the only M5a notification entry is FR-NOT-005's operational alerts, which is a different requirement. An aspect that spans M4 and M5a can close at neither, so the claim would have kept the entry open past both. notify.catalog_event carries both kinds with has_producer = false and notify.emit() refuses them by name, so nothing pretends to raise one in the meantime.",
+      "completer_moved": {
+        "from": "M5a",
+        "to": "M5b",
+        "at": "M5a",
+        "why": "M5a produces the outage STATE — integration.sync_state, the connectivity banner and the five staff sync states — and no NOTIFICATION from it. Nothing in this gate calls notify.* when a node goes to local continuity or a conflict is raised, so the producers this aspect names do not exist. M5b owns the authority and lease work that decides which of these transitions is worth telling somebody about; producing notices before that decision would be inventing the policy."
+      }
     },
     {
       "requirement": "FR-INT-014",
       "aspect": "the sync record in the chain",
       "opened_at": "M4-A",
       "completing_gate": "M5a",
-      "state": "open",
+      "state": "closed",
       "completed_by": "FR-EDG-005",
-      "why": "Split out of the M3-C entry for the same reason as FR-NOT-001's: it claimed the sync half was recorded separately and no such entry existed. Outlet persistence and synchronization records are M5a's, and the correlation chain gains that artifact when they do."
+      "why": "Split out of the M3-C entry for the same reason as FR-NOT-001's: it claimed the sync half was recorded separately and no such entry existed. Outlet persistence and synchronization records are M5a's, and the correlation chain gains that artifact when they do.",
+      "closed_at": "M5a",
+      "closed_by_evidence": "integration.sync_evidence is append-only across replay and restart (FR-DAT-008C) and records what the synchronization did INCLUDING the deliveries it refused — which is why subject_ref carries no foreign key. tests/m5a proves a destructive correction is refused with LEDGER_ROW_DELETED_NOT_REVERSED, and that a repeated cloud delivery is recorded as a duplicate rather than applied twice."
     },
     {
       "requirement": "FR-ORD-007B",
@@ -539,18 +581,22 @@
       "aspect": "node connectivity, sync lag and printer status",
       "opened_at": "M4-B",
       "completing_gate": "M5a",
-      "state": "open",
+      "state": "closed",
       "why": "Health reports the ACTIVE payment adapters truthfully, and an advertised adapter that cannot settle makes readiness unhealthy — tests/m4b activates a simulated adapter and requires a 503. The other three things FR-INT-011 names have nothing behind them at this gate: the outlet node and synchronization lag are M5a's and the printer is M4-C's. M1-D's rule is that a deployment advertises what it HAS, so none is reported. A health endpoint calling a printer healthy because no printer exists would be the most expensive kind of true statement.",
-      "completed_by": "FR-EDG-005"
+      "completed_by": "FR-EDG-005",
+      "closed_at": "M5a",
+      "closed_by_evidence": "edge.node_health() returns all seven components and reports one that has never sampled as unhealthy WITH a reason rather than omitting it; integration.sync_state carries connectivity, the pause reason and last contact; docs.printer_health() reports every active printer whether or not it has ever had a job. tests/m5a asserts each, and GET /n/v1/health and /n/v1/print-queue expose them to an operator."
     },
     {
       "requirement": "FR-PAY-002",
       "aspect": "cash service through a staged outage",
       "opened_at": "M4-B",
       "completing_gate": "M5a",
-      "state": "open",
+      "state": "closed",
       "why": "Proved STRUCTURALLY and not behaviourally, and the structural half is the stronger claim. tests/m4b derives the transitive closure of every function reachable from the cash, terminal-recording and proof-confirmation entry points from the catalog, defines 'outbound' by CAPABILITY — an untrusted language, a foreign table, a non-core extension, or a write to the table that records an adapter call — and requires the intersection to be empty; it then plants an adapter call on the cash path and requires the check to go red. Staging one outage would prove the path survived THAT outage; this proves it survives every outage. What is missing is the behavioural half, which needs an outlet node to switch off. DISTINCT FROM FR-FUL-001's routing-during-an-outage entry, which is about work reaching a station while the node is isolated: this one is about money being taken while it is, and M5a discharges neither by discharging the other.",
-      "completed_by": "FR-EDG-009"
+      "completed_by": "FR-EDG-009",
+      "closed_at": "M5a",
+      "closed_by_evidence": "Proved behaviourally rather than structurally. GJ-10 stages the outage, then issues a bill, records a separate tip and settles in cash through the till's own routes with the cloud unreachable, and asserts the payment landed. edge.action_authority additionally names payment.cash_settle and payment.terminal_record as permitted during an outage, so a change that broke either alters a row somebody can read."
     },
     {
       "requirement": "FR-PAY-009",
@@ -578,19 +624,31 @@
       "requirement": "FR-BIL-017",
       "aspect": "paper out of a physical machine",
       "opened_at": "M4-C",
-      "completing_gate": "M5a",
+      "completing_gate": "M6",
       "state": "open",
       "completed_by": "FR-CFG-001E",
-      "why": "FR-BIL-017 asks that a completed settlement produces a real physical customer receipt through a supported minimum production printer path, and M4-C built all of that path except its last inch. The receipt is composed from the bill's own figures in the bill's own locale, rasterised at 576 dots by the printer path's own rendering engine, checked per glyph against the font this repository ships, encoded into ESC/POS and written to a sink that refuses anything which is not a character device. One settlement produces one original print, refused twice over by a partial unique index and by a trigger. WHAT IS NOT PROVED is that a physical machine took those bytes and produced legible paper: no printer exists in the build container or on either CI runner and no pilot device has been chosen, so the command set is the published generic one and no vendor's extension. This is recorded here rather than in a footnote because it is the difference between a path and an artifact, and planning/M4C_LIMITATIONS.md states it against the commit it was true at. It closes at M5a, which is the first gate that has hardware — and if M5a selects a different rasteriser, NC-M4-005 must be run against that engine, because glyph coverage is a property of the rasteriser and of the font together and does not transfer."
+      "why": "FR-BIL-017 asks that a completed settlement produces a real physical customer receipt through a supported minimum production printer path, and M4-C built all of that path except its last inch. The receipt is composed from the bill's own figures in the bill's own locale, rasterised at 576 dots by the printer path's own rendering engine, checked per glyph against the font this repository ships, encoded into ESC/POS and written to a sink that refuses anything which is not a character device. One settlement produces one original print, refused twice over by a partial unique index and by a trigger. WHAT IS NOT PROVED is that a physical machine took those bytes and produced legible paper: no printer exists in the build container or on either CI runner and no pilot device has been chosen, so the command set is the published generic one and no vendor's extension. This is recorded here rather than in a footnote because it is the difference between a path and an artifact, and planning/M4C_LIMITATIONS.md states it against the commit it was true at. It closes at M5a, which is the first gate that has hardware — and if M5a selects a different rasteriser, NC-M4-005 must be run against that engine, because glyph coverage is a property of the rasteriser and of the font together and does not transfer.",
+      "completer_moved": {
+        "from": "M5a",
+        "to": "M6",
+        "at": "M5a",
+        "why": "Unchanged by M5a and moved for the same reason FR-FUL-008 is: this gate builds the queue, the retry, the recovery and the deduplication in front of the printer, and every one of those is proved. The last inch — bytes leaving a real machine as paper — needs a chosen production device, which planning/M4C_LIMITATIONS.md already records as outstanding and which M6 selects."
+      }
     },
     {
       "requirement": "FR-TST-005A",
       "aspect": "settlement proved at the service tier, not the browser tier",
       "opened_at": "M4-C",
-      "completing_gate": "M5a",
+      "completing_gate": "M6",
       "state": "open",
       "completed_by": "FR-POS-002",
-      "why": "The five settlement journeys are driven by the HTTP calls a cashier's screen would issue, against the running service: checks, allocations, splits, bills, the guest's tip through the guest's own credential, payment intents, cash, terminal results, proofs, receipts, revisions, overrides and reversals. That proves each route exists, is registered, authorises its caller and returns what the caller needs — the thing M4-A shipped without, and the reason the first HTTP call ever made to POST /s/v1/checks failed on two production defects. What it does NOT prove is that a person can reach any of it: there is no cashier settlement surface. waiter/src contains no bill, payment, receipt or tip affordance of any kind, so no button reaches these routes and no browser test can be written against one. DISTINCT FROM THE TWO PRINTING-ADJACENT ENTRIES, deliberately, because all three would otherwise be closed together by whichever gate arrived first: FR-BIL-017's open half is PAPER out of a physical machine, M5a's resilient print queue is DURABILITY of a print across restart and outage, and this one is a SCREEN a cashier can touch. A gate could deliver any one and leave the other two exactly as absent."
+      "why": "The five settlement journeys are driven by the HTTP calls a cashier's screen would issue, against the running service: checks, allocations, splits, bills, the guest's tip through the guest's own credential, payment intents, cash, terminal results, proofs, receipts, revisions, overrides and reversals. That proves each route exists, is registered, authorises its caller and returns what the caller needs — the thing M4-A shipped without, and the reason the first HTTP call ever made to POST /s/v1/checks failed on two production defects. What it does NOT prove is that a person can reach any of it: there is no cashier settlement surface. waiter/src contains no bill, payment, receipt or tip affordance of any kind, so no button reaches these routes and no browser test can be written against one. DISTINCT FROM THE TWO PRINTING-ADJACENT ENTRIES, deliberately, because all three would otherwise be closed together by whichever gate arrived first: FR-BIL-017's open half is PAPER out of a physical machine, M5a's resilient print queue is DURABILITY of a print across restart and outage, and this one is a SCREEN a cashier can touch. A gate could deliver any one and leave the other two exactly as absent.",
+      "completer_moved": {
+        "from": "M5a",
+        "to": "M6",
+        "at": "M5a",
+        "why": "GJ-10 walks the till in a browser for its first settlement, which is more than the service tier and still not what this aspect asks: it asks that the FIVE settlement journeys be proved at the browser tier rather than through the HTTP calls a cashier's screen would issue. M5a walks one of them and adds a sixth journey; it does not convert the other four. Moving it to M6 rather than closing it on one journey's evidence, because 'one of five' is exactly the arithmetic this register exists to stop being rounded up."
+      }
     }
   ],
   "gate_decomposition": {

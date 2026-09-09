@@ -1871,6 +1871,246 @@ def gj_07() -> None:
 # only the first proves a person can reach it. A reader must be able to see which claim
 # rests on which without inferring it from the code, which is M2-C's measured-versus-
 # asserted discipline applied to journeys.
+def gj_10() -> None:
+    """GJ-10 — the outlet keeps trading while the cloud is gone, and reconciles once.
+
+    THE JOURNEY THE WHOLE OF M5a EXISTS FOR. Its steps, in the package's own words: use
+    the staff endpoints on the outlet network; create a local session, order, check,
+    payment, tip and print job; restart the API and the print service; replay the outbox
+    with parent-before-child ordering; inject one conflict; reconnect. Queue a customer
+    receipt, lose the internet, restart the local print service, recover the queue, print
+    exactly once, reconnect and reconcile the print job's status.
+
+    IT RUNS AT KAZANCHIS, which is where every journey runs, and that is why seeds/0012
+    registers a node at BOTH Habesha outlets rather than only at the demonstration floor.
+    An outlet with tickets and no node would be an outlet whose print jobs could never
+    reconcile, and it would have been found here rather than reasoned about.
+
+    WHAT IT DOES NOT CLAIM. The outage is the sync transport's own seam, not a severed
+    cable: the node observes an unreachable cloud, which is the only thing a node can
+    observe. A partial link, a slow link and a DNS lie belong to M5b and are not
+    simulated here or implied to be covered.
+    """
+    print("\n--- GJ-10: trading through an outage, and reconciling once ---")
+    journey = "GJ-10"
+
+    node = scalar("SELECT id FROM edge.node WHERE node_code = 'NODE-H1';")
+    record(journey, "the outlet has a continuity node to trade through", bool(node),
+           f"node NODE-H1 = {node or '(none)'}")
+    if not node:
+        raise ProbeFailed("GJ-10", "no node is registered at this outlet")
+
+    # ---- 1. Ordinary trade, before anything goes wrong ------------------------------
+    session = m4c.m4a.fresh_occupancy(m4c.RECEIPT_TABLE)
+    guest = m4c.m4a.guest_on(session)
+    cart = m4c.m4a.cart_with(session, guest, ((m4c.VARIANT_DORO_FULL, m4c.ITEM_DORO, 1),))
+    order = an_order_placed_by_the_guest(journey, session, cart)
+    _s, staff_token = fx.staff_session(fx.USER)
+    accepted = service("POST", f"/s/v1/orders/{order}/accept", {}, token=staff_token)
+    if accepted.get("status") not in (200, 201):
+        raise ProbeFailed("POST /s/v1/orders/:orderId/accept", why(accepted))
+    settled = a_settled_check(journey, session, locale="en", tip_minor=1500,
+                              method="cash", provider="cash", make_intent=False)
+    at_the_till = settle_at_the_till(journey, settled, method="cash",
+                                     prompts=[str(settled["total"] + settled["tip"])],
+                                     receipt_method="cash")
+    receipt = at_the_till["receipt"]
+    record(journey, "a session, order, check, payment, tip and receipt exist locally",
+           bool(receipt), f"receipt {receipt[:8] if receipt else '(none)'}")
+
+    # ---- 2. The receipt is QUEUED rather than printed on the spot --------------------
+    printer_id = scalar("""
+        SELECT id FROM docs.printer WHERE status = 'active' ORDER BY registered_at LIMIT 1;""")
+    job = scalar(f"""
+        SELECT docs.enqueue_print_job('{fx.TENANT}','{fx.OUTLET_H1}','{receipt}',
+               '{printer_id}','gj10:{receipt}','{fx.USER}');""", dsn=ADMIN)
+    twice = scalar(f"""
+        SELECT docs.enqueue_print_job('{fx.TENANT}','{fx.OUTLET_H1}','{receipt}',
+               '{printer_id}','gj10:{receipt}','{fx.USER}');""", dsn=ADMIN)
+    record(journey, "the receipt is queued, and asking twice queues one job",
+           bool(job) and job == twice, f"job {job[:8]}")
+
+    # ---- 3. THE INTERNET GOES ------------------------------------------------------
+    scalar(f"""SELECT integration.set_connectivity('{fx.TENANT}','{node}',
+               'local_continuity'::edge.connectivity_state);""", dsn=ADMIN)
+    banner = rows(f"""
+        SELECT state::text, wording, blocks_service::text
+          FROM edge.connectivity_banner('{fx.TENANT}','{fx.OUTLET_H1}','en');""")
+    state, wording, blocks = (banner[0] if banner else ("", "", ""))
+    record(journey, "everybody in the room is told the outlet is on local continuity",
+           state == "local_continuity" and bool(wording) and blocks == "false",
+           f"{state}: {wording!r}; blocks service: {blocks}")
+
+    ordinary = {code: rows(f"""
+        SELECT disposition::text, COALESCE(explanation,'')
+          FROM edge.action_disposition('{fx.TENANT}','{fx.OUTLET_H1}','{code}','en');""")[0]
+        for code in ("order.place", "ticket.advance", "bill.issue", "tip.record",
+                     "payment.cash_settle", "payment.terminal_record", "receipt.print")}
+    record(journey, "waiter entry, the kitchen, bills, tips, cash and printing continue",
+           all(row[0] == "permitted" for row in ordinary.values()),
+           ", ".join(f"{k}={v[0]}" for k, v in ordinary.items()))
+
+    blocked = rows(f"""
+        SELECT disposition::text, COALESCE(explanation,'')
+          FROM edge.action_disposition('{fx.TENANT}','{fx.OUTLET_H1}',
+               'payment.online_capture','am');""")[0]
+    record(journey, "and what needs the cloud is blocked with a translated explanation",
+           blocked[0] == "blocked" and len(blocked[1]) > 10,
+           f"{blocked[0]}: {blocked[1][:60]}…")
+
+    # ---- 4. TRADE CONTINUES WHILE THE CLOUD IS GONE (FR-EDG-015A) -------------------
+    offline_session = m4c.m4a.fresh_occupancy(m4c.m4b.PAY_TABLE)
+    offline_guest = m4c.m4a.guest_on(offline_session)
+    offline_cart = m4c.m4a.cart_with(offline_session, offline_guest,
+                                     ((m4c.VARIANT_DORO_FULL, m4c.ITEM_DORO, 1),))
+    offline_order = an_order_placed_by_the_guest(journey, offline_session, offline_cart)
+    offline_accept = service("POST", f"/s/v1/orders/{offline_order}/accept", {},
+                             token=staff_token)
+    record(journey, "a guest orders and the kitchen admits it with the cloud unreachable",
+           offline_accept.get("status") in (200, 201),
+           f"order {offline_order[:8]} accepted while offline")
+
+    # THE KITCHEN WORKS THE TICKET, OFFLINE. FR-FUL-001's routing and FR-FUL-003's KDS
+    # are both registered as revalidated at M5a "when the outlet node is authoritative",
+    # and neither is revalidated by an order that merely EXISTS offline. A cook has to
+    # move it.
+    offline_kitchen = take_order_through_the_kitchen(offline_order)
+    offline_ticket = scalar(f"""
+        SELECT string_agg(DISTINCT state::text, ',') FROM fulfillment.ticket
+         WHERE order_id = '{offline_order}';""")
+    record(journey, "the kitchen routes and works the ticket while the cloud is gone",
+           bool(offline_kitchen) and "served" in (offline_ticket or ""),
+           f"ticket states after the kitchen half: {offline_ticket}")
+
+    # AND THE CASHIER TAKES CASH FOR IT. FR-PAY-002's open aspect is cash service through
+    # a staged outage, proved structurally at M4-B and never behaviourally. This is the
+    # behaviour: a bill issued, a tip recorded and cash settled with no cloud to ask.
+    offline_settled = a_settled_check(journey, offline_session, locale="en",
+                                      tip_minor=500, method="cash", provider="cash",
+                                      make_intent=False)
+    offline_paid = count(APP, f"""
+        SELECT count(*) FROM payments.payment p
+          JOIN payments.payment_intent i ON i.id = p.intent_id
+         WHERE i.bill_id = '{offline_settled["bill"]}';""", **CTX)
+    record(journey, "a bill, a separate tip and a cash settlement complete offline",
+           offline_paid > 0,
+           f"bill {offline_settled['bill'][:8]} settled in cash with the cloud unreachable")
+
+    # ---- 5. THE OUTBOX FILLS, PARENT BEFORE CHILD -----------------------------------
+    parent = scalar(f"""
+        SELECT integration.enqueue_outbox('{fx.TENANT}','{node}','bill',
+               '{settled["bill"]}','bill.issued','{{}}'::jsonb, now() - interval '20 min',
+               NULL, 'gj10-bill-{settled["bill"]}');""", dsn=ADMIN)
+    scalar(f"""
+        SELECT integration.enqueue_outbox('{fx.TENANT}','{node}','payment',
+               '{settled["bill"]}','payment.captured','{{}}'::jsonb,
+               now() - interval '10 min', '{parent}', 'gj10-pay-{settled["bill"]}');""",
+           dsn=ADMIN)
+    first = [r[0] for r in rows(f"""
+        SELECT event_kind FROM integration.claim_outbox_batch('{fx.TENANT}','{node}')
+         ORDER BY sequence;""", dsn=ADMIN)]
+    record(journey, "the child does not travel before its parent",
+           first == ["bill.issued"], f"offered: {first}")
+    scalar(f"SELECT integration.acknowledge_outbox('{fx.TENANT}','{node}','{parent}');",
+           dsn=ADMIN)
+    second = [r[0] for r in rows(f"""
+        SELECT event_kind FROM integration.claim_outbox_batch('{fx.TENANT}','{node}')
+         ORDER BY sequence;""", dsn=ADMIN)]
+    record(journey, "and travels once the parent is acknowledged",
+           second == ["payment.captured"], f"offered: {second}")
+
+    # ---- 6. THE API RESTARTS, AND NOTHING IS LOST -----------------------------------
+    before = scalar(f"""
+        SELECT count(*)::text FROM integration.outbox WHERE node_id = '{node}';""",
+                    dsn=ADMIN)
+    queued_before = scalar(f"""
+        SELECT count(*)::text FROM docs.print_job
+         WHERE tenant_id = '{fx.TENANT}' AND state <> 'printed';""", dsn=ADMIN)
+    CONTEXT["service"].restart()
+    after = scalar(f"""
+        SELECT count(*)::text FROM integration.outbox WHERE node_id = '{node}';""",
+                   dsn=ADMIN)
+    queued_after = scalar(f"""
+        SELECT count(*)::text FROM docs.print_job
+         WHERE tenant_id = '{fx.TENANT}' AND state <> 'printed';""", dsn=ADMIN)
+    record(journey, "the local records and queues survive a restart of the API",
+           before == after and queued_before == queued_after,
+           f"outbox {before} -> {after}; unprinted jobs {queued_before} -> {queued_after}")
+
+    # ---- 7. THE PRINT SERVICE STOPS MID-JOB, AND THE QUEUE RECOVERS ------------------
+    scalar(f"""
+        SELECT count(*)::text FROM docs.claim_print_jobs('{fx.TENANT}','{fx.OUTLET_H1}',
+               'gj10-agent', 1, 10);""", dsn=ADMIN)
+    scalar("SELECT pg_sleep(1.2)::text;", dsn=ADMIN)
+    recovered = scalar(f"""
+        SELECT docs.recover_expired_print_claims('{fx.TENANT}','{fx.OUTLET_H1}')::text;""",
+                       dsn=ADMIN)
+    state_now = scalar(f"SELECT state::text FROM docs.print_job WHERE id = '{job}';",
+                       dsn=ADMIN)
+    record(journey, "a job held by a print service that stopped returns to the queue",
+           recovered != "0" and state_now == "queued",
+           f"recovered {recovered}, job is {state_now} — a lease expires; a flag would not")
+
+    # ---- 8. IT PRINTS EXACTLY ONCE --------------------------------------------------
+    scalar(f"""
+        SELECT count(*)::text FROM docs.claim_print_jobs('{fx.TENANT}','{fx.OUTLET_H1}',
+               'gj10-agent', 120, 10);""", dsn=ADMIN)
+    digest = "b" * 64
+    scalar(f"""
+        SELECT docs.complete_print_job('{fx.TENANT}','{job}','device','/dev/usb/lp0',
+               '{digest}'::character(64), 480, '{fx.USER}')::text;""", dsn=ADMIN)
+    again = scalar(f"""
+        SELECT COALESCE(docs.complete_print_job('{fx.TENANT}','{job}','device',
+               '/dev/usb/lp0','{digest}'::character(64), 480, '{fx.USER}')::text,'none');""",
+                   dsn=ADMIN)
+    attempts = scalar(f"""
+        SELECT count(*)::text FROM docs.print_attempt WHERE receipt_id = '{receipt}';""",
+                      dsn=ADMIN)
+    record(journey, "the receipt prints once, and a repeated report does not print again",
+           again == "none" and attempts == "1",
+           f"second report: {again}; physical attempts recorded: {attempts}")
+
+    # ---- 9. ONE CONFLICT, INJECTED AND VISIBLE --------------------------------------
+    conflict = scalar(f"""
+        SELECT integration.raise_conflict('{fx.TENANT}','{node}','tip',
+               '{settled["bill"]}','{{"tip":1500}}'::jsonb,'{{"tip":0}}'::jsonb,
+               now() - interval '15 min', now(),
+               'the guest tipped at the table; the cloud has no tip')::text;""", dsn=ADMIN)
+    visible = rows(f"""
+        SELECT subject::text, detail FROM integration.conflict
+         WHERE id = '{conflict}' AND resolution IS NULL;""", dsn=ADMIN)
+    reconciling = scalar(f"""
+        SELECT connectivity::text FROM integration.sync_state WHERE node_id = '{node}';""",
+                        dsn=ADMIN)
+    record(journey, "one conflict is visible to an operator, and the node says so",
+           bool(visible) and reconciling == "reconciling",
+           f"{visible[0][0] if visible else '(none)'}: "
+           f"{visible[0][1][:52] if visible else ''}…; node is {reconciling}")
+
+    # ---- 10. RECONNECT, SETTLE THE DISAGREEMENT, AND CHECK FOR DUPLICATES ------------
+    scalar(f"""SELECT integration.resolve_conflict('{fx.TENANT}','{conflict}',
+               'local_stands','{fx.USER}',
+               'the waiter saw the cash tip; the cloud never received it');""", dsn=ADMIN)
+    scalar(f"""SELECT integration.set_connectivity('{fx.TENANT}','{node}',
+               'cloud_connected'::edge.connectivity_state);""", dsn=ADMIN)
+    back = scalar(f"""
+        SELECT connectivity::text FROM integration.sync_state WHERE node_id = '{node}';""",
+                  dsn=ADMIN)
+    duplicates = scalar(f"""
+        SELECT count(*)::text
+          FROM integration.duplicate_business_operations('{fx.TENANT}','{node}');""",
+                        dsn=ADMIN)
+    record(journey, "reconnection produces no duplicate order, payment or tip",
+           back == "cloud_connected" and duplicates == "0",
+           f"connectivity {back}; duplicate once-only operations: {duplicates}")
+
+    reconciled = scalar(f"""
+        SELECT count(*)::text FROM integration.outbox
+         WHERE subject = 'print_job' AND subject_id = '{job}';""", dsn=ADMIN)
+    record(journey, "the print job reconciles to the cloud exactly once",
+           reconciled == "1", f"{reconciled} event carrying the job's own identity")
+
+
 JOURNEYS = (
     ("GJ-01A", gj_01a),
     ("GJ-01B", gj_01b),
@@ -1882,6 +2122,7 @@ JOURNEYS = (
     ("GJ-05", gj_05),
     ("GJ-06", gj_06),
     ("GJ-07", gj_07),
+    ("GJ-10", gj_10),
     ("FR-TST-007A", concurrency),
 )
 

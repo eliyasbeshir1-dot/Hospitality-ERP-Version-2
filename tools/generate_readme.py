@@ -90,6 +90,21 @@ SLICE_DELIVERS = {
             "were entered at; a metric catalog that IS the metrics, readings that carry "
             "their source and their freshness, a shift snapshot no recomputation can "
             "rewrite, and the FR-GOV-004 audit of every requirement whose gate has landed",
+    "M5-A": "the outlet continuity node: an outlet that keeps trading when the cloud is "
+            "unreachable. A node bound to exactly one outlet, made of the five services "
+            "FR-EDG-002A names, refusing to start anywhere else; a production outlet that "
+            "cannot be RECORDED as cloud-only; a transactional outbox whose events keep "
+            "the identity and the time they were given at the outlet, travel parent "
+            "before child, and are acknowledged only when the cloud names them; an "
+            "idempotent inbox that makes a repeated delivery a no-op it reports rather "
+            "than swallows; conflicts over the six domains that cannot be settled without "
+            "a person and a sentence; a durable print queue where a lease expires but a "
+            "printed job never returns; readiness counted out of the tables service "
+            "reads; every action classified once so a route asks a registry instead of "
+            "carrying its own copy of the rule, and an unclassified one refused rather "
+            "than allowed by omission; one connectivity banner compiled once for all four "
+            "screens, worded in three locales from the database; and signed updates whose "
+            "rollback refuses if the local queues have shrunk",
 }
 
 # The gates in order, and what each one brings that does not exist yet. Rows are emitted
@@ -209,6 +224,10 @@ SUITE_SPANS = {
     # The same four again: acceptance is M3-A's policy, the menu is M2-A's, the screens
     # are M2-C's and M3-D's, and signing in to admit an order is M1-B's.
     "opd": ["M1", "M2", "M3", "M4"],
+    # All four again, and for the first time that is not a coincidence: M5a proves the
+    # outlet keeps doing what M1 through M4 built while the cloud is unreachable, so
+    # every one of them is what it has to keep doing.
+    "m5a": ["M1", "M2", "M3", "M4"],
 }
 
 
@@ -288,6 +307,16 @@ SUITE_PURPOSE = {
            "preparation time the seed has always written and nothing returned; and the "
            "route census stops averaging \"a suite calls this\" together with \"a person "
            "can reach this\"",
+    "m5a": "the outlet continuity node, and what an outlet can still do when the cloud "
+           "cannot be reached. A node that refuses to start at the wrong outlet and says "
+           "which outlet it is bound to; an outbox that carries a child only after its "
+           "parent and an inbox that makes a repeated delivery a reported no-op; "
+           "conflicts over orders, bills, payments, tips, cash and permissions that no "
+           "machine can settle; a print queue where a lease expires and a printed job "
+           "never returns; readiness counted rather than claimed; cash, terminal "
+           "recording and ordinary service permitted during an outage while what needs "
+           "the cloud is blocked or queued with a translated explanation; and a rollback "
+           "that refuses if the local queues have shrunk",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
     "journeys": "the golden journeys end to end in a browser against real "
                 "persistence, plus the duplicate-submit race: what a guest and a waiter "
