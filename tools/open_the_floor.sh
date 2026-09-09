@@ -108,6 +108,25 @@ STATION="33334101-0000-4000-8000-000000000001"
 
 # The QR token a guest would scan off the table, minted now so there is a link to click
 # rather than a placard to photograph.
+# THE NODE THIS FLOOR RUNS AS, read from the database rather than typed here.
+#
+# M5a binds a continuity node to exactly one outlet and refuses to start anywhere else, so
+# the fingerprint below is not a constant this script may choose — it is whatever
+# seeds/0012 registered. Reading it means a floor that cannot start is a floor whose node
+# is genuinely wrong, rather than one whose script fell out of step with its seed.
+NODE_CODE="$(psql "$M1A_ADMIN_DSN" -tAc \
+  "SELECT node_code FROM edge.node
+    WHERE tenant_id = '$TENANT' AND outlet_id = '$OUTLET' AND status = 'active';")"
+NODE_FINGERPRINT="$(psql "$M1A_ADMIN_DSN" -tAc \
+  "SELECT identity_fingerprint FROM edge.node
+    WHERE tenant_id = '$TENANT' AND outlet_id = '$OUTLET' AND status = 'active';")"
+if [ -z "$NODE_CODE" ]; then
+    echo "FAIL FLOOR_HAS_NO_NODE: no active continuity node is registered at $OUTLET." >&2
+    echo "  seeds/0012 registers one. Without it the floor would serve the CLOUD profile," >&2
+    echo "  and every M5a screen would be missing rather than empty." >&2
+    exit 1
+fi
+
 QR="$(psql "$M1A_ADMIN_DSN" -tAc \
   "SELECT service.issue_table_qr('$TENANT'::uuid,
                                  '33335101-0000-4000-8000-000000000001'::uuid,
@@ -175,6 +194,40 @@ cat <<INFO
     - an ALLERGY cannot be declared on this floor, for the same reason:
       the allergen catalogue is tenant-unique and fixture-owned.
 
+  THE OUTLET RUNS ITS OWN NODE NOW (M5a)
+    This floor is served BY the continuity node ${NODE_CODE}, not by a
+    cloud pretending to be one. Three of its five services are running:
+    the local API you are talking to, the synchronization worker and the
+    realtime gateway. The print agent runs on demand and PostgreSQL is
+    the fifth.
+
+    CUT THE INTERNET by creating one file, and restore it by deleting
+    it. The worker reads it every round, so the banner follows within a
+    couple of seconds and there is no process to find:
+
+      cut      : touch ${EDGE_UPLINK_CUT_FILE}
+      restore  : rm -f ${EDGE_UPLINK_CUT_FILE}
+
+    What you should see:
+      - a strip at the top of EVERY screen saying the outlet is working
+        offline and that service continues. It is not a modal and blocks
+        nothing; that is FR-EDG-009's own wording.
+      - ordering, the kitchen, bills, tips, cash and printing all still
+        work. Card AUTHORISATION does not, and says why in the language
+        the screen is in.
+    Restore it and the strip disappears, because a banner that is always
+    visible is a banner nobody reads.
+
+    THE OPERATOR'S OWN SCREENS, if you want to look underneath:
+      /n/v1/connectivity   what the room is told (no sign-in needed)
+      /n/v1/readiness      the eleven things a node must hold. THREE ARE
+                           MISSING on this floor and that is honest:
+                           allergens, taxes and printers live in
+                           fixture-owned catalogues, never in seeds.
+      /n/v1/sync-states    the five states, in plain language
+      /n/v1/print-queue    the durable queue and every printer's health
+      /n/v1/estate         the six device classes FR-OPS-018 names
+
   Ctrl-C to stop.
 
 INFO
@@ -189,6 +242,50 @@ WORKSPACE="${M1D_WORKSPACE:-/var/lib/m1d-workspace}"
 # hoping the shell already has them. It runs as the APPLICATION role, not the migrator or
 # the superuser, so the floor a founder clicks around is behind the same row level
 # security every suite runs against.
+# THE NODE'S OTHER SERVICES, beside the API.
+#
+# FR-EDG-002A names five. PostgreSQL is already running, the print agent runs on demand
+# through print/queue_runner.py, and these two run for as long as the floor does. Without
+# the worker the connectivity strip would never move — cutting the link would change
+# nothing anybody can see, which is the same "provable and unusable" gap this script
+# exists to close.
+#
+# NOT `exec` ANY MORE. exec replaces this shell and a trap set before it does not survive,
+# so the worker and the gateway would outlive Ctrl-C as orphans holding connections. The
+# API runs in the foreground instead and the trap cleans up after it.
+NODE_LOGS="${TMPDIR:-/tmp}/floor-node-logs"
+# The switch an operator flips to cut the internet. The worker reads it every round.
+export EDGE_UPLINK_CUT_FILE="${EDGE_UPLINK_CUT_FILE:-${TMPDIR:-/tmp}/edge-uplink-cut}"
+rm -f "$EDGE_UPLINK_CUT_FILE"
+mkdir -p "$NODE_LOGS"
+
+SYNC_PID=""
+GATEWAY_PID=""
+stop_the_node_services() {
+    [ -n "$SYNC_PID" ] && kill "$SYNC_PID" 2>/dev/null
+    [ -n "$GATEWAY_PID" ] && kill "$GATEWAY_PID" 2>/dev/null
+    return 0
+}
+trap stop_the_node_services EXIT INT TERM
+
+DATABASE_URL="$M1A_APP_DSN" \
+NODE_CODE="$NODE_CODE" NODE_TENANT_ID="$TENANT" NODE_OUTLET_ID="$OUTLET" \
+NODE_FINGERPRINT="$NODE_FINGERPRINT" \
+node "$WORKSPACE/dist/node/sync-worker.js" >"$NODE_LOGS/sync-worker.log" 2>&1 &
+SYNC_PID=$!
+
+DATABASE_URL="$M1A_APP_DSN" \
+NODE_CODE="$NODE_CODE" NODE_TENANT_ID="$TENANT" NODE_OUTLET_ID="$OUTLET" \
+NODE_FINGERPRINT="$NODE_FINGERPRINT" REALTIME_PORT="${REALTIME_PORT:-7102}" \
+node "$WORKSPACE/dist/node/realtime-gateway.js" >"$NODE_LOGS/realtime-gateway.log" 2>&1 &
+GATEWAY_PID=$!
+
+# The service refuses to start without these, by design — REQUIRED_ENVIRONMENT_ABSENT is
+# M1-D's readiness gate. NODE_CODE is what turns this from the cloud into the outlet's own
+# node: api/src/node/identity.ts proves the binding against edge.node BEFORE the listener
+# opens, so a wrong outlet id here is a refusal rather than a floor serving the wrong room.
 DATABASE_URL="$M1A_APP_DSN" \
 ENVIRONMENT_NAME="${ENVIRONMENT_NAME:-demonstration}" \
-PORT="$PORT" exec node "$WORKSPACE/dist/server.js"
+NODE_CODE="$NODE_CODE" NODE_TENANT_ID="$TENANT" NODE_OUTLET_ID="$OUTLET" \
+NODE_FINGERPRINT="$NODE_FINGERPRINT" \
+PORT="$PORT" node "$WORKSPACE/dist/server.js"

@@ -21,6 +21,8 @@
  * M5b's problem and are recorded, not implied away.
  */
 
+import { existsSync } from 'node:fs';
+
 export type UplinkState = 'up' | 'cut';
 
 export class CloudUnreachable extends Error {
@@ -30,9 +32,28 @@ export class CloudUnreachable extends Error {
   }
 }
 
-/** Read every time rather than captured at construction: an outage starts mid-process. */
+/**
+ * Read every time rather than captured at construction: an outage starts mid-process.
+ *
+ * TWO WAYS TO CUT IT, AND THE SECOND IS THE ONE A PERSON CAN USE.
+ *
+ * EDGE_UPLINK=cut is what a test sets when it starts the worker. It cannot be changed
+ * afterwards — a running process's environment is fixed — so cutting the link on a floor
+ * that is already serving meant killing the worker and starting another, and killing a
+ * named process is exactly the thing that quietly does not work here: `pkill -f
+ * sync-worker` matched nothing on Windows and left three workers running, one of which
+ * kept reporting the outlet connected while the "cut" one said otherwise.
+ *
+ * So there is also a FILE. If the path in EDGE_UPLINK_CUT_FILE exists, the link is cut;
+ * delete it and it is back. An operator walking the floor touches a file and watches the
+ * banner appear, with no process to find and no window to keep open. It is still one seam:
+ * both forms are read here and nowhere else.
+ */
 export function uplinkState(source: NodeJS.ProcessEnv = process.env): UplinkState {
-  return (source.EDGE_UPLINK ?? 'up').trim().toLowerCase() === 'cut' ? 'cut' : 'up';
+  if ((source.EDGE_UPLINK ?? 'up').trim().toLowerCase() === 'cut') return 'cut';
+  const marker = (source.EDGE_UPLINK_CUT_FILE ?? '').trim();
+  if (marker !== '' && existsSync(marker)) return 'cut';
+  return 'up';
 }
 
 export interface CloudExchange {
