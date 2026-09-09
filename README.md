@@ -207,6 +207,8 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0036_seating_is_an_action_and_actions_are_graded.sql`
 - `0037_a_menu_says_what_a_dish_is_and_an_order_can_be_admitted.sql`
 - `0038_a_successful_login_is_not_a_failed_one.sql`
+- `0039_an_outlet_has_a_node_and_the_node_has_an_identity.sql`
+- `0040_an_outlet_knows_what_hardware_it_has.sql`
 
 ## Seeds
 

@@ -71,6 +71,10 @@ DOMAIN_PURPOSE = {
     "fulfillment": "routing, station tickets and the fulfillment state machine",
     "notify": "notification templates, deliveries and status wording",
     "integration": "outbound integration runtime and the dead-letter queue",
+    "edge": "the outlet continuity node: its deployment profile, its binding to one "
+            "outlet, its five services, its identity and its health",
+    "ops": "the outlet's physical estate — the node, routers, access points, terminals, "
+           "KDS devices and printers — with location and support owner",
     "pos": "terminals, override approval, handover and the staff read models",
     "billing": "checks, allocation, bills, splitting, dispositions and tips",
     "docs": "documents somebody outside this system reads: receipts, their revisions and "
@@ -223,6 +227,17 @@ MIGRATION_SLICE = {
     # written before verification was never removed when the attempt resolved as a
     # success. Filed under the slice whose requirement it is, not the pass that found it.
     "0038": "M1-B",
+    # 0039 is M5a's own, and the first migration since 0001 that brings a whole domain
+    # into being rather than correcting an earlier one. Every gate before this assumed the
+    # system runs in one place; FR-EDG-001 says a production outlet may not. The schema is
+    # the outlet continuity node: what it is bound to, what it is made of, what it proves
+    # about itself and what it reports.
+    "0039": "M5a",
+    # 0040 is M5a's second, and owns `ops` for one table: the outlet's physical estate.
+    # It is a separate migration rather than a section of 0039 because the two own
+    # different domains, and "no migration spans domains" is a statement this map makes
+    # about every row in it.
+    "0040": "M5a",
 }
 
 

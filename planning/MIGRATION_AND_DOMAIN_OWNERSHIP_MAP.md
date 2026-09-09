@@ -56,8 +56,8 @@ Counted from `active_requirements` in the pinned package, by `introduced_at`.
 
 ## The migrations this repository has
 
-38 of them, `0001_organizational_model_and_rls.sql` through `0038_a_successful_login_is_not_a_failed_one.sql`, across
-20 domains. The owning domain of each is read out of its own SQL — the
+40 of them, `0001_organizational_model_and_rls.sql` through `0040_an_outlet_knows_what_hardware_it_has.sql`, across
+22 domains. The owning domain of each is read out of its own SQL — the
 schemas it creates and the schemas it creates tables in — and the gate from the header
 comment every migration in this repository carries.
 
@@ -101,6 +101,8 @@ comment every migration in this repository carries.
 | `0036_seating_is_an_action_and_actions_are_graded.sql` | — | pos | M3-D |
 | `0037_a_menu_says_what_a_dish_is_and_an_order_can_be_admitted.sql` | — | menu · pos | M2-A |
 | `0038_a_successful_login_is_not_a_failed_one.sql` | — | identity | M1-B |
+| `0039_an_outlet_has_a_node_and_the_node_has_an_identity.sql` | edge | — | M5a |
+| `0040_an_outlet_knows_what_hardware_it_has.sql` | ops | — | M5a |
 
 ---
 
@@ -112,6 +114,7 @@ comment every migration in this repository carries.
 - **`cash`** — drawer shifts, movements, counts, custody and exceptions
 - **`config`** — policies, configuration versions, numbering and retention
 - **`docs`** — documents somebody outside this system reads: receipts, their revisions and reprints, the registered printers and what was put on paper
+- **`edge`** — the outlet continuity node: its deployment profile, its binding to one outlet, its five services, its identity and its health
 - **`fiscal`** — the fiscal-document port: a request against a receipt, its lifecycle and its reconciliation status, with no provider's schema inside it
 - **`fulfillment`** — routing, station tickets and the fulfillment state machine
 - **`identity`** — users, roles, memberships, sessions and step-up
@@ -119,6 +122,7 @@ comment every migration in this repository carries.
 - **`menu`** — items, variants, modifiers, prices, dayparts and translation
 - **`money`** — exact amounts, rates, rounding and allocation
 - **`notify`** — notification templates, deliveries and status wording
+- **`ops`** — the outlet's physical estate — the node, routers, access points, terminals, KDS devices and printers — with location and support owner
 - **`ordering`** — the order aggregate, its ledger and its projections
 - **`org`** — tenants, outlets, the node tree and device registration
 - **`payments`** — adapters and the live/simulated boundary, intents, capture, verification, dual allocation and reversal
