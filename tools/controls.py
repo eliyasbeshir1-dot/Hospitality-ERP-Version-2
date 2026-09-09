@@ -201,6 +201,15 @@ CONTROLS = [
     # rule is "N failures lock you out"; nobody states "N successes must not". OP-B met the
     # symptom, read it as the limiter working, and worked around it — twice inherited.
     ("NC-OPD-006", "A successful login counted as a failed one", "SUCCESSFUL_LOGIN_COUNTED_AS_FAILURE", "opd"),
+
+    # M5a — the outlet keeps working when the cloud does not. Three of these five defend
+    # a distinction this gate kept getting wrong: "I could not see it" is not "it is not
+    # there", and every one of those looked like a sensible answer.
+    ("NC-M5A-001", "A production outlet permitted to run cloud-only", "PRODUCTION_WITHOUT_A_NODE", "m5a"),
+    ("NC-M5A-002", "A node registered with four of its five services", "NODE_SERVICE_INVENTORY_INCOMPLETE", "m5a"),
+    ("NC-M5A-003", "A node started at a sibling outlet", "NODE_OUTLET_MISMATCH", "m5a"),
+    ("NC-M5A-004", "A connectivity banner reporting CONNECTED because it could not see the node", "CONNECTIVITY_OUT_OF_SCOPE", "m5a"),
+    ("NC-M5A-005", "An action allowed during an outage because nobody classified it", "ACTION_UNCLASSIFIED", "m5a"),
 ]
 
 
