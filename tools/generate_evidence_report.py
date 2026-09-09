@@ -76,6 +76,7 @@ SUITES = (
     ("opb", "OP-B the station board, the till and the waiter floor"),
     ("opc", "OP-C being seated, and taking something back out"),
     ("opd", "OP-D the order reaching the kitchen, and what a menu says"),
+    ("m5a", "M5a the outlet continuity node, synchronization and the print queue"),
     ("fenced_gate", "Fenced-domain gate, vocabulary and mutations"),
     ("journeys", "The golden journeys, end to end"),
 )
@@ -347,6 +348,14 @@ JOURNEYS = [
               "its own number and a marked reprint carrying operator and reason, and the "
               "first receipt's own record left unchanged",
               "M1-B · M4-B · M4-C"),
+    ("GJ-10", "The outlet trading through an outage: a session, order, check, payment, "
+              "tip and receipt; the internet cut; the banner in the room; a guest ordering, "
+              "the kitchen working the ticket and the cashier taking cash with the cloud "
+              "unreachable; the API restarted with nothing lost; a print job recovered from "
+              "a stopped agent and printed exactly once; parent-before-child replay; one "
+              "conflict raised and visible; reconnection with no duplicate order, payment "
+              "or tip",
+              "M5a"),
     ("FR-TST-007A", "Two submissions racing, measured with M3-A's catalog-derived "
                     "whole-schema differential: one order, one line, no duplicate "
                     "commercial effect",

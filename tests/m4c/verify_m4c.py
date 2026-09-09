@@ -1476,12 +1476,29 @@ def section_boundary() -> None:
          WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
            AND c.relname ~* '(^|_)(sync|synchronization|outlet_node|replication)($|_)'
          ORDER BY 1;""", dsn=ADMIN)
-    record("and no outlet node or synchronization surface exists",
-           not sync,
-           f"{[r[0] for r in sync] or 'none'}. FR-RPT-002's later_behavior asks for local "
-           f"versus cloud source and staleness at M5a, and a build that showed a "
-           f"synchronization status with nothing synchronizing would be showing a "
-           f"fabricated one")
+    # THE SECOND FENCE IN THIS SECTION TO FALL, and it falls for the same reason: M5a
+    # arrived. FR-RPT-002's later_behavior asks for local-versus-cloud source and
+    # staleness at M5a, and M4-C's claim was that a synchronization status shown with
+    # nothing synchronizing would be a fabricated one. Something IS synchronizing now.
+    #
+    # What outlives it is the half that stays true: M4-C's own reporting still shows no
+    # source or staleness column, because that is M5a's to add and it did not add it to
+    # report. The synchronization surface may exist; it may not have grown into this
+    # slice's schema.
+    reporting_claims_a_source = rows("""
+        SELECT n.nspname || '.' || c.relname || '.' || a.attname
+          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+          JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+         WHERE c.relkind = 'r' AND n.nspname = 'report'
+           AND a.attname ~* '(^|_)(sync|synchronization|staleness|source_of_truth)($|_)'
+         ORDER BY 1;""", dsn=ADMIN)
+    record("the synchronization surface landed at M5a and did not grow into reporting",
+           bool(sync) and not reporting_claims_a_source,
+           f"{[r[0] for r in sync] or 'nothing synchronizing yet'} exist; "
+           f"{[r[0] for r in reporting_claims_a_source] or 'no'} reporting column claims "
+           f"a source or a staleness. FR-RPT-002's later_behavior places local-versus-"
+           f"cloud source at M5a, and M5a put it in integration and edge where it belongs "
+           f"rather than in the metric catalog")
 
     fenced, fenced_terms = fenced_identifier_pattern()
     offending = rows(f"""

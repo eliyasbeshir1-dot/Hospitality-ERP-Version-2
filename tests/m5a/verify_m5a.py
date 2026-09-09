@@ -472,10 +472,19 @@ def section_print() -> None:
                f"{str(error)[:200]}")
         return
 
-    printer = q(f"""
-        SELECT id::text FROM docs.printer
+    # THE PRINTER'S OWN SINK, NOT A CONSTANT. M4-C refuses a print recorded against a
+    # sink the printer is not classified for — PRINT_EVIDENCE_DISAGREES — and it is right
+    # to: "a customer receipt is not recorded as printed over a disagreement about where
+    # the bytes went". This suite hardcoded `device` and the chain's first active printer
+    # is a discard sink, so the guard fired. Reading the classification means the queue is
+    # proved against whatever printer the state actually has.
+    printer_row = q(f"""
+        SELECT id::text, sink::text,
+               COALESCE(device_path, host_and_port, '')
+          FROM docs.printer
          WHERE tenant_id = '{TENANT}' AND outlet_id = '{OUTLET}' AND status = 'active'
-         LIMIT 1;""").scalar
+         ORDER BY registered_at LIMIT 1;""").rows[0]
+    printer, printer_sink, printer_destination = printer_row
 
     job = q(f"""
         SELECT docs.enqueue_print_job('{TENANT}','{OUTLET}','{receipt}','{printer}',
@@ -504,16 +513,18 @@ def section_print() -> None:
 
     q(f"""SELECT docs.claim_print_jobs('{TENANT}','{OUTLET}','suite-agent', 120, 10);""")
     q(f"""
-        SELECT docs.complete_print_job('{TENANT}','{job}','device','/dev/usb/lp0',
-               '{'a' * 64}'::character(64), 512, '{ADMINISTRATOR}');""")
+        SELECT docs.complete_print_job('{TENANT}','{job}','{printer_sink}',
+               '{printer_destination}', '{'a' * 64}'::character(64), 512,
+               '{ADMINISTRATOR}');""")
     printed = q(f"SELECT state::text FROM docs.print_job WHERE id = '{job}';").scalar
     record("completing the job records the print through M4-C's own ledger",
            printed == "printed",
            f"state {printed}; the attempt row is docs.print_attempt, not a second ledger")
 
     twice = q(f"""
-        SELECT COALESCE(docs.complete_print_job('{TENANT}','{job}','device','/dev/usb/lp0',
-               '{'a' * 64}'::character(64), 512, '{ADMINISTRATOR}')::text, '(no second attempt)');
+        SELECT COALESCE(docs.complete_print_job('{TENANT}','{job}','{printer_sink}',
+               '{printer_destination}', '{'a' * 64}'::character(64), 512,
+               '{ADMINISTRATOR}')::text, '(no second attempt)');
         """).scalar
     attempts = q(f"""
         SELECT count(*)::text FROM docs.print_attempt WHERE receipt_id = '{receipt}';""").scalar
