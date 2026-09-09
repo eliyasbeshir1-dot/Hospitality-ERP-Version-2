@@ -201,6 +201,13 @@ CREATE TABLE docs.print_job (
         REFERENCES docs.printer (tenant_id, id) ON DELETE RESTRICT,
     CONSTRAINT print_job_requester_fk FOREIGN KEY (tenant_id, requested_by_user_id)
         REFERENCES identity.user_account (tenant_id, id) ON DELETE RESTRICT,
+    -- A REASON CODE IS A REFERENCE INTO THE REGISTRY, NEVER A LOOSE UUID. M1-C requires
+    -- every consumer to carry this key, and tests/m1c found this column without one
+    -- within minutes of it existing. Its message is the reason: "absence of the key is
+    -- how a second, divergent list of reasons gets started" — a reprint reason that
+    -- resolved to nothing would be a reprint nobody could explain afterwards.
+    CONSTRAINT print_job_reason_fk FOREIGN KEY (tenant_id, reason_code_id)
+        REFERENCES config.reason_code (tenant_id, id) ON DELETE RESTRICT,
 
     CONSTRAINT print_job_key_is_stated CHECK (length(trim(job_key)) > 0),
     CONSTRAINT print_job_attempts_not_negative CHECK (attempts >= 0),
