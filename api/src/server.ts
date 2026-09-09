@@ -27,7 +27,7 @@ import { registerStaffRoutes } from './routes/staff';
 import { registerStationRoutes } from './routes/station';
 import { registerSurfaceRoutes } from './routes/surface';
 import { registerHealthRoutes } from './routes/health';
-import { registerNodeRoutes } from './routes/node';
+import { registerCloudConnectivityRoute, registerNodeRoutes } from './routes/node';
 import { authenticateNode, isNodeProfile, type NodeProfile } from './node/identity';
 import {
   InProcessRateLimiter, registerCsrfGuard, registerCustomerSurfaceHeaders,
@@ -136,9 +136,19 @@ export async function start(): Promise<{ close(): Promise<void>; port: number }>
   registerPaymentRoutes(app, { db, logger });
   registerDocumentRoutes(app, { db, logger });
   registerReportRoutes(app, { db, logger });
-  // Only when this process is an outlet node. The cloud has no node to describe, and
-  // routes that answered about one would be answering about nothing.
-  if (nodeProfile) registerNodeRoutes(app, { db, logger, profile: nodeProfile });
+  // The node's own routes only when this process IS one: the cloud has no node to
+  // describe, and routes that answered about one would be answering about nothing.
+  //
+  // Connectivity is the exception, and it is registered EITHER WAY. The four surfaces ask
+  // for it on every deployment, and a cloud-only one that answered 404 put a resource
+  // error in every guest's browser forever — which is what tests/m2c saw. The cloud's
+  // answer is true rather than a placeholder: a browser that reached this service reached
+  // the cloud.
+  if (nodeProfile) {
+    registerNodeRoutes(app, { db, logger, profile: nodeProfile });
+  } else {
+    registerCloudConnectivityRoute(app);
+  }
   // The compiled surface sits beside the compiled server, so one build produces both and
   // there is no second artefact to deploy or forget.
   registerSurfaceRoutes(app, join(__dirname, 'public'));

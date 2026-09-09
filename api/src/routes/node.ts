@@ -47,6 +47,38 @@ function staffToken(request: FastifyRequest): string | null {
   return token.length > 0 ? token : null;
 }
 
+/**
+ * The connectivity answer a deployment WITHOUT a node gives.
+ *
+ * FR-EDG-009 puts a connectivity strip on all four screens, and surfaces/continuity asks
+ * for it every few seconds. Registering that route only under the node profile made every
+ * guest's browser on a cloud-only deployment log a 404 forever — which tests/m2c caught as
+ * "a script or resource error occurred while rendering", correctly and immediately.
+ *
+ * The fix is not to silence the surface. It is that the question has a true answer here:
+ * if a browser reached this service, the cloud is reachable. FR-EDG-001 permits cloud-only
+ * outside production, and edge.connectivity_banner() already says an outlet with no node
+ * is not broken — this is the same sentence, given by the deployment that has no node to
+ * ask about.
+ *
+ * It reads nothing. There is no node, no outlet scope and no database call to make, and
+ * inventing one would be answering a question about an outlet this process does not serve.
+ */
+export function registerCloudConnectivityRoute(app: FastifyInstance): void {
+  app.get('/n/v1/connectivity', async () => ({
+    node: null,
+    outletId: null,
+    connectivity: 'cloud_connected',
+    // No wording: the banner hides on a connected deployment with no conflicts, so there
+    // is nothing to say. A sentence here would be a sentence nobody ever reads.
+    wording: null,
+    pausedReason: null,
+    openConflicts: 0,
+    blocksService: false,
+    locale: 'en',
+  }));
+}
+
 export function registerNodeRoutes(app: FastifyInstance, deps: NodeDependencies): void {
   const { tenantId, outletId, nodeId } = {
     tenantId: deps.profile.tenantId,
