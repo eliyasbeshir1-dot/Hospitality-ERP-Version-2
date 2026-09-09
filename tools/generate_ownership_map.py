@@ -252,6 +252,11 @@ MIGRATION_SLICE = {
     # 0041 for the same reason: a conflict is a synchronization outcome, and putting it
     # anywhere else would separate the disagreement from the mechanism that found it.
     "0043": "M5a",
+    # 0044 is M5a's durable print queue and owns `docs`, the schema M4-C built the
+    # receipt and its evidence in. The queue is the half M4-C did not build: it recorded
+    # what the agent DID and nothing held a receipt between "settle this bill" and "the
+    # agent got round to it".
+    "0044": "M5a",
 }
 
 

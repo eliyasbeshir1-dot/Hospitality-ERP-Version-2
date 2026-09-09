@@ -212,6 +212,7 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0041_an_outlet_can_speak_to_the_cloud_without_losing_anything.sql`
 - `0042_an_append_only_table_says_why_it_is_one.sql`
 - `0043_a_disagreement_is_shown_to_somebody_rather_than_settled_quietly.sql`
+- `0044_a_receipt_asked_for_is_printed_exactly_once.sql`
 
 ## Seeds
 

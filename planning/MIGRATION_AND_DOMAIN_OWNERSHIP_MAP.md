@@ -56,7 +56,7 @@ Counted from `active_requirements` in the pinned package, by `introduced_at`.
 
 ## The migrations this repository has
 
-43 of them, `0001_organizational_model_and_rls.sql` through `0043_a_disagreement_is_shown_to_somebody_rather_than_settled_quietly.sql`, across
+44 of them, `0001_organizational_model_and_rls.sql` through `0044_a_receipt_asked_for_is_printed_exactly_once.sql`, across
 22 domains. The owning domain of each is read out of its own SQL — the
 schemas it creates and the schemas it creates tables in — and the gate from the header
 comment every migration in this repository carries.
@@ -106,6 +106,7 @@ comment every migration in this repository carries.
 | `0041_an_outlet_can_speak_to_the_cloud_without_losing_anything.sql` | integration | — | M5a |
 | `0042_an_append_only_table_says_why_it_is_one.sql` | — | app | M4-C |
 | `0043_a_disagreement_is_shown_to_somebody_rather_than_settled_quietly.sql` | integration | app | M5a |
+| `0044_a_receipt_asked_for_is_printed_exactly_once.sql` | docs | app | M5a |
 
 ---
 
