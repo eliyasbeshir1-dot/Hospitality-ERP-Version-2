@@ -270,6 +270,9 @@ MIGRATION_SLICE = {
     # strip reads. Also M5a's, and also a repair: the first connectivity_banner() treated
     # "I could not see a node" as "there is no node" and answered CONNECTED.
     "0047": "M5a",
+    # 0048 is FR-OPS-010: signed updates, the database compatibility check, and a rollback
+    # that has to prove it did not lose queued work.
+    "0048": "M5a",
 }
 
 
