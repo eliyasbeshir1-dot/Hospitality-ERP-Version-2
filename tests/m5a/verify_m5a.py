@@ -307,7 +307,7 @@ def section_sync() -> None:
         SELECT integration.accept_inbound('{TENANT}','{node}','{message}','configuration',
                'config.menu','{{}}'::jsonb, now())::text;""").scalar
     rows = q(f"""
-        SELECT count(*)::text || '/' || max(delivery_count)::text FROM integration.inbox
+        SELECT count(*)::text || '/' || max(arrivals)::text FROM integration.inbox
          WHERE message_id = '{message}';""").scalar
     record("a repeated cloud delivery applies once and is reported as a repeat",
            firsts in ("t", "true") and repeat in ("f", "false") and rows == "1/2",

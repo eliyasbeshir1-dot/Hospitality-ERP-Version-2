@@ -205,8 +205,15 @@ CREATE TABLE integration.inbox (
     refusal_reason text,
 
     -- How many times the cloud sent it. Recorded rather than ignored, because a peer
-    -- that redelivers constantly is a fact worth having when diagnosing an outage.
-    delivery_count integer NOT NULL DEFAULT 1,
+    -- that sends the same message constantly is a fact worth having when diagnosing an
+    -- outage.
+    --
+    -- NAMED `arrivals` BECAUSE THE OBVIOUS NAME IS FENCED. FR-TEN-002B fences 63 business
+    -- terms and "delivery" is one of them; tests/m1a found this column within minutes of
+    -- it existing. The gate does not care that this counts MESSAGE arrivals rather than
+    -- courier deliveries, and it is right not to: a schema that admits the word is a
+    -- schema somebody eventually builds the feature in.
+    arrivals integer NOT NULL DEFAULT 1,
 
     CONSTRAINT inbox_tenant_id_unique UNIQUE (tenant_id, message_id),
     CONSTRAINT inbox_tenant_fk FOREIGN KEY (tenant_id)
@@ -216,7 +223,7 @@ CREATE TABLE integration.inbox (
     CONSTRAINT inbox_node_fk FOREIGN KEY (tenant_id, node_id)
         REFERENCES edge.node (tenant_id, id) ON DELETE RESTRICT,
     CONSTRAINT inbox_kind_is_stated CHECK (length(trim(message_kind)) > 0),
-    CONSTRAINT inbox_delivery_count_positive CHECK (delivery_count > 0),
+    CONSTRAINT inbox_arrivals_positive CHECK (arrivals > 0),
     CONSTRAINT inbox_application_is_timed CHECK (
         (state = 'applied') = (applied_at IS NOT NULL)),
     CONSTRAINT inbox_refusal_is_explained CHECK (
@@ -605,7 +612,7 @@ BEGIN
     VALUES (p_message_id, p_tenant_id, v_outlet, p_node_id, p_subject, p_message_kind,
             p_payload, p_issued_at)
     ON CONFLICT (message_id) DO UPDATE
-       SET delivery_count = integration.inbox.delivery_count + 1
+       SET arrivals = integration.inbox.arrivals + 1
     RETURNING (xmax = 0) INTO v_first;
 
     INSERT INTO integration.sync_evidence (
