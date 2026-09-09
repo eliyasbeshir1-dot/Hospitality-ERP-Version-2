@@ -248,6 +248,10 @@ MIGRATION_SLICE = {
     # three M5a was about to add. Attributed to M4-C, the slice that attached the guard to
     # a table outside the financial schemas and made the sentence false.
     "0042": "M4-C",
+    # 0043 is M5a's conflict policy and reconnection, and owns `integration` alongside
+    # 0041 for the same reason: a conflict is a synchronization outcome, and putting it
+    # anywhere else would separate the disagreement from the mechanism that found it.
+    "0043": "M5a",
 }
 
 
