@@ -49,9 +49,43 @@ BEGIN
 END;
 $$;
 
+-- ---------------------------------------------------------------------------
+-- WHICH DATABASE THESE GRANTS ARE FOR, TAKEN RATHER THAN ASSUMED
+-- ---------------------------------------------------------------------------
+--
+-- These three statements named `hospitality_os` literally, while tools/open_the_floor.sh
+-- advertises DB as overridable and connects to whatever it is set to. With DB=other the
+-- script created `other`, ran this file AGAINST `other`, and then granted CONNECT on
+-- `hospitality_os` — so `other` got no grants at all, hospitality_app could not connect,
+-- and the failure surfaced much later as a connection error rather than as a bad grant.
+-- If `hospitality_os` did not exist the run aborted loudly; if it did, which is the normal
+-- case, the grants landed silently on the wrong database. The silent path is both the
+-- likely one and the worse one.
+--
+-- The name is now a psql variable, and it REFUSES rather than proceeds when it is absent.
+-- `:'db_name'` would interpolate the literal string ":db_name" if unset, which is exactly
+-- the quiet wrong answer this replaces, so the guard is explicit and comes first.
+-- REFUSED AS AN ERROR, NOT AS A MESSAGE. The first version of this guard used `\quit 1`,
+-- which psql accepts and then reports "extra argument 1 ignored" — it stops the script and
+-- exits ZERO. A caller running with ON_ERROR_STOP would have sailed straight past a
+-- refusal it never saw, which is the same silence this whole guard exists to end. A RAISE
+-- is an error to psql, to the shell, and to CI alike.
+\if :{?db_name}
+\else
+DO $$
+BEGIN
+    RAISE EXCEPTION
+        'BOOTSTRAP_DATABASE_UNNAMED: this file grants CONNECT and CREATE on a NAMED '
+        'database and will not guess which. Pass it: '
+        'psql "$DSN" -v db_name="$DB" -f tools/bootstrap_database.sql'
+        USING ERRCODE = 'HS422';
+END;
+$$;
+\endif
+
 -- The runtime role must never inherit the migrator's rights.
-REVOKE ALL ON DATABASE hospitality_os FROM PUBLIC;
-GRANT CONNECT ON DATABASE hospitality_os TO hospitality_migrator, hospitality_app;
+REVOKE ALL ON DATABASE :"db_name" FROM PUBLIC;
+GRANT CONNECT ON DATABASE :"db_name" TO hospitality_migrator, hospitality_app;
 
 -- Only the migrator may create schemas.
-GRANT CREATE ON DATABASE hospitality_os TO hospitality_migrator;
+GRANT CREATE ON DATABASE :"db_name" TO hospitality_migrator;

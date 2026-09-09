@@ -536,8 +536,10 @@ def pending_list_gate() -> tuple[bool, str | None, str]:
     try:
         guest = a_seated_guest()
         an_order_from(guest)
-        opa.clear_lockout()
-        opa.reset_rate_limit()
+        # NOTHING CLEARED. This gate signs in through the form on every run, and a control
+        # runs it three times. It used to clear the lockout first, on OP-B's reasoning
+        # that the limiter would otherwise refuse the third — which was the rationalised
+        # symptom of the P0 0038 repairs, not a property of the limiter. See NC-OPD-006.
         answer = probe("floor", {"tenant": TENANT, "outlet": OUTLET,
                                  "email": opa.MANAGER_EMAIL,
                                  "secret": opa.MANAGER_PASSWORD})
@@ -642,6 +644,74 @@ def section_controls() -> None:
         "NC-OPD-004", "SURFACE_CLAIMS_THE_KITCHEN_HAS_IT", "pwa", truthful_outcome_gate,
         [(PWA_TS, "      outcome.textContent = accepted ? strings.orderPlaced : strings.orderWaiting;",
           "      outcome.textContent = strings.orderPlaced;")])
+
+    # NC-OPD-006 — a successful login counted as a failed one.
+    #
+    # THE CONTROL THAT SHOULD HAVE EXISTED SINCE M1-B, AND THE REASON IT DID NOT.
+    #
+    # Every check of FR-AUTH-007 in this repository drives the lockout with FAILURES,
+    # because the rule is "N failures lock you out". Nobody wrote "N successes must NOT
+    # lock you out", because that is not a rule anyone thinks to state. NC-OPA-008's green
+    # half is the closest: it clears the counter and then signs in ONCE, which can never
+    # reach a threshold of five.
+    #
+    # And every suite clears identity.auth_attempt between sections — deliberately, so
+    # that checks which intend to fail authentication do not contaminate later ones. That
+    # hygiene erased the accumulation before it could ever reach the threshold.
+    #
+    # It was OBSERVED and rationalised. OP-B met nine correct sign-ins returning 429,
+    # wrote in opb_probe.mjs that "the lockout is real … nine sign-ins inside a minute is
+    # nine more than FR-AUTH-007's limiter allows", and worked around it by handing the
+    # session in. OP-C and OP-D inherited that reading. The clearing has now been removed
+    # from both of their browser sign-in gates.
+    #
+    # This control is one line of intent: sign in CORRECTLY six times, clearing nothing
+    # between, and require six 200s.
+    def repeated_success_red() -> tuple[bool, str]:
+        # Cleared ONCE, as setup, so the count starts from a known place. Nothing is
+        # cleared BETWEEN the six — that is the whole measurement.
+        opa.clear_lockout()
+        opa.reset_rate_limit()
+        codes = [opa.login(opa.MANAGER_PASSWORD, value=opa.MANAGER_EMAIL).get("status")
+                 for _ in range(6)]
+        failures = run(ADMIN, """
+            SELECT count(*)::text FROM identity.auth_attempt WHERE NOT succeeded;""")
+        return (all(c == 200 for c in codes) and (failures.scalar or "").strip() == "0",
+                f"six CORRECT sign-ins returned {codes} and left "
+                f"{(failures.scalar or '?').strip()} failure row(s). Before 0038 this was "
+                f"[200, 200, 200, 200, 429, 429] and four rows: the speculative failure "
+                f"written before verification was never removed when the attempt turned "
+                f"out to be a success, so the fifth correct password tripped a lock")
+
+    def repeated_success_green() -> tuple[bool, str]:
+        # And the rule the speculative write exists for is untouched: genuine failures
+        # still accumulate, still lock, and a success does not erase the ones before it.
+        opa.clear_lockout()
+        opa.reset_rate_limit()
+        wrong = [opa.login("wrong-every-time", value=opa.MANAGER_EMAIL).get("status")
+                 for _ in range(5)]
+        surviving = run(ADMIN, """
+            SELECT count(*)::text FROM identity.auth_attempt WHERE NOT succeeded;""")
+        locked = run(ADMIN, "SELECT count(*)::text FROM identity.auth_lockout;")
+        # THE FIFTH FAILURE CREATES THE LOCK AND IS STILL ANSWERED 401. It is the SIXTH
+        # attempt that meets it — register_auth_attempt_id() raises SUBJECT_LOCKED_OUT at
+        # the top, before it writes anything. The first draft of this check asserted a 429
+        # among the five and was wrong about the code rather than finding anything.
+        after_lock = opa.login(opa.MANAGER_PASSWORD, value=opa.MANAGER_EMAIL).get("status")
+        opa.clear_lockout()
+        opa.reset_rate_limit()
+        return (all(c == 401 for c in wrong)
+                and (surviving.scalar or "0").strip() == "5"
+                and (locked.scalar or "0").strip() == "1"
+                and after_lock == 429,
+                f"five WRONG sign-ins returned {wrong}, left "
+                f"{(surviving.scalar or '?').strip()} failure row(s) and "
+                f"{(locked.scalar or '?').strip()} lockout(s); the next attempt — with the "
+                f"CORRECT password — was refused {after_lock}. The speculative insert is "
+                f"load-bearing, it is what stops an attacker telling 'no such user' from "
+                f"'wrong password' by whether a row appears, and it is still there")
+
+    prove_rule("NC-OPD-006", repeated_success_red, repeated_success_green)
 
     # NC-OPD-005 — the list without which no waiting order is visible.
     prove_surface(

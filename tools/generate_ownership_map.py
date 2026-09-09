@@ -218,6 +218,11 @@ MIGRATION_SLICE = {
     # invisible to a guest. The pending-orders half repairs M3-A's acceptance policy, which
     # had a staff_confirmed branch no screen could serve; filed under the earlier slice.
     "0037": "M2-A",
+    # 0038 repairs FR-AUTH-007 and belongs to M1-B, the slice that built the lockout. A
+    # successful login was being counted as a failed one, because the speculative failure
+    # written before verification was never removed when the attempt resolved as a
+    # success. Filed under the slice whose requirement it is, not the pass that found it.
+    "0038": "M1-B",
 }
 
 

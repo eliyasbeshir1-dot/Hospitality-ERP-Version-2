@@ -78,7 +78,11 @@ BEGIN
 END;
 $$;
 SQL
-    psql "$M1A_ADMIN_DSN" -v ON_ERROR_STOP=1 -q -f "$REPO/tools/bootstrap_database.sql"
+    # The database NAME is passed, not assumed. bootstrap_database.sql grants CONNECT
+    # and CREATE on a named database and used to name hospitality_os literally, so a
+    # DB override created one database and granted on another — silently, whenever
+    # hospitality_os happened to exist. It now refuses rather than guesses.
+    psql "$M1A_ADMIN_DSN" -v ON_ERROR_STOP=1 -q -v db_name="$DB" \n      -f "$REPO/tools/bootstrap_database.sql"
     psql "$M1A_ADMIN_DSN" -v ON_ERROR_STOP=1 -q \
       -c "GRANT CONNECT ON DATABASE $DB TO hospitality_bypassrls;"
 

@@ -56,7 +56,7 @@ Counted from `active_requirements` in the pinned package, by `introduced_at`.
 
 ## The migrations this repository has
 
-37 of them, `0001_organizational_model_and_rls.sql` through `0037_a_menu_says_what_a_dish_is_and_an_order_can_be_admitted.sql`, across
+38 of them, `0001_organizational_model_and_rls.sql` through `0038_a_successful_login_is_not_a_failed_one.sql`, across
 20 domains. The owning domain of each is read out of its own SQL — the
 schemas it creates and the schemas it creates tables in — and the gate from the header
 comment every migration in this repository carries.
@@ -100,6 +100,7 @@ comment every migration in this repository carries.
 | `0035_a_table_can_be_seated.sql` | — | service · pos | M2-B |
 | `0036_seating_is_an_action_and_actions_are_graded.sql` | — | pos | M3-D |
 | `0037_a_menu_says_what_a_dish_is_and_an_order_can_be_admitted.sql` | — | menu · pos | M2-A |
+| `0038_a_successful_login_is_not_a_failed_one.sql` | — | identity | M1-B |
 
 ---
 

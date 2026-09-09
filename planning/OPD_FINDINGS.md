@@ -1,5 +1,153 @@
 # OP-D findings — the order reaching the kitchen, and what a menu says
 
+> **Read F-OPD-8 first.** A P0 was seen by this repository's own suite three gates ago,
+> written down in a comment, explained as correct behaviour, and worked around — and the
+> workaround was then inherited twice. That a defect could be observed, rationalised and
+> built upon by three consecutive gates is worth more to a reviewer than the defect.
+
+---
+
+## F-OPD-8 — a successful login was counted as a failed one, and it had been seen
+
+**Found by an external review at `e3ef1a3`, not by anything in this repository.** Four
+consecutive CORRECT manager logins return 200; the fifth and sixth return 429.
+
+### The defect
+
+`identity.authenticate_credential()` records the attempt as a **failure before it verifies
+anything**. That is correct and load-bearing: writing the row before verification is what
+stops an attacker distinguishing *"no such user"* from *"wrong password"* by whether a row
+appears.
+
+What was missing is the other half. On success it called `register_auth_attempt(…, true)`,
+which deletes the **lockout row** — but nothing removed the speculative **failure row**.
+The counter is not the lockout row; it is
+
+```sql
+count(*) FROM identity.auth_attempt WHERE NOT succeeded AND attempted_at > now() - window
+```
+
+so every successful login left a permanent failure inside the window. Four successes, four
+failures; the fifth login writes its speculative failure, the count reaches five, and the
+lock trips on somebody who typed their password correctly every time.
+
+**The comment above that call stated the property that was absent**, in these words:
+*"this is what clears the counter."* It clears the **lockout**. It does not clear the
+**counter**. The comment was the specification and nothing ever checked it.
+
+### Two corrections to the report as received
+
+- **It is not "a cashier signing in each shift is locked out within a week."** The window
+  is fifteen minutes and the rows age out — proved by ageing them past it and watching the
+  counter reset. The real exposure is **five correct sign-ins inside fifteen minutes**: a
+  shift change, a manager moving between the till and the floor screen, anyone who signs
+  out and back in. That is *more* likely to be met than the cumulative version, because it
+  needs no elapsed time at all.
+- **It is not in the database primitive.** `register_auth_attempt()` is correct — one row,
+  and it clears the lockout on success. The double-write is in its caller,
+  `identity.authenticate_credential()` in migration 0033. The distinction matters: the
+  shared primitive must not be changed, and was not.
+
+### The repair — migration 0038
+
+The speculative insert stays exactly where it is. What is added is its **resolution**:
+`identity.resolve_attempt_as_success()` deletes that attempt's **own row, by id, and only
+while it is still marked failed**. It exists throughout verification, so anti-enumeration
+holds; it disappears when the attempt turns out to be a success, so the count means what it
+says; a genuine failure never reaches the delete, so failures accumulate exactly as before.
+
+**A second defect surfaced while testing the repair, and it predates it.** Four wrong
+passwords followed by the right one: the speculative insert was the fifth failure, tripped
+the lock itself, and the success then raised `SUBJECT_LOCKED_OUT` against a lock created by
+the very attempt that had just proved the credential. Reaching the resolution proves no
+lock existed when the attempt began — a pre-existing lock raises at the top and
+authentication never gets there — so any lock present was created by this attempt's own
+row. It is lifted, but only after re-reading the count: if genuine failures still meet the
+threshold the lock stands, so **guessing right on the sixth try does not erase the five
+wrong guesses before it.**
+
+Proved at the database level, bypassing the API's in-memory rate limiter, which confounded
+the first attempt to measure this:
+
+| | result |
+|---|---|
+| six CORRECT | 0 failures, 6 successes, 0 locks |
+| four WRONG then RIGHT | session issued, **4 failures survive**, 0 locks |
+| five WRONG | 5 failures, 1 lock |
+| CORRECT while locked | refused `SUBJECT_LOCKED_OUT` |
+
+### Why no control caught it — the more important half
+
+**1. Every lockout check drives it with failures.** The rule is *"N failures lock you
+out"*, so every check performs N failures. M1-B: *"five failures inside the window trip the
+lock."* NC-OPA-008's red half: six wrong passwords. Nobody tests N *successes*, because
+*"successes lock you out"* is not a rule anyone thinks to write down.
+
+**2. NC-OPA-008's green half is shaped so it cannot see it.** It calls `clear_lockout()` —
+which `DELETE`s every `auth_attempt` row — and then signs in **once**. One success against
+a cleared counter can never reach a threshold of five. The control proves *"a good
+credential works after a lock is cleared"*, not *"good credentials do not create one."*
+
+**3. The hygiene that keeps the suites independent is what hid it.** Every suite clears
+`auth_attempt` between sections, deliberately, so that checks which *intend* to fail
+authentication do not contaminate later ones. That housekeeping erased the accumulation
+before it could ever reach the threshold.
+
+**4. IT WAS OBSERVED, AND READ AS THE SYSTEM WORKING.** This is the part that matters.
+OP-B hit this exact defect and wrote it down in `opb_probe.mjs`:
+
+> *"A SESSION HANDED IN, WHEN ONE IS OFFERED, BECAUSE THE LOCKOUT IS REAL… Nine sign-ins
+> inside a minute is nine more than FR-AUTH-007's limiter allows, and the suite met it as
+> an HTTP 429 that looked like the tip box failing to render. The limiter is not disabled
+> or reconfigured; the scene simply stops asking for a tenth session it does not need."*
+
+Those were **nine correct sign-ins**. The evidence was in the repository, in a comment, and
+was reasoned about carefully — the comment is *proud* of not disabling the limiter. The
+conclusion was that the limiter was working as designed. The workaround was to stop
+signing in.
+
+**5. It was then inherited twice.** OP-C's waiter gate and OP-D's floor gate both called
+`opa.clear_lockout(); opa.reset_rate_limit()` before their browser sign-ins, each with a
+comment reasoning about FR-AUTH-007's limiter and citing OP-B's experience. The misreading
+propagated as documented practice across three gates.
+
+**Both of those calls are now removed.** Those gates sign in three times for real, so if a
+correct sign-in ever starts counting against the subject again they go red. Leaving them
+in would have meant NC-OPD-006 passing while the suites still could not see the class.
+
+### The control
+
+`NC-OPD-006`. Sign in correctly six times, clearing nothing between, and require six 200s
+and zero failure rows. Its green half proves the speculative write is still doing its job:
+five wrong sign-ins leave five failure rows and a lockout, and the next attempt — **with
+the correct password** — is refused 429.
+
+One line of intent. Nobody wrote it because *"a success is not a failure"* is too obvious
+to state, which is exactly the class of property that goes unchecked.
+
+## F-OPD-9 — a documented override silently granted on the wrong database
+
+`tools/open_the_floor.sh` takes `DB` as overridable, creates `$DB`, then ran
+`tools/bootstrap_database.sql` against it — and that file named `hospitality_os`
+**literally** in all three of its grants.
+
+With `DB=other` and `hospitality_os` absent, the run aborted loudly, which is fine. With
+`hospitality_os` present — the normal case — the grants landed silently on the wrong
+database: `other` got none, `hospitality_app` could not connect, and the failure surfaced
+much later as a connection error rather than as a bad grant. **The silent path is both the
+likely one and the worse one.**
+
+The file now takes the name as a psql variable and **refuses rather than guesses** when it
+is absent. Both callers pass `$DB`.
+
+**And the first version of that guard was itself silent.** It used `\quit 1`, which psql
+accepts, warns *"extra argument 1 ignored"*, and exits **zero** — so a caller running with
+`ON_ERROR_STOP` would have sailed straight past a refusal it never saw. It is now a `RAISE`,
+which is an error to psql, to the shell and to CI alike: exit 3, verified.
+
+---
+
+
 OP-C made it possible to be seated. The founder then walked the floor, placed an order,
 and it stopped: the station board said *"No tickets at this station"* while the order sat
 in the database. Everything below came out of that one observation, or out of building the

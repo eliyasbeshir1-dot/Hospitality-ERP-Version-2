@@ -901,13 +901,13 @@ jobs:
           measured="$(grep -oP 'measured\s+:\s+\K[0-9]+' "$LOG_DIR/opd.log" | tail -1)"
           test "${measured:-0}" -ge 6 || {
             echo "::error::only ${measured:-0} OP-D checks were measured in a browser"; exit 1; }
-          for control in NC-OPD-001 NC-OPD-002 NC-OPD-003 NC-OPD-004 NC-OPD-005; do
+          for control in NC-OPD-001 NC-OPD-002 NC-OPD-003 NC-OPD-004 NC-OPD-005 \n                         NC-OPD-006; do
             grep -q "$control — RED with the defect planted" "$LOG_DIR/opd.log" || {
               echo "::error::$control was never proved red"; exit 1; }
             grep -q "$control — GREEN after revert" "$LOG_DIR/opd.log" || {
               echo "::error::$control was never proved green"; exit 1; }
           done
-          echo "OP-D: $checks checks ($measured measured), 0 failures, 5 controls red then green"
+          echo "OP-D: $checks checks ($measured measured), 0 failures, 6 controls red then green"
 
       - name: "The route census reads code, not prose (the instrument behind GJ-01A)"
         shell: bash

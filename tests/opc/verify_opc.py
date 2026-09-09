@@ -621,14 +621,19 @@ def till_boxes_gate() -> tuple[bool, str | None, str]:
 def waiter_gate() -> tuple[bool, str | None, str]:
     """A waiter gets in through the page, and seats a table from it.
 
-    THE LIMITER IS CLEARED FIRST, NOT DISABLED. This gate signs in through the form every
-    time it runs, and a control runs it three times — baseline, red, green. FR-AUTH-007's
-    limiter is real and would meet the third of those with a 429 that looks exactly like a
-    broken sign-in form, which is how OP-B's till scene once reported the tip box failing
-    to render. The attempts are cleared between runs; the rule is untouched.
+    NOTHING IS CLEARED FIRST, AND THAT IS THE POINT.
+
+    This gate used to call clear_lockout() and reset_rate_limit() before every run,
+    reasoning that FR-AUTH-007's limiter would otherwise meet the third of baseline/red/
+    green with a 429. That reasoning was wrong, and the hygiene it justified is what hid a
+    P0 for three gates: a SUCCESSFUL login was being counted as a failure, so repeated
+    correct sign-ins locked the account out. OP-B met it as 429s, read it as the limiter
+    working as designed, and stopped signing in. OP-C and OP-D inherited that reading.
+
+    The defect is repaired in 0038 and NC-OPD-006 now proves it directly. The clearing is
+    removed here so this gate signs in three times for real — if a correct sign-in ever
+    starts counting against the subject again, this is one of the places that goes red.
     """
-    opa.clear_lockout()
-    opa.reset_rate_limit()
     empty_the_table()
     answer = probe("waiter", {"tenant": TENANT, "outlet": OUTLET,
                               "email": opa.MANAGER_EMAIL,

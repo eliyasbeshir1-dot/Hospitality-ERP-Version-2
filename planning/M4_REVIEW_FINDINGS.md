@@ -303,7 +303,7 @@ The clause asks for three things: verified phone or email login, secure password
 
 The middle limb is the flow, and it now exists — what follows is the evidence, not a gap:
 
-- `identity` exposes 7 operator-callable writers — `authenticate_credential`, `authorize_action`, `authorize_service_principal`, `credential_key_derivation`, `emit_security_event`, `establish_session_context`, `register_auth_attempt`. One of them turns a presented credential into a session.
+- `identity` exposes 9 operator-callable writers — `authenticate_credential`, `authorize_action`, `authorize_service_principal`, `credential_key_derivation`, `emit_security_event`, `establish_session_context`, `register_auth_attempt`, `register_auth_attempt_id`, `resolve_attempt_as_success`. One of them turns a presented credential into a session.
 - 1 file(s) under `api/src` reads `identity.credential`: `api/src/routes/auth.ts`.
 - Every staff bearer token in this build existed because a fixture inserted a row into `identity.session` directly, until a login route began issuing them.
 

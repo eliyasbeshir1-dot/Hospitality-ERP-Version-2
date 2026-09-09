@@ -196,6 +196,11 @@ CONTROLS = [
     ("NC-OPD-003", "A menu that says only what a dish costs", "MENU_SAYS_ONLY_NAME_AND_PRICE", "opd"),
     ("NC-OPD-004", "A guest told the kitchen has an order it has not seen", "SURFACE_CLAIMS_THE_KITCHEN_HAS_IT", "opd"),
     ("NC-OPD-005", "An order waiting on no screen anybody can open", "NO_SCREEN_SHOWS_A_WAITING_ORDER", "opd"),
+    # The P0 an external review found at e3ef1a3, and the control that should have existed
+    # since M1-B. Every check of FR-AUTH-007 drives the lockout with FAILURES, because the
+    # rule is "N failures lock you out"; nobody states "N successes must not". OP-B met the
+    # symptom, read it as the limiter working, and worked around it — twice inherited.
+    ("NC-OPD-006", "A successful login counted as a failed one", "SUCCESSFUL_LOGIN_COUNTED_AS_FAILURE", "opd"),
 ]
 
 
