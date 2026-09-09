@@ -113,6 +113,96 @@ if [ -z "${NODE_OPTIONS:-}" ]; then
     echo "note: NODE_OPTIONS=$NODE_OPTIONS — heap cap for a small machine, not a CI setting"
 fi
 
+# ---------------------------------------------------------------------------
+# THE OTHER DIRECTION (FR-TST-020)
+# ---------------------------------------------------------------------------
+#
+# A suite that only passes when it runs first is depending on state another suite left
+# behind, and the forward chain cannot see that: it always runs them in the one order.
+# CI's reorder sweep runs every suite BACKWARDS against the same database, with no
+# rebuild, and requires each to report the same number of failures either way.
+#
+# It is the same check, locally, and it is a separate invocation rather than a second half
+# of the forward run for one reason: the comparison needs the forward run's numbers, so
+# the forward run has to have finished. Running them as one command would mean a failure
+# in either direction reporting as a failure of the pair.
+#
+#     bash tools/verify_locally.sh              # forward, rebuilding from empty
+#     bash tools/verify_locally.sh --reverse    # backwards, against what that left
+#
+# THE JOURNEYS RUN LAST, mirroring CI, and the comment there says why: reversing the slice
+# suites is what puts the database in an unfamiliar state, and the journeys are what has to
+# survive it. CI learned that after a reviewer ran them out of order and GJ-02 returned
+# CART_EMPTY while this sweep reported every suite identical.
+if [ "${1:-}" = "--reverse" ]; then
+    FORWARD_LOG="$LOG_DIR/local-suites.log"
+    if [ ! -f "$FORWARD_LOG" ]; then
+        echo "FAIL LOCAL_REVERSE_HAS_NOTHING_TO_COMPARE: $FORWARD_LOG does not exist." >&2
+        echo "  The reordered run is only meaningful against the forward run's numbers." >&2
+        echo "  Run the forward direction first." >&2
+        exit 1
+    fi
+    mkdir -p "$LOG_DIR/reorder"
+    rm -f "$LOG_DIR/reorder"/*.log
+
+    export M1A_ADMIN_DSN M1A_APP_DSN M1A_MIGRATOR_DSN
+    export M1A_PRIVILEGED_DSN="$(dsn hospitality_bypassrls "$DB")"
+    # Points at the FORWARD log directory, not at reorder/: tests/m4c runs first in reverse
+    # order, so reorder/ holds nothing when the register audit reads it, and an empty
+    # directory is exactly the case that audit refuses.
+    export M4C_LOG_DIR="$LOG_DIR"
+
+    ORDER="$(ls -d tests/m[0-9]* tests/opa tests/opb tests/opc tests/opd \
+             | sed 's#tests/##' | sort -r)"
+    echo "=== every suite backwards, against the database the forward run left ==="
+    for suite in $ORDER; do
+        printf '  %-6s ' "$suite"
+        "$PYTHON" "$REPO/tests/$suite/verify_${suite}.py" \
+            > "$LOG_DIR/reorder/$suite.log" 2>&1 || true
+        echo "done"
+    done
+    printf '  %-6s ' journeys
+    "$PYTHON" "$REPO/tests/journeys/verify_journeys.py" \
+        > "$LOG_DIR/reorder/journeys.log" 2>&1 || true
+    echo "done"
+
+    # THE FORWARD NUMBERS COME OUT OF THE COMBINED LOG. CI keeps one file per suite; this
+    # runner streams them all into one, so a suite's failure count is the `failed :` line
+    # nearest ABOVE its own verdict. Read that way rather than by counting occurrences,
+    # because two suites' summaries are indistinguishable otherwise.
+    forward_failures() {
+        awk -v tag="$1" '
+            $0 ~ "^(PASS|FAIL) " tag "_VERIFICATION" { print last; exit }
+            /failed +:/ { last = $NF }
+        ' "$FORWARD_LOG"
+    }
+
+    fail=0
+    for suite in $(echo "$ORDER" | tr ' ' '\n' | sort) journeys; do
+        tag="$(echo "$suite" | tr '[:lower:]' '[:upper:]')"
+        [ "$suite" = journeys ] && tag=GOLDEN_JOURNEY
+        declared="$(forward_failures "$tag")"
+        reordered="$(grep -oE 'failed +: +[0-9]+' "$LOG_DIR/reorder/$suite.log" \
+                     | tail -1 | grep -oE '[0-9]+$' || true)"
+        verdict="$(grep -cE "^PASS ${tag}_VERIFICATION" "$LOG_DIR/reorder/$suite.log" || true)"
+        if [ "${declared:-x}" != "${reordered:-y}" ] || [ "${verdict:-0}" -lt 1 ]; then
+            echo "FAIL $suite differs under a reordered run (forward=${declared:-none} reordered=${reordered:-none} verdict=${verdict:-0})"
+            fail=1
+        else
+            echo "  $suite: identical under reordering ($declared failure(s) either way)"
+        fi
+    done
+    if [ "$fail" -ne 0 ]; then
+        echo
+        echo "FAIL LOCAL_CHAIN_REORDER: a suite that only passes when it runs first is"
+        echo "  depending on state another suite left behind."
+        exit 1
+    fi
+    echo
+    echo "PASS LOCAL_CHAIN_REORDER: every suite identical in both directions"
+    exit 0
+fi
+
 echo "=== the whole chain, through the driver CI enters it by ==="
 echo "    server : $PGTCP_HOST:$PGPORT/$DB as $SUPERUSER"
 echo "    logs   : $LOG_DIR"
