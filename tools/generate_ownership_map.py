@@ -257,6 +257,10 @@ MIGRATION_SLICE = {
     # what the agent DID and nothing held a receipt between "settle this bill" and "the
     # agent got round to it".
     "0044": "M5a",
+    # 0045 is M5a's third `edge` migration: what the node holds before service, what it
+    # may do when it is alone, and what it says about both. Three requirements that look
+    # unrelated and are one question asked from three angles.
+    "0045": "M5a",
 }
 
 

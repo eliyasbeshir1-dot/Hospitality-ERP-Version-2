@@ -155,7 +155,7 @@ Every gate begins only when **all** of the following hold:
 - CI runs the validators and fails closed
 
 A gate's first migration is created at that gate, not before. This repository holds
-44, `0001` through `0044`.
+45, `0001` through `0045`.
 
 ---
 

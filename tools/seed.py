@@ -75,13 +75,23 @@ FIRST_VERSION = 1
 #   billing.tip_setting             whether this outlet offers a tip at all
 #   billing.tip_suggestion          the percentages it offers, if it does
 #   payments.payment_adapter        which payment providers this outlet accepts
+#   edge.deployment_profile         whether this outlet may run cloud-only, and where
+#   edge.plain_language             what a restriction and a sync state are called here
+#
+# The two M5a added meet the same test, and the first of them is the clearest case in the
+# set: edge.deployment_profile decides whether an outlet is production and therefore
+# whether FR-EDG-001 compels a continuity node. A screen that could write it could change
+# the answer to "is this production", which is not a question trade should be able to
+# answer. edge.plain_language is the wording a restriction is explained in — installed,
+# revisited by a manager, read by every surface that has to tell somebody why a button did
+# nothing.
 #
 # billing.service_charge_setting was approved for this set and is deliberately NOT in it.
 # It requires a configuration_version_id, and a floor with no service charge is correctly
 # represented by having no row at all — billing.issue_bill() reads its absence as "none",
 # which the demonstration floor's first bill proved before this seed existed. Admitting a
 # table to the privileged pass that nothing writes would widen the boundary for nothing,
-# which is the opposite of what "narrow" is protecting. Six, not seven.
+# which is the opposite of what "narrow" is protecting. Eight, not nine.
 #
 # Each is a decision an installer makes and a manager revisits; none is a bill, a payment,
 # an order or a ticket. The counter-example is the test: a bill IS produced by trade, and
@@ -95,6 +105,8 @@ PROVISIONABLE_TABLES = frozenset({
     "billing.tip_setting",
     "billing.tip_suggestion",
     "payments.payment_adapter",
+    "edge.deployment_profile",
+    "edge.plain_language",
 })
 
 # THE SET IS NAMED, AND THE NAMING IS CHECKED. Growing PROVISIONABLE_TABLES without saying
@@ -104,6 +116,8 @@ PROVISIONABLE_TABLES = frozenset({
 PROVISIONABLE_TABLES_DECLARED = (
     "billing.tip_setting",
     "billing.tip_suggestion",
+    "edge.deployment_profile",
+    "edge.plain_language",
     "fulfillment.routing_rule",
     "fulfillment.routing_rule_set",
     "fulfillment.station_profile",
@@ -165,6 +179,11 @@ billing.service_charge_setting out of it.
 """
 PROVISIONABLE_FUNCTIONS = frozenset({
     "pos.install_registries_for",
+    # Writes edge.node, edge.node_service and edge.node_admin_action. Vetted rather than
+    # written as statements because the whole point of the function is that a node and its
+    # five services arrive together — FR-EDG-002A's "exactly five" is enforced inside it,
+    # and a seed that INSERTed the rows itself could write four.
+    "edge.register_node",
 })
 
 _COMMENT = re.compile(r"--[^\n]*")

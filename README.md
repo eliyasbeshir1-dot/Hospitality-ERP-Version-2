@@ -213,6 +213,7 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0042_an_append_only_table_says_why_it_is_one.sql`
 - `0043_a_disagreement_is_shown_to_somebody_rather_than_settled_quietly.sql`
 - `0044_a_receipt_asked_for_is_printed_exactly_once.sql`
+- `0045_what_the_node_holds_what_it_may_do_alone_and_what_it_says.sql`
 
 ## Seeds
 
@@ -229,6 +230,9 @@ history: seeds are data, not structure.
 - `0008_the_demonstration_floor_can_seat.provision.sql`
 - `0009_qr_ordering_does_not_wait_for_a_waiter.sql`
 - `0010_an_order_can_be_confirmed.provision.sql`
+- `0011_the_demonstration_floor_has_node_hardware.sql`
+- `0012_the_demonstration_floor_can_stand_alone.provision.sql`
+- `0013_the_demonstration_floor_knows_its_estate.sql`
 
 ## Verification
 
