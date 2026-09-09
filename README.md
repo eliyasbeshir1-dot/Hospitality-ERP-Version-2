@@ -209,6 +209,8 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0038_a_successful_login_is_not_a_failed_one.sql`
 - `0039_an_outlet_has_a_node_and_the_node_has_an_identity.sql`
 - `0040_an_outlet_knows_what_hardware_it_has.sql`
+- `0041_an_outlet_can_speak_to_the_cloud_without_losing_anything.sql`
+- `0042_an_append_only_table_says_why_it_is_one.sql`
 
 ## Seeds
 

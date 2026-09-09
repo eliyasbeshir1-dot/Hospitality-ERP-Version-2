@@ -56,7 +56,7 @@ Counted from `active_requirements` in the pinned package, by `introduced_at`.
 
 ## The migrations this repository has
 
-40 of them, `0001_organizational_model_and_rls.sql` through `0040_an_outlet_knows_what_hardware_it_has.sql`, across
+42 of them, `0001_organizational_model_and_rls.sql` through `0042_an_append_only_table_says_why_it_is_one.sql`, across
 22 domains. The owning domain of each is read out of its own SQL — the
 schemas it creates and the schemas it creates tables in — and the gate from the header
 comment every migration in this repository carries.
@@ -103,6 +103,8 @@ comment every migration in this repository carries.
 | `0038_a_successful_login_is_not_a_failed_one.sql` | — | identity | M1-B |
 | `0039_an_outlet_has_a_node_and_the_node_has_an_identity.sql` | edge | — | M5a |
 | `0040_an_outlet_knows_what_hardware_it_has.sql` | ops | — | M5a |
+| `0041_an_outlet_can_speak_to_the_cloud_without_losing_anything.sql` | integration | — | M5a |
+| `0042_an_append_only_table_says_why_it_is_one.sql` | — | app | M4-C |
 
 ---
 

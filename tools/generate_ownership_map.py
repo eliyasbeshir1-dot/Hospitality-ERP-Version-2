@@ -238,6 +238,16 @@ MIGRATION_SLICE = {
     # different domains, and "no migration spans domains" is a statement this map makes
     # about every row in it.
     "0040": "M5a",
+    # 0041 is M5a's synchronization runtime and owns `integration`, the schema M3-C
+    # created for the dead-letter queue and left otherwise empty. The outbox, the inbox,
+    # the cursors and the evidence ledger are one mechanism and land as one migration.
+    "0041": "M5a",
+    # 0042 owns nothing: it creates no table and no schema. It repairs
+    # app.refuse_financial_mutation(), whose message cited a classification that does not
+    # exist for four of the tables it guards — pos.counter_order_entry since M4-C, and the
+    # three M5a was about to add. Attributed to M4-C, the slice that attached the guard to
+    # a table outside the financial schemas and made the sentence false.
+    "0042": "M4-C",
 }
 
 
