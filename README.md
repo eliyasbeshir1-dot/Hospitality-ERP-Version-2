@@ -135,7 +135,7 @@ position is to write fresh.
 
 | Path | Contents |
 |---|---|
-| `api/` | the cloud API — Fastify and TypeScript, two runtime dependencies, serving `api`, `auth`, `billing`, `customer`, `documents`, `health`, `payments`, `reports`, `service`, `staff`, `station` and `surface` |
+| `api/` | the cloud API — Fastify and TypeScript, two runtime dependencies, serving `api`, `auth`, `billing`, `customer`, `documents`, `health`, `node`, `payments`, `reports`, `service`, `staff`, `station` and `surface` |
 | `docs/` | the approved v2.0.9 package, byte-identical and verified by its own `SHA256SUMS.txt` |
 | `docs-local/` | cross-platform command reference |
 | `evidence/` | `M1_EVIDENCE_REPORT.md`, generated from the repository, database and suite logs |
@@ -214,6 +214,7 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0043_a_disagreement_is_shown_to_somebody_rather_than_settled_quietly.sql`
 - `0044_a_receipt_asked_for_is_printed_exactly_once.sql`
 - `0045_what_the_node_holds_what_it_may_do_alone_and_what_it_says.sql`
+- `0046_a_node_at_the_wrong_outlet_is_told_so.sql`
 
 ## Seeds
 

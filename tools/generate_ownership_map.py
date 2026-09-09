@@ -261,6 +261,11 @@ MIGRATION_SLICE = {
     # may do when it is alone, and what it says about both. Three requirements that look
     # unrelated and are one question asked from three angles.
     "0045": "M5a",
+    # 0046 repairs 0039 and is attributed to M5a, the slice that wrote it. The
+    # wrong-outlet refusal FR-CFG-001E turns on was unreachable: the lookup was scoped by
+    # the outlet it was about to check, so a node at the wrong outlet was told it did not
+    # exist. Found by starting the process rather than by reading the function.
+    "0046": "M5a",
 }
 
 

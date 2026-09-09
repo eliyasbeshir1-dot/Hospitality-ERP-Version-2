@@ -27,6 +27,8 @@ import { registerStaffRoutes } from './routes/staff';
 import { registerStationRoutes } from './routes/station';
 import { registerSurfaceRoutes } from './routes/surface';
 import { registerHealthRoutes } from './routes/health';
+import { registerNodeRoutes } from './routes/node';
+import { authenticateNode, isNodeProfile, type NodeProfile } from './node/identity';
 import {
   InProcessRateLimiter, registerCsrfGuard, registerCustomerSurfaceHeaders,
   registerRateLimits, registerSecurityHeaders,
@@ -48,6 +50,21 @@ export async function start(): Promise<{ close(): Promise<void>; port: number }>
     role: roleFacts.currentUser,
     environment: env.environmentName,
   });
+
+  // ---- 2b. If this is an outlet node, prove which outlet ------------------------
+  //
+  // FR-CFG-001E: the node starts only with the correct outlet identity. Before the
+  // listener opens, for the same reason the privilege check is: a node that binds first
+  // and checks its outlet second has already told a waiter's tablet it is the right node.
+  let nodeProfile: NodeProfile | null = null;
+  if (isNodeProfile()) {
+    nodeProfile = await authenticateNode(env.databaseUrl);
+    logger.info('node identity proved', {
+      event: 'startup.node',
+      node: nodeProfile.nodeCode,
+      outletId: nodeProfile.outletId,
+    });
+  }
 
   // ---- 3. Only now is it safe to build the service -----------------------------
   const db = Database.fromUrl(env.databaseUrl);
@@ -119,6 +136,9 @@ export async function start(): Promise<{ close(): Promise<void>; port: number }>
   registerPaymentRoutes(app, { db, logger });
   registerDocumentRoutes(app, { db, logger });
   registerReportRoutes(app, { db, logger });
+  // Only when this process is an outlet node. The cloud has no node to describe, and
+  // routes that answered about one would be answering about nothing.
+  if (nodeProfile) registerNodeRoutes(app, { db, logger, profile: nodeProfile });
   // The compiled surface sits beside the compiled server, so one build produces both and
   // there is no second artefact to deploy or forget.
   registerSurfaceRoutes(app, join(__dirname, 'public'));
