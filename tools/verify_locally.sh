@@ -37,6 +37,34 @@ if [ -z "$PY_BIN" ]; then
 fi
 export PYTHON="$PY_BIN"
 
+# THE BASH THAT RUNS THIS MUST BE THE ONE THAT CAN SEE WINDOWS.
+#
+# `bash` on a Windows PATH is ambiguous: C:\Windows\System32ash.exe is the WSL
+# launcher, and prepending System32 to PATH — which anyone reaching for taskkill or
+# netstat does — makes `bash tools/verify_locally.sh` start a LINUX shell against the
+# Windows checkout. It got a long way before failing: it rebuilt nothing, ignored every
+# exported PGPORT and LOG_DIR because they belong to the other shell, and died on
+# `psql: command not found` after reporting "running on Linux".
+#
+# That is a whole run's wall-clock spent proving nothing, and the verdict line it would
+# have printed says nothing about which shell produced it. This job exists to reproduce
+# CI's WINDOWS execution, so a Linux shell running it is not a lesser version of the same
+# thing — it is a different claim wearing the same name.
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) : ;;                       # Git Bash: the intended shell
+    Linux)
+        if [ -d /mnt/c ] && [ -e /proc/sys/fs/binfmt_misc/WSLInterop ]; then
+            echo "FAIL LOCAL_RUNNER_WRONG_SHELL: this is WSL, running against a Windows" >&2
+            echo "  checkout at $REPO. This runner reproduces CI's Windows job, and a" >&2
+            echo "  Linux shell cannot: it has no psql, and the environment you exported" >&2
+            echo "  in the other shell never reached it." >&2
+            echo "  Run it from Git Bash, and check whether C:/Windows/System32 is ahead" >&2
+            echo "  of Git's bin directory on PATH — System32\bash.exe is the WSL launcher." >&2
+            exit 1
+        fi
+        ;;
+esac
+
 # THIS RUNNER IS A COPY OF A CI STEP, AND A COPY THAT CANNOT NOTICE THE ORIGINAL MOVED IS
 # THE DEFECT IT EXISTS TO PREVENT. If CI stops entering the chain here, or stops handing
 # the register audit its logs, a local green would be a green over a sequence nobody runs.
