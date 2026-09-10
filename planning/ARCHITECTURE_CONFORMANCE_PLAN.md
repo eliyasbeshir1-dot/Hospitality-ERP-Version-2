@@ -4,7 +4,7 @@
      Do not edit by hand: CI regenerates this file and fails on any difference. -->
 
 **Repository:** `Hospitality-ERP-Version-2`
-**Gate:** M6 — building, through **M6-A**
+**Gate:** M6 — building, through **M6-B**
 **Governing requirement:** FR-GOV-001A
 **Source of truth:** `docs/Hospitality_OS_Phase_1_Clean_Build_Package_v2.0.9/`, pinned at
 `b89a2d4211356be5941dc25ff2dc540728c87ed761ffd9894a3f2691ccf5b590`

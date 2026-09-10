@@ -132,7 +132,17 @@ SLICE_DELIVERS = {
             "dependency behind is caught where a missing file would have been obvious. "
             "And no seed reaches it: every seed in this repository builds the "
             "demonstration floor, so shipping one would put a way to create demonstration "
-            "tenants into production, which is worse than a way to reset them"
+            "tenants into production, which is worse than a way to reset them",
+    "M6-B": "a backup that was encrypted, read back, and put somewhere else. pg_dump piped "
+            "straight into openssl so the plaintext never becomes a file — deleting one "
+            "afterwards is not erasure on any filesystem in use here. There is NO STATE "
+            "meaning taken-and-assumed-good: `captured` becomes `verified` only when "
+            "something has decrypted the archive and counted its table of contents, and "
+            "only a verified archive may go off-site. The cipher column cannot hold "
+            "'none', the schedule is a row an operator can query rather than a line in a "
+            "scheduler nobody can audit, and an estate whose schedule was never written "
+            "down reports `undocumented` rather than healthy — because nothing can be late "
+            "against a schedule that does not exist"
 }
 
 # The gates in order, and what each one brings that does not exist yet. Rows are emitted
@@ -359,6 +369,9 @@ SUITE_PURPOSE = {
     "m6a": "the artifact that ships: built from the manifest, every advertised entry "
            "point executed from inside it with the repository made unreachable, and "
            "scanned — with the database — for any way to reset or reseed production",
+    "m6b": "a real encrypted backup, taken by the real tool against the live database, "
+           "decrypted and read back, and copied somewhere that is not where it was "
+           "written — plus the five ways of recording one that the schema refuses",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
     "journeys": "the golden journeys end to end in a browser against real "
                 "persistence, plus the duplicate-submit race: what a guest and a waiter "

@@ -223,6 +223,13 @@ CONTROLS = [
     ("NC-M6A-002", "An advertised entry point whose dependency the build left behind", "ARTIFACT_ENTRY_POINT_CANNOT_EXECUTE", "m6a"),
     ("NC-M6A-003", "A demo-reset function installed in the database", "DATABASE_CONTAINS_A_RESET", "m6a"),
     ("NC-M6A-004", "An image definition edited away from its manifest", "DOCKERFILE_DRIFT", "m6a"),
+
+    # M6-B. A backup that was encrypted, read back, and put somewhere else.
+    ("NC-M6B-001", "A backup recorded with no encryption", "backup_run_is_encrypted", "m6b"),
+    ("NC-M6B-002", "A backup called verified with nothing to show for it", "backup_run_verification_is_evidenced", "m6b"),
+    ("NC-M6B-003", "A verification that read a different archive", "BACKUP_DIGEST_MISMATCH", "m6b"),
+    ("NC-M6B-004", "An off-site copy of an archive nobody has read", "BACKUP_NOT_VERIFIED", "m6b"),
+    ("NC-M6B-005", "A captured backup's digest edited after the fact", "BACKUP_RUN_REWRITTEN", "m6b"),
 ]
 
 
