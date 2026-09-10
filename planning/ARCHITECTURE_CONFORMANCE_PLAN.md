@@ -4,7 +4,7 @@
      Do not edit by hand: CI regenerates this file and fails on any difference. -->
 
 **Repository:** `Hospitality-ERP-Version-2`
-**Gate:** M6 — building, through **M6-D**
+**Gate:** M6 — building, through **M6-E**
 **Governing requirement:** FR-GOV-001A
 **Source of truth:** `docs/Hospitality_OS_Phase_1_Clean_Build_Package_v2.0.9/`, pinned at
 `b89a2d4211356be5941dc25ff2dc540728c87ed761ffd9894a3f2691ccf5b590`
@@ -157,7 +157,7 @@ Every gate begins only when **all** of the following hold:
 - CI runs the validators and fails closed
 
 A gate's first migration is created at that gate, not before. This repository holds
-65, `0001` through `0065`.
+66, `0001` through `0066`.
 
 ---
 

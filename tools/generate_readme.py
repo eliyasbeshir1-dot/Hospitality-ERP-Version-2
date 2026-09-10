@@ -162,7 +162,16 @@ SLICE_DELIVERS = {
             "recorded cannot be edited: a record of who took an outlet''s trade off the "
             "system is worth exactly as much as its immutability. Prep, wait and SLA are "
             "read together per station as medians with the maximum beside them, and SLA "
-            "breaches are counted rather than averaged"
+            "breaches are counted rather than averaged",
+    "M6-E": "pilot readiness: eleven runbooks that exist as documents rather than as a "
+            "folder somebody hopes is complete, an owner for every event that can actually "
+            "be raised — a FOREIGN KEY to a role, because avoiding unowned dashboards is "
+            "only structural if an owner has to exist — and a cutover naming the commit, "
+            "the operator, the data owner and the way back, unable to reach live without a "
+            "reviewer who is not the operator. ops.pilot_readiness() answers the question a "
+            "founder asks before letting a guest in, from rows rather than confidence, and "
+            "it is the conjunction of what six earlier gates built rather than a new "
+            "mechanism"
 }
 
 # The gates in order, and what each one brings that does not exist yet. Rows are emitted
@@ -398,6 +407,10 @@ SUITE_PURPOSE = {
     "m6d": "an export refused without a fresh step-up for THAT act, refused on a stale "
            "one, recorded before the bytes leave and unable to be edited afterwards; and "
            "the kitchen''s prep, wait and SLA figures read together for the first time",
+    "m6e": "eleven runbooks present as files with a fallback section each, no event that "
+           "can be raised left unowned, a cutover that cannot go live unaudited or be "
+           "reviewed by the person who performed it, and six readiness clauses that must "
+           "all hold at once",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
     "journeys": "the golden journeys end to end in a browser against real "
                 "persistence, plus the duplicate-submit race: what a guest and a waiter "

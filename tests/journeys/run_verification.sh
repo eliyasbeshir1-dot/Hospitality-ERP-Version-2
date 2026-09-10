@@ -27,10 +27,10 @@ slice_status=0
 # OP-D, which chains OP-C, which chains OP-B, which chains OP-A, and the rest. The chain is extended
 # at its head rather than beside it for the reason F-OPB-8 records: a suite that nothing
 # chains from would exist, pass locally, be enumerated in the CI matrix, and never run.
-# M6-D, which chains M6-C, which chains M6-B, which chains the rest. The head of the chain
+# M6-E, which chains M6-D, which chains M6-C, which chains the rest. The head of the chain
 # moves with the gate: a suite that nothing chains from would exist, pass locally, be
 # enumerated in the CI matrix and never run, which is what F-OPB-8 records.
-bash "$REPO/tests/m6d/run_verification.sh" || slice_status=$?
+bash "$REPO/tests/m6e/run_verification.sh" || slice_status=$?
 
 PGHOST_DIR="${PGHOST_DIR:-/var/lib/m1apg/run}"
 PGPORT="${PGPORT:-5433}"

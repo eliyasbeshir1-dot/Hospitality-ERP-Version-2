@@ -240,6 +240,11 @@ CONTROLS = [
     ("NC-M6D-001", "An export taken on a step-up for a different act", "EXPORT_STEP_UP_ABSENT", "m6d"),
     ("NC-M6D-002", "An export record edited after the fact", "EXPORT_EVENT_REWRITTEN", "m6d"),
     ("NC-M6D-003", "An export taken on a grant older than its window", "EXPORT_STEP_UP_ABSENT", "m6d"),
+
+    # M6-E. Pilot readiness: runbooks, owners, and a cutover somebody signed.
+    ("NC-M6E-001", "An alert nobody owns", "ALERT_UNOWNED", "m6e"),
+    ("NC-M6E-002", "A cutover to live from an unaudited branch", "cutover_live_was_audited", "m6e"),
+    ("NC-M6E-003", "A runbook pointing anywhere it likes", "runbook_path_is_stated", "m6e"),
 ]
 
 

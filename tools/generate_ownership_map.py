@@ -333,6 +333,9 @@ MIGRATION_SLICE = {
     # 0065 gives report.export the caller it has been registered for since
     # 0002, and FR-FUL-012 the reading that consumes what the fold wrote.
     "0065": "M6-D",
+    # 0066 is FR-OPS-011, FR-OPS-012 and FR-OPS-015: the runbook register,
+    # an owner for every raisable alert, and a cutover somebody signed.
+    "0066": "M6-E",
 }
 
 

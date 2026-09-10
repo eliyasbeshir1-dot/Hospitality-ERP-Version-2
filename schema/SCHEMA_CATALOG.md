@@ -99,10 +99,13 @@ Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `docs`, `edge`, `f
 | `notify.event_class` | order, kitchen, service_request, bill, payment, tip, outage, sync |
 | `notify.failure_reason` | recipient_not_authorized, recipient_out_of_scope, template_missing |
 | `notify.notice_state` | pending, sent, read, failed, dead_lettered |
+| `ops.alert_severity` | informational, warning, critical |
 | `ops.asset_class` | continuity_node, router, access_point, pos_terminal, kds_device, printer |
 | `ops.backup_posture` | healthy, due, overdue, unverified, never, undocumented |
 | `ops.backup_scope` | cloud, outlet |
 | `ops.backup_state` | captured, verified, offsite, failed_verification |
+| `ops.cutover_state` | planned, live, rolled_back |
+| `ops.runbook_situation` | installation, menu_publish, table_qr_issue, printer_setup, outage, reconnection, backup, restore, update, incident, pilot_cutover |
 | `ordering.acceptance_mode` | automatic, staff_confirmed, payment_dependent |
 | `ordering.actor_kind` | guest, staff, system |
 | `ordering.artifact_kind` | request, cart, table_session, order, fulfillment_ticket, service_request, check, bill, payment, tip, receipt, node |
@@ -285,8 +288,10 @@ graph LR
   notify_catalog_event["notify.catalog_event"]
   notify_status_wording["notify.status_wording"]
   notify_template["notify.template"]
+  ops_alert_ownership["ops.alert_ownership"]
   ops_backup_policy["ops.backup_policy"]
   ops_backup_run["ops.backup_run"]
+  ops_cutover["ops.cutover"]
   ops_outlet_asset["ops.outlet_asset"]
   ordering_charge_rule["ordering.charge_rule"]
   ordering_correlation_link["ordering.correlation_link"]
@@ -703,9 +708,13 @@ graph LR
   notify_status_wording --> org_tenant
   notify_template --> notify_catalog_event
   notify_template --> org_tenant
+  ops_alert_ownership --> identity_role
+  ops_alert_ownership --> notify_catalog_event
   ops_backup_policy --> identity_user_account
   ops_backup_policy --> org_tenant
   ops_backup_run --> org_tenant
+  ops_cutover --> identity_user_account
+  ops_cutover --> org_org_node
   ops_outlet_asset --> docs_printer
   ops_outlet_asset --> edge_node
   ops_outlet_asset --> identity_user_account
@@ -6220,6 +6229,42 @@ Policies:
 
 The outlet's physical estate: the continuity node, routers, access points, POS terminals, KDS devices and printers, each with a location and a support owner. FR-OPS-018.
 
+#### `ops.alert_ownership`
+
+FR-OPS-012. Severity, owner, acknowledgement and escalation for every notification kind that has a producer. The owner is a FOREIGN KEY to a role rather than a team name in text, because "avoid unowned dashboards" is only structural if an owner has to exist.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `event_id` | `text` | NOT NULL |  |  |
+| `severity` | `ops.alert_severity` | NOT NULL |  |  |
+| `owner_role_id` | `uuid` | NOT NULL |  |  |
+| `acknowledge_within_minutes` | `integer` | NOT NULL |  |  |
+| `escalate_after_minutes` | `integer` | NOT NULL |  |  |
+| `escalate_to_role_id` | `uuid` | NOT NULL |  |  |
+
+Constraints:
+
+- `alert_ownership_acknowledge_within_minutes_not_null` — `NOT NULL acknowledge_within_minutes`
+- `alert_ownership_escalate_after_minutes_not_null` — `NOT NULL escalate_after_minutes`
+- `alert_ownership_escalate_to_role_id_not_null` — `NOT NULL escalate_to_role_id`
+- `alert_ownership_escalation_fk` — `FOREIGN KEY (tenant_id, escalate_to_role_id) REFERENCES identity.role(tenant_id, id) ON DELETE RESTRICT`
+- `alert_ownership_escalation_is_after` — `CHECK ((escalate_after_minutes > acknowledge_within_minutes))`
+- `alert_ownership_event_fk` — `FOREIGN KEY (event_id) REFERENCES notify.catalog_event(event_id) ON DELETE RESTRICT`
+- `alert_ownership_event_id_not_null` — `NOT NULL event_id`
+- `alert_ownership_owner_fk` — `FOREIGN KEY (tenant_id, owner_role_id) REFERENCES identity.role(tenant_id, id) ON DELETE RESTRICT`
+- `alert_ownership_owner_role_id_not_null` — `NOT NULL owner_role_id`
+- `alert_ownership_pkey` — `PRIMARY KEY (tenant_id, event_id)`
+- `alert_ownership_severity_not_null` — `NOT NULL severity`
+- `alert_ownership_tenant_id_not_null` — `NOT NULL tenant_id`
+- `alert_ownership_windows_are_sane` — `CHECK (((acknowledge_within_minutes >= 1) AND (acknowledge_within_minutes <= 1440)))`
+
+Policies:
+
+- `alert_ownership_isolation` — `app.row_in_scope(tenant_id, NULL::uuid)`
+
 #### `ops.backup_policy`
 
 FR-OPS-006, FR-SEC-019. How often this tenant's cloud and outlet databases are backed up, how long after a missed window somebody is told, how long copies are kept and whether an off-site copy is required. A schedule that lives only in a scheduler is a schedule nobody can audit.
@@ -6316,6 +6361,56 @@ Policies:
 
 - `backup_run_isolation` — `app.row_in_scope(tenant_id, NULL::uuid)`
 
+#### `ops.cutover`
+
+FR-OPS-015. Going live as a decision with names on it: which commit, who reviewed it, who operated it, who answers for the data, and how to get back. A cutover cannot reach live without a reviewer who is not the operator — "no direct production cutover from an unaudited branch", as a CHECK rather than a sentence.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `state` | `ops.cutover_state` | NOT NULL | `'planned'::ops.cutover_state` |  |
+| `commit_sha` | `character(40)` | NOT NULL |  |  |
+| `reviewed_by_user_id` | `uuid` |  |  |  |
+| `review_verdict` | `text` |  |  |  |
+| `named_operator_user_id` | `uuid` | NOT NULL |  |  |
+| `data_owner_user_id` | `uuid` | NOT NULL |  |  |
+| `rollback_plan` | `text` | NOT NULL |  |  |
+| `planned_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `went_live_at` | `timestamp with time zone` |  |  |  |
+| `rolled_back_at` | `timestamp with time zone` |  |  |  |
+| `rollback_reason` | `text` |  |  |  |
+
+Constraints:
+
+- `cutover_commit_is_a_sha` — `CHECK ((commit_sha ~ '^[0-9a-f]{40}$'::text))`
+- `cutover_commit_sha_not_null` — `NOT NULL commit_sha`
+- `cutover_data_owner_fk` — `FOREIGN KEY (tenant_id, data_owner_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `cutover_data_owner_user_id_not_null` — `NOT NULL data_owner_user_id`
+- `cutover_id_not_null` — `NOT NULL id`
+- `cutover_live_was_audited` — `CHECK (((state <> 'live'::ops.cutover_state) OR ((reviewed_by_user_id IS NOT NULL) AND (review_verdict IS NOT NULL) AND (went_live_at IS NOT NULL))))`
+- `cutover_named_operator_user_id_not_null` — `NOT NULL named_operator_user_id`
+- `cutover_operator_fk` — `FOREIGN KEY (tenant_id, named_operator_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `cutover_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `cutover_outlet_id_not_null` — `NOT NULL outlet_id`
+- `cutover_pkey` — `PRIMARY KEY (id)`
+- `cutover_planned_at_not_null` — `NOT NULL planned_at`
+- `cutover_review_is_independent` — `CHECK (((reviewed_by_user_id IS NULL) OR (reviewed_by_user_id <> named_operator_user_id)))`
+- `cutover_reviewer_fk` — `FOREIGN KEY (tenant_id, reviewed_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `cutover_rollback_is_explained` — `CHECK ((((state = 'rolled_back'::ops.cutover_state) = (rolled_back_at IS NOT NULL)) AND ((rolled_back_at IS NULL) = (rollback_reason IS NULL))))`
+- `cutover_rollback_plan_is_stated` — `CHECK ((length(TRIM(BOTH FROM rollback_plan)) > 20))`
+- `cutover_rollback_plan_not_null` — `NOT NULL rollback_plan`
+- `cutover_state_not_null` — `NOT NULL state`
+- `cutover_tenant_id_not_null` — `NOT NULL tenant_id`
+- `cutover_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `cutover_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
 #### `ops.outlet_asset`
 
 FR-OPS-018. The outlet's physical estate across the six named classes, each with a location and exactly one support owner. Classes that are already registered elsewhere — the node, POS terminals, printers — are LINKED rather than restated, so this register cannot drift from the tables that own those rows.
@@ -6376,6 +6471,29 @@ Constraints:
 Policies:
 
 - `outlet_asset_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `ops.runbook`
+
+FR-OPS-011. One row per situation the requirement names, pointing at the document rather than containing it — a runbook copied into a database is a second copy that drifts from the one people read. Whether one EXISTS for each situation is a fact, and a fact that lives only in a folder is one nobody can query at three in the morning.
+
+Row level security: **DISABLED**, **not forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `situation` | `ops.runbook_situation` | NOT NULL |  |  |
+| `document_path` | `text` | NOT NULL |  |  |
+| `owner_role_code` | `text` | NOT NULL |  |  |
+| `reviewed_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `runbook_document_path_not_null` — `NOT NULL document_path`
+- `runbook_owner_is_stated` — `CHECK ((length(TRIM(BOTH FROM owner_role_code)) > 0))`
+- `runbook_owner_role_code_not_null` — `NOT NULL owner_role_code`
+- `runbook_path_is_stated` — `CHECK (((length(TRIM(BOTH FROM document_path)) > 0) AND (document_path ~~ 'docs/runbooks/%'::text)))`
+- `runbook_pkey` — `PRIMARY KEY (situation)`
+- `runbook_reviewed_at_not_null` — `NOT NULL reviewed_at`
+- `runbook_situation_not_null` — `NOT NULL situation`
 
 ### `ordering`
 
