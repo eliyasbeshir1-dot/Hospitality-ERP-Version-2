@@ -93,7 +93,12 @@ export PGPASSWORD="${PGPASSWORD:-}"
 # measures reports on itself.
 LOG_DIR="${LOG_DIR:-${TMPDIR:-/tmp}/hosp-local-logs}"
 mkdir -p "$LOG_DIR"
-rm -f "$LOG_DIR"/*.log
+# CLEARED ONLY BY THE FORWARD RUN, and this cost a whole chain to learn. The clear used to
+# sit here, above the --reverse branch, so `--reverse` deleted the forward run's log and
+# then refused because it could not find it: a mode that destroys the evidence it exists
+# to compare against, and reports the absence as the user's mistake. The forward run
+# clears; the reverse run reads.
+[ "${1:-}" = "--reverse" ] || rm -f "$LOG_DIR"/*.log
 export LOG_DIR
 export M1D_WORKSPACE="${M1D_WORKSPACE:-${TMPDIR:-/tmp}/m1d-workspace}"
 
@@ -145,8 +150,17 @@ if [ "${1:-}" = "--reverse" ]; then
     mkdir -p "$LOG_DIR/reorder"
     rm -f "$LOG_DIR/reorder"/*.log
 
-    export M1A_ADMIN_DSN M1A_APP_DSN M1A_MIGRATOR_DSN
-    export M1A_PRIVILEGED_DSN="$(dsn hospitality_bypassrls "$DB")"
+    # THE SUITES RUN DIRECTLY HERE, NOT THROUGH A DRIVER, so nothing else builds these.
+    # The chaining drivers export them from PGTCP_HOST/PGPORT/SUPERUSER/DB; the first
+    # version of this block exported four names nothing had ever set and called a dsn()
+    # helper defined further down the file. Every suite died on a missing DSN in about two
+    # seconds, and the sweep reported all twenty as "differs under a reordered run" —
+    # twenty findings that were one, wearing the costume of a state-dependency problem.
+    reverse_dsn() { echo "postgresql://$1@$PGTCP_HOST:$PGPORT/$DB"; }
+    export M1A_ADMIN_DSN="$(reverse_dsn "$SUPERUSER")"
+    export M1A_APP_DSN="$(reverse_dsn hospitality_app)"
+    export M1A_MIGRATOR_DSN="$(reverse_dsn hospitality_migrator)"
+    export M1A_PRIVILEGED_DSN="$(reverse_dsn hospitality_bypassrls)"
     # Points at the FORWARD log directory, not at reorder/: tests/m4c runs first in reverse
     # order, so reorder/ holds nothing when the register audit reads it, and an empty
     # directory is exactly the case that audit refuses.
