@@ -35,6 +35,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "tools"))
+from console import use_utf8_output  # noqa: E402
+
+# THIS FILE PRINTS, SO IT SAYS WHAT IN. tests/m1a checks every entry point for it: a locale
+# that cannot hold Amharic or Arabic can destroy or silently alter what a run reports, and
+# an artifact builder listing paths is no more exempt than a suite listing evidence.
+use_utf8_output()
 
 
 @dataclass(frozen=True)

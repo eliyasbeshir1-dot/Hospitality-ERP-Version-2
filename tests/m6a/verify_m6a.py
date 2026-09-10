@@ -251,10 +251,14 @@ def section_dockerfile() -> None:
            "USER hospitality" in dockerfile,
            "a print agent that can rewrite the migrator is a print agent whose compromise "
            "is the whole node's")
+    # STAGES, NOT THE WORD. The first draft counted occurrences of "FROM " anywhere and
+    # found three, because the generated header says "GENERATED FROM tools/artifact.py".
+    # A check that counts a substring in comments is a check that reports on prose.
+    stages = [l for l in dockerfile.splitlines() if l.startswith("FROM ")]
     record("the compiler does not ship",
-           "AS build" in dockerfile and dockerfile.count("FROM ") == 2,
-           "two stages: the source goes into the first and the compiled output comes out, "
-           "so the tree that ships contains no toolchain")
+           "AS build" in dockerfile and len(stages) == 2,
+           f"{len(stages)} stage(s): {stages}. The source goes into the first and the "
+           "compiled output comes out, so the tree that ships contains no toolchain")
 
 
 # ===========================================================================

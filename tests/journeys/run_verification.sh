@@ -27,11 +27,10 @@ slice_status=0
 # OP-D, which chains OP-C, which chains OP-B, which chains OP-A, and the rest. The chain is extended
 # at its head rather than beside it for the reason F-OPB-8 records: a suite that nothing
 # chains from would exist, pass locally, be enumerated in the CI matrix, and never run.
-# M5b, which chains M5a, which chains the rest. GJ-08 and GJ-09 read the hostname, the
-# certificate and the authority sequence that M5b's migrations and seeds put there, so a
-# journey run that stopped at M5a would walk two journeys against tables that do not
-# exist yet and report it as a journey failure.
-bash "$REPO/tests/m5b/run_verification.sh" || slice_status=$?
+# M6-A, which chains M5b, which chains M5a, which chains the rest. The head of the chain
+# moves with the gate: a suite that nothing chains from would exist, pass locally, be
+# enumerated in the CI matrix and never run, which is what F-OPB-8 records.
+bash "$REPO/tests/m6a/run_verification.sh" || slice_status=$?
 
 PGHOST_DIR="${PGHOST_DIR:-/var/lib/m1apg/run}"
 PGPORT="${PGPORT:-5433}"
