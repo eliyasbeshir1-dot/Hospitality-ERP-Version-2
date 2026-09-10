@@ -100,6 +100,9 @@ Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `docs`, `edge`, `f
 | `notify.failure_reason` | recipient_not_authorized, recipient_out_of_scope, template_missing |
 | `notify.notice_state` | pending, sent, read, failed, dead_lettered |
 | `ops.asset_class` | continuity_node, router, access_point, pos_terminal, kds_device, printer |
+| `ops.backup_posture` | healthy, due, overdue, unverified, never, undocumented |
+| `ops.backup_scope` | cloud, outlet |
+| `ops.backup_state` | captured, verified, offsite, failed_verification |
 | `ordering.acceptance_mode` | automatic, staff_confirmed, payment_dependent |
 | `ordering.actor_kind` | guest, staff, system |
 | `ordering.artifact_kind` | request, cart, table_session, order, fulfillment_ticket, service_request, check, bill, payment, tip, receipt, node |
@@ -282,6 +285,8 @@ graph LR
   notify_catalog_event["notify.catalog_event"]
   notify_status_wording["notify.status_wording"]
   notify_template["notify.template"]
+  ops_backup_policy["ops.backup_policy"]
+  ops_backup_run["ops.backup_run"]
   ops_outlet_asset["ops.outlet_asset"]
   ordering_charge_rule["ordering.charge_rule"]
   ordering_correlation_link["ordering.correlation_link"]
@@ -697,6 +702,9 @@ graph LR
   notify_status_wording --> org_tenant
   notify_template --> notify_catalog_event
   notify_template --> org_tenant
+  ops_backup_policy --> identity_user_account
+  ops_backup_policy --> org_tenant
+  ops_backup_run --> org_tenant
   ops_outlet_asset --> docs_printer
   ops_outlet_asset --> edge_node
   ops_outlet_asset --> identity_user_account
@@ -6208,6 +6216,102 @@ Policies:
 ### `ops`
 
 The outlet's physical estate: the continuity node, routers, access points, POS terminals, KDS devices and printers, each with a location and a support owner. FR-OPS-018.
+
+#### `ops.backup_policy`
+
+FR-OPS-006, FR-SEC-019. How often this tenant's cloud and outlet databases are backed up, how long after a missed window somebody is told, how long copies are kept and whether an off-site copy is required. A schedule that lives only in a scheduler is a schedule nobody can audit.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `scope` | `ops.backup_scope` | NOT NULL |  |  |
+| `interval_hours` | `integer` | NOT NULL |  |  |
+| `alert_after_hours` | `integer` | NOT NULL |  |  |
+| `retain_days` | `integer` | NOT NULL |  |  |
+| `offsite_required` | `boolean` | NOT NULL | `true` |  |
+| `documented_by_user_id` | `uuid` | NOT NULL |  |  |
+| `documented_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `backup_policy_alert_after_hours_not_null` — `NOT NULL alert_after_hours`
+- `backup_policy_alert_is_after` — `CHECK ((alert_after_hours > interval_hours))`
+- `backup_policy_documented_at_not_null` — `NOT NULL documented_at`
+- `backup_policy_documented_by_user_id_not_null` — `NOT NULL documented_by_user_id`
+- `backup_policy_documenter_fk` — `FOREIGN KEY (tenant_id, documented_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `backup_policy_interval_hours_not_null` — `NOT NULL interval_hours`
+- `backup_policy_interval_is_sane` — `CHECK (((interval_hours >= 1) AND (interval_hours <= 168)))`
+- `backup_policy_offsite_required_not_null` — `NOT NULL offsite_required`
+- `backup_policy_pkey` — `PRIMARY KEY (tenant_id, scope)`
+- `backup_policy_retain_days_not_null` — `NOT NULL retain_days`
+- `backup_policy_retention_outlives_the_interval` — `CHECK (((retain_days * 24) > interval_hours))`
+- `backup_policy_scope_not_null` — `NOT NULL scope`
+- `backup_policy_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `backup_policy_tenant_id_not_null` — `NOT NULL tenant_id`
+
+Policies:
+
+- `backup_policy_isolation` — `app.row_in_scope(tenant_id, NULL::uuid)`
+
+#### `ops.backup_run`
+
+FR-OPS-006, FR-SEC-019. Every backup that has been taken: what took it, where it went, the digest of the ciphertext, how it was encrypted, and what reading it back found. There is no state meaning "taken and assumed good" — `captured` becomes `verified` only when something has decrypted the archive and read its table of contents.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `scope` | `ops.backup_scope` | NOT NULL |  |  |
+| `outlet_id` | `uuid` |  |  |  |
+| `state` | `ops.backup_state` | NOT NULL | `'captured'::ops.backup_state` |  |
+| `taken_with` | `text` | NOT NULL |  |  |
+| `archive_format` | `text` | NOT NULL |  |  |
+| `archive_path` | `text` | NOT NULL |  |  |
+| `offsite_path` | `text` |  |  |  |
+| `archive_sha256` | `character(64)` | NOT NULL |  |  |
+| `archive_bytes` | `bigint` | NOT NULL |  |  |
+| `cipher` | `text` | NOT NULL |  |  |
+| `kdf` | `text` | NOT NULL |  |  |
+| `kdf_iterations` | `integer` | NOT NULL |  |  |
+| `verified_at` | `timestamp with time zone` |  |  |  |
+| `verified_entries` | `integer` |  |  |  |
+| `verification_detail` | `text` |  |  |  |
+| `started_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `finished_at` | `timestamp with time zone` |  |  |  |
+
+Constraints:
+
+- `backup_run_archive_bytes_not_null` — `NOT NULL archive_bytes`
+- `backup_run_archive_format_not_null` — `NOT NULL archive_format`
+- `backup_run_archive_is_stated` — `CHECK ((length(TRIM(BOTH FROM archive_path)) > 0))`
+- `backup_run_archive_path_not_null` — `NOT NULL archive_path`
+- `backup_run_archive_sha256_not_null` — `NOT NULL archive_sha256`
+- `backup_run_bytes_positive` — `CHECK ((archive_bytes > 0))`
+- `backup_run_cipher_not_null` — `NOT NULL cipher`
+- `backup_run_id_not_null` — `NOT NULL id`
+- `backup_run_is_encrypted` — `CHECK (((cipher <> ''::text) AND (lower(cipher) <> ALL (ARRAY['none'::text, 'null'::text, 'plain'::text, 'plaintext'::text])) AND (kdf_iterations >= 100000)))`
+- `backup_run_kdf_iterations_not_null` — `NOT NULL kdf_iterations`
+- `backup_run_kdf_not_null` — `NOT NULL kdf`
+- `backup_run_offsite_is_elsewhere` — `CHECK (((offsite_path IS NULL) OR (offsite_path <> archive_path)))`
+- `backup_run_offsite_state_agrees` — `CHECK (((state = 'offsite'::ops.backup_state) <= (offsite_path IS NOT NULL)))`
+- `backup_run_outlet_scope_agrees` — `CHECK (((scope = 'outlet'::ops.backup_scope) = (outlet_id IS NOT NULL)))`
+- `backup_run_pkey` — `PRIMARY KEY (id)`
+- `backup_run_scope_not_null` — `NOT NULL scope`
+- `backup_run_started_at_not_null` — `NOT NULL started_at`
+- `backup_run_state_not_null` — `NOT NULL state`
+- `backup_run_taken_with_not_null` — `NOT NULL taken_with`
+- `backup_run_tenant_fk` — `FOREIGN KEY (tenant_id) REFERENCES org.tenant(id) ON DELETE RESTRICT`
+- `backup_run_tenant_id_not_null` — `NOT NULL tenant_id`
+- `backup_run_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `backup_run_verification_is_evidenced` — `CHECK (((state <> ALL (ARRAY['verified'::ops.backup_state, 'offsite'::ops.backup_state])) OR ((verified_at IS NOT NULL) AND (verified_entries IS NOT NULL) AND (verified_entries > 0))))`
+
+Policies:
+
+- `backup_run_isolation` — `app.row_in_scope(tenant_id, NULL::uuid)`
 
 #### `ops.outlet_asset`
 

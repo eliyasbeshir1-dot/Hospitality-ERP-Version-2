@@ -409,7 +409,22 @@ def gj_01a() -> None:
                f"the order it happened")
 
     # FR-M5B boundary: "the current approved cloud authority persists and no
-    # local-authority claim is made before M5b." PROVE THE ABSENCE, not the presence.
+    # local-authority claim is made before M5b."
+    #
+    # THIS FENCE HAS EXPIRED AND IS REPLACED BY WHAT OUTLIVES IT. Until M5b there was no
+    # local authority anywhere, and proving the ABSENCE across the whole catalog was the
+    # strongest form of that. M5b built one: edge.authority holds a monotonic sequence,
+    # edge.forwarding_lease holds FR-EDG-023's lease, and asserting they do not exist is
+    # asserting the gate did not land.
+    #
+    # The guarantee that survives is narrower and still worth having: local authority
+    # exists ONCE, in `edge`, and no other schema has grown a shadow of it. A `billing`
+    # lease or a `pos` failover would be an authority mechanism nobody reviewed, arriving
+    # beside the one that was — which is exactly what the original check was protecting
+    # against and the only part of it that M5b does not satisfy on its own.
+    #
+    # This is the fourth fence in this repository to retire this way, and the second in
+    # this function: the check below already retired once at M5a and says so.
     authority_claims = rows("""
         SELECT n.nspname || '.' || c.relname || '.' || a.attname
         FROM pg_attribute a
@@ -421,13 +436,17 @@ def gj_01a() -> None:
                                   takeover|quorum)(_|$)'
             OR c.relname ~* '(^|_)(authority|lease|failover|takeover)(_|$)')
         ORDER BY 1;""", dsn=ADMIN)
-    record(journey, "no local-authority claim exists anywhere before M5b",
-           authority_claims == [],
-           f"{authority_claims or 'none'} — searched the whole CATALOG for a column or "
-           f"table naming an authority, a lease, a failover or a takeover, rather than "
-           f"asserting that the ones this slice added do not. The absence is proved; a "
-           f"check that only looked at M3-D's own tables would pass on a claim any "
-           f"earlier gate had left behind")
+    strays = sorted({c[0].split(".")[0] for c in authority_claims} - {"edge"})
+    record(journey, "local authority exists once, in edge, and nowhere else",
+           strays == [],
+           f"schemas naming an authority, a lease, a failover or a takeover: "
+           f"{sorted({c[0].split('.')[0] for c in authority_claims}) or 'none'}; "
+           f"outside edge: {strays or 'none'}. Searched the whole CATALOG rather than the "
+           f"tables one slice added, because a check that looked only at its own would "
+           f"pass on a claim any other gate had left behind. Until M5b this asserted the "
+           f"set was EMPTY, which was the strongest form of the boundary while nothing "
+           f"could decide locally; M5b built edge.authority and edge.forwarding_lease, so "
+           f"asserting their absence would now assert the gate did not land")
 
     outlet_node = rows("""
         SELECT table_schema || '.' || table_name FROM information_schema.tables
@@ -438,7 +457,9 @@ def gj_01a() -> None:
            f"{outlet_node or 'none'}. Every step above went to the one cloud service. The "
            f"outlet node landed at M5a and is schema `edge`: it did NOT arrive as a "
            f"shadow `sync` or `replication` schema, which is what this check now means. "
-           f"Nothing yet claims the right to decide locally, which is M5b's")
+           f"What decides locally is edge.authority, and this journey is a CLOUD one: the "
+           f"guest ordered, the kitchen cooked and the bill settled through the one cloud "
+           f"service, which is what GJ-01A is for")
 
 
 # ===========================================================================
