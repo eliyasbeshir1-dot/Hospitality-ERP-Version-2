@@ -6,7 +6,7 @@ has to reach the node over TLS their phone already trusts; exactly one node may 
 replacing it must be safe; and the cloud and the outlet each have to prove the other is
 there before either forwards anything.
 
-Fourteen migrations (0049–0062), four seeds (0015–0018), one API route, one worker step,
+Fifteen migrations (0049–0063), four seeds (0015–0018), one API route, one worker step,
 86 suite checks with five negative controls, and two golden journeys.
 
 ---
@@ -240,6 +240,38 @@ can only ever say *the gate happened*; this says *the code exists*.
 
 Declared in two places on purpose — the same shape as `PROVISIONABLE_TABLES` — so a seventh
 producer cannot arrive as a one-word diff.
+
+---
+
+## F-M5B-12 · Widening a shared enum made another schema's rule quietly unowned
+
+`0060` added `node` to `ordering.artifact_kind` so an edge notice would have a subject to
+point at. **tests/m4b caught it**, and the check was written for precisely this case:
+
+> The kinds are read from the ENUM, so a kind added at M4-C appears here without anybody
+> extending a list, and the assertion is that each one names a rebuild. NULL is the safe
+> answer — an unowned kind is deleted by nobody — but it is not a silent one.
+
+`ordering.correlation_link_rebuilt_by('node')` returned NULL, and `0025`'s own comment says
+what NULL means there: *"nobody thought about this kind, and that is precisely the defect
+they exist to catch."* It was right. A whole gate later, an enum shared between two schemas
+grew a value for one of them and the other's rule went unowned.
+
+`0063` gives the honest answer — a node is never in `ordering.correlation_link`, so no
+rebuild restores its links because there are none — in the shape `receipt` already
+established: a definite sentence rather than a NULL. And it is **enforced rather than
+asserted**: `ordering.link_correlation_artifact()` refuses the kind, so the claim is a
+property of the schema. Same move `0059` made when NC-M5B-005 showed a filter is not a
+refusal.
+
+**The bound this leaves, and it is real work rather than a tidy-up.** `ordering.artifact_kind`
+now does double duty: eleven values meaning "a thing a guest orders or pays for" and one
+meaning "the machine serving them". The type lives in `ordering` and `notify` is the only
+user of the twelfth value. The clean answer is a separate `notify.subject_kind`. It was not
+taken here because **PostgreSQL cannot drop an enum value** — undoing `0060` means
+recreating a type used by three columns and four functions, and a type-recreation migration
+written at the end of a gate to fix a naming problem is a larger risk than the problem.
+Named as work for a later gate rather than left as a shape somebody has to rediscover.
 
 ---
 

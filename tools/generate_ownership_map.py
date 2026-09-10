@@ -323,6 +323,10 @@ MIGRATION_SLICE = {
     # it is about. Attributed to M3-C for the reason 0060 is: the allowlist was chosen when
     # every notice was about an order.
     "0062": "M3-C",
+    # 0063 gives `node` a rebuild answer and refuses it as a correlation artifact.
+    # Attributed to M3-D, the slice that owns the projection-rebuild rule tests/m4b
+    # enforces: a kind that names no rebuild is that rule's defect, not M5b's.
+    "0063": "M3-D",
 }
 
 

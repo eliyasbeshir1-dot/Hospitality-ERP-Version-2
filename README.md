@@ -233,6 +233,7 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0060_a_notice_may_be_about_a_node.sql`
 - `0061_the_edge_finally_tells_somebody.sql`
 - `0062_a_notice_about_a_node_needs_words_for_what_a_node_has.sql`
+- `0063_a_node_is_not_an_ordering_artifact_and_the_rebuild_rule_says_so.sql`
 
 ## Seeds
 

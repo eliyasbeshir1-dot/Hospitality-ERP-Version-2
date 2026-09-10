@@ -56,7 +56,7 @@ Counted from `active_requirements` in the pinned package, by `introduced_at`.
 
 ## The migrations this repository has
 
-62 of them, `0001_organizational_model_and_rls.sql` through `0062_a_notice_about_a_node_needs_words_for_what_a_node_has.sql`, across
+63 of them, `0001_organizational_model_and_rls.sql` through `0063_a_node_is_not_an_ordering_artifact_and_the_rebuild_rule_says_so.sql`, across
 22 domains. The owning domain of each is read out of its own SQL — the
 schemas it creates and the schemas it creates tables in — and the gate from the header
 comment every migration in this repository carries.
@@ -125,6 +125,7 @@ comment every migration in this repository carries.
 | `0060_a_notice_may_be_about_a_node.sql` | — | ordering | M3-C |
 | `0061_the_edge_finally_tells_somebody.sql` | — | notify · edge | M5b |
 | `0062_a_notice_about_a_node_needs_words_for_what_a_node_has.sql` | — | notify · edge | M3-C |
+| `0063_a_node_is_not_an_ordering_artifact_and_the_rebuild_rule_says_so.sql` | — | ordering | M3-D |
 
 ---
 
