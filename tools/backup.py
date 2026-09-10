@@ -25,8 +25,14 @@ and openssl are both in deploy/Dockerfile because a deployment needs them anyway
 the same reasoning that gave M5a keyed digests instead of signatures when pgcrypto was not
 there: use what is actually present and say so, rather than assume something that is not.
 
+AND OWNERS AND PRIVILEGES ARE PART OF WHAT IS BACKED UP. Not an obvious inclusion — the
+usual advice is --no-owner --no-privileges, which is what the first version did — but an
+estate that comes back without its grants is not restored, merely present. The restore
+drill is what found it: pg_restore reported success and `hospitality_app` got `permission
+denied for schema org`. Keeping them adds 469 entries to this floor's archive.
+
 THE KEY IS NEVER WRITTEN DOWN AND NEVER REACHES THE DATABASE. It arrives in
-HOSPITALITY_BACKUP_KEY and is passed to openssl through a file descriptor rather than the
+HOSPITALITY_BACKUP_KEY and is handed to openssl in its own environment rather than on the
 command line, because a command line is visible in the process table to anybody on the
 host. What the database records is the digest of the ciphertext and the parameters — enough
 for a restore to prove it is reading the bytes that were written, and not enough to read
@@ -127,7 +133,18 @@ def capture(dsn: str, target: Path, key: str) -> tuple[str, int]:
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("wb") as out:
         dump = subprocess.Popen(
-            ["pg_dump", "--format=custom", "--no-owner", "--no-privileges", dsn],
+            # OWNERS AND PRIVILEGES ARE PART OF THE BACKUP, and the first version of this
+            # dropped both with --no-owner --no-privileges. The restore drill caught it
+            # immediately and in the only way that could: pg_restore reported success, the
+            # bytes were all there, and `hospitality_app` — the role the service actually
+            # runs as — got `permission denied for schema org`.
+            #
+            # That is exactly why FR-OPS-007 says "start with least-privileged production
+            # roles". A restore verified as a superuser bypasses row level security and
+            # every grant, so it would have reported an estate that works and handed over
+            # one that nobody but a superuser can read. An estate without its grants is not
+            # restored; it is merely present.
+            ["pg_dump", "--format=custom", dsn],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         enc = openssl(["-" + CIPHER, "-" + KDF, "-iter", str(KDF_ITERATIONS), "-salt"],
                       key, stdin=dump.stdout, stdout=out)

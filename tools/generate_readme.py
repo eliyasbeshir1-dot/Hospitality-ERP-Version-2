@@ -142,7 +142,17 @@ SLICE_DELIVERS = {
             "'none', the schedule is a row an operator can query rather than a line in a "
             "scheduler nobody can audit, and an estate whose schedule was never written "
             "down reports `undocumented` rather than healthy — because nothing can be late "
-            "against a schedule that does not exist"
+            "against a schedule that does not exist",
+    "M6-C": "restore proved by destroying and rebuilding. The target is DROPPED before the "
+            "archive goes in, because restoring over a populated database proves nothing — "
+            "every row the archive failed to carry is still in the table, so the drill "
+            "passes on exactly the defect it exists to find. The estate is then read "
+            "through the least-privileged production role rather than a superuser, and "
+            "read THREE ways: what the archive carried, what that role sees with no tenant "
+            "context, and what it sees in scope. Any one alone can be right for the wrong "
+            "reason, because an empty restore looks exactly like a correctly isolated one. "
+            "Recovery time is wall clock from destruction to usable, not pg_restore's "
+            "duration, which excludes both ends that matter"
 }
 
 # The gates in order, and what each one brings that does not exist yet. Rows are emitted
@@ -372,6 +382,9 @@ SUITE_PURPOSE = {
     "m6b": "a real encrypted backup, taken by the real tool against the live database, "
            "decrypted and read back, and copied somewhere that is not where it was "
            "written — plus the five ways of recording one that the schema refuses",
+    "m6c": "a real database destroyed and rebuilt from a real encrypted archive, under "
+           "the production role, timed — plus a truncated archive, a wrong key and a "
+           "restore that lost its grants, each refused",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
     "journeys": "the golden journeys end to end in a browser against real "
                 "persistence, plus the duplicate-submit race: what a guest and a waiter "

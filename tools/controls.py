@@ -230,6 +230,11 @@ CONTROLS = [
     ("NC-M6B-003", "A verification that read a different archive", "BACKUP_DIGEST_MISMATCH", "m6b"),
     ("NC-M6B-004", "An off-site copy of an archive nobody has read", "BACKUP_NOT_VERIFIED", "m6b"),
     ("NC-M6B-005", "A captured backup's digest edited after the fact", "BACKUP_RUN_REWRITTEN", "m6b"),
+
+    # M6-C. Restore proved by destroying and rebuilding.
+    ("NC-M6C-001", "A truncated archive restored as if whole", "RESTORE_FAILED", "m6c"),
+    ("NC-M6C-002", "A restore attempted with the wrong key", "DECRYPT_FAILED", "m6c"),
+    ("NC-M6C-003", "An estate restored without the grants that make it usable", "RESTORED_BUT_UNUSABLE", "m6c"),
 ]
 
 
