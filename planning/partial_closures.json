@@ -291,7 +291,7 @@
    "aspect": "analytical consumption",
    "opened_at": "M3-B",
    "completing_gate": "M6-D",
-   "state": "open",
+   "state": "closed",
    "completed_by": "FR-RPT-003",
    "why": "Prep, wait and SLA times compute per station, item and order from timestamps the fold wrote out of the ledger. Consuming them as analytics is operational reporting at M6.",
    "completer_moved": {
@@ -299,7 +299,9 @@
     "to": "M6-D",
     "at": "M6-A",
     "why": "Refined from the bare gate M6 to the slice that completes it. The aspect is 'consuming them as analytics is operational reporting at M6', and M6-D is the reporting and exports slice. The prep, wait and SLA times themselves are already computed out of the ledger; what is missing is a report that consumes them."
-   }
+   },
+   "closed_at": "M6-D",
+   "closed_by_evidence": "report.kitchen_consumption() puts prep, wait and SLA side by side per station, read from the tickets the fold already wrote rather than from a second projection of them — which is what the entry asked for: the times were already computed and nothing consumed them together. Exposed at /s/v1/reports/kitchen-consumption. Prep is ready_at - preparation_started_at and wait is collected_at - ready_at, both as a MEDIAN with the maximum beside it: a mean is dragged by the one ticket that sat while somebody went to find an ingredient, and a median alone hides that ticket entirely. SLA breaches are COUNTED rather than averaged, because 'how often were we late' is the question a manager can act on and 'how late on average' hides both a run of small delays and a single disaster. Verified in tests/m6d: the function executes against live tickets and reports all three figures."
   },
   {
    "requirement": "FR-FUL-014",
@@ -321,7 +323,7 @@
    "aspect": "rerouting with the outlet node authoritative",
    "opened_at": "M3-B",
    "completing_gate": "M6-D",
-   "state": "open",
+   "state": "closed",
    "completed_by": "FR-CFG-001E",
    "why": "An authorized reroute moves the ticket and its line units without creating anything, proved by a unit-count constraint across every live ticket for the order. Behaviour while the outlet node is authoritative is M5a's.",
    "completer_moved": {
@@ -329,7 +331,9 @@
     "to": "M6-D",
     "at": "M6-A",
     "why": "Refined from the bare gate M6 to the slice that completes it. The move to M6 said this belongs at 'the gate that revisits fulfilment under production conditions', and M6-D is that slice. M5b supplied the half that was missing: an outlet node is now AUTHORITATIVE by a monotonic sequence rather than by being the only node, so 'a reroute while the node is authoritative' is finally a state that can be set up rather than assumed."
-   }
+   },
+   "closed_at": "M6-D",
+   "closed_by_evidence": "The three conditions the entry was waiting for now exist together and are each exercised in tests/m6d. The one that was missing is the one M5b supplied: an outlet node is AUTHORITATIVE by holding a monotonic sequence in edge.authority, so edge.node_role() answers 'this node may write' as a fact rather than as an inference from there being no other node. Until M5b that state could not be set up, only assumed — which is why the entry moved rather than closing at M5a on the neighbouring aspect's evidence. The outlet is put into local_continuity, the node is confirmed to hold a writable sequence, and fulfillment.assert_units_within_order is confirmed to span every live ticket for the order rather than the ticket being moved, which is what makes a reroute safe. WHAT IS NOT CLAIMED, and it is recorded as a bound rather than left implied: the conjunction is proved as three conditions holding, not by moving a ticket between stations mid-outage and counting units afterwards. That is GJ-10's shape and it belongs to a journey rather than to a slice suite."
   },
   {
    "requirement": "SM-ORDER",

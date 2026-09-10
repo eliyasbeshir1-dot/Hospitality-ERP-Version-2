@@ -56,7 +56,7 @@ Counted from `active_requirements` in the pinned package, by `introduced_at`.
 
 ## The migrations this repository has
 
-64 of them, `0001_organizational_model_and_rls.sql` through `0064_a_backup_is_a_thing_that_happened_on_a_schedule_and_was_verified.sql`, across
+65 of them, `0001_organizational_model_and_rls.sql` through `0065_an_export_is_a_governed_action_and_somebody_finally_asks.sql`, across
 22 domains. The owning domain of each is read out of its own SQL — the
 schemas it creates and the schemas it creates tables in — and the gate from the header
 comment every migration in this repository carries.
@@ -127,6 +127,7 @@ comment every migration in this repository carries.
 | `0062_a_notice_about_a_node_needs_words_for_what_a_node_has.sql` | — | notify · edge | M3-C |
 | `0063_a_node_is_not_an_ordering_artifact_and_the_rebuild_rule_says_so.sql` | — | ordering | M3-D |
 | `0064_a_backup_is_a_thing_that_happened_on_a_schedule_and_was_verified.sql` | ops | — | M6-B |
+| `0065_an_export_is_a_governed_action_and_somebody_finally_asks.sql` | report | — | M6-D |
 
 ---
 

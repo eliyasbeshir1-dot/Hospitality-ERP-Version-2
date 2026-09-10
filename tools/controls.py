@@ -235,6 +235,11 @@ CONTROLS = [
     ("NC-M6C-001", "A truncated archive restored as if whole", "RESTORE_FAILED", "m6c"),
     ("NC-M6C-002", "A restore attempted with the wrong key", "DECRYPT_FAILED", "m6c"),
     ("NC-M6C-003", "An estate restored without the grants that make it usable", "RESTORED_BUT_UNUSABLE", "m6c"),
+
+    # M6-D. Reporting, exports, and two closures that came due.
+    ("NC-M6D-001", "An export taken on a step-up for a different act", "EXPORT_STEP_UP_ABSENT", "m6d"),
+    ("NC-M6D-002", "An export record edited after the fact", "EXPORT_EVENT_REWRITTEN", "m6d"),
+    ("NC-M6D-003", "An export taken on a grant older than its window", "EXPORT_STEP_UP_ABSENT", "m6d"),
 ]
 
 

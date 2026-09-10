@@ -330,6 +330,9 @@ MIGRATION_SLICE = {
     # 0064 is FR-OPS-006 and FR-SEC-019: the backup schedule as something that can be
     # asked, and a backup that is not `verified` until something has read it back.
     "0064": "M6-B",
+    # 0065 gives report.export the caller it has been registered for since
+    # 0002, and FR-FUL-012 the reading that consumes what the fold wrote.
+    "0065": "M6-D",
 }
 
 

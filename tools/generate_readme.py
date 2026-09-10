@@ -152,7 +152,17 @@ SLICE_DELIVERS = {
             "context, and what it sees in scope. Any one alone can be right for the wrong "
             "reason, because an empty restore looks exactly like a correctly isolated one. "
             "Recovery time is wall clock from destruction to usable, not pg_restore's "
-            "duration, which excludes both ends that matter"
+            "duration, which excludes both ends that matter",
+    "M6-D": "reporting, exports, and two partial closures that came due. `report.export` "
+            "has been registered as a governed action since migration 0002 — strong, "
+            "step-up, a fifteen-minute window, the only action in the registry whose window "
+            "is not five minutes — and nothing had ever called it, so an action the "
+            "registry described as governed was ungoverned through M4, M5a and M5b. It has "
+            "a caller now, the record is written BEFORE the bytes leave, and what is "
+            "recorded cannot be edited: a record of who took an outlet''s trade off the "
+            "system is worth exactly as much as its immutability. Prep, wait and SLA are "
+            "read together per station as medians with the maximum beside them, and SLA "
+            "breaches are counted rather than averaged"
 }
 
 # The gates in order, and what each one brings that does not exist yet. Rows are emitted
@@ -385,6 +395,9 @@ SUITE_PURPOSE = {
     "m6c": "a real database destroyed and rebuilt from a real encrypted archive, under "
            "the production role, timed — plus a truncated archive, a wrong key and a "
            "restore that lost its grants, each refused",
+    "m6d": "an export refused without a fresh step-up for THAT act, refused on a stale "
+           "one, recorded before the bytes leave and unable to be edited afterwards; and "
+           "the kitchen''s prep, wait and SLA figures read together for the first time",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
     "journeys": "the golden journeys end to end in a browser against real "
                 "persistence, plus the duplicate-submit race: what a guest and a waiter "

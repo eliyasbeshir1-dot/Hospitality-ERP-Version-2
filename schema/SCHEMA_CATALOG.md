@@ -322,6 +322,7 @@ graph LR
   report_dashboard["report.dashboard"]
   report_metric["report.metric"]
   report_export["report.export"]
+  report_export_event["report.export_event"]
   report_recomputation["report.recomputation"]
   report_shift_snapshot["report.shift_snapshot"]
   report_shift_snapshot_value["report.shift_snapshot_value"]
@@ -841,6 +842,8 @@ graph LR
   report_export --> money_currency
   report_export --> org_org_node
   report_export --> org_tenant
+  report_export_event --> identity_user_account
+  report_export_event --> org_org_node
   report_recomputation --> identity_user_account
   report_recomputation --> org_tenant
   report_recomputation --> report_shift_snapshot
@@ -7937,6 +7940,52 @@ Constraints:
 Policies:
 
 - `export_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `report.export_event`
+
+FR-RPT-013, FR-AUTH-006. Who took an outlet's figures off this system, when, for what window, and on which step-up grant. An export changes nothing and removes everything: the consequence is not to the data but that the data leaves, into a file with none of the access controls it had here.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `export_kind` | `report.export_kind` | NOT NULL |  |  |
+| `window_from` | `timestamp with time zone` | NOT NULL |  |  |
+| `window_to` | `timestamp with time zone` | NOT NULL |  |  |
+| `currency` | `character(3)` | NOT NULL |  |  |
+| `taken_by_user_id` | `uuid` | NOT NULL |  |  |
+| `step_up_grant_id` | `uuid` | NOT NULL |  |  |
+| `byte_count` | `integer` | NOT NULL |  |  |
+| `body_sha256` | `character(64)` | NOT NULL |  |  |
+| `taken_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `export_event_actor_fk` — `FOREIGN KEY (tenant_id, taken_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `export_event_body_sha256_not_null` — `NOT NULL body_sha256`
+- `export_event_byte_count_not_null` — `NOT NULL byte_count`
+- `export_event_currency_not_null` — `NOT NULL currency`
+- `export_event_export_kind_not_null` — `NOT NULL export_kind`
+- `export_event_has_content` — `CHECK ((byte_count > 0))`
+- `export_event_id_not_null` — `NOT NULL id`
+- `export_event_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `export_event_outlet_id_not_null` — `NOT NULL outlet_id`
+- `export_event_pkey` — `PRIMARY KEY (id)`
+- `export_event_step_up_grant_id_not_null` — `NOT NULL step_up_grant_id`
+- `export_event_taken_at_not_null` — `NOT NULL taken_at`
+- `export_event_taken_by_user_id_not_null` — `NOT NULL taken_by_user_id`
+- `export_event_tenant_id_not_null` — `NOT NULL tenant_id`
+- `export_event_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `export_event_window_from_not_null` — `NOT NULL window_from`
+- `export_event_window_is_a_window` — `CHECK ((window_to > window_from))`
+- `export_event_window_to_not_null` — `NOT NULL window_to`
+
+Policies:
+
+- `export_event_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
 #### `report.metric`
 
