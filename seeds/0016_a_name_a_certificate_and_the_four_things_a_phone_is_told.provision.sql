@@ -83,6 +83,20 @@ VALUES (:t_habesha::uuid, :o_sarbet::uuid, '192.168.20.1', 'fd00:20::1',
 -- AND A CERTIFICATE EACH, INSTALLED THE ONLY WAY 0053 PERMITS
 -- ---------------------------------------------------------------------------
 --
+-- THE TENANT IS WRITTEN OUT INSIDE THE BLOCKS BELOW, and that is not an oversight: psql
+-- does NOT substitute :variables inside dollar quoting. `:t_habesha` in a DO block reaches
+-- the server as the three characters it is and fails with a syntax error at ':'. The \set
+-- above still governs everything outside them, so there is exactly one place the literal
+-- appears twice, and it appears rather than silently not being substituted.
+--
+-- A DO BLOCK AND A LOCAL VARIABLE, NOT A TEMP TABLE. The first draft held the returned
+-- certificate id in `CREATE TEMP TABLE`, which worked against a superuser scratch database
+-- and failed in the chain with `permission denied to create temporary tables`: the
+-- provisioning identity has no TEMP privilege on the database, and it should not — a seed
+-- that needs to create objects is a seed doing more than seeding. The whole-chain run from
+-- empty is what surfaced it, which is the difference between running a seed and running it
+-- AS THE ROLE THAT WILL RUN IT.
+--
 -- Requested, issued and installed through the three functions, rather than inserted at
 -- the state it ends in. The constraints would have allowed a hand-filled `installed` row,
 -- and taking that shortcut would mean the seeded floor demonstrates a state no code path
@@ -91,39 +105,45 @@ VALUES (:t_habesha::uuid, :o_sarbet::uuid, '192.168.20.1', 'fd00:20::1',
 
 SELECT set_config('app.outlet_id', :o_kazanchis, false);
 
-CREATE TEMP TABLE cert_kazanchis AS
-SELECT edge.request_certificate(
-    :t_habesha::uuid,
-    (SELECT id FROM edge.node WHERE tenant_id = :t_habesha::uuid AND node_code = 'NODE-H1'),
-    'c5c500010000000000000000000000000000000000000000000000000000ca01') AS id;
+DO $cert_kazanchis$
+DECLARE
+    v_id uuid;
+BEGIN
+    v_id := edge.request_certificate(
+        '33333333-3333-3333-3333-333333333333'::uuid,
+        (SELECT id FROM edge.node
+          WHERE tenant_id = '33333333-3333-3333-3333-333333333333'::uuid AND node_code = 'NODE-H1'),
+        'c5c500010000000000000000000000000000000000000000000000000000ca01');
 
-SELECT edge.record_certificate_issued(
-    :t_habesha::uuid, (SELECT id FROM cert_kazanchis),
-    'ce4700010000000000000000000000000000000000000000000000000000ca01',
-    'Demonstration CA R3 (fixture — not a real issuer)',
-    now() - interval '3 days', now() + interval '87 days');
+    PERFORM edge.record_certificate_issued(
+        '33333333-3333-3333-3333-333333333333'::uuid, v_id, 'ce4700010000000000000000000000000000000000000000000000000000ca01',
+        'Demonstration CA R3 (fixture — not a real issuer)',
+        now() - interval '3 days', now() + interval '87 days');
 
-SELECT edge.verify_and_install_certificate(
-    :t_habesha::uuid, (SELECT id FROM cert_kazanchis),
-    'ce4700010000000000000000000000000000000000000000000000000000ca01');
+    PERFORM edge.verify_and_install_certificate('33333333-3333-3333-3333-333333333333'::uuid, v_id, 'ce4700010000000000000000000000000000000000000000000000000000ca01');
+END
+$cert_kazanchis$;
 
 SELECT set_config('app.outlet_id', :o_sarbet, false);
 
-CREATE TEMP TABLE cert_sarbet AS
-SELECT edge.request_certificate(
-    :t_habesha::uuid,
-    (SELECT id FROM edge.node WHERE tenant_id = :t_habesha::uuid AND node_code = 'NODE-H2'),
-    'c5c5000200000000000000000000000000000000000000000000000000005a02') AS id;
+DO $cert_sarbet$
+DECLARE
+    v_id uuid;
+BEGIN
+    v_id := edge.request_certificate(
+        '33333333-3333-3333-3333-333333333333'::uuid,
+        (SELECT id FROM edge.node
+          WHERE tenant_id = '33333333-3333-3333-3333-333333333333'::uuid AND node_code = 'NODE-H2'),
+        'c5c5000200000000000000000000000000000000000000000000000000005a02');
 
-SELECT edge.record_certificate_issued(
-    :t_habesha::uuid, (SELECT id FROM cert_sarbet),
-    'ce47000200000000000000000000000000000000000000000000000000005a02',
-    'Demonstration CA R3 (fixture — not a real issuer)',
-    now() - interval '3 days', now() + interval '87 days');
+    PERFORM edge.record_certificate_issued(
+        '33333333-3333-3333-3333-333333333333'::uuid, v_id, 'ce47000200000000000000000000000000000000000000000000000000005a02',
+        'Demonstration CA R3 (fixture — not a real issuer)',
+        now() - interval '3 days', now() + interval '87 days');
 
-SELECT edge.verify_and_install_certificate(
-    :t_habesha::uuid, (SELECT id FROM cert_sarbet),
-    'ce47000200000000000000000000000000000000000000000000000000005a02');
+    PERFORM edge.verify_and_install_certificate('33333333-3333-3333-3333-333333333333'::uuid, v_id, 'ce47000200000000000000000000000000000000000000000000000000005a02');
+END
+$cert_sarbet$;
 
 -- ---------------------------------------------------------------------------
 -- THE TWELVE SENTENCES
