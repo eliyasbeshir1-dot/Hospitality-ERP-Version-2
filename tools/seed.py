@@ -103,7 +103,13 @@ FIRST_VERSION = 1
 # that exchange. It is the same shape as a bill, which is SELECT-only to the app role
 # because a FUNCTION writes it rather than because it is configuration. 0055 added
 # edge.request_certificate() so the seed goes through the state machine instead of around
-# it. Ten tables, not eleven.
+# it.
+#
+# edge.lease_policy joins them at M5b for the same test: FR-EDG-023's 5/10/20/3 schedule
+# is how long an OUTLET waits before it decides the cloud is gone, and an operator with a
+# slow link should be able to change it. GJ-09 found the table empty on a floor with two
+# nodes — the schedule existed only as four DEFAULT clauses nobody had inserted against.
+# Eleven tables, not ten and not twelve.
 #
 # Each is a decision an installer makes and a manager revisits; none is a bill, a payment,
 # an order or a ticket. The counter-example is the test: a bill IS produced by trade, and
@@ -121,6 +127,7 @@ PROVISIONABLE_TABLES = frozenset({
     "edge.plain_language",
     "edge.outlet_hostname",
     "edge.supported_network",
+    "edge.lease_policy",
 })
 
 # THE SET IS NAMED, AND THE NAMING IS CHECKED. Growing PROVISIONABLE_TABLES without saying
@@ -131,6 +138,7 @@ PROVISIONABLE_TABLES_DECLARED = (
     "billing.tip_setting",
     "billing.tip_suggestion",
     "edge.deployment_profile",
+    "edge.lease_policy",
     "edge.outlet_hostname",
     "edge.plain_language",
     "edge.supported_network",
@@ -204,6 +212,12 @@ PROVISIONABLE_FUNCTIONS = frozenset({
     # — see the note above the set. These two are the state machine's entrance and its
     # exit, and going through them is what makes the seeded floor demonstrate a state that
     # code actually produces.
+    # FR-EDG-023 and FR-EDG-024's rows for the outlets that already existed. Writes
+    # edge.authority and edge.node_admin_action; grant_first_authority() is the ONLY way to
+    # take a first sequence, and every later one goes through claim_authority() and its
+    # four proofs. There is no node to fence when an outlet has never had one, which is why
+    # the asymmetry exists and why only this half is provisionable.
+    "edge.grant_first_authority",
     "edge.request_certificate",
     "edge.record_certificate_issued",
     "edge.verify_and_install_certificate",

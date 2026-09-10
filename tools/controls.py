@@ -210,6 +210,13 @@ CONTROLS = [
     ("NC-M5A-003", "A node started at a sibling outlet", "NODE_OUTLET_MISMATCH", "m5a"),
     ("NC-M5A-004", "A connectivity banner reporting CONNECTED because it could not see the node", "CONNECTIVITY_OUT_OF_SCOPE", "m5a"),
     ("NC-M5A-005", "An action allowed during an outage because nobody classified it", "ACTION_UNCLASSIFIED", "m5a"),
+
+    # M5b. The same QR, one writer, and a phone that never sees a warning.
+    ("NC-M5B-001", "A LAN answer that is publicly routable, so the horizons are not split", "outlet_hostname_horizons_are_actually_split", "m5b"),
+    ("NC-M5B-002", "A replacement claimed while the old node still answers the LAN", "AUTHORITY_FENCE_UNPROVEN", "m5b"),
+    ("NC-M5B-003", "Guidance that tells a guest to click through a certificate warning", "RESOLUTION_GUIDANCE_OFFERS_A_BYPASS", "m5b"),
+    ("NC-M5B-004", "A node installing a certificate the LAN is not serving", "CERTIFICATE_SERVED_DOES_NOT_MATCH_ISSUED", "m5b"),
+    ("NC-M5B-005", "A revoked session handed to a node as still valid", "CONTINUITY_OFFERED_A_REVOKED_SESSION", "m5b"),
 ]
 
 

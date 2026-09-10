@@ -102,7 +102,7 @@ Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `docs`, `edge`, `f
 | `ops.asset_class` | continuity_node, router, access_point, pos_terminal, kds_device, printer |
 | `ordering.acceptance_mode` | automatic, staff_confirmed, payment_dependent |
 | `ordering.actor_kind` | guest, staff, system |
-| `ordering.artifact_kind` | request, cart, table_session, order, fulfillment_ticket, service_request, check, bill, payment, tip, receipt |
+| `ordering.artifact_kind` | request, cart, table_session, order, fulfillment_ticket, service_request, check, bill, payment, tip, receipt, node |
 | `ordering.charge_kind` | item_subtotal, discount, tax, fee |
 | `ordering.charge_source_kind` | menu_price, tax_configuration, discount_policy, service_configuration |
 | `ordering.event_kind` | submitted, accepted, rejected, amended, cancelled, voided, note_added, allergy_declared, session_merged, session_moved, tickets_released, station_acknowledged, station_preparing, station_ready, items_collected, items_served, station_exception |
@@ -5983,7 +5983,7 @@ Constraints:
 - `catalog_event_milestone_not_null` — `NOT NULL milestone`
 - `catalog_event_milestone_shape` — `CHECK ((milestone ~ '^M[0-9][A-Za-z]?$'::text))`
 - `catalog_event_pkey` — `PRIMARY KEY (event_id)`
-- `catalog_event_producer_only_when_landed` — `CHECK (((NOT has_producer) OR (milestone = ANY (ARRAY['M1'::text, 'M2'::text, 'M3'::text, 'M4'::text]))))`
+- `catalog_event_producer_only_when_landed` — `CHECK (((NOT has_producer) OR (milestone = ANY (ARRAY['M1'::text, 'M2'::text, 'M3'::text, 'M4'::text, 'M5a'::text, 'M5b'::text]))))`
 - `catalog_event_severity_known` — `CHECK ((severity = ANY (ARRAY['informational'::text, 'critical'::text])))`
 - `catalog_event_severity_not_null` — `NOT NULL severity`
 

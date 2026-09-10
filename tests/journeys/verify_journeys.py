@@ -2169,6 +2169,273 @@ def gj_10() -> None:
            reconciled == "1", f"{reconciled} event carrying the job's own identity")
 
 
+def refusal_signature(sql: str, **ctx) -> str:
+    """The signature a statement was refused with, or '' if it was not refused.
+
+    The journeys file has had no need of one until now: every journey before M5b asserts
+    what DID happen. GJ-09's pass criteria are almost entirely about what must NOT — a
+    replacement that is not writable, a direct LAN write that fails, a rollback every
+    writer rejects — so it needs to read a refusal the way the gate suites do.
+    """
+    res = run(ADMIN, sql, **{**CTX, **ctx, "tx": True, "rollback": True})
+    if res.ok:
+        return ""
+    for token in res.err.replace(chr(10), " ").split():
+        cleaned = token.strip(":,.'" + chr(34))
+        if cleaned.isupper() and len(cleaned) > 6 and "_" in cleaned:
+            return cleaned
+    return res.err.strip()[:120]
+
+
+def gj_08() -> None:
+    """GJ-08 — the same QR, during an outage, on the phones people actually carry.
+
+    THE JOURNEY M5b EXISTS FOR, and its pass criteria are unusually specific about what
+    must NOT happen: "Browser shows no certificate warning ... cached-answer, encrypted-DNS
+    and dual-stack devices either resolve to the trusted local endpoint or fail safe to
+    translated staff guidance, never to a certificate warning or a manual bypass prompt;
+    the served certificate fingerprint and expiry are verified from the LAN."
+
+    IT RUNS AT SARBET RATHER THAN KAZANCHIS, which is the one journey here that does. Both
+    Habesha outlets have a node and a certificate; only they differ in whether the gateway
+    blocks public DoH, and that difference is the whole of FR-EDG-028's second condition.
+    Sarbet blocks it and Kazanchis does not, so the encrypted-DNS branch is exercised
+    against BOTH answers below rather than against whichever one the demonstration floor
+    happened to be configured with.
+
+    WHAT IT DOES NOT CLAIM, said here rather than left to the summary. No resolver in this
+    build answers a DNS query and no phone has validated one of these certificates. What is
+    driven is the decision every one of those devices depends on — where the browser is
+    sent, and whether any input can send it somewhere untrusted. planning/M5B_FINDINGS.md
+    carries the bound with what would close it.
+    """
+    print("\n--- GJ-08: the same QR during an outage, on real phones ---")
+    journey = "GJ-08"
+
+    sarbet = "33330002-0000-4000-8000-000000000002"
+    kazanchis = "33330001-0000-4000-8000-000000000001"
+
+    hostname = scalar(f"""
+        SELECT hostname FROM edge.outlet_hostname WHERE outlet_id = '{sarbet}';""",
+        dsn=ADMIN, tenant=fx.TENANT, outlet=sarbet)
+    record(journey, "the outlet has one public hostname for its QR to carry",
+           bool(hostname), f"hostname = {hostname or '(none)'}")
+    if not hostname:
+        raise ProbeFailed("GJ-08", "the outlet has no declared hostname")
+
+    # ---- 1. THE SERVED FINGERPRINT AND EXPIRY, VERIFIED FROM THE LAN -----------------
+    #
+    # The pass criteria ask for this explicitly and it is the check a real deployment most
+    # often skips: a node CAN serve a certificate other than the one that was issued to it,
+    # and the first person to notice would be a guest looking at a warning.
+    served = scalar(f"""
+        SELECT (lan_served_sha256 = certificate_sha256)::text || '|' || state::text
+          FROM edge.node_certificate
+         WHERE outlet_id = '{sarbet}' AND state = 'installed' LIMIT 1;""",
+        dsn=ADMIN, tenant=fx.TENANT, outlet=sarbet)
+    record(journey, "what the LAN serves is what the CA issued, verified before install",
+           served == "true|installed", f"lan-served equals issued: {served}")
+
+    posture = scalar(f"""
+        SELECT posture::text || '|' || days_remaining::text
+          FROM edge.certificate_posture('{fx.TENANT}','{sarbet}');""",
+        dsn=ADMIN, tenant=fx.TENANT, outlet=sarbet)
+    record(journey, "and its expiry is known and not imminent",
+           posture.split("|")[0] in ("healthy", "renew_now"), f"posture {posture}")
+
+    # ---- 2. THE SAME QR, WITH THE INTERNET GONE -------------------------------------
+    for condition, label in (("lan_resolver", "a phone on the outlet Wi-Fi"),
+                             ("dual_stack", "a dual-stack IPv4/IPv6 phone")):
+        answer = scalar(f"""
+            SELECT outcome::text || '|' || coalesce(endpoint, phrase_code)
+              FROM edge.resolve_customer_entry('{fx.TENANT}','{sarbet}',
+                   '{condition}', 5, 'en', false);""",
+            dsn=ADMIN, tenant=fx.TENANT, outlet=sarbet)
+        record(journey, f"{label} reaches the node over a trusted certificate",
+               answer == f"trusted_local|{hostname}", f"{condition} -> {answer}")
+
+    # ---- 3. A DEVICE THAT WALKED IN HOLDING THE PUBLIC ANSWER ------------------------
+    inside = scalar(f"""
+        SELECT outcome::text || '|' || coalesce(endpoint, phrase_code)
+          FROM edge.resolve_customer_entry('{fx.TENANT}','{sarbet}',
+               'cached_public_answer', 5, 'am', false);""",
+        dsn=ADMIN, tenant=fx.TENANT, outlet=sarbet)
+    after = scalar(f"""
+        SELECT outcome::text || '|' || coalesce(endpoint, phrase_code)
+          FROM edge.resolve_customer_entry('{fx.TENANT}','{sarbet}',
+               'cached_public_answer', 120, 'am', false);""",
+        dsn=ADMIN, tenant=fx.TENANT, outlet=sarbet)
+    record(journey, "a cached public answer waits out the documented window and then resolves",
+           inside == "staff_guidance|resolution.cached_answer_wait"
+           and after == f"trusted_local|{hostname}",
+           f"inside the window: {inside}\nafter it: {after}")
+
+    # ---- 4. ENCRYPTED DNS, ON BOTH ANSWERS -------------------------------------------
+    blocked = scalar(f"""
+        SELECT outcome::text FROM edge.resolve_customer_entry('{fx.TENANT}','{sarbet}',
+               'encrypted_dns', 5, 'ar', false);""",
+        dsn=ADMIN, tenant=fx.TENANT, outlet=sarbet)
+    unblocked = scalar(f"""
+        SELECT outcome::text || '|' || coalesce(endpoint, phrase_code)
+          FROM edge.resolve_customer_entry('{fx.TENANT}','{kazanchis}',
+               'encrypted_dns', 5, 'ar', false);""",
+        dsn=ADMIN, tenant=fx.TENANT, outlet=kazanchis)
+    record(journey, "encrypted DNS reaches the node where DoH is blocked and fails safe where it is not",
+           blocked == "trusted_local"
+           and unblocked == "staff_guidance|resolution.encrypted_dns_blocks_local",
+           f"gateway blocks DoH: {blocked}\ngateway does not: {unblocked}\n"
+           "this is the condition that cannot be waited out, and the guidance names the "
+           "setting because a guest told 'turn off Private DNS' can act on it")
+
+    # ---- 5. THE GUIDANCE IS IN THE GUEST'S LANGUAGE AND OFFERS NO WAY THROUGH ---------
+    for locale in ("en", "am", "ar"):
+        text = scalar(f"""
+            SELECT guidance FROM edge.resolve_customer_entry('{fx.TENANT}','{kazanchis}',
+                   'encrypted_dns', 5, '{locale}', false);""",
+            dsn=ADMIN, tenant=fx.TENANT, outlet=kazanchis)
+        record(journey, f"the {locale} guidance is a sentence a person can act on",
+               bool(text) and len(text) > 20, f"{locale}: {text}")
+
+    checked = scalar(f"SELECT edge.assert_resolution_guidance_is_safe('{fx.TENANT}')::text;",
+                     dsn=ADMIN, tenant=fx.TENANT, outlet=sarbet)
+    record(journey, "and none of the twelve phrases tells anybody to click through a warning",
+           checked == "12", f"{checked} phrases checked in three locales")
+
+    # ---- 6. THE PASS CRITERION THE WHOLE JOURNEY TURNS ON -----------------------------
+    every = scalar(f"""
+        SELECT string_agg(DISTINCT r.outcome::text, ',' ORDER BY r.outcome::text)
+          FROM (VALUES ('lan_resolver'),('cached_public_answer'),('encrypted_dns'),
+                       ('dual_stack'),('public_internet')) AS c(cond)
+         CROSS JOIN (VALUES (true),(false)) AS u(cloud)
+         CROSS JOIN (VALUES (0),(30),(90),(3600)) AS s(since)
+         CROSS JOIN LATERAL edge.resolve_customer_entry('{fx.TENANT}','{sarbet}',
+                    c.cond::edge.client_condition, s.since, 'en', u.cloud) r;""",
+        dsn=ADMIN, tenant=fx.TENANT, outlet=sarbet)
+    record(journey, "no device, cloud state or elapsed time yields a warning or a bypass",
+           set((every or "").split(",")) <= {"trusted_local", "cloud_served", "staff_guidance"},
+           f"forty combinations produced only: {every}\n"
+           "and there is no fourth outcome to produce — edge.resolution_outcome has three "
+           "values, so a bypass would take a migration and an argument")
+
+
+def gj_09() -> None:
+    """GJ-09 — an asymmetric partition, and an emergency replacement of the writer.
+
+    Its pass criteria: "Cloud forwarding expires safely while LAN authority continues;
+    replacement is not writable before fence evidence; direct old-node LAN write fails;
+    every writer rejects rollback; stale events quarantine; recovery requires three valid
+    bidirectional proofs."
+
+    ASYMMETRIC IS THE WORD THAT MATTERS. A link that fails in one direction only is the
+    case a naive health check gets wrong: the cloud can still reach the node, so the cloud
+    believes everything is fine, while nothing the node sends arrives. FR-EDG-023's lease
+    is bidirectional for exactly that reason, and this journey cuts each direction on its
+    own rather than pulling a cable.
+    """
+    print("\n--- GJ-09: an asymmetric partition, and replacing the writer ---")
+    journey = "GJ-09"
+
+    outlet = "33330001-0000-4000-8000-000000000001"
+    node = scalar("SELECT id FROM edge.node WHERE node_code = 'NODE-H1';")
+    record(journey, "the outlet has a node to partition", bool(node),
+           f"node NODE-H1 = {node or '(none)'}")
+    if not node:
+        raise ProbeFailed("GJ-09", "no node is registered at this outlet")
+
+    # ---- 1. THE LEASE IS BIDIRECTIONAL, AND ONE DIRECTION IS NOT ENOUGH --------------
+    one_way = scalar(f"""
+        SELECT string_agg(enumlabel, ',' ORDER BY enumsortorder)
+          FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+         WHERE t.typname = 'proof_direction';""", dsn=ADMIN, tenant=fx.TENANT, outlet=outlet)
+    record(journey, "a proof names which way it travelled",
+           one_way == "cloud_to_node,node_to_cloud",
+           f"directions: {one_way}\na link that fails in ONE direction is the case a "
+           "naive health check gets wrong — the cloud still reaches the node, so the cloud "
+           "believes everything is fine while nothing the node sends arrives")
+
+    policy = scalar(f"""
+        SELECT proof_interval_seconds::text || '/' || degrade_after_seconds::text || '/'
+            || expire_after_seconds::text || '/' || proofs_required_to_resume::text
+          FROM edge.lease_policy LIMIT 1;""", dsn=ADMIN, tenant=fx.TENANT, outlet=outlet)
+    record(journey, "the lease probes, degrades and expires on a stated schedule",
+           policy == "5/10/20/3",
+           f"{policy} — probe/degrade/expire seconds, and the consecutive proofs recovery "
+           "takes. Ascending by CHECK, so a policy that expired before it warned could not "
+           "be written")
+
+    # ---- 2. AUTHORITY IS A SEQUENCE, AND ONLY ONE HOLDS IT ---------------------------
+    holders = scalar(f"""
+        SELECT count(*)::text FROM edge.authority
+         WHERE outlet_id = '{outlet}' AND state = 'held';""",
+        dsn=ADMIN, tenant=fx.TENANT, outlet=outlet)
+    record(journey, "at most one node holds authority for the outlet",
+           holders in ("0", "1"),
+           f"{holders} holder(s), enforced by a partial unique index rather than by "
+           "convention — split-brain is a database error, not an operational discovery")
+
+    # ---- 3. A REPLACEMENT IS NOT WRITABLE BEFORE FENCE EVIDENCE ----------------------
+    unfenced = refusal_signature(f"""
+        SELECT edge.claim_authority('{fx.TENANT}','{node}', gen_random_uuid(),
+               '3333cccc-0000-4000-8000-000000000001',
+               '3333aaaa-0000-4000-8000-000000000001',
+               'power_off','we think it is off', false);""", outlet=outlet)
+    record(journey, "a replacement is refused while the old node still answers the LAN",
+           unfenced == "AUTHORITY_FENCE_UNPROVEN",
+           f"signature: {unfenced}\nchecked FIRST, because it is the one that says whether "
+           "the old node is actually gone; everything else is a record of intent")
+
+    self_approved = refusal_signature(f"""
+        SELECT edge.claim_authority('{fx.TENANT}','{node}', gen_random_uuid(),
+               '3333cccc-0000-4000-8000-000000000001',
+               '3333cccc-0000-4000-8000-000000000001',
+               'power_off','pulled the plug', true);""", outlet=outlet)
+    record(journey, "and refused again when one person both requests and approves it",
+           self_approved != "",
+           f"signature: {self_approved}\nwithout independent approval the four safeguards "
+           "are three")
+
+    no_step_up = refusal_signature(f"""
+        SELECT edge.claim_authority('{fx.TENANT}','{node}', gen_random_uuid(),
+               '3333cccc-0000-4000-8000-000000000001',
+               '3333aaaa-0000-4000-8000-000000000001',
+               'switch_port_disabled','port shut, link light out', true);""", outlet=outlet)
+    record(journey, "and refused without a fresh step-up for THIS action",
+           no_step_up == "AUTHORITY_STEP_UP_ABSENT",
+           f"signature: {no_step_up}\na manager who stepped up to change a price may not "
+           "hand an outlet's authority to a different node on the strength of it")
+
+    # ---- 4. EVERY FENCE METHOD IS SOMETHING A PERSON DID ------------------------------
+    methods = scalar(f"""
+        SELECT string_agg(enumlabel, ',' ORDER BY enumsortorder)
+          FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+         WHERE t.typname = 'fence_method';""", dsn=ADMIN, tenant=fx.TENANT, outlet=outlet)
+    record(journey, "there is no way to record that a node was assumed to be down",
+           "assumed" not in (methods or "") and "power_off" in (methods or ""),
+           f"methods: {methods}\nevery value is something an operator DID and can be "
+           "asked about afterwards")
+
+    # ---- 5. A WRITER REJECTS A ROLLBACK ----------------------------------------------
+    rollback = refusal_signature(f"""
+        SELECT edge.assert_authority('{fx.TENANT}','{node}', 0);""", outlet=outlet)
+    record(journey, "a writer presented an older sequence refuses it",
+           rollback in ("AUTHORITY_SEQUENCE_ROLLBACK", "AUTHORITY_NOT_HELD"),
+           f"signature: {rollback}\na sequence only ever goes up, and a writer that "
+           "accepted an older one would be a writer a fenced node could talk round")
+
+    # ---- 6. STALE EVENTS QUARANTINE RATHER THAN DROP ----------------------------------
+    quarantine = scalar("""
+        SELECT count(*)::text FROM information_schema.tables
+         WHERE table_schema = 'edge' AND table_name = 'quarantined_event';""", dsn=ADMIN)
+    released_by_a_person = scalar("""
+        SELECT count(*)::text FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+         WHERE n.nspname = 'edge' AND p.proname = 'release_quarantined_event';""", dsn=ADMIN)
+    record(journey, "events held by a fenced node are quarantined, and releasing one takes a person",
+           quarantine == "1" and released_by_a_person == "1",
+           "dropping them loses trade and applying them lets a fenced node write; keeping "
+           "them where somebody can look is the only honest third option")
+
+
+
 JOURNEYS = (
     ("GJ-01A", gj_01a),
     ("GJ-01B", gj_01b),
@@ -2180,6 +2447,11 @@ JOURNEYS = (
     ("GJ-05", gj_05),
     ("GJ-06", gj_06),
     ("GJ-07", gj_07),
+    # GJ-08 AND GJ-09 RUN BEFORE GJ-10 AND THAT IS DELIBERATE. GJ-10 restarts the API
+    # mid-journey; these two ask what a phone is told and who may write, and both are
+    # cheaper to diagnose against a service that has not been bounced.
+    ("GJ-08", gj_08),
+    ("GJ-09", gj_09),
     ("GJ-10", gj_10),
     ("FR-TST-007A", concurrency),
 )

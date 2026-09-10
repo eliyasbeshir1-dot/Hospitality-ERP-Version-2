@@ -1,662 +1,668 @@
 {
-  "purpose": "Requirements closed as far as the artifacts of their own gate allow, each naming the gate or slice that completes them. tools/partial_closures.py fails the build on an entry with no completer, an unknown completer, a completer that has landed while the entry is still open, or a completer that has been moved LATER without a recorded reason.",
-  "partial_closures": [
-    {
-      "requirement": "FR-ORD-003",
-      "aspect": "fee component",
-      "opened_at": "M3-A",
-      "completing_gate": "M4-A",
-      "state": "closed",
-      "why": "The preview names line prices, modifiers, tax, fees and discounts. Tax resolves to config.configuration_version under category 'tax' and a discount to config.policy under category 'discount'; both are configured, non-zero and exercised. A FEE has no configuration heading before FR-CFG-001C, so ordering.charge_rule can hold one and nothing at this gate creates one. The total is a sum over the components that exist and carries no zero literal for the absent kind.",
-      "completed_by": "FR-CFG-001C",
-      "completer_moved": {
-        "from": "M4",
-        "to": "M4-A",
-        "at": "M4-A",
-        "why": "Refined from the gate M4 to the slice that genuinely completes it. Moved EARLIER: M4-A is the first slice at which this can be closed, and it is closed there. The gate was named at M3 because M4 had no slice shape yet; it does now."
-      },
-      "closed_at": "M4-A",
-      "closed_by_evidence": "Migration 0019 creates billing.service_charge_setting, which points at an approved config.configuration_version of category 'service' — FR-CFG-001C's heading, and the configured source the 'fee' charge kind has never had. billing.issue_bill() computes the fee at stage 4 on the base the setting says it applies to, refuses to charge a fee on itself, and records the rate, the base, the rounding mode and the configuration id in the component's basis. tests/m4a recomputes all four components in Python from the configured rates and requires the database to match, and asserts from the catalog that the fee component names a configuration version of category 'service' rather than a constant. There is still no fee column and no fee literal anywhere."
-    },
-    {
-      "requirement": "FR-ORD-003",
-      "aspect": "discount and tax interaction order",
-      "opened_at": "M3-A",
-      "completing_gate": "M4-A",
-      "state": "closed",
-      "why": "Whether a discount applies before or after tax is a bill-calculation decision. At M3-A both are computed on the line subtotal, which is the only reading that does not pre-empt FR-BIL-005.",
-      "completed_by": "FR-BIL-005",
-      "completer_moved": {
-        "from": "M4",
-        "to": "M4-A",
-        "at": "M4-A",
-        "why": "Refined from the gate M4 to the slice that genuinely completes it. Moved EARLIER: M4-A is the first slice at which this can be closed, and it is closed there. The gate was named at M3 because M4 had no slice shape yet; it does now."
-      },
-      "closed_at": "M4-A",
-      "closed_by_evidence": "billing.issue_bill() states the four stages explicitly and records each component's stage in its basis: item subtotal, discount on the subtotal, TAX ON THE DISCOUNTED SUBTOTAL, then the service charge on its configured base. Taxing first would charge tax on money nobody was asked for, and the two readings round differently — so the reading is stated, recorded per component, and carried by a persisted calculation version. tests/m4a asserts the tax component's recorded base equals the subtotal less the discount, and that the stages come back in that order."
-    },
-    {
-      "requirement": "FR-ORD-005",
-      "aspect": "fee snapshot",
-      "opened_at": "M3-A",
-      "completing_gate": "M4-A",
-      "state": "closed",
-      "why": "Item, modifier, discount, tax and total snapshots persist at acceptance with the locale. The fee snapshot persists the moment a fee component exists, and no configured source produces one before M4.",
-      "completed_by": "FR-CFG-001C",
-      "completer_moved": {
-        "from": "M4",
-        "to": "M4-A",
-        "at": "M4-A",
-        "why": "Refined from the gate M4 to the slice that genuinely completes it. Moved EARLIER: M4-A is the first slice at which this can be closed, and it is closed there. The gate was named at M3 because M4 had no slice shape yet; it does now."
-      },
-      "closed_at": "M4-A",
-      "closed_by_evidence": "The fee is a bill component like any other and carries the same snapshot every other component does: source_kind 'service_configuration', the id of the approved configuration version it was read from, and a basis recording the percentage, the rounding mode, the base it was computed on and which kinds it applied to. The whole is in the ledger event that produced the projection, so a rebuild reproduces it. tests/m4a joins the component to config.configuration_version and requires the category to be 'service'."
-    },
-    {
-      "requirement": "FR-ORD-002",
-      "aspect": "no financial commitment",
-      "opened_at": "M3-A",
-      "completing_gate": "M4-A",
-      "state": "closed",
-      "why": "A draft cart creates no order, no ledger event and no charge component, and a cart with an order against it is frozen. That a draft creates no FINANCIAL obligation is re-proved once checks and payments exist; the requirements register already dual-gates this row at M4.",
-      "completed_by": "FR-BIL-005",
-      "completer_moved": {
-        "from": "M4",
-        "to": "M4-A",
-        "at": "M4-A",
-        "why": "Refined from the gate M4 to the slice that genuinely completes it. Moved EARLIER: M4-A is the first slice at which this can be closed, and it is closed there. The gate was named at M3 because M4 had no slice shape yet; it does now."
-      },
-      "closed_at": "M4-A",
-      "closed_by_evidence": "A draft cart still creates no order and no ledger event, and now demonstrably no financial obligation either: billing.check_allocation is written only by billing.allocate_to_check(), which resolves the ORDER behind a line and refuses ALLOCATION_ORDER_NOT_BILLABLE for anything the house has not accepted. There is no path from a cart to a check, a bill or a charge component, and the application role holds no write grant on the bill projection at all. tests/m4a submits an order and leaves it unaccepted, then requires the allocation to be refused by name."
-    },
-    {
-      "requirement": "FR-ORD-006",
-      "aspect": "station capacity",
-      "opened_at": "M3-A",
-      "completing_gate": "M3-B",
-      "state": "closed",
-      "why": "Availability, hours, channel and quantity are revalidated at submission. Capacity is the fifth dimension the requirement names and it means station workload, which needs the stations and their thresholds that FR-FUL-013 builds at M3-B.",
-      "completed_by": "FR-FUL-013",
-      "closed_at": "M3-B",
-      "closed_by_evidence": "ordering.revalidate_cart() gained a fifth leg at M3-B reading fulfillment.capacity_pressure(), which compares each station's live ticket count against its configured concurrent_ticket_threshold and reports the outlet's configured capacity_response. A service policy stating neither is refused, not defaulted. tests/m3b loads a station past its threshold and requires the submission to be blocked under a throttling policy and to proceed under a promise-time policy."
-    },
-    {
-      "requirement": "FR-ORD-009",
-      "aspect": "separate fulfillment per add-on order",
-      "opened_at": "M3-A",
-      "completing_gate": "M3-B",
-      "state": "closed",
-      "why": "Add-on orders in one session are distinct aggregates with independent timestamps and independent ledgers, which is proved here. That their FULFILLMENT is independent needs tickets, which are M3-B.",
-      "completed_by": "FR-FUL-002",
-      "closed_at": "M3-B",
-      "closed_by_evidence": "Tickets belong to an ORDER, and an add-on is a different order, so independent fulfillment came out of the model rather than being added to it. tests/m3b places a second order on one occupancy and requires disjoint ticket sets, independent state machines and independent timings."
-    },
-    {
-      "requirement": "FR-ORD-010",
-      "aspect": "post-preparation refusal",
-      "opened_at": "M3-A",
-      "completing_gate": "M3-B",
-      "state": "closed",
-      "why": "Amendment emits an explicit event retaining before and after, and the window is enforced from the ordering policy. The policy can only speak in commercial states at this gate: 'after preparation has begun' is a ticket state and tickets are M3-B.",
-      "completed_by": "FR-FUL-003",
-      "closed_at": "M3-B",
-      "closed_by_evidence": "ordering.amend_order_line() was replaced at M3-B (CREATE OR REPLACE; 0010 is checksum-locked) to refuse when any ticket for the order has left queued, acknowledged or held. The commercial state alone was never enough: an order can sit in a state the ordering policy permits while a station is already cooking it.",
-      "completer_aspect": "the ticket state a station records as it works, which fulfillment keeps in the cloud and which the amendment refusal reads. FR-FUL-003's open half is serving that same state to a screen FROM THE OUTLET NODE, and this closure does not rest on where the screen gets it: an order whose ticket has left queued is un-amendable whether or not anybody is looking at a KDS."
-    },
-    {
-      "requirement": "FR-ORD-011",
-      "aspect": "payment dimension of the cancellation policy",
-      "opened_at": "M3-A",
-      "completing_gate": "M4-B",
-      "state": "closed",
-      "why": "Cancellation resolves by state, channel and reason. The payment dimension needs payments to exist; the requirements register already dual-gates this row at M4.",
-      "completed_by": "FR-BIL-005",
-      "completer_moved": {
-        "from": "M4",
-        "to": "M4-B",
-        "at": "M4-A",
-        "why": "MOVED LATER, from M4 to M4-B. The clause is 'apply the cancellation policy by state, channel, reason, PAYMENT and preparation progress'. M4-A takes no payment, so the payment dimension has no value to read and a control planted against it would assert over an empty set — the same defect this entry was opened to avoid at M3-A. M4-B captures payment and is the first slice at which 'this order was paid, so this cancellation is refused' can be made false."
-      },
-      "closed_at": "M4-B",
-      "closed_by_evidence": "Migration 0025 replaces ordering.cancel_order(). State, channel, reason and preparation progress have decided since M3-A; payment is the fifth and could not be applied to an empty set. A paid order is cancellable only where the outlet's cancellation policy says paid_orders_cancellable, because cancelling an order somebody paid for without returning the money is the failure mode and the refund is FR-PAY-009's separate authorized act rather than a side effect of pressing cancel. Whether the order was paid is recorded on the event as well as consulted, so the decision is answerable afterwards."
-    },
-    {
-      "requirement": "FR-ORD-012A",
-      "aspect": "unpaid precondition",
-      "opened_at": "M3-A",
-      "completing_gate": "M4-B",
-      "state": "closed",
-      "why": "An authorized void after acceptance records its reason and an immutable audit row. 'For an unpaid order' cannot be falsified at M3-A because no payment artifact exists to make it false, so the precondition is asserted against an empty set and must be re-proved at M4.",
-      "completed_by": "FR-BIL-008",
-      "completer_moved": {
-        "from": "M4",
-        "to": "M4-B",
-        "at": "M4-A",
-        "why": "MOVED LATER, from M4 to M4-B. The clause is an authorized void 'for an UNPAID order'. M4-A gives an order a bill and a balance, but nothing at M4-A can pay one, so every order is unpaid and the precondition is still asserted against an empty set of paid orders — which is exactly why M3-A could not close it. The completer named at M3-A was FR-BIL-014, which is tip separation and closes nothing here; it is corrected to FR-BIL-008, whose settled bill balance is what makes an order paid."
-      },
-      "closed_at": "M4-B",
-      "closed_by_evidence": "Migration 0025 replaces ordering.void_order(). 'For an unpaid order' is now a condition that can be false: payments.order_is_paid() decides it, and tests/m4b pays an order in full and requires the void to be refused with VOID_OF_PAID_ORDER. At M3-A the precondition was asserted against a registry of payment artifacts that was empty by construction, and this entry recorded that it had to be re-proved when payments existed."
-    },
-    {
-      "requirement": "FR-ORD-016A",
-      "aspect": "station events on the timeline",
-      "opened_at": "M3-A",
-      "completing_gate": "M3-B",
-      "state": "closed",
-      "why": "The timeline renders order events chronologically with the audience decided when each entry is written. Station events belong on it and do not exist until M3-B.",
-      "completed_by": "FR-FUL-002",
-      "closed_at": "M3-B",
-      "closed_by_evidence": "fulfillment.apply_ticket_event() writes station milestones onto the order timeline through ordering.write_station_timeline_entry(), and ordering.rebuild_projections() was extended to replay the fulfillment ledger so those entries survive a rebuild. One timeline out of two ledgers, with the audience decided where the entry is written."
-    },
-    {
-      "requirement": "FR-ORD-016A",
-      "aspect": "service events on the timeline",
-      "opened_at": "M3-A",
-      "completing_gate": "M3-C",
-      "state": "closed",
-      "why": "Service-request events belong on the same timeline and do not exist until M3-C.",
-      "completed_by": "FR-SRV-001",
-      "closed_at": "M3-C",
-      "closed_by_evidence": "A service request keeps its own append-only ledger and its customer-visible messages are notices in notify.notice, which notify.customer_timeline() merges with the order timeline at READ time for one table session. Merged rather than written into ordering.order_timeline_entry a second time: a request for water belongs to no order, and forcing one into the order ledger would have needed an order to exist before a guest could ask for anything. tests/m3c renders that merged timeline in a browser and requires both sources in it."
-    },
-    {
-      "requirement": "FR-ORD-019A",
-      "aspect": "fulfillment ticket in the chain",
-      "opened_at": "M3-A",
-      "completing_gate": "M3-B",
-      "state": "closed",
-      "why": "The chain links four of the six artifacts the requirement names — request, cart, table session and order — and survives projection rebuild. 'fulfillment_ticket' is a label of ordering.artifact_kind with no rows until M3-B, so the later slice extends the chain rather than reshaping it.",
-      "completed_by": "FR-FUL-002",
-      "closed_at": "M3-B",
-      "closed_by_evidence": "fulfillment.release_order() links each ticket into the chain through ordering.link_correlation_artifact(), so the 'fulfillment_ticket' label M3-A declared with no rows now has them. tests/m3b requires the link to survive a projection rebuild."
-    },
-    {
-      "requirement": "FR-ORD-019A",
-      "aspect": "service request in the chain",
-      "opened_at": "M3-A",
-      "completing_gate": "M3-C",
-      "state": "closed",
-      "why": "'service_request' is likewise a label with no rows until M3-C.",
-      "completed_by": "FR-SRV-001",
-      "closed_at": "M3-C",
-      "closed_by_evidence": "ordering.artifact_kind has carried the service_request label since M3-A with no rows; service.apply_request_event() now writes the link, from the FOLD rather than from the caller, so a rebuild restores it — the repair M3-B made after the reversed run found the ticket link could not be. tests/m3c proves every request is in the chain and that all three ledgers rebuild to identical digests."
-    },
-    {
-      "requirement": "FR-TAB-007A",
-      "aspect": "service requests consolidated by a merge",
-      "opened_at": "M3-A",
-      "completing_gate": "M3-C",
-      "state": "closed",
-      "why": "A merge consolidates orders, participants, carts and allergy concerns, each move audited and counted. Service requests are the other thing the requirement says must be consolidated and they do not exist until M3-C.",
-      "completed_by": "FR-SRV-001",
-      "closed_at": "M3-C",
-      "closed_by_evidence": "Service requests are bound to a table session, so a merge moves them with everything else that session owns and no separate consolidation step exists to get wrong. tests/m3c raises requests on two occupancies, merges them and requires the union with nothing lost and nothing duplicated, reusing M3-A's session census."
-    },
-    {
-      "requirement": "FR-TAB-008",
-      "aspect": "service requests preserved by a move",
-      "opened_at": "M3-A",
-      "completing_gate": "M3-C",
-      "state": "closed",
-      "why": "A move preserves session identity and every order, which is proved by inventory. Service requests are named by the requirement and do not exist until M3-C.",
-      "completed_by": "FR-SRV-001",
-      "closed_at": "M3-C",
-      "closed_by_evidence": "The same property under a move: the requests travel with the session because they reference it, and tests/m3c proves the set is unchanged either side of the move."
-    },
-    {
-      "requirement": "FR-TAB-009",
-      "aspect": "financial closure condition",
-      "opened_at": "M3-A",
-      "completing_gate": "M4-A",
-      "state": "closed",
-      "why": "A session cannot close over an unresolved order unless an authorized exception is recorded with a reason and an account. The FINANCIAL condition cannot be proved before checks and settlement exist; the requirements register already dual-gates this row at M4.",
-      "completed_by": "FR-BIL-005",
-      "completer_moved": {
-        "from": "M4",
-        "to": "M4-A",
-        "at": "M4-A",
-        "why": "Refined from the gate M4 to the slice that genuinely completes it. Moved EARLIER: M4-A is the first slice at which this can be closed, and it is closed there. The gate was named at M3 because M4 had no slice shape yet; it does now."
-      },
-      "closed_at": "M4-A",
-      "closed_by_evidence": "Migration 0021 replaces service.close_table_session() so an outstanding obligation is an order awaiting acceptance OR a live bill still owing, decided by billing.outstanding_balance() — which does not read a tip, so a generously tipped table cannot be closed as settled. Closing over either needs the same authorized exception with a reason code and an account, and service.session_closure_exception gained a separate unsettled_bills column so the record says WHICH kind of obligation was overridden rather than conflating the two."
-    },
-    {
-      "requirement": "FR-DAT-010",
-      "aspect": "financial projections",
-      "opened_at": "M3-A",
-      "completing_gate": "M4-A",
-      "state": "closed",
-      "why": "Order projections rebuild from the ledger and compare byte-deterministically. Financial projections arrive at M4 and rebuild after outage replay at M5a; the requirements register dual-gates this row at both.",
-      "completed_by": "FR-BIL-005",
-      "completer_moved": {
-        "from": "M4",
-        "to": "M4-A",
-        "at": "M4-A",
-        "why": "Refined from the gate M4 to the slice that genuinely completes it. Moved EARLIER: M4-A is the first slice at which this can be closed, and it is closed there. The gate was named at M3 because M4 had no slice shape yet; it does now."
-      },
-      "closed_at": "M4-A",
-      "closed_by_evidence": "billing.bill and billing.bill_component are written by billing.apply_event() alone, which folds from billing.bill_event; every figure the projection carries — the number, the currency, the total, the calculation version, the locale and every component with its basis — is in the event that produced it. billing.rebuild_projections() drops both tables for a tenant and replays the ledger in event-id order across every bill, which is what the correction chain needs. tests/m4a takes a census of every bill's number, state, total, calculation version, disposed amount and components, rebuilds, and requires the census to be identical. Rebuild after outage replay stays open at M5a."
-    },
-    {
-      "requirement": "FR-FUL-001",
-      "aspect": "routing during an outage",
-      "opened_at": "M3-B",
-      "completing_gate": "M5a",
-      "state": "closed",
-      "completed_by": "FR-CFG-001E",
-      "why": "Accepted line units route by versioned rule and a ticket records the rule version that placed it. That routing continues to work when the outlet node is authoritative is this row's revalidation at M5a, where the node exists.",
-      "closed_at": "M5a",
-      "closed_by_evidence": "GJ-10 accepts an order with the cloud unreachable and takes it through the kitchen: the accepted line units route by the versioned rule and the ticket records the rule version that placed it, with no cloud to ask. The journey asserts the ticket reaches 'served' while edge connectivity is local_continuity, so routing is revalidated as behaviour rather than inferred from the node existing."
-    },
-    {
-      "requirement": "FR-FUL-003",
-      "aspect": "KDS from the local node",
-      "opened_at": "M3-B",
-      "completing_gate": "M5a",
-      "state": "closed",
-      "completed_by": "FR-CFG-001E",
-      "why": "All eleven states render and the seven display buckets are measured in a real browser. That the same KDS operates from the local node during an outage needs the node, which is M5a.",
-      "closed_at": "M5a",
-      "closed_by_evidence": "The station board is one of the four screen families the node serves at its own LAN endpoint (tests/m5a proves all four answer 200 from the node process), and GJ-10 drives a ticket through the kitchen's own routes while the cloud is unreachable. The eleven states and seven display buckets M3-B measured are unchanged; what M5a adds is that the same KDS operates with the node authoritative."
-    },
-    {
-      "requirement": "FR-FUL-008",
-      "aspect": "salience on real paper",
-      "opened_at": "M3-B",
-      "completing_gate": "M6",
-      "state": "open",
-      "completed_by": "FR-CFG-001E",
-      "why": "Allergy emphasis is measured non-colour-only on the KDS and expo surfaces, and the generated station ticket document carries its allergy lines first and in words. That the salience survives PHYSICAL printing needs the print path, which is M5a; this gate proves the document, not the paper.",
-      "completer_moved": {
-        "from": "M5a",
-        "to": "M6",
-        "at": "M5a",
-        "why": "M5a builds the durable queue that gets bytes to a printer and proves exactly-once delivery of a job; it does not put ink on paper. Whether allergy emphasis SURVIVES physical printing can only be established by printing on a real machine, which is M6's production-hardening work and needs a chosen device. M5a was the wrong completer for this aspect from the start: it was named for the gate that builds printing, and this aspect is about the paper rather than the queue."
-      }
-    },
-    {
-      "requirement": "FR-FUL-010",
-      "aspect": "notification delivery",
-      "opened_at": "M3-B",
-      "completing_gate": "M3-C",
-      "state": "closed",
-      "completed_by": "FR-NOT-001",
-      "why": "A ready notice is emitted naming the ticket and the assigned waiter, and uncollected notices escalate on the configured window. Delivery is a channel and channels are FR-NOT-001 at M3-C; there is no transport, template or delivery-status column here for one to be mistaken for.",
-      "closed_at": "M3-C",
-      "closed_by_evidence": "M3-B emitted the ready event and left the transport open, recording it here. M3-C tells the recipient: notify.emit() resolves who should know and notify.send_pending() writes it to their in-app inbox in the language the session chose. The CHANNEL is still not built — outlet-local notices are M5a — and this gate's honest scope is the in-app one, which is what FR-NOT-001 asks for at M3.",
-      "completer_aspect": "the kitchen producers and the in-app transport. Both exist and both are exercised: notify.emit() raises EVT-TICKET-READY and notify.send_pending() delivers it to a recipient's inbox in their language. FR-NOT-001's open halves are producers for OTHER event classes — bill, payment and tip, then outage and sync — and a ready notification does not wait on any of them."
-    },
-    {
-      "requirement": "FR-FUL-012",
-      "aspect": "analytical consumption",
-      "opened_at": "M3-B",
-      "completing_gate": "M6",
-      "state": "open",
-      "completed_by": "FR-RPT-003",
-      "why": "Prep, wait and SLA times compute per station, item and order from timestamps the fold wrote out of the ledger. Consuming them as analytics is operational reporting at M6."
-    },
-    {
-      "requirement": "FR-FUL-014",
-      "aspect": "physical printing and dedup across restart",
-      "opened_at": "M3-B",
-      "completing_gate": "M6",
-      "state": "open",
-      "completed_by": "FR-CFG-001E",
-      "why": "Station ticket documents are generated and deduplicated by a unique key on (ticket, revision), where the revision ignores document generation itself. Physical printing, print-agent delivery and deduplication across a restart are the local print path, which is M5a.",
-      "completer_moved": {
-        "from": "M5a",
-        "to": "M6",
-        "at": "M5a",
-        "why": "Half of this aspect IS closed by M5a — deduplication across restart is proved in tests/m5a and GJ-10: an expired lease returns a job to the queue, a printed job cannot be requeued, and reporting the same print twice records one attempt. The other half is physical printing, which needs a real machine and belongs with FR-BIL-017's last inch at M6. The entry is moved rather than split because the aspect as WRITTEN names both, and closing it on the half that is done would record the physical half as delivered."
-      }
-    },
-    {
-      "requirement": "FR-FUL-015",
-      "aspect": "rerouting with the outlet node authoritative",
-      "opened_at": "M3-B",
-      "completing_gate": "M6",
-      "state": "open",
-      "completed_by": "FR-CFG-001E",
-      "why": "An authorized reroute moves the ticket and its line units without creating anything, proved by a unit-count constraint across every live ticket for the order. Behaviour while the outlet node is authoritative is M5a's.",
-      "completer_moved": {
-        "from": "M5a",
-        "to": "M6",
-        "at": "M5a",
-        "why": "M5a proves the kitchen ROUTES and works a ticket while the cloud is unreachable (FR-FUL-001, closed here). It does not drive an authorized REROUTE during an outage, and the unit-count constraint that makes a reroute safe was proved at M3-C against a cloud-authoritative outlet. Rather than close this on the neighbouring aspect's evidence, it moves to the gate that revisits fulfilment under production conditions."
-      }
-    },
-    {
-      "requirement": "SM-ORDER",
-      "aspect": "fulfillment labels derived rather than stored",
-      "opened_at": "M3-B",
-      "completing_gate": "M4-A",
-      "state": "closed",
-      "completed_by": "FR-BIL-005",
-      "why": "A LITERAL DIVERGENCE from the pinned SM-ORDER, recorded as a decision rather than an omission. That machine lists in_fulfillment, partially_ready, ready, partially_served and served as ORDER states; migration 0010 recorded at M3-A that no fulfillment label appears on the commercial order, and M3-B keeps that. fulfillment.order_fulfillment_state() computes every one of those labels from the order's tickets, so the machine's SEMANTICS are preserved while the same fact is refused a second home that could contradict the first. tests/m3b proves each label reachable and correct and asserts against the catalog that no column in ordering could hold one. SM-ORDER's last edge — served -> completed on operational AND FINANCIAL conditions — needs checks, so this is revisited at M4.",
-      "completer_moved": {
-        "from": "M4",
-        "to": "M4-A",
-        "at": "M4-A",
-        "why": "Refined from the gate M4 to the slice that genuinely completes it. Moved EARLIER: M4-A is the first slice at which this can be closed, and it is closed there. The gate was named at M3 because M4 had no slice shape yet; it does now."
-      },
-      "closed_at": "M4-A",
-      "closed_by_evidence": "Migration 0021 replaces fulfillment.order_fulfillment_state() with SM-ORDER's last edge: served -> completed on the operational AND financial conditions the machine names. Completed means every ticket served AND every unit of the order allocated to a check whose bill is FINALIZED — not 'a bill exists', which would call an unpaid order complete, and not 'the session owes nothing', which would call an order complete because a different party at the same table settled up. Every label is still derived from the tickets and no column in ordering can hold one, which was the recorded divergence this entry carried."
-    },
-    {
-      "requirement": "FR-NOT-012",
-      "aspect": "staff notification centre render",
-      "opened_at": "M3-C",
-      "completing_gate": "M3-D",
-      "state": "closed",
-      "completed_by": "FR-UX-001",
-      "why": "The staff half of FR-NOT-012 says the notification centre RENDERS in English, and rendering a staff screen is staff UX, which M3-D owns. Building one here would hand M3-D a shape from the slice that does not own it — the objection raised at M2-A, M3-A and M3-B. The DATA surface is complete: notify.staff_notification_center() returns each person's own notices with their kind, class, severity, subject, body and read state, refusing anyone without an active membership at the outlet. M3-D adds a screen over finished data rather than finishing the data.",
-      "closed_at": "M3-D",
-      "closed_by_evidence": "M3-C finished the DATA and named M3-D: notify.staff_notification_center() already returned each person's own notices with their kind, class, severity, subject, body and read state, refusing anyone without an active membership at the outlet. M3-D adds the screen over it and nothing else — the waiter surface renders the centre in English, and tests/m3d MEASURES it in Chromium: every notice the query returned is drawn, and each states its severity in words rather than as a colour, because a red dot is a severity nobody can read aloud. No query, payload or column changed to make the screen possible, which is what 'a screen over finished data' was supposed to mean."
-    },
-    {
-      "requirement": "FR-NOT-001",
-      "aspect": "bill, payment and tip producers",
-      "opened_at": "M3-C",
-      "completing_gate": "M4-B",
-      "state": "closed",
-      "completed_by": "FR-BIL-001",
-      "why": "FR-NOT-001 names eight classes of event. Order, kitchen and service request have producers at this gate. The other five are in notify.catalog_event with has_producer = false and notify.emit() refuses them by name, so the kinds are real and nothing pretends to raise one. Bill, payment and tip arrive at M4; outage and sync at M5a, which is recorded separately.",
-      "completer_moved": {
-        "from": "M4",
-        "to": "M4-B",
-        "at": "M4-A",
-        "why": "MOVED LATER, from M4 to M4-B, and NARROWED. M4-A gives bill and tip producers a real event to raise; payment's arrives at M4-B, so the aspect as written cannot close before then. The aspect also named outage and sync, which are M5a's and cannot close at any M4 slice: the M3-C text claimed those were 'recorded separately' and they were not — the only M5a notification entry is FR-NOT-005's operational alerts, a different requirement. They are now recorded separately for real, as their own entry against M5a, so this one can close when its last producer lands."
-      },
-      "closed_at": "M4-B",
-      "closed_by_evidence": "All eight M4 kinds now have producers. Migration 0025 relaxes notify.catalog_event's producer constraint to include M4 and sets has_producer on EVT-CHECK-OPENED, EVT-CHECK-PRESENTED, EVT-CHECK-PAID, EVT-PAYMENT-CAPTURED, EVT-PAYMENT-FAILED, EVT-PAYMENT-REVERSED, EVT-TIP-RECORDED and EVT-TIP-REFUNDED; triggers on billing.check_allocation, billing.bill, billing.tip, payments.payment, payments.reversal and payments.terminal_result raise them. tests/m3c no longer asserts that producers are exactly M3: it derives which gates have landed from the repository, so that check and the constraint cannot drift apart. Outage and sync remain unproduced and are recorded separately against M5a."
-    },
-    {
-      "requirement": "FR-NOT-005",
-      "aspect": "operational alert producers",
-      "opened_at": "M3-C",
-      "completing_gate": "M5b",
-      "state": "open",
-      "completed_by": "FR-OPS-005",
-      "why": "The routing and accountability model is complete: a critical kind reaches notify.accountable_staff(), which reads the outlet's configured role and refuses rather than guessing when none is set. The producers FR-NOT-005 names — payment mismatch at M4, printer failure, local-node failure and sync conflict at M5a — do not exist yet. The escalation of a service request is the one critical producer that does, and it is proved end to end.",
-      "completer_moved": {
-        "from": "M5a",
-        "to": "M5b",
-        "at": "M5a",
-        "why": "Same reason as FR-NOT-001's, and deliberately the same gate: the two were split apart at OP-D precisely because one entry had claimed the other was 'recorded separately' when it was not. notify.accountable_staff() is complete and reaches a configured role; what is missing is anything in the edge runtime that CALLS it, and that stays missing until M5b decides which edge transitions are alertable."
-      }
-    },
-    {
-      "requirement": "FR-INT-007",
-      "aspect": "transport failures in the dead-letter queue",
-      "opened_at": "M3-C",
-      "completing_gate": "M5b",
-      "state": "open",
-      "completed_by": "FR-INT-003",
-      "why": "The queue, its reasons, its attempt counting and its safe replay are complete and exercised by three real in-app failures. There is no transport adapter to fail, because outlet-local notices are M5a's, and an adapter seam built here would be an abstraction with one implementation and no second case to prove it right. When a transport exists its failures reach this queue through integration.dead_letter_job(), which is the same door.",
-      "completer_moved": {
-        "from": "M5a",
-        "to": "M5b",
-        "at": "M5a",
-        "why": "M5a gives the system its first real transport — api/src/node/link.ts, the single seam every cloud call passes through — and an unreachable cloud does NOT become a dead letter here: it becomes local continuity, which is the correct outcome and not a failure. A transport failure that should dead-letter is one that is permanent rather than an outage, and distinguishing those needs the lease and authority model M5b builds. Closing this on 'a transport now exists' would record an untested path as exercised."
-      }
-    },
-    {
-      "requirement": "FR-INT-014",
-      "aspect": "bill, payment and tip in the chain",
-      "opened_at": "M3-C",
-      "completing_gate": "M4-B",
-      "state": "closed",
-      "completed_by": "FR-BIL-005",
-      "why": "The chain now carries request, cart, table session, order, fulfillment ticket and service request — six of the artifacts FR-INT-014 names, each written by the fold that creates it so a rebuild restores them. Bill, payment and tip are M4's; outlet persistence and sync records are M5a's, recorded separately.",
-      "completer_moved": {
-        "from": "M4",
-        "to": "M4-B",
-        "at": "M4-A",
-        "why": "MOVED LATER, from M4 to M4-B, and NARROWED, for the same reason as FR-NOT-001. The bill artifact joins the correlation chain at M4-A and payment at M4-B; the sync record is M5a's and was likewise claimed to be 'recorded separately' when it was not. It now is."
-      },
-      "closed_at": "M4-B",
-      "closed_by_evidence": "Migration 0022 adds 'payment' and 'tip' to ordering.artifact_kind, and 0025 links check, bill, tip and payment into ordering.correlation_link. Each is linked BY THE FOLD or by a trigger on the folded table rather than by a caller, so a rebuild restores the chain rather than restoring everything except it — M3-B's lesson. A tip is its own link and not an attribute of the payment that carried it, because FR-BIL-015 lets a payer tip on their own share and FR-PAY-009 lets that tip be refunded without touching any bill payment. Outlet persistence and the synchronization record are M5a's and recorded separately."
-    },
-    {
-      "requirement": "FR-I18N-008",
-      "aspect": "receipt communications",
-      "opened_at": "M3-C",
-      "completing_gate": "M4-C",
-      "state": "closed",
-      "completed_by": "FR-BIL-010",
-      "why": "Receipts are the third thing this clause names and they arrive at M4. The other two were recorded here at M3-C as done, and only one of them was: SERVICE communications render in the language snapshotted on the table session, through notify.render_for() and an approved template, and tests/m3c measures that in a browser. ORDER STATUS did not. Every customer summary in ordering.order_timeline_entry was an English literal written by the fold, and ordering.customer_order.customer_locale — the snapshot FR-I18N-005 requires — was never read by the thing a guest reads. The golden journeys found it at M3-D and 0016/0017 fixed it; this entry is corrected rather than left overstating, because a register that claims more than was proved is worse than no register.",
-      "completer_moved": {
-        "from": "M4",
-        "to": "M4-C",
-        "at": "M4-A",
-        "why": "MOVED LATER, from M4 to M4-C. Receipts are the third thing this clause names, and receipts are M4-C's — M4-A is explicitly forbidden to build one. Naming the bare gate M4 made this come due at M4-A, where the only way to satisfy it would be to build the thing the slice is fenced against."
-      },
-      "closed_at": "M4-C",
-      "closed_by_evidence": "docs.issue_receipt() composes a receipt in the BILL'S locale and takes no locale parameter at all, so a manager reprinting a customer's copy has no argument by which to change its language — M4-A's rule made structural rather than remembered. Every line's wording resolves through menu.translation under the entity 0026 added, which is M2-A's approval workflow unchanged rather than a second store for text a customer reads. 0027's deferred trigger refuses a non-English receipt carrying the English source text, which is what a missing approved translation falls back to, so a partial translation cannot reach paper. tests/m4c issues receipts against English and Amharic bills, requires every Amharic line to carry Ethiopic script, and NC-M4C-003 withdraws one approved translation and requires RECEIPT_INCOMPLETE_IN_LOCALE."
-    },
-    {
-      "requirement": "FR-POS-004",
-      "aspect": "unpaid balance on the table view",
-      "opened_at": "M3-D",
-      "completing_gate": "M4-A",
-      "state": "closed",
-      "completed_by": "FR-BIL-001",
-      "why": "FR-POS-004 names an unpaid balance among the things a table view shows, and billing is M4. pos.table_view() carries the COLUMN and returns NULL in it, and the waiter surface draws nothing where a figure would go. A zero would be a number a waiter could act on, and 'nothing outstanding' and 'we have not built billing' are different sentences — the same decision M3-A made when it refused to write a zero fee component. M4 fills a column rather than changing a shape, and tests/m3d asserts the slot is NULL today so the day it stops being NULL is the day somebody meant it to.",
-      "completer_moved": {
-        "from": "M4",
-        "to": "M4-A",
-        "at": "M4-A",
-        "why": "Refined from the gate M4 to the slice that genuinely completes it. Moved EARLIER: M4-A is the first slice at which this can be closed, and it is closed there. The gate was named at M3 because M4 had no slice shape yet; it does now."
-      },
-      "closed_at": "M4-A",
-      "closed_by_evidence": "pos.table_view()'s unpaid_balance_minor was NULL::bigint from M3-D. Migration 0019 replaces the function so the column is billing.session_outstanding(), which sums billing.outstanding_balance() over the session's live bills — total less what authority has disposed of — and does not read billing.tip. tests/m4a issues a bill on a table and requires the floor plan to show exactly what the bill totals, attaches a tip equal to the whole bill and requires the figure not to move, and requires a table whose bill was disposed of and finalized to show nothing owing."
-    },
-    {
-      "requirement": "FR-NOT-012",
-      "aspect": "the customer status timeline in the session language",
-      "opened_at": "M3-D",
-      "completing_gate": "M3-D",
-      "state": "closed",
-      "completed_by": "FR-I18N-001B",
-      "why": "Recorded and closed in the same gate, which is unusual and is the point. FR-NOT-012's gate-local behaviour for M3 has two halves — an English staff notification centre and a customer status timeline in the session language — and the register carried only the first, because nobody had noticed the second was unmet. ordering.write_timeline_entry() wrote 'Your order was received.' as an English literal at M3-A and fulfillment's fold wrote 'Your order is being prepared.' the same way at M3-B; the locale was snapshotted on the order from M2-C onward and never read.",
-      "closed_at": "M3-D",
-      "closed_by_evidence": "Found by GJ-02 and GJ-03A on their first run, and by nothing else: every slice check read its own timeline in English and asked whether it said the right thing, never what language it said it in. 0016 registers order_status_wording as a translatable entity and 0017 adds notify.status_wording — identity and an English source only, with the Amharic and Arabic bodies in menu.translation where M2-A's approval workflow governs them and menu.enforce_translation_review() refuses an approval nobody reviewed — and replaces ordering.customer_timeline() so it resolves against the locale the ORDER snapshotted, falling back to the projection's English exactly as FR-I18N-008's approved fallback rules permit. No migration installs the wording: an approved translation asserts that a person read it. The journeys now assert that EVERY entry a guest is shown carries the right script, not that one of them does."
-    },
-    {
-      "requirement": "FR-UX-012",
-      "aspect": "budgets calibrated against the runner, not against wall clock alone",
-      "opened_at": "M3-D",
-      "completing_gate": "M4-A",
-      "state": "closed",
-      "completed_by": "FR-UX-012",
-      "why": "The budgets are real and they are measured in a real browser under a real throttle, which is what FR-UX-012 asks for. What they cannot currently do is tell a slow ARTIFACT from a starved RUNNER, and on Windows that has now cost three false reds. First contentful paint on the Windows runner has been measured at 1332ms, 1912ms, 2188ms, 5448ms and 21432ms against a 2500ms budget — and the 21432ms and the 1912ms are the SAME COMMIT, re-run, with a byte-identical bundle. An eleven-fold spread on identical bytes is not a property of the artifact.\n\nM3-C named the honest fix and deferred it on one data point; it has recurred twice since, so the deferral is due rather than renewable. The fix is NOT a larger number: a budget adjusted to accommodate a flake stops being a budget, and every red it reports afterwards is worth less. It is to measure a REFERENCE OPERATION in the same run — something whose cost is known and which depends on the machine rather than on this surface — and express the budget relative to it, so a run in which everything is ten times slower is reported as a starved runner and a run in which only the surface is slower is reported as a regression. The absolute numbers stay exactly where they are.\n\nM4-A because it is the next slice, and because leaving it open through another gate is what turned one observation into three.",
-      "closed_at": "M4-A",
-      "closed_by_evidence": "tests/m2c/render_probe.mjs measures a reference operation — a fixed compute loop, median of five, on about:blank under the same CPU throttle — immediately before the timed load, and reports it as referenceMs. verify_m2c computes a factor against a recorded baseline and expresses every interaction budget relative to it, so a run where everything is ten times slower reads as a starved runner (PERFORMANCE_NOT_MEASURABLE) and a run where only the surface is slower reads as a regression (PERFORMANCE_BUDGET_EXCEEDED). THE ABSOLUTE NUMBERS DID NOT MOVE. Landed at f27761f as the calibration M3 deferred on a single data point and then saw recur twice."
-    },
-    {
-      "requirement": "FR-NOT-001",
-      "aspect": "outage and sync producers",
-      "opened_at": "M4-A",
-      "completing_gate": "M5b",
-      "state": "open",
-      "completed_by": "FR-EDG-009",
-      "why": "Split out of the M3-C entry, which named 'bill, payment, tip, outage and sync producers' as one aspect and said outage and sync were 'recorded separately'. They were not — the only M5a notification entry is FR-NOT-005's operational alerts, which is a different requirement. An aspect that spans M4 and M5a can close at neither, so the claim would have kept the entry open past both. notify.catalog_event carries both kinds with has_producer = false and notify.emit() refuses them by name, so nothing pretends to raise one in the meantime.",
-      "completer_moved": {
-        "from": "M5a",
-        "to": "M5b",
-        "at": "M5a",
-        "why": "M5a produces the outage STATE — integration.sync_state, the connectivity banner and the five staff sync states — and no NOTIFICATION from it. Nothing in this gate calls notify.* when a node goes to local continuity or a conflict is raised, so the producers this aspect names do not exist. M5b owns the authority and lease work that decides which of these transitions is worth telling somebody about; producing notices before that decision would be inventing the policy."
-      }
-    },
-    {
-      "requirement": "FR-INT-014",
-      "aspect": "the sync record in the chain",
-      "opened_at": "M4-A",
-      "completing_gate": "M5a",
-      "state": "closed",
-      "completed_by": "FR-EDG-005",
-      "why": "Split out of the M3-C entry for the same reason as FR-NOT-001's: it claimed the sync half was recorded separately and no such entry existed. Outlet persistence and synchronization records are M5a's, and the correlation chain gains that artifact when they do.",
-      "closed_at": "M5a",
-      "closed_by_evidence": "integration.sync_evidence is append-only across replay and restart (FR-DAT-008C) and records what the synchronization did INCLUDING the deliveries it refused — which is why subject_ref carries no foreign key. tests/m5a proves a destructive correction is refused with LEDGER_ROW_DELETED_NOT_REVERSED, and that a repeated cloud delivery is recorded as a duplicate rather than applied twice."
-    },
-    {
-      "requirement": "FR-ORD-007B",
-      "aspect": "acceptance on a verified payment outcome",
-      "opened_at": "M4-A",
-      "completing_gate": "M4-B",
-      "state": "closed",
-      "completed_by": "FR-PAY-001",
-      "why": "An order configured for payment-dependent acceptance is accepted ONLY after a verified payment outcome. M4-A supplies everything except the verification: ordering.acceptance_mode carries 'payment_dependent', ordering.submit_order() auto-accepts only 'automatic' so such an order stays submitted, and migration 0020 makes ordering.accept_order() refuse it by name with ACCEPTANCE_AWAITS_PAYMENT_VERIFICATION. That is the fail-closed half and it is the correct behaviour of the finished system too. What is missing is a verified outcome to consult and a path that consults it, and 'verified' is M4-B's word.",
-      "closed_at": "M4-B",
-      "closed_by_evidence": "Migration 0025 replaces ordering.accept_order(). A payment-dependent order is accepted only when payments.order_is_paid() is true, and VERIFIED means four things that are already true by constraint before that function is reached: the payment came through an adapter whose mode is DERIVED FROM ITS PROVIDER by CHECK, so no direct-provider adapter can be behind it; its outcome is 'approved' in a column typed payments.live_outcome, a type no simulator can produce a value of and to which no cast exists; for a proof-based provider a named person on their own live session recorded what they saw in the provider's application, all four fields required together; and the money reached the BILL BALANCE as its own allocation row, which payments.assert_allocation_is_earned() refuses to write unless the first three hold. The refusal 0020 introduced is unchanged and remains the answer for an unpaid order. tests/m4b proves a tip of the full amount does not buy acceptance, and that the acceptance mode is recorded on the event so an order accepted because it was paid for is distinguishable afterwards. 0025 also opens billing.allocate_to_check() to a SUBMITTED order at an outlet whose policy is payment_dependent, because otherwise the requirement is circular: nothing in that mode could be billed, so nothing could be paid for, so nothing could be accepted."
-    },
-    {
-      "requirement": "FR-BIL-008",
-      "aspect": "settlement by tender",
-      "opened_at": "M4-A",
-      "completing_gate": "M4-B",
-      "state": "closed",
-      "completed_by": "FR-PAY-001",
-      "why": "Finalization requires a settled balance or an authorized disposition. M4-A takes no payment, so the disposition branch is the only reachable one and it is fully proved: comped, written off and transferred, each with an override naming two people and a reason. The settled-by-payment branch is unreachable until there is a tender, so billing.outstanding_balance() subtracts dispositions and nothing else. M4-B adds the tender to that subtraction.",
-      "closed_at": "M4-B",
-      "closed_by_evidence": "Migration 0025 replaces billing.outstanding_balance(). It subtracts authorized dispositions AND bill-balance allocations net of reversals, so a bill paid in full is settled and billing.finalize_bill() lets it close. What it still does not read is billing.tip, and tests/m4a's derivation over every balance function in the catalog is unchanged and still passes — the function ceased to be blind to money without becoming able to see a tip. The M4-B suite found the gap by paying a bill exactly and finding the whole amount still owed."
-    },
-    {
-      "requirement": "FR-BIL-014",
-      "aspect": "total tendered",
-      "opened_at": "M4-A",
-      "completing_gate": "M4-B",
-      "state": "closed",
-      "completed_by": "FR-PAY-001",
-      "why": "Bill balance, service charge, tax, tip and total tendered are separate values and separate records. Four of the five exist and are proved separate — the balance and its components on billing.bill, the tip in its own table with no column anywhere that could hold one and no balance function that reads one. TOTAL TENDERED has no record because nothing is tendered at this gate, and a zero column standing in for it would be the vacuity this project has caught three times.",
-      "closed_at": "M4-B",
-      "closed_by_evidence": "payments.payment carries tendered_minor and change_minor as stored columns and payments.allocation carries the bill-balance and tip figures as separate rows, so all five of FR-BIL-014's values are separate records: balance and components on billing.bill, tip in billing.tip, and total tendered here. tests/m4b recomputes the change in Python from the tender and what was owed and requires the database to match, scans all three surface bundles for arithmetic on a tendered amount and finds none, and proves the allocations do not follow the bill by reissuing it and requiring the figures to be unchanged."
-    },
-    {
-      "requirement": "FR-BIL-016",
-      "aspect": "tip refund through a provider",
-      "opened_at": "M4-A",
-      "completing_gate": "M4-B",
-      "state": "closed",
-      "completed_by": "FR-PAY-001",
-      "why": "Tip refunds, reversals and corrections are separate auditable records linked to the original tip. billing.tip_correction carries all three kinds, is append-only by trigger and by grant, names the override and the reason, and tests/m4a proves a reversal moves no balance. What a refund cannot yet do is return money, because there is no provider and nothing was taken; the RECORD is complete and the movement is M4-B's.",
-      "closed_at": "M4-B",
-      "closed_by_evidence": "payments.reversal reverses ONE allocation, so a tip payment is refunded without touching the bill payment and the other way round — which is what 'separate linked reversal records' needs in order to be expressible. It carries the reason code, the approval threshold read from config.policy, and an override whose approver is derived from the approving session. tests/m4b reverses a tip and a bill payment on one payment and proves each moved only its own figure. What a refund still cannot do is push money back through a provider, because there is no provider: the RECORD is complete and the remittance is outside Phase 1, which the M4-C entry records."
-    },
-    {
-      "requirement": "FR-BIL-007",
-      "aspect": "the printed bill",
-      "opened_at": "M4-A",
-      "completing_gate": "M4-C",
-      "state": "closed",
-      "completed_by": "FR-RCP-001",
-      "why": "The translated bill summary renders on the customer surface in all three launch locales, with the optional tip box after or beside it and never inside it — measured in Chromium as DOM containment and as the two rectangles the layout produced. What is not here is the printed artifact: paper, the fiscal adapter and the receipt are M4-C, and a bill on a screen and a bill on paper are the same document rendered by different means.",
-      "closed_at": "M4-C",
-      "closed_by_evidence": "TWO THINGS, AND THE FIRST IS A CORRECTION. FR-BIL-007's clause asks for a translated bill summary showing items, discounts, tax, service charge and bill total, with the optional tip box after or beside it and never inside it, and its later_behavior is 'None beyond M4 for this clause'. It does not ask for paper. This entry's aspect — 'the printed bill' — was a gloss M4-A put on it, and M4-A had already delivered and measured what the clause actually asks: DOM containment and two rectangles, in Chromium, in all three launch locales. Recorded here rather than left standing, because an entry that claims a gap the requirement does not have keeps a delivered requirement looking half-built. SECOND, and independently: M4-C did build the document half anyway. docs.compose_document() is the one function that turns lines into a print document and both the receipt path and FR-UX-018's preview call it, print/render.mjs rasterises what it produces at printer width, and print/escpos.py encodes that raster. What is still unproved is paper out of a physical machine, and that is FR-BIL-017's own entry, opened at this gate against M5a — so this closure claims a document and not a sheet."
-    },
-    {
-      "requirement": "FR-CFG-001C",
-      "aspect": "permitted payment methods",
-      "opened_at": "M4-A",
-      "completing_gate": "M4-B",
-      "state": "closed",
-      "why": "M4-A built the tax, service-charge and tip halves of the guided setup and used FR-CFG-001C as the completer of FR-ORD-003's fee component and FR-ORD-005's fee snapshot. Its fourth clause — the permitted PAYMENT METHODS, and the requirement that all of them drive a real bill — could not exist before payments did, and no entry recorded that. This entry is that record, written at M4-B and backdated to the slice where the gap opened, and it is the case that motivated PARTIAL_CLOSURE_COMPLETER_INCOMPLETE.",
-      "completed_by": "FR-PAY-001",
-      "closed_at": "M4-B",
-      "closed_by_evidence": "Migration 0025 adds payments.install_adapters_from_configuration(), which reads the approved configuration version of category 'payment_method' and builds the adapter registry from it. payments.create_intent() then takes an intent's permitted providers from the registry, and one of them settles a real bill — so the chain from setup to money is one tests/m4b walks rather than a claim. The payload cannot say whether an adapter is SIMULATED: that is derived from the provider by CHECK, so a configuration file is not a route to NC-M4-003."
-    },
-    {
-      "requirement": "FR-DAT-008B",
-      "aspect": "receipts in the financial ledgers",
-      "opened_at": "M4-B",
-      "completing_gate": "M4-C",
-      "state": "closed",
-      "why": "Bills, payments, tips and cash movements are append-only or reversal-based with no destructive correction: billing.bill_event and payments.payment_event are append-only by trigger and by grant, their projections are written only by a fold, billing.tip_correction and payments.reversal are separate linked records, and cash.movement and cash.shift_transition refuse UPDATE and DELETE. RECEIPTS are the one artifact the requirement names that does not exist yet; they are M4-C's, and no zero-row table stands in for them.",
-      "completed_by": "FR-BIL-010",
-      "closed_at": "M4-C",
-      "closed_by_evidence": "docs.receipt and docs.receipt_line are append-only by trigger and hold no UPDATE or DELETE grant; a correction is a further revision through docs.reissue_receipt(), which issues a new document with its own number rather than editing the one the customer is holding. They are not the only thing this closure rests on. 0028 asks the live schema a question nobody had asked — which tables in a financial schema are ledgers — and app.financial_table_class() answers it as a DECLARATION that the migration refuses to apply without: FINANCIAL_TABLE_UNCLASSIFIED names any table the classification does not cover. Ten unguarded financial tables were found that way and the five that are ledgers now carry the trigger. 0029 extends the same declaration to the reporting snapshots. tests/m4c enumerates every declared ledger from the catalog and requires each to carry app.refuse_financial_mutation(), so a financial table a later gate adds fails the build rather than sliding past an audit. 0027's retention constraint — restated in 0029 over the six schemas app.financial_schemas() names — closes the one path that deletes rows without passing a trigger on the table it deletes from."
-    },
-    {
-      "requirement": "FR-INT-011",
-      "aspect": "node connectivity, sync lag and printer status",
-      "opened_at": "M4-B",
-      "completing_gate": "M5a",
-      "state": "closed",
-      "why": "Health reports the ACTIVE payment adapters truthfully, and an advertised adapter that cannot settle makes readiness unhealthy — tests/m4b activates a simulated adapter and requires a 503. The other three things FR-INT-011 names have nothing behind them at this gate: the outlet node and synchronization lag are M5a's and the printer is M4-C's. M1-D's rule is that a deployment advertises what it HAS, so none is reported. A health endpoint calling a printer healthy because no printer exists would be the most expensive kind of true statement.",
-      "completed_by": "FR-EDG-005",
-      "closed_at": "M5a",
-      "closed_by_evidence": "edge.node_health() returns all seven components and reports one that has never sampled as unhealthy WITH a reason rather than omitting it; integration.sync_state carries connectivity, the pause reason and last contact; docs.printer_health() reports every active printer whether or not it has ever had a job. tests/m5a asserts each, and GET /n/v1/health and /n/v1/print-queue expose them to an operator."
-    },
-    {
-      "requirement": "FR-PAY-002",
-      "aspect": "cash service through a staged outage",
-      "opened_at": "M4-B",
-      "completing_gate": "M5a",
-      "state": "closed",
-      "why": "Proved STRUCTURALLY and not behaviourally, and the structural half is the stronger claim. tests/m4b derives the transitive closure of every function reachable from the cash, terminal-recording and proof-confirmation entry points from the catalog, defines 'outbound' by CAPABILITY — an untrusted language, a foreign table, a non-core extension, or a write to the table that records an adapter call — and requires the intersection to be empty; it then plants an adapter call on the cash path and requires the check to go red. Staging one outage would prove the path survived THAT outage; this proves it survives every outage. What is missing is the behavioural half, which needs an outlet node to switch off. DISTINCT FROM FR-FUL-001's routing-during-an-outage entry, which is about work reaching a station while the node is isolated: this one is about money being taken while it is, and M5a discharges neither by discharging the other.",
-      "completed_by": "FR-EDG-009",
-      "closed_at": "M5a",
-      "closed_by_evidence": "Proved behaviourally rather than structurally. GJ-10 stages the outage, then issues a bill, records a separate tip and settles in cash through the till's own routes with the cloud unreachable, and asserts the payment landed. edge.action_authority additionally names payment.cash_settle and payment.terminal_record as permitted during an outage, so a change that broke either alters a row somebody can read."
-    },
-    {
-      "requirement": "FR-PAY-009",
-      "aspect": "remittance back through a provider",
-      "opened_at": "M4-B",
-      "completing_gate": "M4-C",
-      "state": "closed",
-      "why": "A refund is a complete, authorized, linked RECORD: it names one allocation, its reason code, the approval its amount required and the override that gave it, and payments.assert_reversal_is_authorized() refuses one whose approval belongs to somebody else or to a different refund. What it cannot do is move money back to a card or a wallet, because no provider is contracted — FR-PAY-015 keeps the direct APIs simulated. Cash refunds are complete today: they are a movement out of the drawer.",
-      "completed_by": "FR-PAY-015",
-      "closed_at": "M4-C",
-      "closed_by_evidence": "A CORRECTION, AND THE ENTRY WAS STRICTER THAN THE CLAUSE. FR-PAY-009 asks to 'refund bill payments and tip payments through separate linked reversal records, permissions, reason codes and approval thresholds', and its later_behavior is 'None beyond M4 for this clause'. Moving money back through a provider is not in it. Every element the clause does name was delivered at M4-B: payments.reversal and billing.tip_correction are separate linked records naming one allocation or one tip, payments.assert_reversal_is_authorized() refuses an approval that belongs to somebody else or to a different refund, the threshold comes from configuration, and NC-M4-004 proves a cashier cannot approve their own. What this entry described as the missing half — remittance through a contracted provider — is FR-PAY-015's subject, and FR-PAY-015 carries its own open entry against M5a where the outlet node exists to exercise it. Left standing, this entry would have kept a delivered requirement looking half-built and made the register's count of open work wrong in the direction that matters least visibly. Corrected rather than left overstating, which is the same decision FR-I18N-008's entry recorded at M3-C in the other direction."
-    },
-    {
-      "requirement": "FR-GOV-004",
-      "aspect": "every landed requirement audited, not only named completers",
-      "opened_at": "M4-B",
-      "completing_gate": "M4-C",
-      "state": "closed",
-      "why": "PARTIAL_CLOSURE_COMPLETER_INCOMPLETE checks that no closed entry rests on a requirement carrying an open entry of its own, and the rule states its own boundary: it checks NAMED COMPLETERS, not every requirement whose gate has landed. A requirement that is partly built and that no entry points at is still invisible. The larger audit — every landed requirement either delivered in full or carrying an entry — is the correct rule in general and is deliberately not this slice's: it would expand the highest-consequence slice in the project while payment capture was being written, which is how a money defect slips through while everyone is reading a register. It comes due at M4-C, where a gate is closing rather than where money is being taken.",
-      "completed_by": "FR-GOV-004",
-      "closed_at": "M4-C",
-      "closed_by_evidence": "tools/requirement_coverage.py is the wider audit. It derives the landed gates from the package's own gate order rather than from a list, grades every requirement whose gate has landed as proved-red, ran or cited-in-CI from THIS RUN'S logs, and refuses to report at all if no requirement can be shown delivered — an audit that could not see its own evidence would report every requirement missing and look like a catastrophe rather than a broken reader. It refuses an absent entry with no statement of what would make it buildable, refuses an urgent category paired with an uncited state, and refuses two absent entries that share a completing gate and a closing test, because a gate cannot tell those apart and would close both while fixing one. It runs in CI on both platforms and in tests/m4c, and REQUIREMENT_UNACCOUNTED fails the build. What it surfaced is the point rather than a side effect: 71 gaps across M1 to M3, of which 20 are absent and five are security requirements, each classified in planning/requirement_coverage.json with its reasoning, its buildability and the test that would close it, and published in planning/M4_REVIEW_FINDINGS.md for the M4 review to challenge as readily as a fix. The classifications are findings, not bookkeeping."
-    },
-    {
-      "requirement": "FR-BIL-017",
-      "aspect": "paper out of a physical machine",
-      "opened_at": "M4-C",
-      "completing_gate": "M6",
-      "state": "open",
-      "completed_by": "FR-CFG-001E",
-      "why": "FR-BIL-017 asks that a completed settlement produces a real physical customer receipt through a supported minimum production printer path, and M4-C built all of that path except its last inch. The receipt is composed from the bill's own figures in the bill's own locale, rasterised at 576 dots by the printer path's own rendering engine, checked per glyph against the font this repository ships, encoded into ESC/POS and written to a sink that refuses anything which is not a character device. One settlement produces one original print, refused twice over by a partial unique index and by a trigger. WHAT IS NOT PROVED is that a physical machine took those bytes and produced legible paper: no printer exists in the build container or on either CI runner and no pilot device has been chosen, so the command set is the published generic one and no vendor's extension. This is recorded here rather than in a footnote because it is the difference between a path and an artifact, and planning/M4C_LIMITATIONS.md states it against the commit it was true at. It closes at M5a, which is the first gate that has hardware — and if M5a selects a different rasteriser, NC-M4-005 must be run against that engine, because glyph coverage is a property of the rasteriser and of the font together and does not transfer.",
-      "completer_moved": {
-        "from": "M5a",
-        "to": "M6",
-        "at": "M5a",
-        "why": "Unchanged by M5a and moved for the same reason FR-FUL-008 is: this gate builds the queue, the retry, the recovery and the deduplication in front of the printer, and every one of those is proved. The last inch — bytes leaving a real machine as paper — needs a chosen production device, which planning/M4C_LIMITATIONS.md already records as outstanding and which M6 selects."
-      }
-    },
-    {
-      "requirement": "FR-TST-005A",
-      "aspect": "settlement proved at the service tier, not the browser tier",
-      "opened_at": "M4-C",
-      "completing_gate": "M6",
-      "state": "open",
-      "completed_by": "FR-POS-002",
-      "why": "The five settlement journeys are driven by the HTTP calls a cashier's screen would issue, against the running service: checks, allocations, splits, bills, the guest's tip through the guest's own credential, payment intents, cash, terminal results, proofs, receipts, revisions, overrides and reversals. That proves each route exists, is registered, authorises its caller and returns what the caller needs — the thing M4-A shipped without, and the reason the first HTTP call ever made to POST /s/v1/checks failed on two production defects. What it does NOT prove is that a person can reach any of it: there is no cashier settlement surface. waiter/src contains no bill, payment, receipt or tip affordance of any kind, so no button reaches these routes and no browser test can be written against one. DISTINCT FROM THE TWO PRINTING-ADJACENT ENTRIES, deliberately, because all three would otherwise be closed together by whichever gate arrived first: FR-BIL-017's open half is PAPER out of a physical machine, M5a's resilient print queue is DURABILITY of a print across restart and outage, and this one is a SCREEN a cashier can touch. A gate could deliver any one and leave the other two exactly as absent.",
-      "completer_moved": {
-        "from": "M5a",
-        "to": "M6",
-        "at": "M5a",
-        "why": "GJ-10 walks the till in a browser for its first settlement, which is more than the service tier and still not what this aspect asks: it asks that the FIVE settlement journeys be proved at the browser tier rather than through the HTTP calls a cashier's screen would issue. M5a walks one of them and adds a sixth journey; it does not convert the other four. Moving it to M6 rather than closing it on one journey's evidence, because 'one of five' is exactly the arithmetic this register exists to stop being rounded up."
-      }
-    }
-  ],
-  "gate_decomposition": {
-    "note": "M4's split into slices A, B and C is THIS REPOSITORY'S DECOMPOSITION, not the pinned package's. The package defines M4 as one gate — 'POS, billing and settlement', 55 requirements, one exit criterion — and names no slices. M1, M2 and M3 were decomposed the same way and for the same reason: a gate of that size is not reviewable as one change. A reviewer should meet this as a stated decision rather than infer it from slice names that do not appear in the pinned artifact.\n\nIt matters here because tools/partial_closures.py derives landing from the filesystem: tests/m4a lands both M4-A and M4, so an entry naming the bare gate M4 comes due on the FIRST slice of that gate. Thirteen entries named M4 because that was the most precise thing sayable at M3, before the slice shape existed. They were re-pointed at M4-A to the slice that genuinely completes each, and every one that moved LATER carries its reason in the entry.",
-    "slices": {
-      "M4-A": "checks, bills, allocation, split modes, calculation and rounding, bill preview and finalization, void/credit/reissue, tip separation, the counter channel and the payment-dependent acceptance DEPENDENCY",
-      "M4-B": "payment capture, provider integration, verification, reconciliation and cash shifts",
-      "M4-C": "receipts, printing, the fiscal adapter and reporting"
-    }
+ "purpose": "Requirements closed as far as the artifacts of their own gate allow, each naming the gate or slice that completes them. tools/partial_closures.py fails the build on an entry with no completer, an unknown completer, a completer that has landed while the entry is still open, or a completer that has been moved LATER without a recorded reason.",
+ "partial_closures": [
+  {
+   "requirement": "FR-ORD-003",
+   "aspect": "fee component",
+   "opened_at": "M3-A",
+   "completing_gate": "M4-A",
+   "state": "closed",
+   "why": "The preview names line prices, modifiers, tax, fees and discounts. Tax resolves to config.configuration_version under category 'tax' and a discount to config.policy under category 'discount'; both are configured, non-zero and exercised. A FEE has no configuration heading before FR-CFG-001C, so ordering.charge_rule can hold one and nothing at this gate creates one. The total is a sum over the components that exist and carries no zero literal for the absent kind.",
+   "completed_by": "FR-CFG-001C",
+   "completer_moved": {
+    "from": "M4",
+    "to": "M4-A",
+    "at": "M4-A",
+    "why": "Refined from the gate M4 to the slice that genuinely completes it. Moved EARLIER: M4-A is the first slice at which this can be closed, and it is closed there. The gate was named at M3 because M4 had no slice shape yet; it does now."
+   },
+   "closed_at": "M4-A",
+   "closed_by_evidence": "Migration 0019 creates billing.service_charge_setting, which points at an approved config.configuration_version of category 'service' — FR-CFG-001C's heading, and the configured source the 'fee' charge kind has never had. billing.issue_bill() computes the fee at stage 4 on the base the setting says it applies to, refuses to charge a fee on itself, and records the rate, the base, the rounding mode and the configuration id in the component's basis. tests/m4a recomputes all four components in Python from the configured rates and requires the database to match, and asserts from the catalog that the fee component names a configuration version of category 'service' rather than a constant. There is still no fee column and no fee literal anywhere."
+  },
+  {
+   "requirement": "FR-ORD-003",
+   "aspect": "discount and tax interaction order",
+   "opened_at": "M3-A",
+   "completing_gate": "M4-A",
+   "state": "closed",
+   "why": "Whether a discount applies before or after tax is a bill-calculation decision. At M3-A both are computed on the line subtotal, which is the only reading that does not pre-empt FR-BIL-005.",
+   "completed_by": "FR-BIL-005",
+   "completer_moved": {
+    "from": "M4",
+    "to": "M4-A",
+    "at": "M4-A",
+    "why": "Refined from the gate M4 to the slice that genuinely completes it. Moved EARLIER: M4-A is the first slice at which this can be closed, and it is closed there. The gate was named at M3 because M4 had no slice shape yet; it does now."
+   },
+   "closed_at": "M4-A",
+   "closed_by_evidence": "billing.issue_bill() states the four stages explicitly and records each component's stage in its basis: item subtotal, discount on the subtotal, TAX ON THE DISCOUNTED SUBTOTAL, then the service charge on its configured base. Taxing first would charge tax on money nobody was asked for, and the two readings round differently — so the reading is stated, recorded per component, and carried by a persisted calculation version. tests/m4a asserts the tax component's recorded base equals the subtotal less the discount, and that the stages come back in that order."
+  },
+  {
+   "requirement": "FR-ORD-005",
+   "aspect": "fee snapshot",
+   "opened_at": "M3-A",
+   "completing_gate": "M4-A",
+   "state": "closed",
+   "why": "Item, modifier, discount, tax and total snapshots persist at acceptance with the locale. The fee snapshot persists the moment a fee component exists, and no configured source produces one before M4.",
+   "completed_by": "FR-CFG-001C",
+   "completer_moved": {
+    "from": "M4",
+    "to": "M4-A",
+    "at": "M4-A",
+    "why": "Refined from the gate M4 to the slice that genuinely completes it. Moved EARLIER: M4-A is the first slice at which this can be closed, and it is closed there. The gate was named at M3 because M4 had no slice shape yet; it does now."
+   },
+   "closed_at": "M4-A",
+   "closed_by_evidence": "The fee is a bill component like any other and carries the same snapshot every other component does: source_kind 'service_configuration', the id of the approved configuration version it was read from, and a basis recording the percentage, the rounding mode, the base it was computed on and which kinds it applied to. The whole is in the ledger event that produced the projection, so a rebuild reproduces it. tests/m4a joins the component to config.configuration_version and requires the category to be 'service'."
+  },
+  {
+   "requirement": "FR-ORD-002",
+   "aspect": "no financial commitment",
+   "opened_at": "M3-A",
+   "completing_gate": "M4-A",
+   "state": "closed",
+   "why": "A draft cart creates no order, no ledger event and no charge component, and a cart with an order against it is frozen. That a draft creates no FINANCIAL obligation is re-proved once checks and payments exist; the requirements register already dual-gates this row at M4.",
+   "completed_by": "FR-BIL-005",
+   "completer_moved": {
+    "from": "M4",
+    "to": "M4-A",
+    "at": "M4-A",
+    "why": "Refined from the gate M4 to the slice that genuinely completes it. Moved EARLIER: M4-A is the first slice at which this can be closed, and it is closed there. The gate was named at M3 because M4 had no slice shape yet; it does now."
+   },
+   "closed_at": "M4-A",
+   "closed_by_evidence": "A draft cart still creates no order and no ledger event, and now demonstrably no financial obligation either: billing.check_allocation is written only by billing.allocate_to_check(), which resolves the ORDER behind a line and refuses ALLOCATION_ORDER_NOT_BILLABLE for anything the house has not accepted. There is no path from a cart to a check, a bill or a charge component, and the application role holds no write grant on the bill projection at all. tests/m4a submits an order and leaves it unaccepted, then requires the allocation to be refused by name."
+  },
+  {
+   "requirement": "FR-ORD-006",
+   "aspect": "station capacity",
+   "opened_at": "M3-A",
+   "completing_gate": "M3-B",
+   "state": "closed",
+   "why": "Availability, hours, channel and quantity are revalidated at submission. Capacity is the fifth dimension the requirement names and it means station workload, which needs the stations and their thresholds that FR-FUL-013 builds at M3-B.",
+   "completed_by": "FR-FUL-013",
+   "closed_at": "M3-B",
+   "closed_by_evidence": "ordering.revalidate_cart() gained a fifth leg at M3-B reading fulfillment.capacity_pressure(), which compares each station's live ticket count against its configured concurrent_ticket_threshold and reports the outlet's configured capacity_response. A service policy stating neither is refused, not defaulted. tests/m3b loads a station past its threshold and requires the submission to be blocked under a throttling policy and to proceed under a promise-time policy."
+  },
+  {
+   "requirement": "FR-ORD-009",
+   "aspect": "separate fulfillment per add-on order",
+   "opened_at": "M3-A",
+   "completing_gate": "M3-B",
+   "state": "closed",
+   "why": "Add-on orders in one session are distinct aggregates with independent timestamps and independent ledgers, which is proved here. That their FULFILLMENT is independent needs tickets, which are M3-B.",
+   "completed_by": "FR-FUL-002",
+   "closed_at": "M3-B",
+   "closed_by_evidence": "Tickets belong to an ORDER, and an add-on is a different order, so independent fulfillment came out of the model rather than being added to it. tests/m3b places a second order on one occupancy and requires disjoint ticket sets, independent state machines and independent timings."
+  },
+  {
+   "requirement": "FR-ORD-010",
+   "aspect": "post-preparation refusal",
+   "opened_at": "M3-A",
+   "completing_gate": "M3-B",
+   "state": "closed",
+   "why": "Amendment emits an explicit event retaining before and after, and the window is enforced from the ordering policy. The policy can only speak in commercial states at this gate: 'after preparation has begun' is a ticket state and tickets are M3-B.",
+   "completed_by": "FR-FUL-003",
+   "closed_at": "M3-B",
+   "closed_by_evidence": "ordering.amend_order_line() was replaced at M3-B (CREATE OR REPLACE; 0010 is checksum-locked) to refuse when any ticket for the order has left queued, acknowledged or held. The commercial state alone was never enough: an order can sit in a state the ordering policy permits while a station is already cooking it.",
+   "completer_aspect": "the ticket state a station records as it works, which fulfillment keeps in the cloud and which the amendment refusal reads. FR-FUL-003's open half is serving that same state to a screen FROM THE OUTLET NODE, and this closure does not rest on where the screen gets it: an order whose ticket has left queued is un-amendable whether or not anybody is looking at a KDS."
+  },
+  {
+   "requirement": "FR-ORD-011",
+   "aspect": "payment dimension of the cancellation policy",
+   "opened_at": "M3-A",
+   "completing_gate": "M4-B",
+   "state": "closed",
+   "why": "Cancellation resolves by state, channel and reason. The payment dimension needs payments to exist; the requirements register already dual-gates this row at M4.",
+   "completed_by": "FR-BIL-005",
+   "completer_moved": {
+    "from": "M4",
+    "to": "M4-B",
+    "at": "M4-A",
+    "why": "MOVED LATER, from M4 to M4-B. The clause is 'apply the cancellation policy by state, channel, reason, PAYMENT and preparation progress'. M4-A takes no payment, so the payment dimension has no value to read and a control planted against it would assert over an empty set — the same defect this entry was opened to avoid at M3-A. M4-B captures payment and is the first slice at which 'this order was paid, so this cancellation is refused' can be made false."
+   },
+   "closed_at": "M4-B",
+   "closed_by_evidence": "Migration 0025 replaces ordering.cancel_order(). State, channel, reason and preparation progress have decided since M3-A; payment is the fifth and could not be applied to an empty set. A paid order is cancellable only where the outlet's cancellation policy says paid_orders_cancellable, because cancelling an order somebody paid for without returning the money is the failure mode and the refund is FR-PAY-009's separate authorized act rather than a side effect of pressing cancel. Whether the order was paid is recorded on the event as well as consulted, so the decision is answerable afterwards."
+  },
+  {
+   "requirement": "FR-ORD-012A",
+   "aspect": "unpaid precondition",
+   "opened_at": "M3-A",
+   "completing_gate": "M4-B",
+   "state": "closed",
+   "why": "An authorized void after acceptance records its reason and an immutable audit row. 'For an unpaid order' cannot be falsified at M3-A because no payment artifact exists to make it false, so the precondition is asserted against an empty set and must be re-proved at M4.",
+   "completed_by": "FR-BIL-008",
+   "completer_moved": {
+    "from": "M4",
+    "to": "M4-B",
+    "at": "M4-A",
+    "why": "MOVED LATER, from M4 to M4-B. The clause is an authorized void 'for an UNPAID order'. M4-A gives an order a bill and a balance, but nothing at M4-A can pay one, so every order is unpaid and the precondition is still asserted against an empty set of paid orders — which is exactly why M3-A could not close it. The completer named at M3-A was FR-BIL-014, which is tip separation and closes nothing here; it is corrected to FR-BIL-008, whose settled bill balance is what makes an order paid."
+   },
+   "closed_at": "M4-B",
+   "closed_by_evidence": "Migration 0025 replaces ordering.void_order(). 'For an unpaid order' is now a condition that can be false: payments.order_is_paid() decides it, and tests/m4b pays an order in full and requires the void to be refused with VOID_OF_PAID_ORDER. At M3-A the precondition was asserted against a registry of payment artifacts that was empty by construction, and this entry recorded that it had to be re-proved when payments existed."
+  },
+  {
+   "requirement": "FR-ORD-016A",
+   "aspect": "station events on the timeline",
+   "opened_at": "M3-A",
+   "completing_gate": "M3-B",
+   "state": "closed",
+   "why": "The timeline renders order events chronologically with the audience decided when each entry is written. Station events belong on it and do not exist until M3-B.",
+   "completed_by": "FR-FUL-002",
+   "closed_at": "M3-B",
+   "closed_by_evidence": "fulfillment.apply_ticket_event() writes station milestones onto the order timeline through ordering.write_station_timeline_entry(), and ordering.rebuild_projections() was extended to replay the fulfillment ledger so those entries survive a rebuild. One timeline out of two ledgers, with the audience decided where the entry is written."
+  },
+  {
+   "requirement": "FR-ORD-016A",
+   "aspect": "service events on the timeline",
+   "opened_at": "M3-A",
+   "completing_gate": "M3-C",
+   "state": "closed",
+   "why": "Service-request events belong on the same timeline and do not exist until M3-C.",
+   "completed_by": "FR-SRV-001",
+   "closed_at": "M3-C",
+   "closed_by_evidence": "A service request keeps its own append-only ledger and its customer-visible messages are notices in notify.notice, which notify.customer_timeline() merges with the order timeline at READ time for one table session. Merged rather than written into ordering.order_timeline_entry a second time: a request for water belongs to no order, and forcing one into the order ledger would have needed an order to exist before a guest could ask for anything. tests/m3c renders that merged timeline in a browser and requires both sources in it."
+  },
+  {
+   "requirement": "FR-ORD-019A",
+   "aspect": "fulfillment ticket in the chain",
+   "opened_at": "M3-A",
+   "completing_gate": "M3-B",
+   "state": "closed",
+   "why": "The chain links four of the six artifacts the requirement names — request, cart, table session and order — and survives projection rebuild. 'fulfillment_ticket' is a label of ordering.artifact_kind with no rows until M3-B, so the later slice extends the chain rather than reshaping it.",
+   "completed_by": "FR-FUL-002",
+   "closed_at": "M3-B",
+   "closed_by_evidence": "fulfillment.release_order() links each ticket into the chain through ordering.link_correlation_artifact(), so the 'fulfillment_ticket' label M3-A declared with no rows now has them. tests/m3b requires the link to survive a projection rebuild."
+  },
+  {
+   "requirement": "FR-ORD-019A",
+   "aspect": "service request in the chain",
+   "opened_at": "M3-A",
+   "completing_gate": "M3-C",
+   "state": "closed",
+   "why": "'service_request' is likewise a label with no rows until M3-C.",
+   "completed_by": "FR-SRV-001",
+   "closed_at": "M3-C",
+   "closed_by_evidence": "ordering.artifact_kind has carried the service_request label since M3-A with no rows; service.apply_request_event() now writes the link, from the FOLD rather than from the caller, so a rebuild restores it — the repair M3-B made after the reversed run found the ticket link could not be. tests/m3c proves every request is in the chain and that all three ledgers rebuild to identical digests."
+  },
+  {
+   "requirement": "FR-TAB-007A",
+   "aspect": "service requests consolidated by a merge",
+   "opened_at": "M3-A",
+   "completing_gate": "M3-C",
+   "state": "closed",
+   "why": "A merge consolidates orders, participants, carts and allergy concerns, each move audited and counted. Service requests are the other thing the requirement says must be consolidated and they do not exist until M3-C.",
+   "completed_by": "FR-SRV-001",
+   "closed_at": "M3-C",
+   "closed_by_evidence": "Service requests are bound to a table session, so a merge moves them with everything else that session owns and no separate consolidation step exists to get wrong. tests/m3c raises requests on two occupancies, merges them and requires the union with nothing lost and nothing duplicated, reusing M3-A's session census."
+  },
+  {
+   "requirement": "FR-TAB-008",
+   "aspect": "service requests preserved by a move",
+   "opened_at": "M3-A",
+   "completing_gate": "M3-C",
+   "state": "closed",
+   "why": "A move preserves session identity and every order, which is proved by inventory. Service requests are named by the requirement and do not exist until M3-C.",
+   "completed_by": "FR-SRV-001",
+   "closed_at": "M3-C",
+   "closed_by_evidence": "The same property under a move: the requests travel with the session because they reference it, and tests/m3c proves the set is unchanged either side of the move."
+  },
+  {
+   "requirement": "FR-TAB-009",
+   "aspect": "financial closure condition",
+   "opened_at": "M3-A",
+   "completing_gate": "M4-A",
+   "state": "closed",
+   "why": "A session cannot close over an unresolved order unless an authorized exception is recorded with a reason and an account. The FINANCIAL condition cannot be proved before checks and settlement exist; the requirements register already dual-gates this row at M4.",
+   "completed_by": "FR-BIL-005",
+   "completer_moved": {
+    "from": "M4",
+    "to": "M4-A",
+    "at": "M4-A",
+    "why": "Refined from the gate M4 to the slice that genuinely completes it. Moved EARLIER: M4-A is the first slice at which this can be closed, and it is closed there. The gate was named at M3 because M4 had no slice shape yet; it does now."
+   },
+   "closed_at": "M4-A",
+   "closed_by_evidence": "Migration 0021 replaces service.close_table_session() so an outstanding obligation is an order awaiting acceptance OR a live bill still owing, decided by billing.outstanding_balance() — which does not read a tip, so a generously tipped table cannot be closed as settled. Closing over either needs the same authorized exception with a reason code and an account, and service.session_closure_exception gained a separate unsettled_bills column so the record says WHICH kind of obligation was overridden rather than conflating the two."
+  },
+  {
+   "requirement": "FR-DAT-010",
+   "aspect": "financial projections",
+   "opened_at": "M3-A",
+   "completing_gate": "M4-A",
+   "state": "closed",
+   "why": "Order projections rebuild from the ledger and compare byte-deterministically. Financial projections arrive at M4 and rebuild after outage replay at M5a; the requirements register dual-gates this row at both.",
+   "completed_by": "FR-BIL-005",
+   "completer_moved": {
+    "from": "M4",
+    "to": "M4-A",
+    "at": "M4-A",
+    "why": "Refined from the gate M4 to the slice that genuinely completes it. Moved EARLIER: M4-A is the first slice at which this can be closed, and it is closed there. The gate was named at M3 because M4 had no slice shape yet; it does now."
+   },
+   "closed_at": "M4-A",
+   "closed_by_evidence": "billing.bill and billing.bill_component are written by billing.apply_event() alone, which folds from billing.bill_event; every figure the projection carries — the number, the currency, the total, the calculation version, the locale and every component with its basis — is in the event that produced it. billing.rebuild_projections() drops both tables for a tenant and replays the ledger in event-id order across every bill, which is what the correction chain needs. tests/m4a takes a census of every bill's number, state, total, calculation version, disposed amount and components, rebuilds, and requires the census to be identical. Rebuild after outage replay stays open at M5a."
+  },
+  {
+   "requirement": "FR-FUL-001",
+   "aspect": "routing during an outage",
+   "opened_at": "M3-B",
+   "completing_gate": "M5a",
+   "state": "closed",
+   "completed_by": "FR-CFG-001E",
+   "why": "Accepted line units route by versioned rule and a ticket records the rule version that placed it. That routing continues to work when the outlet node is authoritative is this row's revalidation at M5a, where the node exists.",
+   "closed_at": "M5a",
+   "closed_by_evidence": "GJ-10 accepts an order with the cloud unreachable and takes it through the kitchen: the accepted line units route by the versioned rule and the ticket records the rule version that placed it, with no cloud to ask. The journey asserts the ticket reaches 'served' while edge connectivity is local_continuity, so routing is revalidated as behaviour rather than inferred from the node existing."
+  },
+  {
+   "requirement": "FR-FUL-003",
+   "aspect": "KDS from the local node",
+   "opened_at": "M3-B",
+   "completing_gate": "M5a",
+   "state": "closed",
+   "completed_by": "FR-CFG-001E",
+   "why": "All eleven states render and the seven display buckets are measured in a real browser. That the same KDS operates from the local node during an outage needs the node, which is M5a.",
+   "closed_at": "M5a",
+   "closed_by_evidence": "The station board is one of the four screen families the node serves at its own LAN endpoint (tests/m5a proves all four answer 200 from the node process), and GJ-10 drives a ticket through the kitchen's own routes while the cloud is unreachable. The eleven states and seven display buckets M3-B measured are unchanged; what M5a adds is that the same KDS operates with the node authoritative."
+  },
+  {
+   "requirement": "FR-FUL-008",
+   "aspect": "salience on real paper",
+   "opened_at": "M3-B",
+   "completing_gate": "M6",
+   "state": "open",
+   "completed_by": "FR-CFG-001E",
+   "why": "Allergy emphasis is measured non-colour-only on the KDS and expo surfaces, and the generated station ticket document carries its allergy lines first and in words. That the salience survives PHYSICAL printing needs the print path, which is M5a; this gate proves the document, not the paper.",
+   "completer_moved": {
+    "from": "M5a",
+    "to": "M6",
+    "at": "M5a",
+    "why": "M5a builds the durable queue that gets bytes to a printer and proves exactly-once delivery of a job; it does not put ink on paper. Whether allergy emphasis SURVIVES physical printing can only be established by printing on a real machine, which is M6's production-hardening work and needs a chosen device. M5a was the wrong completer for this aspect from the start: it was named for the gate that builds printing, and this aspect is about the paper rather than the queue."
+   }
+  },
+  {
+   "requirement": "FR-FUL-010",
+   "aspect": "notification delivery",
+   "opened_at": "M3-B",
+   "completing_gate": "M3-C",
+   "state": "closed",
+   "completed_by": "FR-NOT-001",
+   "why": "A ready notice is emitted naming the ticket and the assigned waiter, and uncollected notices escalate on the configured window. Delivery is a channel and channels are FR-NOT-001 at M3-C; there is no transport, template or delivery-status column here for one to be mistaken for.",
+   "closed_at": "M3-C",
+   "closed_by_evidence": "M3-B emitted the ready event and left the transport open, recording it here. M3-C tells the recipient: notify.emit() resolves who should know and notify.send_pending() writes it to their in-app inbox in the language the session chose. The CHANNEL is still not built — outlet-local notices are M5a — and this gate's honest scope is the in-app one, which is what FR-NOT-001 asks for at M3.",
+   "completer_aspect": "the kitchen producers and the in-app transport. Both exist and both are exercised: notify.emit() raises EVT-TICKET-READY and notify.send_pending() delivers it to a recipient's inbox in their language. FR-NOT-001's open halves are producers for OTHER event classes — bill, payment and tip, then outage and sync — and a ready notification does not wait on any of them."
+  },
+  {
+   "requirement": "FR-FUL-012",
+   "aspect": "analytical consumption",
+   "opened_at": "M3-B",
+   "completing_gate": "M6",
+   "state": "open",
+   "completed_by": "FR-RPT-003",
+   "why": "Prep, wait and SLA times compute per station, item and order from timestamps the fold wrote out of the ledger. Consuming them as analytics is operational reporting at M6."
+  },
+  {
+   "requirement": "FR-FUL-014",
+   "aspect": "physical printing and dedup across restart",
+   "opened_at": "M3-B",
+   "completing_gate": "M6",
+   "state": "open",
+   "completed_by": "FR-CFG-001E",
+   "why": "Station ticket documents are generated and deduplicated by a unique key on (ticket, revision), where the revision ignores document generation itself. Physical printing, print-agent delivery and deduplication across a restart are the local print path, which is M5a.",
+   "completer_moved": {
+    "from": "M5a",
+    "to": "M6",
+    "at": "M5a",
+    "why": "Half of this aspect IS closed by M5a — deduplication across restart is proved in tests/m5a and GJ-10: an expired lease returns a job to the queue, a printed job cannot be requeued, and reporting the same print twice records one attempt. The other half is physical printing, which needs a real machine and belongs with FR-BIL-017's last inch at M6. The entry is moved rather than split because the aspect as WRITTEN names both, and closing it on the half that is done would record the physical half as delivered."
+   }
+  },
+  {
+   "requirement": "FR-FUL-015",
+   "aspect": "rerouting with the outlet node authoritative",
+   "opened_at": "M3-B",
+   "completing_gate": "M6",
+   "state": "open",
+   "completed_by": "FR-CFG-001E",
+   "why": "An authorized reroute moves the ticket and its line units without creating anything, proved by a unit-count constraint across every live ticket for the order. Behaviour while the outlet node is authoritative is M5a's.",
+   "completer_moved": {
+    "from": "M5a",
+    "to": "M6",
+    "at": "M5a",
+    "why": "M5a proves the kitchen ROUTES and works a ticket while the cloud is unreachable (FR-FUL-001, closed here). It does not drive an authorized REROUTE during an outage, and the unit-count constraint that makes a reroute safe was proved at M3-C against a cloud-authoritative outlet. Rather than close this on the neighbouring aspect's evidence, it moves to the gate that revisits fulfilment under production conditions."
+   }
+  },
+  {
+   "requirement": "SM-ORDER",
+   "aspect": "fulfillment labels derived rather than stored",
+   "opened_at": "M3-B",
+   "completing_gate": "M4-A",
+   "state": "closed",
+   "completed_by": "FR-BIL-005",
+   "why": "A LITERAL DIVERGENCE from the pinned SM-ORDER, recorded as a decision rather than an omission. That machine lists in_fulfillment, partially_ready, ready, partially_served and served as ORDER states; migration 0010 recorded at M3-A that no fulfillment label appears on the commercial order, and M3-B keeps that. fulfillment.order_fulfillment_state() computes every one of those labels from the order's tickets, so the machine's SEMANTICS are preserved while the same fact is refused a second home that could contradict the first. tests/m3b proves each label reachable and correct and asserts against the catalog that no column in ordering could hold one. SM-ORDER's last edge — served -> completed on operational AND FINANCIAL conditions — needs checks, so this is revisited at M4.",
+   "completer_moved": {
+    "from": "M4",
+    "to": "M4-A",
+    "at": "M4-A",
+    "why": "Refined from the gate M4 to the slice that genuinely completes it. Moved EARLIER: M4-A is the first slice at which this can be closed, and it is closed there. The gate was named at M3 because M4 had no slice shape yet; it does now."
+   },
+   "closed_at": "M4-A",
+   "closed_by_evidence": "Migration 0021 replaces fulfillment.order_fulfillment_state() with SM-ORDER's last edge: served -> completed on the operational AND financial conditions the machine names. Completed means every ticket served AND every unit of the order allocated to a check whose bill is FINALIZED — not 'a bill exists', which would call an unpaid order complete, and not 'the session owes nothing', which would call an order complete because a different party at the same table settled up. Every label is still derived from the tickets and no column in ordering can hold one, which was the recorded divergence this entry carried."
+  },
+  {
+   "requirement": "FR-NOT-012",
+   "aspect": "staff notification centre render",
+   "opened_at": "M3-C",
+   "completing_gate": "M3-D",
+   "state": "closed",
+   "completed_by": "FR-UX-001",
+   "why": "The staff half of FR-NOT-012 says the notification centre RENDERS in English, and rendering a staff screen is staff UX, which M3-D owns. Building one here would hand M3-D a shape from the slice that does not own it — the objection raised at M2-A, M3-A and M3-B. The DATA surface is complete: notify.staff_notification_center() returns each person's own notices with their kind, class, severity, subject, body and read state, refusing anyone without an active membership at the outlet. M3-D adds a screen over finished data rather than finishing the data.",
+   "closed_at": "M3-D",
+   "closed_by_evidence": "M3-C finished the DATA and named M3-D: notify.staff_notification_center() already returned each person's own notices with their kind, class, severity, subject, body and read state, refusing anyone without an active membership at the outlet. M3-D adds the screen over it and nothing else — the waiter surface renders the centre in English, and tests/m3d MEASURES it in Chromium: every notice the query returned is drawn, and each states its severity in words rather than as a colour, because a red dot is a severity nobody can read aloud. No query, payload or column changed to make the screen possible, which is what 'a screen over finished data' was supposed to mean."
+  },
+  {
+   "requirement": "FR-NOT-001",
+   "aspect": "bill, payment and tip producers",
+   "opened_at": "M3-C",
+   "completing_gate": "M4-B",
+   "state": "closed",
+   "completed_by": "FR-BIL-001",
+   "why": "FR-NOT-001 names eight classes of event. Order, kitchen and service request have producers at this gate. The other five are in notify.catalog_event with has_producer = false and notify.emit() refuses them by name, so the kinds are real and nothing pretends to raise one. Bill, payment and tip arrive at M4; outage and sync at M5a, which is recorded separately.",
+   "completer_moved": {
+    "from": "M4",
+    "to": "M4-B",
+    "at": "M4-A",
+    "why": "MOVED LATER, from M4 to M4-B, and NARROWED. M4-A gives bill and tip producers a real event to raise; payment's arrives at M4-B, so the aspect as written cannot close before then. The aspect also named outage and sync, which are M5a's and cannot close at any M4 slice: the M3-C text claimed those were 'recorded separately' and they were not — the only M5a notification entry is FR-NOT-005's operational alerts, a different requirement. They are now recorded separately for real, as their own entry against M5a, so this one can close when its last producer lands."
+   },
+   "closed_at": "M4-B",
+   "closed_by_evidence": "All eight M4 kinds now have producers. Migration 0025 relaxes notify.catalog_event's producer constraint to include M4 and sets has_producer on EVT-CHECK-OPENED, EVT-CHECK-PRESENTED, EVT-CHECK-PAID, EVT-PAYMENT-CAPTURED, EVT-PAYMENT-FAILED, EVT-PAYMENT-REVERSED, EVT-TIP-RECORDED and EVT-TIP-REFUNDED; triggers on billing.check_allocation, billing.bill, billing.tip, payments.payment, payments.reversal and payments.terminal_result raise them. tests/m3c no longer asserts that producers are exactly M3: it derives which gates have landed from the repository, so that check and the constraint cannot drift apart. Outage and sync remain unproduced and are recorded separately against M5a."
+  },
+  {
+   "requirement": "FR-NOT-005",
+   "aspect": "operational alert producers",
+   "opened_at": "M3-C",
+   "completing_gate": "M5b",
+   "state": "closed",
+   "completed_by": "FR-OPS-005",
+   "why": "The routing and accountability model is complete: a critical kind reaches notify.accountable_staff(), which reads the outlet's configured role and refuses rather than guessing when none is set. The producers FR-NOT-005 names — payment mismatch at M4, printer failure, local-node failure and sync conflict at M5a — do not exist yet. The escalation of a service request is the one critical producer that does, and it is proved end to end.",
+   "completer_moved": {
+    "from": "M5a",
+    "to": "M5b",
+    "at": "M5a",
+    "why": "Same reason as FR-NOT-001's, and deliberately the same gate: the two were split apart at OP-D precisely because one entry had claimed the other was 'recorded separately' when it was not. notify.accountable_staff() is complete and reaches a configured role; what is missing is anything in the edge runtime that CALLS it, and that stays missing until M5b decides which edge transitions are alertable."
+   },
+   "closed_at": "M5b",
+   "closed_by_evidence": "migrations/0061 and 0062 add the producers the entry named as missing. A sync conflict reaches notify.emit() through edge.announce_sync_conflict(), and a failed print job through edge.announce_print_failure(), which refuses on a job that has not failed because sending somebody to a working printer is worse than saying nothing. Both are addressed to the NODE, which is what ordering.artifact_kind gained a value for at 0060: notify.notification's subject_kind had eleven values, all of them things a guest orders or pays for, and an edge notice had nothing to point at. That was a large part of why this entry was deferred three times. WHAT THE CLOSURE ALSO REQUIRED, and what was found by calling it rather than by reading it: Kazanchis — the outlet every golden journey runs at — had no 'service' policy at all, so notify.accountable_staff() refused with ORDER_POLICY_ABSENT and every critical notice there was unraisable. seeds/0007 had left it out on purpose, because the only role this floor had was one M3-C's fixtures invented and product data may not depend on test data. seeds/0018 closes that with OUTLET_MANAGER, a real role, and deliberately does NOT invent a member for it: no user holds that role at Kazanchis, so no staff notice is addressed to anybody, the notification row is still created and readable, and who is accountable stays an operator's decision rather than a seed's guess. The bound is recorded in planning/M5B_FINDINGS.md as F-M5B-8."
+  },
+  {
+   "requirement": "FR-INT-007",
+   "aspect": "transport failures in the dead-letter queue",
+   "opened_at": "M3-C",
+   "completing_gate": "M5b",
+   "state": "closed",
+   "completed_by": "FR-INT-003",
+   "why": "The queue, its reasons, its attempt counting and its safe replay are complete and exercised by three real in-app failures. There is no transport adapter to fail, because outlet-local notices are M5a's, and an adapter seam built here would be an abstraction with one implementation and no second case to prove it right. When a transport exists its failures reach this queue through integration.dead_letter_job(), which is the same door.",
+   "completer_moved": {
+    "from": "M5a",
+    "to": "M5b",
+    "at": "M5a",
+    "why": "M5a gives the system its first real transport — api/src/node/link.ts, the single seam every cloud call passes through — and an unreachable cloud does NOT become a dead letter here: it becomes local continuity, which is the correct outcome and not a failure. A transport failure that should dead-letter is one that is permanent rather than an outage, and distinguishing those needs the lease and authority model M5b builds. Closing this on 'a transport now exists' would record an untested path as exercised."
+   },
+   "closed_at": "M5b",
+   "closed_by_evidence": "edge.transport_failure_is_permanent() is the distinction the entry said it was waiting for, and it is a clock rather than an opinion. A peer that ANSWERED and refused — an incompatible protocol, an event rejected by name, a superseded sequence — is permanent, because no amount of waiting turns a rejected protocol version into an accepted one and a queue that retried it would never drain. A peer that did not answer is an outage, which the entry itself insisted is the correct outcome and not a failure; the lease is what says which, and it says it by expiry rather than by a guess about the cause. Verified across four reasons: two permanent, two an outage."
+  },
+  {
+   "requirement": "FR-INT-014",
+   "aspect": "bill, payment and tip in the chain",
+   "opened_at": "M3-C",
+   "completing_gate": "M4-B",
+   "state": "closed",
+   "completed_by": "FR-BIL-005",
+   "why": "The chain now carries request, cart, table session, order, fulfillment ticket and service request — six of the artifacts FR-INT-014 names, each written by the fold that creates it so a rebuild restores them. Bill, payment and tip are M4's; outlet persistence and sync records are M5a's, recorded separately.",
+   "completer_moved": {
+    "from": "M4",
+    "to": "M4-B",
+    "at": "M4-A",
+    "why": "MOVED LATER, from M4 to M4-B, and NARROWED, for the same reason as FR-NOT-001. The bill artifact joins the correlation chain at M4-A and payment at M4-B; the sync record is M5a's and was likewise claimed to be 'recorded separately' when it was not. It now is."
+   },
+   "closed_at": "M4-B",
+   "closed_by_evidence": "Migration 0022 adds 'payment' and 'tip' to ordering.artifact_kind, and 0025 links check, bill, tip and payment into ordering.correlation_link. Each is linked BY THE FOLD or by a trigger on the folded table rather than by a caller, so a rebuild restores the chain rather than restoring everything except it — M3-B's lesson. A tip is its own link and not an attribute of the payment that carried it, because FR-BIL-015 lets a payer tip on their own share and FR-PAY-009 lets that tip be refunded without touching any bill payment. Outlet persistence and the synchronization record are M5a's and recorded separately."
+  },
+  {
+   "requirement": "FR-I18N-008",
+   "aspect": "receipt communications",
+   "opened_at": "M3-C",
+   "completing_gate": "M4-C",
+   "state": "closed",
+   "completed_by": "FR-BIL-010",
+   "why": "Receipts are the third thing this clause names and they arrive at M4. The other two were recorded here at M3-C as done, and only one of them was: SERVICE communications render in the language snapshotted on the table session, through notify.render_for() and an approved template, and tests/m3c measures that in a browser. ORDER STATUS did not. Every customer summary in ordering.order_timeline_entry was an English literal written by the fold, and ordering.customer_order.customer_locale — the snapshot FR-I18N-005 requires — was never read by the thing a guest reads. The golden journeys found it at M3-D and 0016/0017 fixed it; this entry is corrected rather than left overstating, because a register that claims more than was proved is worse than no register.",
+   "completer_moved": {
+    "from": "M4",
+    "to": "M4-C",
+    "at": "M4-A",
+    "why": "MOVED LATER, from M4 to M4-C. Receipts are the third thing this clause names, and receipts are M4-C's — M4-A is explicitly forbidden to build one. Naming the bare gate M4 made this come due at M4-A, where the only way to satisfy it would be to build the thing the slice is fenced against."
+   },
+   "closed_at": "M4-C",
+   "closed_by_evidence": "docs.issue_receipt() composes a receipt in the BILL'S locale and takes no locale parameter at all, so a manager reprinting a customer's copy has no argument by which to change its language — M4-A's rule made structural rather than remembered. Every line's wording resolves through menu.translation under the entity 0026 added, which is M2-A's approval workflow unchanged rather than a second store for text a customer reads. 0027's deferred trigger refuses a non-English receipt carrying the English source text, which is what a missing approved translation falls back to, so a partial translation cannot reach paper. tests/m4c issues receipts against English and Amharic bills, requires every Amharic line to carry Ethiopic script, and NC-M4C-003 withdraws one approved translation and requires RECEIPT_INCOMPLETE_IN_LOCALE."
+  },
+  {
+   "requirement": "FR-POS-004",
+   "aspect": "unpaid balance on the table view",
+   "opened_at": "M3-D",
+   "completing_gate": "M4-A",
+   "state": "closed",
+   "completed_by": "FR-BIL-001",
+   "why": "FR-POS-004 names an unpaid balance among the things a table view shows, and billing is M4. pos.table_view() carries the COLUMN and returns NULL in it, and the waiter surface draws nothing where a figure would go. A zero would be a number a waiter could act on, and 'nothing outstanding' and 'we have not built billing' are different sentences — the same decision M3-A made when it refused to write a zero fee component. M4 fills a column rather than changing a shape, and tests/m3d asserts the slot is NULL today so the day it stops being NULL is the day somebody meant it to.",
+   "completer_moved": {
+    "from": "M4",
+    "to": "M4-A",
+    "at": "M4-A",
+    "why": "Refined from the gate M4 to the slice that genuinely completes it. Moved EARLIER: M4-A is the first slice at which this can be closed, and it is closed there. The gate was named at M3 because M4 had no slice shape yet; it does now."
+   },
+   "closed_at": "M4-A",
+   "closed_by_evidence": "pos.table_view()'s unpaid_balance_minor was NULL::bigint from M3-D. Migration 0019 replaces the function so the column is billing.session_outstanding(), which sums billing.outstanding_balance() over the session's live bills — total less what authority has disposed of — and does not read billing.tip. tests/m4a issues a bill on a table and requires the floor plan to show exactly what the bill totals, attaches a tip equal to the whole bill and requires the figure not to move, and requires a table whose bill was disposed of and finalized to show nothing owing."
+  },
+  {
+   "requirement": "FR-NOT-012",
+   "aspect": "the customer status timeline in the session language",
+   "opened_at": "M3-D",
+   "completing_gate": "M3-D",
+   "state": "closed",
+   "completed_by": "FR-I18N-001B",
+   "why": "Recorded and closed in the same gate, which is unusual and is the point. FR-NOT-012's gate-local behaviour for M3 has two halves — an English staff notification centre and a customer status timeline in the session language — and the register carried only the first, because nobody had noticed the second was unmet. ordering.write_timeline_entry() wrote 'Your order was received.' as an English literal at M3-A and fulfillment's fold wrote 'Your order is being prepared.' the same way at M3-B; the locale was snapshotted on the order from M2-C onward and never read.",
+   "closed_at": "M3-D",
+   "closed_by_evidence": "Found by GJ-02 and GJ-03A on their first run, and by nothing else: every slice check read its own timeline in English and asked whether it said the right thing, never what language it said it in. 0016 registers order_status_wording as a translatable entity and 0017 adds notify.status_wording — identity and an English source only, with the Amharic and Arabic bodies in menu.translation where M2-A's approval workflow governs them and menu.enforce_translation_review() refuses an approval nobody reviewed — and replaces ordering.customer_timeline() so it resolves against the locale the ORDER snapshotted, falling back to the projection's English exactly as FR-I18N-008's approved fallback rules permit. No migration installs the wording: an approved translation asserts that a person read it. The journeys now assert that EVERY entry a guest is shown carries the right script, not that one of them does."
+  },
+  {
+   "requirement": "FR-UX-012",
+   "aspect": "budgets calibrated against the runner, not against wall clock alone",
+   "opened_at": "M3-D",
+   "completing_gate": "M4-A",
+   "state": "closed",
+   "completed_by": "FR-UX-012",
+   "why": "The budgets are real and they are measured in a real browser under a real throttle, which is what FR-UX-012 asks for. What they cannot currently do is tell a slow ARTIFACT from a starved RUNNER, and on Windows that has now cost three false reds. First contentful paint on the Windows runner has been measured at 1332ms, 1912ms, 2188ms, 5448ms and 21432ms against a 2500ms budget — and the 21432ms and the 1912ms are the SAME COMMIT, re-run, with a byte-identical bundle. An eleven-fold spread on identical bytes is not a property of the artifact.\n\nM3-C named the honest fix and deferred it on one data point; it has recurred twice since, so the deferral is due rather than renewable. The fix is NOT a larger number: a budget adjusted to accommodate a flake stops being a budget, and every red it reports afterwards is worth less. It is to measure a REFERENCE OPERATION in the same run — something whose cost is known and which depends on the machine rather than on this surface — and express the budget relative to it, so a run in which everything is ten times slower is reported as a starved runner and a run in which only the surface is slower is reported as a regression. The absolute numbers stay exactly where they are.\n\nM4-A because it is the next slice, and because leaving it open through another gate is what turned one observation into three.",
+   "closed_at": "M4-A",
+   "closed_by_evidence": "tests/m2c/render_probe.mjs measures a reference operation — a fixed compute loop, median of five, on about:blank under the same CPU throttle — immediately before the timed load, and reports it as referenceMs. verify_m2c computes a factor against a recorded baseline and expresses every interaction budget relative to it, so a run where everything is ten times slower reads as a starved runner (PERFORMANCE_NOT_MEASURABLE) and a run where only the surface is slower reads as a regression (PERFORMANCE_BUDGET_EXCEEDED). THE ABSOLUTE NUMBERS DID NOT MOVE. Landed at f27761f as the calibration M3 deferred on a single data point and then saw recur twice."
+  },
+  {
+   "requirement": "FR-NOT-001",
+   "aspect": "outage and sync producers",
+   "opened_at": "M4-A",
+   "completing_gate": "M5b",
+   "state": "closed",
+   "completed_by": "FR-EDG-009",
+   "why": "Split out of the M3-C entry, which named 'bill, payment, tip, outage and sync producers' as one aspect and said outage and sync were 'recorded separately'. They were not — the only M5a notification entry is FR-NOT-005's operational alerts, which is a different requirement. An aspect that spans M4 and M5a can close at neither, so the claim would have kept the entry open past both. notify.catalog_event carries both kinds with has_producer = false and notify.emit() refuses them by name, so nothing pretends to raise one in the meantime.",
+   "completer_moved": {
+    "from": "M5a",
+    "to": "M5b",
+    "at": "M5a",
+    "why": "M5a produces the outage STATE — integration.sync_state, the connectivity banner and the five staff sync states — and no NOTIFICATION from it. Nothing in this gate calls notify.* when a node goes to local continuity or a conflict is raised, so the producers this aspect names do not exist. M5b owns the authority and lease work that decides which of these transitions is worth telling somebody about; producing notices before that decision would be inventing the policy."
+   },
+   "closed_at": "M5b",
+   "closed_by_evidence": "edge.announce_lease_transition() produces the three outage notices from a CHANGE of lease state and never from a repeat — a lease going live -> live on each successful proof is the system working, and a notice for it is a channel nobody reads by the end of a service. Degrading is announced rather than expiry alone, because degrading is the first moment anybody can act and expiry is ten seconds later. THE FOURTH NOTICE IS PRODUCED FROM A COUNTER RATHER THAN A STATE. EVT-OUTLET-RECONNECTING has no corresponding lease state: edge.lease_state is live, degraded, expired, and a node part-way through FR-EDG-023's three consecutive proofs still may not forward, so calling it anything but expired would be a lie the lease has to keep straight. Reconnecting is PROGRESS and forwarding_lease.consecutive_valid_exchanges already carries it; edge.announce_recovery_progress() fires once, on the first proof, because a notice per proof would be three notices in fifteen seconds saying the same thing. Adding a fourth state whose only purpose was to be announced was the alternative and was rejected. EVT-SYNC-EVENT-QUEUED stays producerless on purpose and the entry does not claim it: an event entering the outbox happens on every order, bill and payment, and this aspect names outage and sync producers. A queue that is working is neither."
+  },
+  {
+   "requirement": "FR-INT-014",
+   "aspect": "the sync record in the chain",
+   "opened_at": "M4-A",
+   "completing_gate": "M5a",
+   "state": "closed",
+   "completed_by": "FR-EDG-005",
+   "why": "Split out of the M3-C entry for the same reason as FR-NOT-001's: it claimed the sync half was recorded separately and no such entry existed. Outlet persistence and synchronization records are M5a's, and the correlation chain gains that artifact when they do.",
+   "closed_at": "M5a",
+   "closed_by_evidence": "integration.sync_evidence is append-only across replay and restart (FR-DAT-008C) and records what the synchronization did INCLUDING the deliveries it refused — which is why subject_ref carries no foreign key. tests/m5a proves a destructive correction is refused with LEDGER_ROW_DELETED_NOT_REVERSED, and that a repeated cloud delivery is recorded as a duplicate rather than applied twice."
+  },
+  {
+   "requirement": "FR-ORD-007B",
+   "aspect": "acceptance on a verified payment outcome",
+   "opened_at": "M4-A",
+   "completing_gate": "M4-B",
+   "state": "closed",
+   "completed_by": "FR-PAY-001",
+   "why": "An order configured for payment-dependent acceptance is accepted ONLY after a verified payment outcome. M4-A supplies everything except the verification: ordering.acceptance_mode carries 'payment_dependent', ordering.submit_order() auto-accepts only 'automatic' so such an order stays submitted, and migration 0020 makes ordering.accept_order() refuse it by name with ACCEPTANCE_AWAITS_PAYMENT_VERIFICATION. That is the fail-closed half and it is the correct behaviour of the finished system too. What is missing is a verified outcome to consult and a path that consults it, and 'verified' is M4-B's word.",
+   "closed_at": "M4-B",
+   "closed_by_evidence": "Migration 0025 replaces ordering.accept_order(). A payment-dependent order is accepted only when payments.order_is_paid() is true, and VERIFIED means four things that are already true by constraint before that function is reached: the payment came through an adapter whose mode is DERIVED FROM ITS PROVIDER by CHECK, so no direct-provider adapter can be behind it; its outcome is 'approved' in a column typed payments.live_outcome, a type no simulator can produce a value of and to which no cast exists; for a proof-based provider a named person on their own live session recorded what they saw in the provider's application, all four fields required together; and the money reached the BILL BALANCE as its own allocation row, which payments.assert_allocation_is_earned() refuses to write unless the first three hold. The refusal 0020 introduced is unchanged and remains the answer for an unpaid order. tests/m4b proves a tip of the full amount does not buy acceptance, and that the acceptance mode is recorded on the event so an order accepted because it was paid for is distinguishable afterwards. 0025 also opens billing.allocate_to_check() to a SUBMITTED order at an outlet whose policy is payment_dependent, because otherwise the requirement is circular: nothing in that mode could be billed, so nothing could be paid for, so nothing could be accepted."
+  },
+  {
+   "requirement": "FR-BIL-008",
+   "aspect": "settlement by tender",
+   "opened_at": "M4-A",
+   "completing_gate": "M4-B",
+   "state": "closed",
+   "completed_by": "FR-PAY-001",
+   "why": "Finalization requires a settled balance or an authorized disposition. M4-A takes no payment, so the disposition branch is the only reachable one and it is fully proved: comped, written off and transferred, each with an override naming two people and a reason. The settled-by-payment branch is unreachable until there is a tender, so billing.outstanding_balance() subtracts dispositions and nothing else. M4-B adds the tender to that subtraction.",
+   "closed_at": "M4-B",
+   "closed_by_evidence": "Migration 0025 replaces billing.outstanding_balance(). It subtracts authorized dispositions AND bill-balance allocations net of reversals, so a bill paid in full is settled and billing.finalize_bill() lets it close. What it still does not read is billing.tip, and tests/m4a's derivation over every balance function in the catalog is unchanged and still passes — the function ceased to be blind to money without becoming able to see a tip. The M4-B suite found the gap by paying a bill exactly and finding the whole amount still owed."
+  },
+  {
+   "requirement": "FR-BIL-014",
+   "aspect": "total tendered",
+   "opened_at": "M4-A",
+   "completing_gate": "M4-B",
+   "state": "closed",
+   "completed_by": "FR-PAY-001",
+   "why": "Bill balance, service charge, tax, tip and total tendered are separate values and separate records. Four of the five exist and are proved separate — the balance and its components on billing.bill, the tip in its own table with no column anywhere that could hold one and no balance function that reads one. TOTAL TENDERED has no record because nothing is tendered at this gate, and a zero column standing in for it would be the vacuity this project has caught three times.",
+   "closed_at": "M4-B",
+   "closed_by_evidence": "payments.payment carries tendered_minor and change_minor as stored columns and payments.allocation carries the bill-balance and tip figures as separate rows, so all five of FR-BIL-014's values are separate records: balance and components on billing.bill, tip in billing.tip, and total tendered here. tests/m4b recomputes the change in Python from the tender and what was owed and requires the database to match, scans all three surface bundles for arithmetic on a tendered amount and finds none, and proves the allocations do not follow the bill by reissuing it and requiring the figures to be unchanged."
+  },
+  {
+   "requirement": "FR-BIL-016",
+   "aspect": "tip refund through a provider",
+   "opened_at": "M4-A",
+   "completing_gate": "M4-B",
+   "state": "closed",
+   "completed_by": "FR-PAY-001",
+   "why": "Tip refunds, reversals and corrections are separate auditable records linked to the original tip. billing.tip_correction carries all three kinds, is append-only by trigger and by grant, names the override and the reason, and tests/m4a proves a reversal moves no balance. What a refund cannot yet do is return money, because there is no provider and nothing was taken; the RECORD is complete and the movement is M4-B's.",
+   "closed_at": "M4-B",
+   "closed_by_evidence": "payments.reversal reverses ONE allocation, so a tip payment is refunded without touching the bill payment and the other way round — which is what 'separate linked reversal records' needs in order to be expressible. It carries the reason code, the approval threshold read from config.policy, and an override whose approver is derived from the approving session. tests/m4b reverses a tip and a bill payment on one payment and proves each moved only its own figure. What a refund still cannot do is push money back through a provider, because there is no provider: the RECORD is complete and the remittance is outside Phase 1, which the M4-C entry records."
+  },
+  {
+   "requirement": "FR-BIL-007",
+   "aspect": "the printed bill",
+   "opened_at": "M4-A",
+   "completing_gate": "M4-C",
+   "state": "closed",
+   "completed_by": "FR-RCP-001",
+   "why": "The translated bill summary renders on the customer surface in all three launch locales, with the optional tip box after or beside it and never inside it — measured in Chromium as DOM containment and as the two rectangles the layout produced. What is not here is the printed artifact: paper, the fiscal adapter and the receipt are M4-C, and a bill on a screen and a bill on paper are the same document rendered by different means.",
+   "closed_at": "M4-C",
+   "closed_by_evidence": "TWO THINGS, AND THE FIRST IS A CORRECTION. FR-BIL-007's clause asks for a translated bill summary showing items, discounts, tax, service charge and bill total, with the optional tip box after or beside it and never inside it, and its later_behavior is 'None beyond M4 for this clause'. It does not ask for paper. This entry's aspect — 'the printed bill' — was a gloss M4-A put on it, and M4-A had already delivered and measured what the clause actually asks: DOM containment and two rectangles, in Chromium, in all three launch locales. Recorded here rather than left standing, because an entry that claims a gap the requirement does not have keeps a delivered requirement looking half-built. SECOND, and independently: M4-C did build the document half anyway. docs.compose_document() is the one function that turns lines into a print document and both the receipt path and FR-UX-018's preview call it, print/render.mjs rasterises what it produces at printer width, and print/escpos.py encodes that raster. What is still unproved is paper out of a physical machine, and that is FR-BIL-017's own entry, opened at this gate against M5a — so this closure claims a document and not a sheet."
+  },
+  {
+   "requirement": "FR-CFG-001C",
+   "aspect": "permitted payment methods",
+   "opened_at": "M4-A",
+   "completing_gate": "M4-B",
+   "state": "closed",
+   "why": "M4-A built the tax, service-charge and tip halves of the guided setup and used FR-CFG-001C as the completer of FR-ORD-003's fee component and FR-ORD-005's fee snapshot. Its fourth clause — the permitted PAYMENT METHODS, and the requirement that all of them drive a real bill — could not exist before payments did, and no entry recorded that. This entry is that record, written at M4-B and backdated to the slice where the gap opened, and it is the case that motivated PARTIAL_CLOSURE_COMPLETER_INCOMPLETE.",
+   "completed_by": "FR-PAY-001",
+   "closed_at": "M4-B",
+   "closed_by_evidence": "Migration 0025 adds payments.install_adapters_from_configuration(), which reads the approved configuration version of category 'payment_method' and builds the adapter registry from it. payments.create_intent() then takes an intent's permitted providers from the registry, and one of them settles a real bill — so the chain from setup to money is one tests/m4b walks rather than a claim. The payload cannot say whether an adapter is SIMULATED: that is derived from the provider by CHECK, so a configuration file is not a route to NC-M4-003."
+  },
+  {
+   "requirement": "FR-DAT-008B",
+   "aspect": "receipts in the financial ledgers",
+   "opened_at": "M4-B",
+   "completing_gate": "M4-C",
+   "state": "closed",
+   "why": "Bills, payments, tips and cash movements are append-only or reversal-based with no destructive correction: billing.bill_event and payments.payment_event are append-only by trigger and by grant, their projections are written only by a fold, billing.tip_correction and payments.reversal are separate linked records, and cash.movement and cash.shift_transition refuse UPDATE and DELETE. RECEIPTS are the one artifact the requirement names that does not exist yet; they are M4-C's, and no zero-row table stands in for them.",
+   "completed_by": "FR-BIL-010",
+   "closed_at": "M4-C",
+   "closed_by_evidence": "docs.receipt and docs.receipt_line are append-only by trigger and hold no UPDATE or DELETE grant; a correction is a further revision through docs.reissue_receipt(), which issues a new document with its own number rather than editing the one the customer is holding. They are not the only thing this closure rests on. 0028 asks the live schema a question nobody had asked — which tables in a financial schema are ledgers — and app.financial_table_class() answers it as a DECLARATION that the migration refuses to apply without: FINANCIAL_TABLE_UNCLASSIFIED names any table the classification does not cover. Ten unguarded financial tables were found that way and the five that are ledgers now carry the trigger. 0029 extends the same declaration to the reporting snapshots. tests/m4c enumerates every declared ledger from the catalog and requires each to carry app.refuse_financial_mutation(), so a financial table a later gate adds fails the build rather than sliding past an audit. 0027's retention constraint — restated in 0029 over the six schemas app.financial_schemas() names — closes the one path that deletes rows without passing a trigger on the table it deletes from."
+  },
+  {
+   "requirement": "FR-INT-011",
+   "aspect": "node connectivity, sync lag and printer status",
+   "opened_at": "M4-B",
+   "completing_gate": "M5a",
+   "state": "closed",
+   "why": "Health reports the ACTIVE payment adapters truthfully, and an advertised adapter that cannot settle makes readiness unhealthy — tests/m4b activates a simulated adapter and requires a 503. The other three things FR-INT-011 names have nothing behind them at this gate: the outlet node and synchronization lag are M5a's and the printer is M4-C's. M1-D's rule is that a deployment advertises what it HAS, so none is reported. A health endpoint calling a printer healthy because no printer exists would be the most expensive kind of true statement.",
+   "completed_by": "FR-EDG-005",
+   "closed_at": "M5a",
+   "closed_by_evidence": "edge.node_health() returns all seven components and reports one that has never sampled as unhealthy WITH a reason rather than omitting it; integration.sync_state carries connectivity, the pause reason and last contact; docs.printer_health() reports every active printer whether or not it has ever had a job. tests/m5a asserts each, and GET /n/v1/health and /n/v1/print-queue expose them to an operator."
+  },
+  {
+   "requirement": "FR-PAY-002",
+   "aspect": "cash service through a staged outage",
+   "opened_at": "M4-B",
+   "completing_gate": "M5a",
+   "state": "closed",
+   "why": "Proved STRUCTURALLY and not behaviourally, and the structural half is the stronger claim. tests/m4b derives the transitive closure of every function reachable from the cash, terminal-recording and proof-confirmation entry points from the catalog, defines 'outbound' by CAPABILITY — an untrusted language, a foreign table, a non-core extension, or a write to the table that records an adapter call — and requires the intersection to be empty; it then plants an adapter call on the cash path and requires the check to go red. Staging one outage would prove the path survived THAT outage; this proves it survives every outage. What is missing is the behavioural half, which needs an outlet node to switch off. DISTINCT FROM FR-FUL-001's routing-during-an-outage entry, which is about work reaching a station while the node is isolated: this one is about money being taken while it is, and M5a discharges neither by discharging the other.",
+   "completed_by": "FR-EDG-009",
+   "closed_at": "M5a",
+   "closed_by_evidence": "Proved behaviourally rather than structurally. GJ-10 stages the outage, then issues a bill, records a separate tip and settles in cash through the till's own routes with the cloud unreachable, and asserts the payment landed. edge.action_authority additionally names payment.cash_settle and payment.terminal_record as permitted during an outage, so a change that broke either alters a row somebody can read."
+  },
+  {
+   "requirement": "FR-PAY-009",
+   "aspect": "remittance back through a provider",
+   "opened_at": "M4-B",
+   "completing_gate": "M4-C",
+   "state": "closed",
+   "why": "A refund is a complete, authorized, linked RECORD: it names one allocation, its reason code, the approval its amount required and the override that gave it, and payments.assert_reversal_is_authorized() refuses one whose approval belongs to somebody else or to a different refund. What it cannot do is move money back to a card or a wallet, because no provider is contracted — FR-PAY-015 keeps the direct APIs simulated. Cash refunds are complete today: they are a movement out of the drawer.",
+   "completed_by": "FR-PAY-015",
+   "closed_at": "M4-C",
+   "closed_by_evidence": "A CORRECTION, AND THE ENTRY WAS STRICTER THAN THE CLAUSE. FR-PAY-009 asks to 'refund bill payments and tip payments through separate linked reversal records, permissions, reason codes and approval thresholds', and its later_behavior is 'None beyond M4 for this clause'. Moving money back through a provider is not in it. Every element the clause does name was delivered at M4-B: payments.reversal and billing.tip_correction are separate linked records naming one allocation or one tip, payments.assert_reversal_is_authorized() refuses an approval that belongs to somebody else or to a different refund, the threshold comes from configuration, and NC-M4-004 proves a cashier cannot approve their own. What this entry described as the missing half — remittance through a contracted provider — is FR-PAY-015's subject, and FR-PAY-015 carries its own open entry against M5a where the outlet node exists to exercise it. Left standing, this entry would have kept a delivered requirement looking half-built and made the register's count of open work wrong in the direction that matters least visibly. Corrected rather than left overstating, which is the same decision FR-I18N-008's entry recorded at M3-C in the other direction."
+  },
+  {
+   "requirement": "FR-GOV-004",
+   "aspect": "every landed requirement audited, not only named completers",
+   "opened_at": "M4-B",
+   "completing_gate": "M4-C",
+   "state": "closed",
+   "why": "PARTIAL_CLOSURE_COMPLETER_INCOMPLETE checks that no closed entry rests on a requirement carrying an open entry of its own, and the rule states its own boundary: it checks NAMED COMPLETERS, not every requirement whose gate has landed. A requirement that is partly built and that no entry points at is still invisible. The larger audit — every landed requirement either delivered in full or carrying an entry — is the correct rule in general and is deliberately not this slice's: it would expand the highest-consequence slice in the project while payment capture was being written, which is how a money defect slips through while everyone is reading a register. It comes due at M4-C, where a gate is closing rather than where money is being taken.",
+   "completed_by": "FR-GOV-004",
+   "closed_at": "M4-C",
+   "closed_by_evidence": "tools/requirement_coverage.py is the wider audit. It derives the landed gates from the package's own gate order rather than from a list, grades every requirement whose gate has landed as proved-red, ran or cited-in-CI from THIS RUN'S logs, and refuses to report at all if no requirement can be shown delivered — an audit that could not see its own evidence would report every requirement missing and look like a catastrophe rather than a broken reader. It refuses an absent entry with no statement of what would make it buildable, refuses an urgent category paired with an uncited state, and refuses two absent entries that share a completing gate and a closing test, because a gate cannot tell those apart and would close both while fixing one. It runs in CI on both platforms and in tests/m4c, and REQUIREMENT_UNACCOUNTED fails the build. What it surfaced is the point rather than a side effect: 71 gaps across M1 to M3, of which 20 are absent and five are security requirements, each classified in planning/requirement_coverage.json with its reasoning, its buildability and the test that would close it, and published in planning/M4_REVIEW_FINDINGS.md for the M4 review to challenge as readily as a fix. The classifications are findings, not bookkeeping."
+  },
+  {
+   "requirement": "FR-BIL-017",
+   "aspect": "paper out of a physical machine",
+   "opened_at": "M4-C",
+   "completing_gate": "M6",
+   "state": "open",
+   "completed_by": "FR-CFG-001E",
+   "why": "FR-BIL-017 asks that a completed settlement produces a real physical customer receipt through a supported minimum production printer path, and M4-C built all of that path except its last inch. The receipt is composed from the bill's own figures in the bill's own locale, rasterised at 576 dots by the printer path's own rendering engine, checked per glyph against the font this repository ships, encoded into ESC/POS and written to a sink that refuses anything which is not a character device. One settlement produces one original print, refused twice over by a partial unique index and by a trigger. WHAT IS NOT PROVED is that a physical machine took those bytes and produced legible paper: no printer exists in the build container or on either CI runner and no pilot device has been chosen, so the command set is the published generic one and no vendor's extension. This is recorded here rather than in a footnote because it is the difference between a path and an artifact, and planning/M4C_LIMITATIONS.md states it against the commit it was true at. It closes at M5a, which is the first gate that has hardware — and if M5a selects a different rasteriser, NC-M4-005 must be run against that engine, because glyph coverage is a property of the rasteriser and of the font together and does not transfer.",
+   "completer_moved": {
+    "from": "M5a",
+    "to": "M6",
+    "at": "M5a",
+    "why": "Unchanged by M5a and moved for the same reason FR-FUL-008 is: this gate builds the queue, the retry, the recovery and the deduplication in front of the printer, and every one of those is proved. The last inch — bytes leaving a real machine as paper — needs a chosen production device, which planning/M4C_LIMITATIONS.md already records as outstanding and which M6 selects."
+   }
+  },
+  {
+   "requirement": "FR-TST-005A",
+   "aspect": "settlement proved at the service tier, not the browser tier",
+   "opened_at": "M4-C",
+   "completing_gate": "M6",
+   "state": "open",
+   "completed_by": "FR-POS-002",
+   "why": "The five settlement journeys are driven by the HTTP calls a cashier's screen would issue, against the running service: checks, allocations, splits, bills, the guest's tip through the guest's own credential, payment intents, cash, terminal results, proofs, receipts, revisions, overrides and reversals. That proves each route exists, is registered, authorises its caller and returns what the caller needs — the thing M4-A shipped without, and the reason the first HTTP call ever made to POST /s/v1/checks failed on two production defects. What it does NOT prove is that a person can reach any of it: there is no cashier settlement surface. waiter/src contains no bill, payment, receipt or tip affordance of any kind, so no button reaches these routes and no browser test can be written against one. DISTINCT FROM THE TWO PRINTING-ADJACENT ENTRIES, deliberately, because all three would otherwise be closed together by whichever gate arrived first: FR-BIL-017's open half is PAPER out of a physical machine, M5a's resilient print queue is DURABILITY of a print across restart and outage, and this one is a SCREEN a cashier can touch. A gate could deliver any one and leave the other two exactly as absent.",
+   "completer_moved": {
+    "from": "M5a",
+    "to": "M6",
+    "at": "M5a",
+    "why": "GJ-10 walks the till in a browser for its first settlement, which is more than the service tier and still not what this aspect asks: it asks that the FIVE settlement journeys be proved at the browser tier rather than through the HTTP calls a cashier's screen would issue. M5a walks one of them and adds a sixth journey; it does not convert the other four. Moving it to M6 rather than closing it on one journey's evidence, because 'one of five' is exactly the arithmetic this register exists to stop being rounded up."
+   }
   }
+ ],
+ "gate_decomposition": {
+  "note": "M4's split into slices A, B and C is THIS REPOSITORY'S DECOMPOSITION, not the pinned package's. The package defines M4 as one gate — 'POS, billing and settlement', 55 requirements, one exit criterion — and names no slices. M1, M2 and M3 were decomposed the same way and for the same reason: a gate of that size is not reviewable as one change. A reviewer should meet this as a stated decision rather than infer it from slice names that do not appear in the pinned artifact.\n\nIt matters here because tools/partial_closures.py derives landing from the filesystem: tests/m4a lands both M4-A and M4, so an entry naming the bare gate M4 comes due on the FIRST slice of that gate. Thirteen entries named M4 because that was the most precise thing sayable at M3, before the slice shape existed. They were re-pointed at M4-A to the slice that genuinely completes each, and every one that moved LATER carries its reason in the entry.",
+  "slices": {
+   "M4-A": "checks, bills, allocation, split modes, calculation and rounding, bill preview and finalization, void/credit/reissue, tip separation, the counter channel and the payment-dependent acceptance DEPENDENCY",
+   "M4-B": "payment capture, provider integration, verification, reconciliation and cash shifts",
+   "M4-C": "receipts, printing, the fiscal adapter and reporting"
+  }
+ }
 }

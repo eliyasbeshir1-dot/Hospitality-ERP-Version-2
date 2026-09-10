@@ -105,6 +105,23 @@ SLICE_DELIVERS = {
             "than allowed by omission; one connectivity banner compiled once for all four "
             "screens, worded in three locales from the database; and signed updates whose "
             "rollback refuses if the local queues have shrunk",
+    "M5-B": "the same QR, one writer, and a phone that never sees a warning. One public "
+            "hostname per outlet answered on both horizons in both address families, so a "
+            "dual-stack phone cannot reach the public address over IPv6 while standing in "
+            "the dining room; a certificate lifecycle whose install step requires the "
+            "fingerprint the LAN is actually serving to equal the one that was issued, and "
+            "a renewal schedule that alerts at thirty, fourteen and seven days; NO PRIVATE "
+            "KEY COLUMN ANYWHERE, proved by asking the catalog rather than by anybody "
+            "remembering; a resolution answer for the four ways a real phone resolves a "
+            "name — cached public answer, encrypted DNS, dual stack, and the intended path "
+            "— whose outcome type has three values and no fourth, so no input can produce "
+            "a certificate warning or a bypass prompt; authority as a monotonic sequence "
+            "with one holder per outlet, replaced only on step-up for THAT action, an "
+            "independent approver, fence evidence naming something a person did, and a LAN "
+            "probe that is checked first; stale events quarantined rather than dropped; a "
+            "session and its spent idempotency keys carried across the cloud-to-LAN "
+            "transition so a retry is absorbed rather than cooked twice; and the six "
+            "notification producers three partial closures had been waiting for since M3-C"
 }
 
 # The gates in order, and what each one brings that does not exist yet. Rows are emitted
@@ -317,6 +334,17 @@ SUITE_PURPOSE = {
            "recording and ordinary service permitted during an outage while what needs "
            "the cloud is blocked or queued with a translated explanation; and a rollback "
            "that refuses if the local queues have shrunk",
+    "m5b": "the same QR, one writer, and a phone that never sees a warning. A public "
+           "hostname answered on both horizons in both address families; a certificate "
+           "whose install step requires the fingerprint the LAN is serving to equal the "
+           "one that was issued, and a renewal schedule checked at nine boundaries; four "
+           "client conditions — cached public answer, encrypted DNS, dual stack, and the "
+           "intended path — over cloud up and cloud down, none of which can produce a "
+           "warning or a bypass because the outcome type has no value for one; authority "
+           "as a sequence and the four proofs replacing its holder takes; a session and "
+           "its spent idempotency keys surviving the move from cloud to LAN, so a retry "
+           "is absorbed rather than cooked twice; and every function this gate added, "
+           "CALLED — because three of them applied cleanly and could never have run",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
     "journeys": "the golden journeys end to end in a browser against real "
                 "persistence, plus the duplicate-submit race: what a guest and a waiter "

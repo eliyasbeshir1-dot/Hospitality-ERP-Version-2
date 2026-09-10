@@ -309,6 +309,20 @@ MIGRATION_SLICE = {
     # 0058 repairs 0057's cast to identity.authentication_strength, a type that has never
     # existed. The second migration in this gate to apply cleanly and be unrunnable.
     "0058": "M5b",
+    # 0059 moves the revoked-session rule from a WHERE clause to the row. NC-M5B-005 named
+    # a signature nothing could raise, which is what showed a filter is not a refusal.
+    "0059": "M5b",
+    # 0060 adds `node` to ordering.artifact_kind. Attributed to M3-C, the slice that added
+    # notify.catalog_event's edge events: they have named outlet notices since then and
+    # notify.notification.subject_kind had nothing for them to point at.
+    "0060": "M3-C",
+    # 0061 is the producers for FR-NOT-001, FR-NOT-005 and FR-INT-007 — the three partial
+    # closures that named M5b as the gate that would decide which transitions are alertable.
+    "0061": "M5b",
+    # 0062 widens notify.payload_within_bounds by seven keys so an edge notice can say what
+    # it is about. Attributed to M3-C for the reason 0060 is: the allowlist was chosen when
+    # every notice was about an order.
+    "0062": "M3-C",
 }
 
 

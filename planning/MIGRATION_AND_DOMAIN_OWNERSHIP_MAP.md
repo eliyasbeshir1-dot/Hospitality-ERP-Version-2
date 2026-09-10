@@ -56,7 +56,7 @@ Counted from `active_requirements` in the pinned package, by `introduced_at`.
 
 ## The migrations this repository has
 
-58 of them, `0001_organizational_model_and_rls.sql` through `0058_the_continuity_apply_named_a_type_that_does_not_exist.sql`, across
+62 of them, `0001_organizational_model_and_rls.sql` through `0062_a_notice_about_a_node_needs_words_for_what_a_node_has.sql`, across
 22 domains. The owning domain of each is read out of its own SQL — the
 schemas it creates and the schemas it creates tables in — and the gate from the header
 comment every migration in this repository carries.
@@ -121,6 +121,10 @@ comment every migration in this repository carries.
 | `0056_the_bypass_check_was_never_actually_checking.sql` | — | edge | M5b |
 | `0057_a_session_that_started_on_cellular_is_answerable_in_the_dining_room.sql` | edge | — | M5b |
 | `0058_the_continuity_apply_named_a_type_that_does_not_exist.sql` | — | edge | M5b |
+| `0059_a_revoked_session_is_refused_at_the_node_not_merely_left_out_at_the_cloud.sql` | — | edge | M5b |
+| `0060_a_notice_may_be_about_a_node.sql` | — | ordering | M3-C |
+| `0061_the_edge_finally_tells_somebody.sql` | — | notify · edge | M5b |
+| `0062_a_notice_about_a_node_needs_words_for_what_a_node_has.sql` | — | notify · edge | M3-C |
 
 ---
 

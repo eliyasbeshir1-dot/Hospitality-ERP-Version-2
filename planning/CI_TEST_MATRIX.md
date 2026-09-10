@@ -4,7 +4,7 @@
      Do not edit by hand: CI regenerates this file and fails on any difference. -->
 
 **Repository:** `Hospitality-ERP-Version-2`
-**Gate:** M5 — complete through **M5-A**
+**Gate:** M5 — complete through **M5-B**
 **Governing requirement:** FR-SEC-015
 **Workflow:** `.github/workflows/m1-conformance.yml`
 
@@ -17,7 +17,7 @@ would fail the build for doing the assigned work. The script is retained unmodif
 historical evidence and is superseded by `tools/verify_m1.py`.
 
 This file used to be hand-written, and it said five jobs, four suites and nineteen
-controls long after there were six jobs, twenty-one suites and 149 controls.
+controls long after there were six jobs, twenty-two suites and 154 controls.
 
 That is the third time a hardcoded description outlived its truth in this repository,
 after the README's undescribed slice and its default suite description. So every count
@@ -50,7 +50,7 @@ credential out of the repository (FR-SEC-007).
 
 ## The suites
 
-Twenty-one suites: fifteen that each verify one slice, and six that cut across gates.
+Twenty-two suites: sixteen that each verify one slice, and six that cut across gates.
 
 | Suite | Kind |
 |---|---|
@@ -71,6 +71,7 @@ Twenty-one suites: fifteen that each verify one slice, and six that cut across g
 | `tests/m4b/verify_m4b.py` | one slice |
 | `tests/m4c/verify_m4c.py` | one slice |
 | `tests/m5a/verify_m5a.py` | one slice |
+| `tests/m5b/verify_m5b.py` | one slice |
 | `tests/opa/verify_opa.py` | cross-cutting |
 | `tests/opb/verify_opb.py` | cross-cutting |
 | `tests/opc/verify_opc.py` | cross-cutting |
@@ -82,7 +83,7 @@ the build (FR-TST-020). That requirement has found eight real defects across M3 
 
 ## Negative controls are checked for non-vacuity
 
-A control that never fails is not a control. There are 149 of them — M1 22, M2 22, M3 35, M4 65, M5 5. The database job
+A control that never fails is not a control. There are 154 of them — M1 22, M2 22, M3 35, M4 65, M5 10. The database job
 requires each of them to appear in a suite log **both** as RED with a defect planted and
 as GREEN after revert, and the evidence report is regenerated in the same job and fails
 the build if it lists any control as `not proven`.
@@ -93,8 +94,8 @@ the build if it lists any control as `not proven`.
 | M2 | 22 |
 | M3 | 35 |
 | M4 | 65 |
-| M5 | 5 |
-| **Total** | **149** |
+| M5 | 10 |
+| **Total** | **154** |
 
 The registry is `tools/controls.py`. It is not a list somebody maintains beside the run:
 `controls.check_against_run()` compares it with what the suites actually printed, in both
