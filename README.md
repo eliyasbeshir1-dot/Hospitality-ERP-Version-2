@@ -219,6 +219,9 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0047_the_room_is_told_which_way_the_outlet_is_running.sql`
 - `0048_an_update_is_checked_before_it_lands_and_leaves_the_queues_alone.sql`
 - `0049_the_cloud_and_the_outlet_each_prove_the_other_is_there.sql`
+- `0050_only_one_writer_and_the_old_one_is_fenced_before_the_new_one_starts.sql`
+- `0051_a_standby_may_exist_because_authority_now_says_who_writes.sql`
+- `0052_replacing_the_writer_is_a_governed_action.sql`
 
 ## Seeds
 
@@ -239,6 +242,7 @@ history: seeds are data, not structure.
 - `0012_the_demonstration_floor_can_stand_alone.provision.sql`
 - `0013_the_demonstration_floor_knows_its_estate.sql`
 - `0014_the_room_can_be_told.provision.sql`
+- `0015_replacing_a_writer_is_governed_here_too.provision.sql`
 
 ## Verification
 

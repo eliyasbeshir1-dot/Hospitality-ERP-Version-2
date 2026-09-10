@@ -43,13 +43,17 @@ Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `docs`, `edge`, `f
 | `docs.receipt_line_kind` | bill_component, bill_total, tip, total_paid, payment_method |
 | `docs.render_outcome` | rendered, failed |
 | `docs.sink_kind` | device, preview, discard |
+| `edge.authority_state` | held, superseded |
 | `edge.connectivity_state` | cloud_connected, local_continuity, reconciling |
 | `edge.dependency_kind` | local_only, external_required |
 | `edge.environment_class` | production, pilot, demonstration, development |
+| `edge.fence_method` | power_off, switch_port_disabled, vlan_isolated, firewall_blocked |
 | `edge.health_component` | node, database, worker, print, storage, certificate, synchronization |
 | `edge.health_state` | healthy, degraded, unhealthy |
+| `edge.lease_state` | live, degraded, expired |
 | `edge.node_service_kind` | local_api, database, sync_worker, realtime_gateway, print_agent |
 | `edge.outage_disposition` | permitted, queued, blocked |
+| `edge.proof_direction` | cloud_to_node, node_to_cloud |
 | `edge.readiness_element` | active_menu, approved_translations, allergens, prices, taxes, service_and_tip_settings, tables, staff_access, stations, printers, open_sessions |
 | `edge.serving_mode` | continuity_node, cloud_only |
 | `edge.sync_display_state` | saved_locally, queued, synchronized, conflict, blocked |
@@ -190,8 +194,13 @@ graph LR
   money_currency["money.currency"]
   docs_receipt_line["docs.receipt_line"]
   docs_render_attempt["docs.render_attempt"]
-  edge_deployment_profile["edge.deployment_profile"]
+  edge_authority["edge.authority"]
   edge_node["edge.node"]
+  edge_authority_claim["edge.authority_claim"]
+  identity_step_up_grant["identity.step_up_grant"]
+  edge_deployment_profile["edge.deployment_profile"]
+  edge_forwarding_lease["edge.forwarding_lease"]
+  edge_lease_policy["edge.lease_policy"]
   identity_service_principal["identity.service_principal"]
   edge_node_admin_action["edge.node_admin_action"]
   edge_node_health_sample["edge.node_health_sample"]
@@ -199,6 +208,8 @@ graph LR
   edge_node_update["edge.node_update"]
   edge_update_bundle["edge.update_bundle"]
   edge_plain_language["edge.plain_language"]
+  edge_quarantined_event["edge.quarantined_event"]
+  edge_reachability_proof["edge.reachability_proof"]
   fiscal_adapter["fiscal.adapter"]
   fiscal_document["fiscal.document"]
   fulfillment_priority_change["fulfillment.priority_change"]
@@ -230,7 +241,6 @@ graph LR
   identity_recovery_request["identity.recovery_request"]
   identity_role_action["identity.role_action"]
   identity_service_principal_scope["identity.service_principal_scope"]
-  identity_step_up_grant["identity.step_up_grant"]
   identity_terminal_trust["identity.terminal_trust"]
   integration_conflict["integration.conflict"]
   integration_dead_letter["integration.dead_letter"]
@@ -441,8 +451,17 @@ graph LR
   docs_render_attempt --> identity_user_account
   docs_render_attempt --> org_org_node
   docs_render_attempt --> org_tenant
+  edge_authority --> edge_node
+  edge_authority --> org_org_node
+  edge_authority_claim --> edge_node
+  edge_authority_claim --> identity_step_up_grant
+  edge_authority_claim --> identity_user_account
+  edge_authority_claim --> org_org_node
   edge_deployment_profile --> identity_user_account
   edge_deployment_profile --> org_org_node
+  edge_forwarding_lease --> edge_node
+  edge_forwarding_lease --> org_org_node
+  edge_lease_policy --> org_org_node
   edge_node --> identity_service_principal
   edge_node --> identity_user_account
   edge_node --> org_org_node
@@ -458,6 +477,11 @@ graph LR
   edge_node_update --> edge_update_bundle
   edge_node_update --> org_org_node
   edge_plain_language --> org_tenant
+  edge_quarantined_event --> edge_node
+  edge_quarantined_event --> identity_user_account
+  edge_quarantined_event --> org_org_node
+  edge_reachability_proof --> edge_node
+  edge_reachability_proof --> org_org_node
   edge_update_bundle --> identity_user_account
   edge_update_bundle --> org_tenant
   fiscal_adapter --> identity_user_account
@@ -2636,6 +2660,97 @@ Constraints:
 - `action_dependency_requirement_not_null` — `NOT NULL requirement`
 - `action_dependency_restriction_is_explicable` — `CHECK (((disposition = 'permitted'::edge.outage_disposition) = (restriction_code IS NULL)))`
 
+#### `edge.authority`
+
+FR-EDG-024. Who may write for this outlet, as a number that only goes up. Not a flag and not a lease: two halves of a partition cannot both hold the highest number, which is the only property that survives one.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `sequence` | `bigint` | NOT NULL |  |  |
+| `holder_node_id` | `uuid` | NOT NULL |  |  |
+| `state` | `edge.authority_state` | NOT NULL | `'held'::edge.authority_state` |  |
+| `attestation_sha256` | `character(64)` | NOT NULL |  |  |
+| `granted_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `superseded_at` | `timestamp with time zone` |  |  |  |
+
+Constraints:
+
+- `authority_attestation_sha256_not_null` — `NOT NULL attestation_sha256`
+- `authority_granted_at_not_null` — `NOT NULL granted_at`
+- `authority_holder_fk` — `FOREIGN KEY (tenant_id, holder_node_id) REFERENCES edge.node(tenant_id, id) ON DELETE RESTRICT`
+- `authority_holder_node_id_not_null` — `NOT NULL holder_node_id`
+- `authority_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `authority_outlet_id_not_null` — `NOT NULL outlet_id`
+- `authority_pkey` — `PRIMARY KEY (tenant_id, outlet_id, sequence)`
+- `authority_sequence_not_null` — `NOT NULL sequence`
+- `authority_sequence_positive` — `CHECK ((sequence > 0))`
+- `authority_state_not_null` — `NOT NULL state`
+- `authority_supersession_is_timed` — `CHECK (((state = 'superseded'::edge.authority_state) = (superseded_at IS NOT NULL)))`
+- `authority_tenant_id_not_null` — `NOT NULL tenant_id`
+
+Policies:
+
+- `authority_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `edge.authority_claim`
+
+FR-EDG-024. What a replacement had to show before it could write: a step-up grant, an INDEPENDENT approver, how the old node was fenced, and a probe that found it unreachable. An operator with all four has established the old node is gone; an operator with three has established that they would like it to be.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `claimant_node_id` | `uuid` | NOT NULL |  |  |
+| `sequence` | `bigint` | NOT NULL |  |  |
+| `superseded_node_id` | `uuid` |  |  |  |
+| `step_up_grant_id` | `uuid` | NOT NULL |  |  |
+| `requested_by_user_id` | `uuid` | NOT NULL |  |  |
+| `approved_by_user_id` | `uuid` | NOT NULL |  |  |
+| `fence_method` | `edge.fence_method` | NOT NULL |  |  |
+| `fence_evidence` | `text` | NOT NULL |  |  |
+| `lan_probe_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `lan_probe_unreachable` | `boolean` | NOT NULL |  |  |
+| `granted_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `authority_claim_approval_is_independent` — `CHECK ((approved_by_user_id <> requested_by_user_id))`
+- `authority_claim_approved_by_user_id_not_null` — `NOT NULL approved_by_user_id`
+- `authority_claim_approver_fk` — `FOREIGN KEY (tenant_id, approved_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `authority_claim_claimant_fk` — `FOREIGN KEY (tenant_id, claimant_node_id) REFERENCES edge.node(tenant_id, id) ON DELETE RESTRICT`
+- `authority_claim_claimant_node_id_not_null` — `NOT NULL claimant_node_id`
+- `authority_claim_evidence_is_stated` — `CHECK ((length(TRIM(BOTH FROM fence_evidence)) > 0))`
+- `authority_claim_fence_evidence_not_null` — `NOT NULL fence_evidence`
+- `authority_claim_fence_method_not_null` — `NOT NULL fence_method`
+- `authority_claim_grant_fk` — `FOREIGN KEY (step_up_grant_id) REFERENCES identity.step_up_grant(id) ON DELETE RESTRICT`
+- `authority_claim_granted_at_not_null` — `NOT NULL granted_at`
+- `authority_claim_id_not_null` — `NOT NULL id`
+- `authority_claim_lan_probe_at_not_null` — `NOT NULL lan_probe_at`
+- `authority_claim_lan_probe_unreachable_not_null` — `NOT NULL lan_probe_unreachable`
+- `authority_claim_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `authority_claim_outlet_id_not_null` — `NOT NULL outlet_id`
+- `authority_claim_pkey` — `PRIMARY KEY (id)`
+- `authority_claim_probe_found_it_gone` — `CHECK (lan_probe_unreachable)`
+- `authority_claim_requested_by_user_id_not_null` — `NOT NULL requested_by_user_id`
+- `authority_claim_requester_fk` — `FOREIGN KEY (tenant_id, requested_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `authority_claim_sequence_not_null` — `NOT NULL sequence`
+- `authority_claim_sequence_positive` — `CHECK ((sequence > 0))`
+- `authority_claim_step_up_grant_id_not_null` — `NOT NULL step_up_grant_id`
+- `authority_claim_superseded_fk` — `FOREIGN KEY (tenant_id, superseded_node_id) REFERENCES edge.node(tenant_id, id) ON DELETE RESTRICT`
+- `authority_claim_tenant_id_not_null` — `NOT NULL tenant_id`
+- `authority_claim_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `authority_claim_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
 #### `edge.deployment_profile`
 
 FR-EDG-001. What an outlet is permitted to run. A production outlet requires the continuity node; cloud-only exists for development, demonstration and explicitly non-production evaluation, and states its reason. The rule is a CHECK because a deployment script that enforced it would run on the machine that is already wrong.
@@ -2677,9 +2792,79 @@ Policies:
 
 - `deployment_profile_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
+#### `edge.forwarding_lease`
+
+FR-EDG-023. The CLOUD'S permission to forward commands to this outlet, and nothing else. When it expires the outlet keeps trading — FR-EDG-021 requires that — and what stops is the cloud acting as though it can reach an authority it cannot. It begins expired: a lease that started live would be forwarding on the strength of never having checked.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `node_id` | `uuid` | NOT NULL |  |  |
+| `state` | `edge.lease_state` | NOT NULL | `'expired'::edge.lease_state` |  |
+| `last_complete_exchange_at` | `timestamp with time zone` |  |  |  |
+| `consecutive_valid_exchanges` | `integer` | NOT NULL | `0` |  |
+| `state_changed_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `state_reason` | `text` | NOT NULL |  |  |
+
+Constraints:
+
+- `forwarding_lease_consecutive_valid_exchanges_not_null` — `NOT NULL consecutive_valid_exchanges`
+- `forwarding_lease_counter_not_negative` — `CHECK ((consecutive_valid_exchanges >= 0))`
+- `forwarding_lease_live_has_evidence` — `CHECK (((state <> 'live'::edge.lease_state) OR (last_complete_exchange_at IS NOT NULL)))`
+- `forwarding_lease_node_fk` — `FOREIGN KEY (tenant_id, node_id) REFERENCES edge.node(tenant_id, id) ON DELETE CASCADE`
+- `forwarding_lease_node_id_not_null` — `NOT NULL node_id`
+- `forwarding_lease_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `forwarding_lease_outlet_id_not_null` — `NOT NULL outlet_id`
+- `forwarding_lease_pkey` — `PRIMARY KEY (node_id)`
+- `forwarding_lease_reason_is_stated` — `CHECK ((length(TRIM(BOTH FROM state_reason)) > 0))`
+- `forwarding_lease_state_changed_at_not_null` — `NOT NULL state_changed_at`
+- `forwarding_lease_state_not_null` — `NOT NULL state`
+- `forwarding_lease_state_reason_not_null` — `NOT NULL state_reason`
+- `forwarding_lease_tenant_id_not_null` — `NOT NULL tenant_id`
+- `forwarding_lease_tenant_id_unique` — `UNIQUE (tenant_id, node_id)`
+
+Policies:
+
+- `forwarding_lease_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `edge.lease_policy`
+
+FR-EDG-023's four numbers, per outlet. Defaults rather than constants because the requirement says "by default", and an outlet on a satellite link is why it does. They ascend by CHECK: a lease that expired before it degraded would skip the state an operator is supposed to act on.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `proof_interval_seconds` | `integer` | NOT NULL | `5` |  |
+| `degrade_after_seconds` | `integer` | NOT NULL | `10` |  |
+| `expire_after_seconds` | `integer` | NOT NULL | `20` |  |
+| `proofs_required_to_resume` | `integer` | NOT NULL | `3` |  |
+
+Constraints:
+
+- `lease_policy_degrade_after_seconds_not_null` — `NOT NULL degrade_after_seconds`
+- `lease_policy_expire_after_seconds_not_null` — `NOT NULL expire_after_seconds`
+- `lease_policy_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `lease_policy_outlet_id_not_null` — `NOT NULL outlet_id`
+- `lease_policy_pkey` — `PRIMARY KEY (tenant_id, outlet_id)`
+- `lease_policy_proof_interval_seconds_not_null` — `NOT NULL proof_interval_seconds`
+- `lease_policy_proofs_required_to_resume_not_null` — `NOT NULL proofs_required_to_resume`
+- `lease_policy_resume_is_more_than_one` — `CHECK ((proofs_required_to_resume >= 2))`
+- `lease_policy_tenant_id_not_null` — `NOT NULL tenant_id`
+- `lease_policy_thresholds_ascend` — `CHECK (((proof_interval_seconds < degrade_after_seconds) AND (degrade_after_seconds < expire_after_seconds)))`
+
+Policies:
+
+- `lease_policy_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
 #### `edge.node`
 
-FR-CFG-001E, FR-EDG-018. One continuity node, bound to one tenant and one outlet, with a device identity it proves by fingerprint, a scoped service principal, the LAN endpoint it serves the four screen families at, a reference to where its secrets live (never a secret), the anchor its signed updates are verified against and what it attested about its host.
+FR-CFG-001E, FR-EDG-018, FR-EDG-024. One or more continuity nodes per outlet — a holder and its standbys — each bound to one tenant and one outlet, with a device identity it proves by fingerprint, a scoped service principal, the LAN endpoint it serves the four screen families at, a reference to where its secrets live (never a secret), the anchor its signed updates are verified against and what it attested about its host. WHICH of them may write is edge.authority's answer, not this table's: 0039 allowed only one active node per outlet because nothing could answer that question yet, and 0050 answers it.
 
 Row level security: **enabled**, **forced**.
 
@@ -2929,6 +3114,107 @@ Constraints:
 Policies:
 
 - `plain_language_isolation` — `app.row_in_scope(tenant_id, NULL::uuid)`
+
+#### `edge.quarantined_event`
+
+FR-EDG-024. Work a superseded node still held — orders taken in the minutes before it was fenced. Dropping them loses trade and applying them lets a fenced node write, so they are kept where a person can look at them. That is the only honest third option.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `bigint` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `from_node_id` | `uuid` | NOT NULL |  |  |
+| `event_id` | `uuid` | NOT NULL |  |  |
+| `at_sequence` | `bigint` | NOT NULL |  |  |
+| `current_sequence` | `bigint` | NOT NULL |  |  |
+| `subject` | `integration.sync_subject` | NOT NULL |  |  |
+| `subject_id` | `uuid` | NOT NULL |  |  |
+| `event_kind` | `text` | NOT NULL |  |  |
+| `payload` | `jsonb` | NOT NULL |  |  |
+| `occurred_at` | `timestamp with time zone` | NOT NULL |  |  |
+| `quarantined_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `released_at` | `timestamp with time zone` |  |  |  |
+| `released_by_user_id` | `uuid` |  |  |  |
+| `release_reason` | `text` |  |  |  |
+
+Constraints:
+
+- `quarantined_event_at_sequence_not_null` — `NOT NULL at_sequence`
+- `quarantined_event_current_sequence_not_null` — `NOT NULL current_sequence`
+- `quarantined_event_event_id_not_null` — `NOT NULL event_id`
+- `quarantined_event_event_kind_not_null` — `NOT NULL event_kind`
+- `quarantined_event_from_node_id_not_null` — `NOT NULL from_node_id`
+- `quarantined_event_id_not_null` — `NOT NULL id`
+- `quarantined_event_is_stale` — `CHECK ((at_sequence < current_sequence))`
+- `quarantined_event_node_fk` — `FOREIGN KEY (tenant_id, from_node_id) REFERENCES edge.node(tenant_id, id) ON DELETE RESTRICT`
+- `quarantined_event_occurred_at_not_null` — `NOT NULL occurred_at`
+- `quarantined_event_one_per_event` — `UNIQUE (tenant_id, event_id)`
+- `quarantined_event_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `quarantined_event_outlet_id_not_null` — `NOT NULL outlet_id`
+- `quarantined_event_payload_not_null` — `NOT NULL payload`
+- `quarantined_event_pkey` — `PRIMARY KEY (id)`
+- `quarantined_event_quarantined_at_not_null` — `NOT NULL quarantined_at`
+- `quarantined_event_release_is_attributed` — `CHECK ((((released_at IS NULL) = (released_by_user_id IS NULL)) AND ((released_at IS NULL) = (release_reason IS NULL))))`
+- `quarantined_event_releaser_fk` — `FOREIGN KEY (tenant_id, released_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `quarantined_event_subject_id_not_null` — `NOT NULL subject_id`
+- `quarantined_event_subject_not_null` — `NOT NULL subject`
+- `quarantined_event_tenant_id_not_null` — `NOT NULL tenant_id`
+- `quarantined_event_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+
+Policies:
+
+- `quarantined_event_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `edge.reachability_proof`
+
+FR-EDG-023. One exchange is two rows sharing a challenge, one per direction. A node that can hear the cloud but cannot be heard is not reachable, and it is the more dangerous half — the cloud keeps forwarding into a hole.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `bigint` | NOT NULL |  |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `node_id` | `uuid` | NOT NULL |  |  |
+| `challenge` | `character(64)` | NOT NULL |  |  |
+| `direction` | `edge.proof_direction` | NOT NULL |  |  |
+| `response_digest` | `character(64)` | NOT NULL |  |  |
+| `authority_sequence` | `bigint` | NOT NULL |  |  |
+| `protocol_compatible` | `boolean` | NOT NULL |  |  |
+| `cursor_agrees` | `boolean` | NOT NULL |  |  |
+| `valid` | `boolean` | NOT NULL |  |  |
+| `detail` | `text` |  |  |  |
+| `observed_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `reachability_proof_authority_sequence_not_null` — `NOT NULL authority_sequence`
+- `reachability_proof_challenge_not_null` — `NOT NULL challenge`
+- `reachability_proof_cursor_agrees_not_null` — `NOT NULL cursor_agrees`
+- `reachability_proof_direction_not_null` — `NOT NULL direction`
+- `reachability_proof_failure_is_explained` — `CHECK ((valid OR (detail IS NOT NULL)))`
+- `reachability_proof_id_not_null` — `NOT NULL id`
+- `reachability_proof_node_fk` — `FOREIGN KEY (tenant_id, node_id) REFERENCES edge.node(tenant_id, id) ON DELETE CASCADE`
+- `reachability_proof_node_id_not_null` — `NOT NULL node_id`
+- `reachability_proof_observed_at_not_null` — `NOT NULL observed_at`
+- `reachability_proof_one_per_direction` — `UNIQUE (node_id, challenge, direction)`
+- `reachability_proof_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `reachability_proof_outlet_id_not_null` — `NOT NULL outlet_id`
+- `reachability_proof_pkey` — `PRIMARY KEY (id)`
+- `reachability_proof_protocol_compatible_not_null` — `NOT NULL protocol_compatible`
+- `reachability_proof_response_digest_not_null` — `NOT NULL response_digest`
+- `reachability_proof_sequence_positive` — `CHECK ((authority_sequence >= 0))`
+- `reachability_proof_tenant_id_not_null` — `NOT NULL tenant_id`
+- `reachability_proof_valid_not_null` — `NOT NULL valid`
+- `reachability_proof_validity_follows_its_parts` — `CHECK (((NOT valid) OR (protocol_compatible AND cursor_agrees)))`
+
+Policies:
+
+- `reachability_proof_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
 #### `edge.update_bundle`
 

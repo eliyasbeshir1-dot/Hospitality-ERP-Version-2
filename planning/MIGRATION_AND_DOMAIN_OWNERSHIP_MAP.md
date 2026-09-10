@@ -56,7 +56,7 @@ Counted from `active_requirements` in the pinned package, by `introduced_at`.
 
 ## The migrations this repository has
 
-49 of them, `0001_organizational_model_and_rls.sql` through `0049_the_cloud_and_the_outlet_each_prove_the_other_is_there.sql`, across
+52 of them, `0001_organizational_model_and_rls.sql` through `0052_replacing_the_writer_is_a_governed_action.sql`, across
 22 domains. The owning domain of each is read out of its own SQL — the
 schemas it creates and the schemas it creates tables in — and the gate from the header
 comment every migration in this repository carries.
@@ -112,6 +112,9 @@ comment every migration in this repository carries.
 | `0047_the_room_is_told_which_way_the_outlet_is_running.sql` | — | edge | M5a |
 | `0048_an_update_is_checked_before_it_lands_and_leaves_the_queues_alone.sql` | edge | — | M5a |
 | `0049_the_cloud_and_the_outlet_each_prove_the_other_is_there.sql` | edge | app | M5b |
+| `0050_only_one_writer_and_the_old_one_is_fenced_before_the_new_one_starts.sql` | edge | app | M5b |
+| `0051_a_standby_may_exist_because_authority_now_says_who_writes.sql` | — | edge | M5b |
+| `0052_replacing_the_writer_is_a_governed_action.sql` | — | identity · edge | M1-B |
 
 ---
 

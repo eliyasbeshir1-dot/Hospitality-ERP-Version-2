@@ -276,6 +276,19 @@ MIGRATION_SLICE = {
     # 0049 opens M5b: the bidirectional reachability lease FR-EDG-023 specifies down to
     # the second. It owns `edge` alongside M5a's, because a lease is a fact about a node.
     "0049": "M5b",
+    # 0050 is FR-EDG-024: one writer per outlet, as a monotonic sequence, and the four
+    # things a replacement must show before it may hold one.
+    "0050": "M5b",
+    # 0051 retires M5a's one-active-node-per-outlet index. It owns nothing: it drops an
+    # index and replaces two comments. Attributed to M5b because M5b is what makes the
+    # index wrong — FR-EDG-024 requires a STANDBY, and a standby that cannot exist
+    # alongside the node it stands by is a spare in a cupboard.
+    "0051": "M5b",
+    # 0052 registers node.authority.claim as a governed action. Attributed to M1-B, the
+    # slice that owns the step-up registry: 0050 required a grant and named no action, so
+    # any live grant would have done. This is the third time a new governed action has
+    # needed all three of trigger, installer and caller.
+    "0052": "M1-B",
 }
 
 

@@ -184,6 +184,10 @@ PROVISIONABLE_FUNCTIONS = frozenset({
     # five services arrive together — FR-EDG-002A's "exactly five" is enforced inside it,
     # and a seed that INSERTed the rows itself could write four.
     "edge.register_node",
+    # Writes identity.governed_action, and only the one row M5b introduces. Vetted rather
+    # than written as a statement because the registry is SELECT-only to the application
+    # role by design: which acts need stronger authentication is not a screen's business.
+    "identity.install_governed_actions_for",
 })
 
 _COMMENT = re.compile(r"--[^\n]*")
