@@ -25,6 +25,7 @@
 | **M4-C** | the receipt and the report: a digital receipt in the bill's own language showing bill total, optional tip and total paid as three lines; a printer path that composes, rasterises and encodes to ESC/POS with every glyph checked against the fonts this repository ships; one original print per settlement and a reprint that carries its operator and its reason; a print preview built by the same composer as the receipt; a printer that must be tested before it can print for a customer; a fiscal-document port with no provider's schema inside it; counter orders bound to the POS terminal they were entered at; a metric catalog that IS the metrics, readings that carry their source and their freshness, a shift snapshot no recomputation can rewrite, and the FR-GOV-004 audit of every requirement whose gate has landed | `2554f11` |
 | **M5-A** | the outlet continuity node: an outlet that keeps trading when the cloud is unreachable. A node bound to exactly one outlet, made of the five services FR-EDG-002A names, refusing to start anywhere else; a production outlet that cannot be RECORDED as cloud-only; a transactional outbox whose events keep the identity and the time they were given at the outlet, travel parent before child, and are acknowledged only when the cloud names them; an idempotent inbox that makes a repeated delivery a no-op it reports rather than swallows; conflicts over the six domains that cannot be settled without a person and a sentence; a durable print queue where a lease expires but a printed job never returns; readiness counted out of the tables service reads; every action classified once so a route asks a registry instead of carrying its own copy of the rule, and an unclassified one refused rather than allowed by omission; one connectivity banner compiled once for all four screens, worded in three locales from the database; and signed updates whose rollback refuses if the local queues have shrunk | `69259b7` |
 | **M5-B** | the same QR, one writer, and a phone that never sees a warning. One public hostname per outlet answered on both horizons in both address families, so a dual-stack phone cannot reach the public address over IPv6 while standing in the dining room; a certificate lifecycle whose install step requires the fingerprint the LAN is actually serving to equal the one that was issued, and a renewal schedule that alerts at thirty, fourteen and seven days; NO PRIVATE KEY COLUMN ANYWHERE, proved by asking the catalog rather than by anybody remembering; a resolution answer for the four ways a real phone resolves a name — cached public answer, encrypted DNS, dual stack, and the intended path — whose outcome type has three values and no fourth, so no input can produce a certificate warning or a bypass prompt; authority as a monotonic sequence with one holder per outlet, replaced only on step-up for THAT action, an independent approver, fence evidence naming something a person did, and a LAN probe that is checked first; stale events quarantined rather than dropped; a session and its spent idempotency keys carried across the cloud-to-LAN transition so a retry is absorbed rather than cooked twice; and the six notification producers three partial closures had been waiting for since M3-C | `f36850f` |
+| **M6-A** | the built production artifact, and nothing inside it that can reset production. One manifest that the builder copies from, the Dockerfile is generated from, the completeness check probes and the prohibition scan reads — because a COPY list beside a build script beside a checklist is three places to say one thing and two of them go stale. Every advertised entry point is RUN from inside the built tree with PYTHONPATH and NODE_PATH cleared, so a file that is present and fails because the build left a dependency behind is caught where a missing file would have been obvious. And no seed reaches it: every seed in this repository builds the demonstration floor, so shipping one would put a way to create demonstration tenants into production, which is worse than a way to reset them | `unreleased` |
 
 The M1 evidence report is at `evidence/M1_EVIDENCE_REPORT.md`.
 
@@ -76,17 +77,17 @@ not have, or is still open after its completing gate has landed.
 | **FR-BIL-008** | settlement by tender | M4-B |
 | **FR-BIL-014** | total tendered | M4-B |
 | **FR-BIL-016** | tip refund through a provider | M4-B |
-| **FR-BIL-017** | paper out of a physical machine | M6 |
+| **FR-BIL-017** | paper out of a physical machine | M6-E |
 | **FR-CFG-001C** | permitted payment methods | M4-B |
 | **FR-DAT-008B** | receipts in the financial ledgers | M4-C |
 | **FR-DAT-010** | financial projections | M4-A |
 | **FR-FUL-001** | routing during an outage | M5a |
 | **FR-FUL-003** | KDS from the local node | M5a |
-| **FR-FUL-008** | salience on real paper | M6 |
+| **FR-FUL-008** | salience on real paper | M6-E |
 | **FR-FUL-010** | notification delivery | M3-C |
-| **FR-FUL-012** | analytical consumption | M6 |
-| **FR-FUL-014** | physical printing and dedup across restart | M6 |
-| **FR-FUL-015** | rerouting with the outlet node authoritative | M6 |
+| **FR-FUL-012** | analytical consumption | M6-D |
+| **FR-FUL-014** | physical printing and dedup across restart | M6-E |
+| **FR-FUL-015** | rerouting with the outlet node authoritative | M6-D |
 | **FR-GOV-004** | every landed requirement audited, not only named completers | M4-C |
 | **FR-I18N-008** | receipt communications | M4-C |
 | **FR-INT-007** | transport failures in the dead-letter queue | M5b |
@@ -118,7 +119,7 @@ not have, or is still open after its completing gate has landed.
 | **FR-TAB-007A** | service requests consolidated by a merge | M3-C |
 | **FR-TAB-008** | service requests preserved by a move | M3-C |
 | **FR-TAB-009** | financial closure condition | M4-A |
-| **FR-TST-005A** | settlement proved at the service tier, not the browser tier | M6 |
+| **FR-TST-005A** | settlement proved at the service tier, not the browser tier | M6-E |
 | **FR-UX-012** | budgets calibrated against the runner, not against wall clock alone | M4-A |
 | **SM-ORDER** | fulfillment labels derived rather than stored | M4-A |
 
@@ -146,7 +147,7 @@ position is to write fresh.
 | `print/` | the print agent: the receipt rasteriser, the ESC/POS encoder, and the font it ships rather than resolves from the host |
 | `schema/` | `SCHEMA_CATALOG.md`, generated from the live database, never hand-written |
 | `seeds/` | demonstration tenants and reason-code sets, with their own ordered record |
-| `tests/` | verification suites — 16 that each verify one slice, and 6 that cut across gates |
+| `tests/` | verification suites — 17 that each verify one slice, and 6 that cut across gates |
 | `tools/` | migration and seed runners, generators, and the forbidden-surface verifier |
 
 ## Third-party assets, and what shipping them obliges
@@ -234,6 +235,7 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0061_the_edge_finally_tells_somebody.sql`
 - `0062_a_notice_about_a_node_needs_words_for_what_a_node_has.sql`
 - `0063_a_node_is_not_an_ordering_artifact_and_the_rebuild_rule_says_so.sql`
+- `0064_a_backup_is_a_thing_that_happened_on_a_schedule_and_was_verified.sql`
 
 ## Seeds
 
@@ -288,6 +290,7 @@ bash tests/m1d/run_verification.sh         # rebuilds from empty, runs every sli
 | `tests/m4c/verify_m4c.py` | the receipt and the report: every figure on a receipt compared against its own source at the write, an Amharic and an Arabic receipt rasterised by the printer path and checked per glyph against the fonts this repository ships, one original print per settlement refused twice over, a preview proved to be the same composer as the receipt, a signed-off shift snapshot proved unrewritable by a grant, by the source and by the attempt, an empty window proved to report nothing rather than zero where zero would be an invention, and the FR-GOV-004 audit of every requirement whose gate has landed |
 | `tests/m5a/verify_m5a.py` | the outlet continuity node, and what an outlet can still do when the cloud cannot be reached. A node that refuses to start at the wrong outlet and says which outlet it is bound to; an outbox that carries a child only after its parent and an inbox that makes a repeated delivery a reported no-op; conflicts over orders, bills, payments, tips, cash and permissions that no machine can settle; a print queue where a lease expires and a printed job never returns; readiness counted rather than claimed; cash, terminal recording and ordinary service permitted during an outage while what needs the cloud is blocked or queued with a translated explanation; and a rollback that refuses if the local queues have shrunk |
 | `tests/m5b/verify_m5b.py` | the same QR, one writer, and a phone that never sees a warning. A public hostname answered on both horizons in both address families; a certificate whose install step requires the fingerprint the LAN is serving to equal the one that was issued, and a renewal schedule checked at nine boundaries; four client conditions — cached public answer, encrypted DNS, dual stack, and the intended path — over cloud up and cloud down, none of which can produce a warning or a bypass because the outcome type has no value for one; authority as a sequence and the four proofs replacing its holder takes; a session and its spent idempotency keys surviving the move from cloud to LAN, so a retry is absorbed rather than cooked twice; and every function this gate added, CALLED — because three of them applied cleanly and could never have run |
+| `tests/m6a/verify_m6a.py` | the artifact that ships: built from the manifest, every advertised entry point executed from inside it with the repository made unreachable, and scanned — with the database — for any way to reset or reseed production |
 | `tests/opa/verify_opa.py` | the operator gate: whether a person can reach what the slices built. A credential turned into a session against storage that is salted and key-stretched, a quick PIN that is refused away from its registered terminal, lockout that fires and then clears, a guest order carried to a station and moved acknowledge to preparing to ready through routes rather than through the database, expo refusing to release an incomplete set, a seed proved unable to bypass its runner or to widen a grant, and the M4 review's printer forgery replayed over the route it was performed on (spans M1 · M2 · M3 · M4) |
 | `tests/opb/verify_opb.py` | the staff screens, measured in a browser: a station board that signs a cook in and draws its actions from the transition catalog rather than from a table of its own, a till that reads a bill in the bill's own language and keeps the tip beside it with nothing preselected, a waiter floor that fetches its own tables with the unpaid balance on them, confirmation friction graded by the database, and a manager override that takes the manager's own session (spans M1 · M2 · M3 · M4) |
 | `tests/opc/verify_opc.py` | being seated, and taking something back out: the step that came before everything the nineteen suites above had proved. A guest scanning an unoccupied table opens the occupancy and a member of staff can open one too, through one function with two opening sources that nothing had ever called; a waiter who seats a table becomes accountable for it, which is the origin FR-TAB-006's handover chain never had; a guest can take a dish back out of the basket; and M2-B's stale-QR guarantee is proved unweakened by any of it (spans M1 · M2 · M3 · M4) |

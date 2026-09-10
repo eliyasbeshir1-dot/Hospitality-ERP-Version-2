@@ -56,6 +56,7 @@ ENTRY_PURPOSE = {
                "share no audience and no authentication",
     "docs": "the pinned package, byte-identical, verified by its own SHA256SUMS.txt",
     "docs-local": "cross-platform command reference and its verification record",
+    "deploy": "how the artifact is packaged. Generated from tools/artifact.py and check-locked against it, because an image with its own COPY list is a second manifest and a second manifest goes stale.",
     "evidence": "the generated evidence report",
     "migrations": "ordered, checksum-locked SQL history beginning at 0001",
     "planning": "conformance, ownership, the CI matrix, known limitations, the closure register",

@@ -263,15 +263,15 @@
    "requirement": "FR-FUL-008",
    "aspect": "salience on real paper",
    "opened_at": "M3-B",
-   "completing_gate": "M6",
+   "completing_gate": "M6-E",
    "state": "open",
    "completed_by": "FR-CFG-001E",
    "why": "Allergy emphasis is measured non-colour-only on the KDS and expo surfaces, and the generated station ticket document carries its allergy lines first and in words. That the salience survives PHYSICAL printing needs the print path, which is M5a; this gate proves the document, not the paper.",
    "completer_moved": {
-    "from": "M5a",
-    "to": "M6",
-    "at": "M5a",
-    "why": "M5a builds the durable queue that gets bytes to a printer and proves exactly-once delivery of a job; it does not put ink on paper. Whether allergy emphasis SURVIVES physical printing can only be established by printing on a real machine, which is M6's production-hardening work and needs a chosen device. M5a was the wrong completer for this aspect from the start: it was named for the gate that builds printing, and this aspect is about the paper rather than the queue."
+    "from": "M6",
+    "to": "M6-E",
+    "at": "M6-A",
+    "why": "Refined from the bare gate M6 to the slice that genuinely completes it. M6-E is where pilot hardware is exercised, and this aspect terminates in a PHYSICAL PRINTER — ink leaving a real machine onto real paper. No earlier M6 slice touches one: M6-A builds the artifact, M6-B backs the estate up, M6-C destroys and restores it, M6-D is reporting and exports. Naming a bare gate made this come due on tests/m6a, which is the register working — an entry that names a gate comes due on that gate's FIRST slice, and this one was never about the first slice."
    }
   },
   {
@@ -290,39 +290,45 @@
    "requirement": "FR-FUL-012",
    "aspect": "analytical consumption",
    "opened_at": "M3-B",
-   "completing_gate": "M6",
+   "completing_gate": "M6-D",
    "state": "open",
    "completed_by": "FR-RPT-003",
-   "why": "Prep, wait and SLA times compute per station, item and order from timestamps the fold wrote out of the ledger. Consuming them as analytics is operational reporting at M6."
+   "why": "Prep, wait and SLA times compute per station, item and order from timestamps the fold wrote out of the ledger. Consuming them as analytics is operational reporting at M6.",
+   "completer_moved": {
+    "from": "M6",
+    "to": "M6-D",
+    "at": "M6-A",
+    "why": "Refined from the bare gate M6 to the slice that completes it. The aspect is 'consuming them as analytics is operational reporting at M6', and M6-D is the reporting and exports slice. The prep, wait and SLA times themselves are already computed out of the ledger; what is missing is a report that consumes them."
+   }
   },
   {
    "requirement": "FR-FUL-014",
    "aspect": "physical printing and dedup across restart",
    "opened_at": "M3-B",
-   "completing_gate": "M6",
+   "completing_gate": "M6-E",
    "state": "open",
    "completed_by": "FR-CFG-001E",
    "why": "Station ticket documents are generated and deduplicated by a unique key on (ticket, revision), where the revision ignores document generation itself. Physical printing, print-agent delivery and deduplication across a restart are the local print path, which is M5a.",
    "completer_moved": {
-    "from": "M5a",
-    "to": "M6",
-    "at": "M5a",
-    "why": "Half of this aspect IS closed by M5a — deduplication across restart is proved in tests/m5a and GJ-10: an expired lease returns a job to the queue, a printed job cannot be requeued, and reporting the same print twice records one attempt. The other half is physical printing, which needs a real machine and belongs with FR-BIL-017's last inch at M6. The entry is moved rather than split because the aspect as WRITTEN names both, and closing it on the half that is done would record the physical half as delivered."
+    "from": "M6",
+    "to": "M6-E",
+    "at": "M6-A",
+    "why": "Refined from the bare gate M6 to the slice that genuinely completes it. M6-E is where pilot hardware is exercised, and this aspect terminates in a PHYSICAL PRINTER — ink leaving a real machine onto real paper. No earlier M6 slice touches one: M6-A builds the artifact, M6-B backs the estate up, M6-C destroys and restores it, M6-D is reporting and exports. Naming a bare gate made this come due on tests/m6a, which is the register working — an entry that names a gate comes due on that gate's FIRST slice, and this one was never about the first slice."
    }
   },
   {
    "requirement": "FR-FUL-015",
    "aspect": "rerouting with the outlet node authoritative",
    "opened_at": "M3-B",
-   "completing_gate": "M6",
+   "completing_gate": "M6-D",
    "state": "open",
    "completed_by": "FR-CFG-001E",
    "why": "An authorized reroute moves the ticket and its line units without creating anything, proved by a unit-count constraint across every live ticket for the order. Behaviour while the outlet node is authoritative is M5a's.",
    "completer_moved": {
-    "from": "M5a",
-    "to": "M6",
-    "at": "M5a",
-    "why": "M5a proves the kitchen ROUTES and works a ticket while the cloud is unreachable (FR-FUL-001, closed here). It does not drive an authorized REROUTE during an outage, and the unit-count constraint that makes a reroute safe was proved at M3-C against a cloud-authoritative outlet. Rather than close this on the neighbouring aspect's evidence, it moves to the gate that revisits fulfilment under production conditions."
+    "from": "M6",
+    "to": "M6-D",
+    "at": "M6-A",
+    "why": "Refined from the bare gate M6 to the slice that completes it. The move to M6 said this belongs at 'the gate that revisits fulfilment under production conditions', and M6-D is that slice. M5b supplied the half that was missing: an outlet node is now AUTHORITATIVE by a monotonic sequence rather than by being the only node, so 'a reroute while the node is authoritative' is finally a state that can be set up rather than assumed."
    }
   },
   {
@@ -630,30 +636,30 @@
    "requirement": "FR-BIL-017",
    "aspect": "paper out of a physical machine",
    "opened_at": "M4-C",
-   "completing_gate": "M6",
+   "completing_gate": "M6-E",
    "state": "open",
    "completed_by": "FR-CFG-001E",
    "why": "FR-BIL-017 asks that a completed settlement produces a real physical customer receipt through a supported minimum production printer path, and M4-C built all of that path except its last inch. The receipt is composed from the bill's own figures in the bill's own locale, rasterised at 576 dots by the printer path's own rendering engine, checked per glyph against the font this repository ships, encoded into ESC/POS and written to a sink that refuses anything which is not a character device. One settlement produces one original print, refused twice over by a partial unique index and by a trigger. WHAT IS NOT PROVED is that a physical machine took those bytes and produced legible paper: no printer exists in the build container or on either CI runner and no pilot device has been chosen, so the command set is the published generic one and no vendor's extension. This is recorded here rather than in a footnote because it is the difference between a path and an artifact, and planning/M4C_LIMITATIONS.md states it against the commit it was true at. It closes at M5a, which is the first gate that has hardware — and if M5a selects a different rasteriser, NC-M4-005 must be run against that engine, because glyph coverage is a property of the rasteriser and of the font together and does not transfer.",
    "completer_moved": {
-    "from": "M5a",
-    "to": "M6",
-    "at": "M5a",
-    "why": "Unchanged by M5a and moved for the same reason FR-FUL-008 is: this gate builds the queue, the retry, the recovery and the deduplication in front of the printer, and every one of those is proved. The last inch — bytes leaving a real machine as paper — needs a chosen production device, which planning/M4C_LIMITATIONS.md already records as outstanding and which M6 selects."
+    "from": "M6",
+    "to": "M6-E",
+    "at": "M6-A",
+    "why": "Refined from the bare gate M6 to the slice that genuinely completes it. M6-E is where pilot hardware is exercised, and this aspect terminates in a PHYSICAL PRINTER — ink leaving a real machine onto real paper. No earlier M6 slice touches one: M6-A builds the artifact, M6-B backs the estate up, M6-C destroys and restores it, M6-D is reporting and exports. Naming a bare gate made this come due on tests/m6a, which is the register working — an entry that names a gate comes due on that gate's FIRST slice, and this one was never about the first slice."
    }
   },
   {
    "requirement": "FR-TST-005A",
    "aspect": "settlement proved at the service tier, not the browser tier",
    "opened_at": "M4-C",
-   "completing_gate": "M6",
+   "completing_gate": "M6-E",
    "state": "open",
    "completed_by": "FR-POS-002",
    "why": "The five settlement journeys are driven by the HTTP calls a cashier's screen would issue, against the running service: checks, allocations, splits, bills, the guest's tip through the guest's own credential, payment intents, cash, terminal results, proofs, receipts, revisions, overrides and reversals. That proves each route exists, is registered, authorises its caller and returns what the caller needs — the thing M4-A shipped without, and the reason the first HTTP call ever made to POST /s/v1/checks failed on two production defects. What it does NOT prove is that a person can reach any of it: there is no cashier settlement surface. waiter/src contains no bill, payment, receipt or tip affordance of any kind, so no button reaches these routes and no browser test can be written against one. DISTINCT FROM THE TWO PRINTING-ADJACENT ENTRIES, deliberately, because all three would otherwise be closed together by whichever gate arrived first: FR-BIL-017's open half is PAPER out of a physical machine, M5a's resilient print queue is DURABILITY of a print across restart and outage, and this one is a SCREEN a cashier can touch. A gate could deliver any one and leave the other two exactly as absent.",
    "completer_moved": {
-    "from": "M5a",
-    "to": "M6",
-    "at": "M5a",
-    "why": "GJ-10 walks the till in a browser for its first settlement, which is more than the service tier and still not what this aspect asks: it asks that the FIVE settlement journeys be proved at the browser tier rather than through the HTTP calls a cashier's screen would issue. M5a walks one of them and adds a sixth journey; it does not convert the other four. Moving it to M6 rather than closing it on one journey's evidence, because 'one of five' is exactly the arithmetic this register exists to stop being rounded up."
+    "from": "M6",
+    "to": "M6-E",
+    "at": "M6-A",
+    "why": "Refined from the bare gate M6 to the slice that completes it. The aspect asks for the FIVE settlement journeys at the BROWSER tier rather than through the HTTP calls a screen would issue, and M6-E is where the floor is walked as a person walks it. It is deliberately not M6-A: that slice proves the artifact executes, which is FR-TST-018's 'against built artifacts' and a different claim from FR-TST-005A's 'at the browser tier'."
    }
   }
  ],

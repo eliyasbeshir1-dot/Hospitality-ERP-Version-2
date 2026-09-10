@@ -4,7 +4,7 @@
      Do not edit by hand: CI regenerates this file and fails on any difference. -->
 
 **Repository:** `Hospitality-ERP-Version-2`
-**Gate:** M5 — building, through **M5-B**
+**Gate:** M6 — building, through **M6-A**
 **Governing requirement:** FR-GOV-001A
 **Source of truth:** `docs/Hospitality_OS_Phase_1_Clean_Build_Package_v2.0.9/`, pinned at
 `b89a2d4211356be5941dc25ff2dc540728c87ed761ffd9894a3f2691ccf5b590`
@@ -30,6 +30,7 @@ distinction between a description and a record, and why the two need opposite tr
 README.md        gate status, prohibitions, lineage — generated
 api/             the cloud API: Fastify and TypeScript, two runtime dependencies
 cashier/         the till: the cashier's surface, vanilla TypeScript like the other three, a fourth entry point because a guest, a kitchen, a waiter and a cashier share no audience and no authentication
+deploy/          how the artifact is packaged. Generated from tools/artifact.py and check-locked against it, because an image with its own COPY list is a second manifest and a second manifest goes stale.
 docs/            the pinned package, byte-identical, verified by its own SHA256SUMS.txt
 docs-local/      cross-platform command reference and its verification record
 evidence/        the generated evidence report
@@ -156,7 +157,7 @@ Every gate begins only when **all** of the following hold:
 - CI runs the validators and fails closed
 
 A gate's first migration is created at that gate, not before. This repository holds
-63, `0001` through `0063`.
+64, `0001` through `0064`.
 
 ---
 

@@ -217,6 +217,12 @@ CONTROLS = [
     ("NC-M5B-003", "Guidance that tells a guest to click through a certificate warning", "RESOLUTION_GUIDANCE_OFFERS_A_BYPASS", "m5b"),
     ("NC-M5B-004", "A node installing a certificate the LAN is not serving", "CERTIFICATE_SERVED_DOES_NOT_MATCH_ISSUED", "m5b"),
     ("NC-M5B-005", "A revoked session handed to a node as still valid", "CONTINUITY_OFFERED_A_REVOKED_SESSION", "m5b"),
+
+    # M6-A. The built artifact, and nothing in it that can reset production.
+    ("NC-M6A-001", "A demonstration seed loader shipped inside the production artifact", "ARTIFACT_CONTAINS_A_SEED_LOADER", "m6a"),
+    ("NC-M6A-002", "An advertised entry point whose dependency the build left behind", "ARTIFACT_ENTRY_POINT_CANNOT_EXECUTE", "m6a"),
+    ("NC-M6A-003", "A demo-reset function installed in the database", "DATABASE_CONTAINS_A_RESET", "m6a"),
+    ("NC-M6A-004", "An image definition edited away from its manifest", "DOCKERFILE_DRIFT", "m6a"),
 ]
 
 

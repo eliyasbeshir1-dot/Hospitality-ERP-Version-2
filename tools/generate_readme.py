@@ -121,7 +121,18 @@ SLICE_DELIVERS = {
             "probe that is checked first; stale events quarantined rather than dropped; a "
             "session and its spent idempotency keys carried across the cloud-to-LAN "
             "transition so a retry is absorbed rather than cooked twice; and the six "
-            "notification producers three partial closures had been waiting for since M3-C"
+            "notification producers three partial closures had been waiting for since M3-C",
+    "M6-A": "the built production artifact, and nothing inside it that can reset "
+            "production. One manifest that the builder copies from, the Dockerfile is "
+            "generated from, the completeness check probes and the prohibition scan reads "
+            "— because a COPY list beside a build script beside a checklist is three "
+            "places to say one thing and two of them go stale. Every advertised entry "
+            "point is RUN from inside the built tree with PYTHONPATH and NODE_PATH "
+            "cleared, so a file that is present and fails because the build left a "
+            "dependency behind is caught where a missing file would have been obvious. "
+            "And no seed reaches it: every seed in this repository builds the "
+            "demonstration floor, so shipping one would put a way to create demonstration "
+            "tenants into production, which is worse than a way to reset them"
 }
 
 # The gates in order, and what each one brings that does not exist yet. Rows are emitted
@@ -345,6 +356,9 @@ SUITE_PURPOSE = {
            "its spent idempotency keys surviving the move from cloud to LAN, so a retry "
            "is absorbed rather than cooked twice; and every function this gate added, "
            "CALLED — because three of them applied cleanly and could never have run",
+    "m6a": "the artifact that ships: built from the manifest, every advertised entry "
+           "point executed from inside it with the repository made unreachable, and "
+           "scanned — with the database — for any way to reset or reseed production",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
     "journeys": "the golden journeys end to end in a browser against real "
                 "persistence, plus the duplicate-submit race: what a guest and a waiter "

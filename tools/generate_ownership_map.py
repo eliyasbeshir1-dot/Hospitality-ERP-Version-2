@@ -327,6 +327,9 @@ MIGRATION_SLICE = {
     # Attributed to M3-D, the slice that owns the projection-rebuild rule tests/m4b
     # enforces: a kind that names no rebuild is that rule's defect, not M5b's.
     "0063": "M3-D",
+    # 0064 is FR-OPS-006 and FR-SEC-019: the backup schedule as something that can be
+    # asked, and a backup that is not `verified` until something has read it back.
+    "0064": "M6-B",
 }
 
 
