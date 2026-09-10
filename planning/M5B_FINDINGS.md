@@ -194,14 +194,29 @@ raises them.
 
 `seeds/0018` names `OUTLET_MANAGER`, which is real.
 
-**The safer option, recorded for overturning:** it deliberately does **not** invent a
-member. No user holds that role at Kazanchis, so `accountable_staff()` returns no rows and
-no staff notice is addressed to anybody; the notification row is still created and
-readable. That is the honest state of a floor whose manager has not been assigned, and it
-is an operator's job rather than a seed's. A seed that granted somebody the role to make a
-check pass would be guessing on the operator's behalf, which is exactly what
-`accountable_staff()` refuses to do. **If you would rather the demonstration floor had a
-manager, say so and it is one line.**
+**The safer option was recorded for overturning, and it WAS OVERTURNED.** `seeds/0018`
+deliberately invented no member for the role, on the reasoning that who is accountable is
+an operator's decision and a seed granting somebody a role to make a check pass would be
+guessing on their behalf.
+
+**Ruling: the demonstration floor should have a manager.** `seeds/0019` gives Kazanchis
+one — the account, the verified channel FR-AUTH-001 requires, a credential and the
+membership — so a critical notice there reaches a person rather than being created and
+addressed to nobody.
+
+The part of the original reasoning that survives is worth keeping straight, because it was
+never the wrong half: `notify.accountable_staff()` still REFUSES rather than guesses, and
+nothing in the overturn changes that. What was wrong was applying that caution to a
+DEMONSTRATION FLOOR, which is precisely where a complete outlet is the point. Sarbet has
+had a manager since `0003`; Kazanchis is where every golden journey runs and had no product
+staff at all — only fixture users.
+
+A separate seed rather than an edit, for the reason `0007`, `0014` and `0016` all give:
+seeds are checksum-locked. `0018` is not wrong and is not rewritten — it named the role,
+and `0019` fills it. The scrypt parameters were verified rather than copied: the Sarbet
+manager's stored digest was re-derived from its stored salt and checked to match before a
+new one was minted, so the credential uses what `identity.authenticate_credential()`
+actually does rather than what a comment says it does.
 
 ---
 
@@ -264,7 +279,11 @@ asserted**: `ordering.link_correlation_artifact()` refuses the kind, so the clai
 property of the schema. Same move `0059` made when NC-M5B-005 showed a filter is not a
 refusal.
 
-**The bound this leaves, and it is real work rather than a tidy-up.** `ordering.artifact_kind`
+**RULED: the widening stays, and this finding is its disposal.** The alternative was put
+up for overturning and the ruling was to keep `0060`. What follows is therefore the
+recorded disposal of a decision rather than an open question.
+
+`ordering.artifact_kind`
 now does double duty: eleven values meaning "a thing a guest orders or pays for" and one
 meaning "the machine serving them". The type lives in `ordering` and `notify` is the only
 user of the twelfth value. The clean answer is a separate `notify.subject_kind`. It was not

@@ -639,13 +639,16 @@ def section_notices() -> None:
 
     accountable = q("SELECT count(*)::text FROM notify.accountable_staff"
                     f"('{TENANT}','{SIBLING}');", outlet=SIBLING).scalar
-    record("the demonstration floor can now say who is accountable",
-           (accountable or "").isdigit(),
-           f"{accountable} accountable member(s)\n"
+    record("a critical notice on the demonstration floor reaches a person",
+           (accountable or "0").isdigit() and int(accountable or 0) >= 1,
+           f"{accountable} accountable member(s) at Kazanchis. "
            "Kazanchis had no 'service' policy at all, so every critical notice there was "
-           "unraisable. seeds/0018 names OUTLET_MANAGER — a real role — and deliberately "
-           "does NOT invent a member for it: who is accountable stays an operator's "
-           "decision, which is exactly what accountable_staff() refuses to guess at")
+           "unraisable; seeds/0018 names OUTLET_MANAGER, which is a real role. seeds/0018 "
+           "deliberately invented no MEMBER for it and that was raised as F-M5B-8 for "
+           "overturning — it WAS overturned, and seeds/0019 gives the floor a manager who "
+           "can also sign in. What survives the overturn is that accountable_staff() still "
+           "REFUSES rather than guesses; what changed is that a demonstration floor is "
+           "exactly where a complete outlet is the point")
 
 
 # ===========================================================================
@@ -789,10 +792,11 @@ def section_bounds() -> None:
         "FENCE EVIDENCE IS A SENTENCE A PERSON TYPED. Every value of the enum is something "
         "an operator DID and can be asked about, and there is no 'assumed_down' — but "
         "nothing here verifies that the switch port was really shut",
-        "NO STAFF MEMBER HOLDS OUTLET_MANAGER AT KAZANCHIS, so the notices this gate "
-        "produces there are created and addressed to nobody. That is the honest state of a "
-        "floor whose manager has not been assigned, and seeds/0018 deliberately does not "
-        "invent one — who is accountable is an operator's decision",
+        "ordering.artifact_kind NOW DOES DOUBLE DUTY: eleven values meaning a thing a "
+        "guest orders or pays for, and `node`, meaning the machine serving them. The clean "
+        "answer is a separate notify.subject_kind and it was NOT taken, by ruling — "
+        "PostgreSQL cannot drop an enum value, so undoing it means recreating a type used "
+        "by three columns and four functions. F-M5B-12 is its disposal",
     ):
         record("recorded in planning/M5B_FINDINGS.md", True, bound)
 
