@@ -286,6 +286,29 @@ table rather than sharing GJ-07's.
 the local API in the node profile, the sync worker and the realtime gateway, and reads the
 node's identity out of the database rather than holding constants.
 
+## The verdict
+
+```
+PASS LOCAL_CHAIN:         1646 checks and journey steps across 20 suites, 0 failures
+PASS LOCAL_CHAIN_REORDER: every suite identical in both directions
+```
+
+Forward from empty in CI's order, then every suite backwards against the database that run
+left, with each required to report the same failure count either way. Twenty-one defects
+were found across ten runs to reach it, every one mine, and only three were in the gate's
+own code.
+
+One thing observed during the reordered sweep and recorded rather than fixed: OP-B paused
+for about fifteen minutes with no output before continuing normally. That is the shape of
+FR-AUTH-007's lockout window expiring, and it is the deliberate consequence of removing
+`clear_lockout()` from OP-B, OP-C and OP-D — the hygiene that hid the lockout defect in the
+first place. The sweep signs in repeatedly across twenty suites, so it meets the limiter
+the suites are no longer allowed to clear. **It is working as ruled**; it makes a reordered
+run about fifteen minutes longer than it looks like it should be, and a reader watching a
+silent log should know that before concluding it has hung.
+
+---
+
 ## The bounds — what M5a does not prove
 
 Named here and named again in the suite's own output, so a reader meets them rather than
