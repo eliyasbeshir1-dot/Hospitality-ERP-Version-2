@@ -273,6 +273,9 @@ MIGRATION_SLICE = {
     # 0048 is FR-OPS-010: signed updates, the database compatibility check, and a rollback
     # that has to prove it did not lose queued work.
     "0048": "M5a",
+    # 0049 opens M5b: the bidirectional reachability lease FR-EDG-023 specifies down to
+    # the second. It owns `edge` alongside M5a's, because a lease is a fact about a node.
+    "0049": "M5b",
 }
 
 

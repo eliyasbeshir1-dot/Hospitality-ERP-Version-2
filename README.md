@@ -218,6 +218,7 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0046_a_node_at_the_wrong_outlet_is_told_so.sql`
 - `0047_the_room_is_told_which_way_the_outlet_is_running.sql`
 - `0048_an_update_is_checked_before_it_lands_and_leaves_the_queues_alone.sql`
+- `0049_the_cloud_and_the_outlet_each_prove_the_other_is_there.sql`
 
 ## Seeds
 
