@@ -303,6 +303,12 @@ MIGRATION_SLICE = {
     # 0056 repairs 0054's bypass check, which never ran: `~*` and `||` share a precedence
     # class, so the pattern was half a regex with an unclosed parenthesis.
     "0056": "M5b",
+    # 0057 is FR-EDG-026: what a node needs to answer for a session the cloud started, so
+    # a retry across the cloud-to-LAN transition is absorbed rather than cooked twice.
+    "0057": "M5b",
+    # 0058 repairs 0057's cast to identity.authentication_strength, a type that has never
+    # existed. The second migration in this gate to apply cleanly and be unrunnable.
+    "0058": "M5b",
 }
 
 

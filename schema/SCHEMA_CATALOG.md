@@ -202,6 +202,7 @@ graph LR
   edge_node["edge.node"]
   edge_authority_claim["edge.authority_claim"]
   identity_step_up_grant["identity.step_up_grant"]
+  edge_continuity_record["edge.continuity_record"]
   edge_deployment_profile["edge.deployment_profile"]
   edge_forwarding_lease["edge.forwarding_lease"]
   edge_lease_policy["edge.lease_policy"]
@@ -464,6 +465,7 @@ graph LR
   edge_authority_claim --> identity_step_up_grant
   edge_authority_claim --> identity_user_account
   edge_authority_claim --> org_org_node
+  edge_continuity_record --> org_org_node
   edge_deployment_profile --> identity_user_account
   edge_deployment_profile --> org_org_node
   edge_forwarding_lease --> edge_node
@@ -2763,6 +2765,45 @@ Constraints:
 Policies:
 
 - `authority_claim_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `edge.continuity_record`
+
+FR-EDG-026. The two kinds of row a node needs to answer for a session the cloud started: the session itself and the idempotency keys spent against it. Digests only — a node can VERIFY a token a guest presents and cannot mint one. Narrow on purpose: the general answer is bidirectional replication and that is not what this requirement asks for.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `record_kind` | `text` | NOT NULL |  |  |
+| `record_key` | `text` | NOT NULL |  |  |
+| `payload` | `jsonb` | NOT NULL |  |  |
+| `valid_until` | `timestamp with time zone` | NOT NULL |  |  |
+| `produced_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `continuity_record_expires` — `CHECK ((valid_until > produced_at))`
+- `continuity_record_id_not_null` — `NOT NULL id`
+- `continuity_record_identity` — `UNIQUE (tenant_id, outlet_id, record_kind, record_key)`
+- `continuity_record_key_is_stated` — `CHECK ((length(TRIM(BOTH FROM record_key)) > 0))`
+- `continuity_record_kind_is_known` — `CHECK ((record_kind = ANY (ARRAY['session'::text, 'idempotency'::text])))`
+- `continuity_record_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `continuity_record_outlet_id_not_null` — `NOT NULL outlet_id`
+- `continuity_record_payload_not_null` — `NOT NULL payload`
+- `continuity_record_pkey` — `PRIMARY KEY (id)`
+- `continuity_record_produced_at_not_null` — `NOT NULL produced_at`
+- `continuity_record_record_key_not_null` — `NOT NULL record_key`
+- `continuity_record_record_kind_not_null` — `NOT NULL record_kind`
+- `continuity_record_tenant_id_not_null` — `NOT NULL tenant_id`
+- `continuity_record_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `continuity_record_valid_until_not_null` — `NOT NULL valid_until`
+
+Policies:
+
+- `continuity_record_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
 #### `edge.deployment_profile`
 

@@ -136,7 +136,7 @@ position is to write fresh.
 
 | Path | Contents |
 |---|---|
-| `api/` | the cloud API — Fastify and TypeScript, two runtime dependencies, serving `api`, `auth`, `billing`, `customer`, `documents`, `health`, `node`, `payments`, `reports`, `service`, `staff`, `station` and `surface` |
+| `api/` | the cloud API — Fastify and TypeScript, two runtime dependencies, serving `api`, `auth`, `billing`, `customer`, `documents`, `health`, `node`, `payments`, `reports`, `resolve`, `service`, `staff`, `station` and `surface` |
 | `docs/` | the approved v2.0.9 package, byte-identical and verified by its own `SHA256SUMS.txt` |
 | `docs-local/` | cross-platform command reference |
 | `evidence/` | `M1_EVIDENCE_REPORT.md`, generated from the repository, database and suite logs |
@@ -226,6 +226,8 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0054_the_four_ways_a_real_phone_resolves_a_name_and_what_each_one_is_told.sql`
 - `0055_a_certificate_is_requested_by_an_action_not_written_as_configuration.sql`
 - `0056_the_bypass_check_was_never_actually_checking.sql`
+- `0057_a_session_that_started_on_cellular_is_answerable_in_the_dining_room.sql`
+- `0058_the_continuity_apply_named_a_type_that_does_not_exist.sql`
 
 ## Seeds
 

@@ -28,6 +28,7 @@ import { registerStationRoutes } from './routes/station';
 import { registerSurfaceRoutes } from './routes/surface';
 import { registerHealthRoutes } from './routes/health';
 import { registerCloudConnectivityRoute, registerNodeRoutes } from './routes/node';
+import { registerResolveRoutes } from './routes/resolve';
 import { authenticateNode, isNodeProfile, type NodeProfile } from './node/identity';
 import {
   InProcessRateLimiter, registerCsrfGuard, registerCustomerSurfaceHeaders,
@@ -149,6 +150,17 @@ export async function start(): Promise<{ close(): Promise<void>; port: number }>
   } else {
     registerCloudConnectivityRoute(app);
   }
+  // ON BOTH PROFILES, WHICH IS WHAT SAME-QR MEANS. The name in the QR resolves to the
+  // cloud from the street and to the node in the dining room, and both answers have to be
+  // able to say where to go. The answers differ — a node knows the request reached the
+  // LAN — and the difference is the mechanism, not an inconsistency.
+  registerResolveRoutes(app, {
+    db,
+    logger,
+    node: nodeProfile
+      ? { tenantId: nodeProfile.tenantId, outletId: nodeProfile.outletId, nodeId: nodeProfile.nodeId }
+      : undefined,
+  });
   // The compiled surface sits beside the compiled server, so one build produces both and
   // there is no second artefact to deploy or forget.
   registerSurfaceRoutes(app, join(__dirname, 'public'));

@@ -5,6 +5,7 @@
  *
  *   1. recovers anything that was in flight when the process last stopped
  *   2. asks the cloud what protocol it speaks, and pauses if the answer is out of range
+ *   2b. takes up any session continuity the cloud offered on the way back
  *   3. offers the cloud whatever may travel, in dependency order
  *   4. acknowledges what the cloud accepted, moving the cursor
  *
@@ -75,6 +76,44 @@ export async function runOneRound(
       return { offered: 0, accepted: 0, connected: false };
     }
     throw error;
+  }
+
+  // 2b. FR-EDG-026. Take up whatever the cloud offered for sessions it started.
+  //
+  // HERE RATHER THAN AFTER THE BATCH, because the batch has an early return when there is
+  // nothing to send and an idle node is exactly the node that most needs this. A node with
+  // an empty outbox is a node between services, and the guest walking in with a session
+  // started on cellular arrives in that gap.
+  //
+  // Applied BEFORE compatibility is checked, deliberately. Continuity records are data the
+  // node stores and verifies against, not events it interprets, so an incompatible peer
+  // does not make them dangerous — and a node that refused a handoff because the protocol
+  // had moved on would drop a guest's session over a version number.
+  if (acknowledgement.continuity && acknowledgement.continuity.length > 0) {
+    const applied = await withNodeContext(client, { tenantId, outletId: profile.outletId },
+      async (scoped) => {
+        for (const record of acknowledgement.continuity!) {
+          await scoped.query(
+            `INSERT INTO edge.continuity_record
+                 (tenant_id, outlet_id, record_kind, record_key, payload, valid_until)
+             VALUES ($1::uuid, $2::uuid, $3, $4, $5::jsonb, $6::timestamptz)
+             ON CONFLICT (tenant_id, outlet_id, record_kind, record_key) DO UPDATE
+                SET payload = EXCLUDED.payload, valid_until = EXCLUDED.valid_until,
+                    produced_at = now()`,
+            [tenantId, profile.outletId, record.recordKind, record.recordKey,
+             JSON.stringify(record.payload), record.validUntil]);
+        }
+        const { rows } = await scoped.query(
+          'SELECT sessions_applied, keys_applied FROM edge.apply_continuity($1::uuid, $2::uuid)',
+          [tenantId, profile.outletId]);
+        return rows[0] as { sessions_applied: number; keys_applied: number };
+      });
+    logger.info('continuity taken up', {
+      event: 'sync.continuity',
+      offered: acknowledgement.continuity.length,
+      sessions: applied.sessions_applied,
+      keys: applied.keys_applied,
+    });
   }
 
   const compatible = await withNodeContext(client,

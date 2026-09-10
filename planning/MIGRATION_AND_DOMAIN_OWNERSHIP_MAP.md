@@ -56,7 +56,7 @@ Counted from `active_requirements` in the pinned package, by `introduced_at`.
 
 ## The migrations this repository has
 
-56 of them, `0001_organizational_model_and_rls.sql` through `0056_the_bypass_check_was_never_actually_checking.sql`, across
+58 of them, `0001_organizational_model_and_rls.sql` through `0058_the_continuity_apply_named_a_type_that_does_not_exist.sql`, across
 22 domains. The owning domain of each is read out of its own SQL — the
 schemas it creates and the schemas it creates tables in — and the gate from the header
 comment every migration in this repository carries.
@@ -119,6 +119,8 @@ comment every migration in this repository carries.
 | `0054_the_four_ways_a_real_phone_resolves_a_name_and_what_each_one_is_told.sql` | edge | — | M5b |
 | `0055_a_certificate_is_requested_by_an_action_not_written_as_configuration.sql` | — | edge | M5b |
 | `0056_the_bypass_check_was_never_actually_checking.sql` | — | edge | M5b |
+| `0057_a_session_that_started_on_cellular_is_answerable_in_the_dining_room.sql` | edge | — | M5b |
+| `0058_the_continuity_apply_named_a_type_that_does_not_exist.sql` | — | edge | M5b |
 
 ---
 

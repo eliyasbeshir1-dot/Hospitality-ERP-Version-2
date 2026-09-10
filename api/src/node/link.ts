@@ -67,6 +67,21 @@ export interface CloudAcknowledgement {
   accepted: string[];
   /** The protocol version the cloud speaks, so FR-EDG-012 can refuse an incompatible peer. */
   protocolVersion: number;
+  /**
+   * FR-EDG-026. What the node needs in order to answer for a session the cloud started:
+   * live sessions and the idempotency keys already spent against them.
+   *
+   * IT RIDES THE ACKNOWLEDGEMENT RATHER THAN A SECOND CALL. The node exchanges every round
+   * while the link is up, and when the link is down there is nothing to fetch — a node in
+   * an outage should already be holding what it needs, which is the entire point. A
+   * separate endpoint would add a round trip that is only ever made at the moment it can
+   * least be spared.
+   *
+   * Optional because a cloud that predates this field is a cloud that sends no continuity,
+   * and the node applying nothing is the correct reading of that.
+   */
+  continuity?: Array<{ recordKind: 'session' | 'idempotency'; recordKey: string;
+                       payload: unknown; validUntil: string }>;
 }
 
 export interface CloudLink {
@@ -123,7 +138,15 @@ export class LoopbackCloudLink implements CloudLink {
     if (uplinkState(this.env) === 'cut') {
       throw new CloudUnreachable(this.endpoint);
     }
-    return { accepted: request.events.map((event) => event.eventId), protocolVersion: 1 };
+    return {
+      accepted: request.events.map((event) => event.eventId),
+      protocolVersion: 1,
+      // NO CONTINUITY, AND THAT IS THE TRUTHFUL ANSWER RATHER THAN A GAP. This link stands
+      // in for a cloud that is not there; a cloud that is not there has no sessions of its
+      // own to hand over, so there is nothing for a node to take up. Returning fabricated
+      // records would make the node believe it had absorbed a handoff that never happened.
+      continuity: [],
+    };
   }
 }
 
