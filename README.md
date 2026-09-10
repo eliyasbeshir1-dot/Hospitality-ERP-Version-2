@@ -258,6 +258,7 @@ history: seeds are data, not structure.
 - `0016_a_name_a_certificate_and_the_four_things_a_phone_is_told.provision.sql`
 - `0017_the_two_nodes_are_given_a_lease_policy_and_the_authority_to_write.provision.sql`
 - `0018_kazanchis_can_say_who_is_accountable_now_that_it_has_something_to_say.sql`
+- `0019_kazanchis_has_a_manager_and_the_notices_now_reach_a_person.sql`
 
 ## Verification
 
