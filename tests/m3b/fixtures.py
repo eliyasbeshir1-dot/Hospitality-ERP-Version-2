@@ -151,17 +151,57 @@ def _seed_routing() -> None:
 
 
 def _seed_service_policy() -> None:
-    """The three windows FR-FUL-005, FR-FUL-010 and FR-FUL-013 refuse to default."""
+    """The three windows FR-FUL-005, FR-FUL-010 and FR-FUL-013 refuse to default.
+
+    IT SUPERSEDES RATHER THAN CLAIMS VERSION 1, and that changed at M5b. This inserted
+    version 1 with ON CONFLICT (id) DO NOTHING, which reads as "if I already made this row,
+    fine" — but config.policy's real uniqueness is (tenant, outlet, category, version), so
+    the guard caught the fixture colliding with ITSELF and not with anybody else. When
+    seeds/0018 gave Kazanchis a service policy as PRODUCT data, also at version 1, the
+    fixture's insert violated policy_unique and five suites failed at their first fixture.
+
+    A fixture may not own a version number. config.policy is versioned precisely so that a
+    later statement supersedes an earlier one, readers take the highest, and the history of
+    what the policy WAS stays readable — so this takes the next version rather than a fixed
+    one.
+
+    AND IT CARRIES FORWARD WHAT IT DOES NOT SET. Superseding with only these three keys
+    would hide seeds/0018's critical_alert_role_code, and notify.accountable_staff() would
+    then refuse with SERVICE_POLICY_INCOMPLETE — which is the defect seeds/0007 had to fix
+    for Sarbet after seed 0003 wrote a partial payload. The merge is `what is there` ||
+    `what this fixture insists on`, so the fixture's three windows win and nothing else is
+    lost.
+
+    THE GUARD IS OUTSIDE THE AGGREGATE, and the first attempt put it inside. An aggregate
+    with no GROUP BY returns ONE ROW even when its WHERE matches nothing — max() over
+    nothing is NULL, coalesce made that version 1, and the second call collided on the
+    primary key. Filtering v rather than p is what makes "already seeded" mean no row at
+    all. It is also why there is no separate first-run branch: over an empty set the same
+    statement yields version 1 and an empty payload, which is exactly the first run.
+    """
     res = run(APP, f"""
         INSERT INTO config.policy
             (id, tenant_id, outlet_id, category, version, payload, effective_from,
              actor_id, approved_by_id, approved_at)
-        VALUES ('{SERVICE_POLICY}', '{TENANT}', '{OUTLET_H1}', 'service', 1,
-                '{{"recall_window_seconds": 900,
-                   "collection_escalation_seconds": 300,
-                   "capacity_response": "throttle"}}'::jsonb,
-                now() - interval '1 day', '{USER}', '{USER}', now() - interval '1 day')
-        ON CONFLICT (id) DO NOTHING;
+        SELECT '{SERVICE_POLICY}', '{TENANT}', '{OUTLET_H1}', 'service',
+               v.next_version, v.merged,
+               now() - interval '1 day', '{USER}', '{USER}', now() - interval '1 day'
+          FROM (
+            SELECT coalesce(max(p.version), 0) + 1 AS next_version,
+                   coalesce((SELECT p2.payload FROM config.policy p2
+                              WHERE p2.tenant_id = '{TENANT}'
+                                AND p2.outlet_id = '{OUTLET_H1}'
+                                AND p2.category = 'service'
+                              ORDER BY p2.version DESC LIMIT 1), '{{}}'::jsonb)
+                   || '{{"recall_window_seconds": 900,
+                         "collection_escalation_seconds": 300,
+                         "capacity_response": "throttle"}}'::jsonb AS merged
+              FROM config.policy p
+             WHERE p.tenant_id = '{TENANT}' AND p.outlet_id = '{OUTLET_H1}'
+               AND p.category = 'service'
+          ) v
+         WHERE NOT EXISTS (SELECT 1 FROM config.policy e
+                            WHERE e.id = '{SERVICE_POLICY}');
     """, **CTX)
     _fail("service policy", res)
 
