@@ -56,7 +56,7 @@ Counted from `active_requirements` in the pinned package, by `introduced_at`.
 
 ## The migrations this repository has
 
-52 of them, `0001_organizational_model_and_rls.sql` through `0052_replacing_the_writer_is_a_governed_action.sql`, across
+56 of them, `0001_organizational_model_and_rls.sql` through `0056_the_bypass_check_was_never_actually_checking.sql`, across
 22 domains. The owning domain of each is read out of its own SQL — the
 schemas it creates and the schemas it creates tables in — and the gate from the header
 comment every migration in this repository carries.
@@ -115,6 +115,10 @@ comment every migration in this repository carries.
 | `0050_only_one_writer_and_the_old_one_is_fenced_before_the_new_one_starts.sql` | edge | app | M5b |
 | `0051_a_standby_may_exist_because_authority_now_says_who_writes.sql` | — | edge | M5b |
 | `0052_replacing_the_writer_is_a_governed_action.sql` | — | identity · edge | M1-B |
+| `0053_one_hostname_per_outlet_a_key_that_never_leaves_and_four_things_that_may_not_exist.sql` | edge | — | M5b |
+| `0054_the_four_ways_a_real_phone_resolves_a_name_and_what_each_one_is_told.sql` | edge | — | M5b |
+| `0055_a_certificate_is_requested_by_an_action_not_written_as_configuration.sql` | — | edge | M5b |
+| `0056_the_bypass_check_was_never_actually_checking.sql` | — | edge | M5b |
 
 ---
 

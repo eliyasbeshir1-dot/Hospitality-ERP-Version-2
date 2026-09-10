@@ -222,6 +222,10 @@ Forward-only and checksum-locked. An edited applied migration fails preflight.
 - `0050_only_one_writer_and_the_old_one_is_fenced_before_the_new_one_starts.sql`
 - `0051_a_standby_may_exist_because_authority_now_says_who_writes.sql`
 - `0052_replacing_the_writer_is_a_governed_action.sql`
+- `0053_one_hostname_per_outlet_a_key_that_never_leaves_and_four_things_that_may_not_exist.sql`
+- `0054_the_four_ways_a_real_phone_resolves_a_name_and_what_each_one_is_told.sql`
+- `0055_a_certificate_is_requested_by_an_action_not_written_as_configuration.sql`
+- `0056_the_bypass_check_was_never_actually_checking.sql`
 
 ## Seeds
 
@@ -243,6 +247,7 @@ history: seeds are data, not structure.
 - `0013_the_demonstration_floor_knows_its_estate.sql`
 - `0014_the_room_can_be_told.provision.sql`
 - `0015_replacing_a_writer_is_governed_here_too.provision.sql`
+- `0016_a_name_a_certificate_and_the_four_things_a_phone_is_told.provision.sql`
 
 ## Verification
 

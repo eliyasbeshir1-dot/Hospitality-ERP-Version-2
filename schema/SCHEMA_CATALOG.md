@@ -44,6 +44,8 @@ Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `docs`, `edge`, `f
 | `docs.render_outcome` | rendered, failed |
 | `docs.sink_kind` | device, preview, discard |
 | `edge.authority_state` | held, superseded |
+| `edge.certificate_state` | requested, issued, installed, renewing, revoked, expired |
+| `edge.client_condition` | lan_resolver, cached_public_answer, encrypted_dns, dual_stack, public_internet |
 | `edge.connectivity_state` | cloud_connected, local_continuity, reconciling |
 | `edge.dependency_kind` | local_only, external_required |
 | `edge.environment_class` | production, pilot, demonstration, development |
@@ -55,6 +57,8 @@ Schemas covered: `app`, `audit`, `billing`, `cash`, `config`, `docs`, `edge`, `f
 | `edge.outage_disposition` | permitted, queued, blocked |
 | `edge.proof_direction` | cloud_to_node, node_to_cloud |
 | `edge.readiness_element` | active_menu, approved_translations, allergens, prices, taxes, service_and_tip_settings, tables, staff_access, stations, printers, open_sessions |
+| `edge.renewal_posture` | healthy, renew_now, alert_14_days, alert_7_days, expired, absent |
+| `edge.resolution_outcome` | trusted_local, cloud_served, staff_guidance |
 | `edge.serving_mode` | continuity_node, cloud_only |
 | `edge.sync_display_state` | saved_locally, queued, synchronized, conflict, blocked |
 | `edge.update_state` | staged, applied, rolled_back, refused |
@@ -203,13 +207,16 @@ graph LR
   edge_lease_policy["edge.lease_policy"]
   identity_service_principal["identity.service_principal"]
   edge_node_admin_action["edge.node_admin_action"]
+  edge_node_certificate["edge.node_certificate"]
   edge_node_health_sample["edge.node_health_sample"]
   edge_node_service["edge.node_service"]
   edge_node_update["edge.node_update"]
   edge_update_bundle["edge.update_bundle"]
+  edge_outlet_hostname["edge.outlet_hostname"]
   edge_plain_language["edge.plain_language"]
   edge_quarantined_event["edge.quarantined_event"]
   edge_reachability_proof["edge.reachability_proof"]
+  edge_supported_network["edge.supported_network"]
   fiscal_adapter["fiscal.adapter"]
   fiscal_document["fiscal.document"]
   fulfillment_priority_change["fulfillment.priority_change"]
@@ -469,6 +476,8 @@ graph LR
   edge_node_admin_action --> edge_node
   edge_node_admin_action --> identity_user_account
   edge_node_admin_action --> org_org_node
+  edge_node_certificate --> edge_node
+  edge_node_certificate --> org_org_node
   edge_node_health_sample --> edge_node
   edge_node_health_sample --> org_org_node
   edge_node_service --> edge_node
@@ -476,12 +485,16 @@ graph LR
   edge_node_update --> edge_node
   edge_node_update --> edge_update_bundle
   edge_node_update --> org_org_node
+  edge_outlet_hostname --> identity_user_account
+  edge_outlet_hostname --> org_org_node
   edge_plain_language --> org_tenant
   edge_quarantined_event --> edge_node
   edge_quarantined_event --> identity_user_account
   edge_quarantined_event --> org_org_node
   edge_reachability_proof --> edge_node
   edge_reachability_proof --> org_org_node
+  edge_supported_network --> edge_outlet_hostname
+  edge_supported_network --> identity_user_account
   edge_update_bundle --> identity_user_account
   edge_update_bundle --> org_tenant
   fiscal_adapter --> identity_user_account
@@ -2965,6 +2978,57 @@ Policies:
 
 - `node_admin_action_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
+#### `edge.node_certificate`
+
+FR-EDG-022A/B. The per-outlet certificate's life: the CSR digest the node submitted, what came back, when it expires, what the LAN actually served and whether that matched. THERE IS NO PRIVATE KEY COLUMN and there is not going to be one — the node generates and retains its key, and a schema with nowhere to put one cannot leak it.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `id` | `uuid` | NOT NULL | `gen_random_uuid()` |  |
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `node_id` | `uuid` | NOT NULL |  |  |
+| `csr_sha256` | `character(64)` | NOT NULL |  |  |
+| `certificate_sha256` | `character(64)` |  |  |  |
+| `issuer` | `text` |  |  |  |
+| `not_before` | `timestamp with time zone` |  |  |  |
+| `not_after` | `timestamp with time zone` |  |  |  |
+| `lan_served_sha256` | `character(64)` |  |  |  |
+| `lan_verified_at` | `timestamp with time zone` |  |  |  |
+| `state` | `edge.certificate_state` | NOT NULL | `'requested'::edge.certificate_state` |  |
+| `renewal_attempts` | `integer` | NOT NULL | `0` |  |
+| `last_renewal_error` | `text` |  |  |  |
+| `revoked_at` | `timestamp with time zone` |  |  |  |
+| `revocation_reason` | `text` |  |  |  |
+| `requested_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+
+Constraints:
+
+- `node_certificate_attempts_not_negative` — `CHECK ((renewal_attempts >= 0))`
+- `node_certificate_csr_sha256_not_null` — `NOT NULL csr_sha256`
+- `node_certificate_id_not_null` — `NOT NULL id`
+- `node_certificate_installed_was_verified` — `CHECK (((state <> 'installed'::edge.certificate_state) OR ((lan_served_sha256 IS NOT NULL) AND (lan_verified_at IS NOT NULL) AND (lan_served_sha256 = certificate_sha256))))`
+- `node_certificate_is_not_self_signed` — `CHECK (((issuer IS NULL) OR (issuer !~~* '%self-signed%'::text)))`
+- `node_certificate_issued_is_complete` — `CHECK (((state = ANY (ARRAY['requested'::edge.certificate_state, 'revoked'::edge.certificate_state])) OR ((certificate_sha256 IS NOT NULL) AND (issuer IS NOT NULL) AND (not_before IS NOT NULL) AND (not_after IS NOT NULL))))`
+- `node_certificate_node_fk` — `FOREIGN KEY (tenant_id, node_id) REFERENCES edge.node(tenant_id, id) ON DELETE CASCADE`
+- `node_certificate_node_id_not_null` — `NOT NULL node_id`
+- `node_certificate_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `node_certificate_outlet_id_not_null` — `NOT NULL outlet_id`
+- `node_certificate_pkey` — `PRIMARY KEY (id)`
+- `node_certificate_renewal_attempts_not_null` — `NOT NULL renewal_attempts`
+- `node_certificate_requested_at_not_null` — `NOT NULL requested_at`
+- `node_certificate_revocation_is_explained` — `CHECK ((((state = 'revoked'::edge.certificate_state) = (revoked_at IS NOT NULL)) AND ((revoked_at IS NULL) = (revocation_reason IS NULL))))`
+- `node_certificate_state_not_null` — `NOT NULL state`
+- `node_certificate_tenant_id_not_null` — `NOT NULL tenant_id`
+- `node_certificate_tenant_id_unique` — `UNIQUE (tenant_id, id)`
+- `node_certificate_window_is_a_window` — `CHECK (((not_after IS NULL) OR (not_before IS NULL) OR (not_after > not_before)))`
+
+Policies:
+
+- `node_certificate_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
 #### `edge.node_health_sample`
 
 FR-EDG-017. What each of the seven components reported and when. Append-only: a health history that can be edited is not evidence, and the cloud operator reads the same rows the outlet operator does.
@@ -3087,6 +3151,52 @@ Policies:
 
 - `node_update_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
+#### `edge.outlet_hostname`
+
+FR-OPS-017, FR-EDG-022A. One public hostname per outlet, and the two addresses split-horizon DNS answers with. The customer never sees either address — they see the name — and that distinction is the whole mechanism. A wildcard name and a raw address are both refused here, because the name is where FR-EDG-022C's first two prohibitions start.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `hostname` | `text` | NOT NULL |  |  |
+| `ttl_seconds` | `integer` | NOT NULL | `60` |  |
+| `declared_by_user_id` | `uuid` | NOT NULL |  |  |
+| `declared_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `public_answer_v4` | `inet` | NOT NULL |  |  |
+| `public_answer_v6` | `inet` | NOT NULL |  |  |
+| `lan_answer_v4` | `inet` | NOT NULL |  |  |
+| `lan_answer_v6` | `inet` | NOT NULL |  |  |
+
+Constraints:
+
+- `outlet_hostname_declared_at_not_null` — `NOT NULL declared_at`
+- `outlet_hostname_declared_by_user_id_not_null` — `NOT NULL declared_by_user_id`
+- `outlet_hostname_declarer_fk` — `FOREIGN KEY (tenant_id, declared_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `outlet_hostname_families_are_what_they_say` — `CHECK (((family(public_answer_v4) = 4) AND (family(lan_answer_v4) = 4) AND (family(public_answer_v6) = 6) AND (family(lan_answer_v6) = 6)))`
+- `outlet_hostname_horizons_are_actually_split` — `CHECK ((((lan_answer_v4 << '10.0.0.0/8'::inet) OR (lan_answer_v4 << '172.16.0.0/12'::inet) OR (lan_answer_v4 << '192.168.0.0/16'::inet)) AND (lan_answer_v6 << 'fc00::/7'::inet) AND (NOT ((public_answer_v4 << '10.0.0.0/8'::inet) OR (public_answer_v4 << '172.16.0.0/12'::inet) OR (public_answer_v4 << '192.168.0.0/16'::inet) OR (public_answer_v4 << '127.0.0.0/8'::inet))) AND (NOT (public_answer_v6 << 'fc00::/7'::inet))))`
+- `outlet_hostname_hostname_not_null` — `NOT NULL hostname`
+- `outlet_hostname_is_a_name_not_an_address` — `CHECK (((hostname !~ '^[0-9]{1,3}(\.[0-9]{1,3}){3}$'::text) AND (hostname !~ ':'::text)))`
+- `outlet_hostname_is_not_a_wildcard` — `CHECK ((hostname !~~ '*%'::text))`
+- `outlet_hostname_lan_answer_v4_not_null` — `NOT NULL lan_answer_v4`
+- `outlet_hostname_lan_answer_v6_not_null` — `NOT NULL lan_answer_v6`
+- `outlet_hostname_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES org.org_node(tenant_id, id) ON DELETE RESTRICT`
+- `outlet_hostname_outlet_id_not_null` — `NOT NULL outlet_id`
+- `outlet_hostname_pkey` — `PRIMARY KEY (tenant_id, outlet_id)`
+- `outlet_hostname_public_answer_v4_not_null` — `NOT NULL public_answer_v4`
+- `outlet_hostname_public_answer_v6_not_null` — `NOT NULL public_answer_v6`
+- `outlet_hostname_shape` — `CHECK ((hostname ~ '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'::text))`
+- `outlet_hostname_tenant_id_not_null` — `NOT NULL tenant_id`
+- `outlet_hostname_ttl_is_sane` — `CHECK (((ttl_seconds >= 1) AND (ttl_seconds <= 3600)))`
+- `outlet_hostname_ttl_seconds_not_null` — `NOT NULL ttl_seconds`
+- `outlet_hostname_unique` — `UNIQUE (hostname)`
+
+Policies:
+
+- `outlet_hostname_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
 #### `edge.plain_language`
 
 FR-EDG-010, FR-POS-008. What a restriction and a synchronization state are called when a person reads them, in each of the three locales. One table for both because both are "say this to somebody in their language", and two tables would be two places to forget Amharic.
@@ -3102,7 +3212,7 @@ Row level security: **enabled**, **forced**.
 
 Constraints:
 
-- `plain_language_code_shape` — `CHECK ((phrase_code ~ '^(restriction|sync_state|connectivity)\.[a-z][a-z0-9_]*$'::text))`
+- `plain_language_code_shape` — `CHECK ((phrase_code ~ '^(restriction|sync_state|connectivity|resolution)\.[a-z][a-z0-9_]*$'::text))`
 - `plain_language_locale_not_null` — `NOT NULL locale`
 - `plain_language_phrase_code_not_null` — `NOT NULL phrase_code`
 - `plain_language_pkey` — `PRIMARY KEY (tenant_id, phrase_code, locale)`
@@ -3215,6 +3325,43 @@ Constraints:
 Policies:
 
 - `reachability_proof_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
+
+#### `edge.supported_network`
+
+FR-EDG-028. The documented supported-network configuration, as a row rather than a page: the resolver the outlet advertises, whether public DoH is blocked at the gateway, and how long the cloud-to-LAN transition is expected to take. A document nobody can query is a document nobody checks against.
+
+Row level security: **enabled**, **forced**.
+
+| Column | Type | Null | Default | Notes |
+|---|---|---|---|---|
+| `tenant_id` | `uuid` | NOT NULL |  |  |
+| `outlet_id` | `uuid` | NOT NULL |  |  |
+| `advertised_resolver_v4` | `inet` | NOT NULL |  |  |
+| `advertised_resolver_v6` | `inet` | NOT NULL |  |  |
+| `blocks_public_doh` | `boolean` | NOT NULL | `false` |  |
+| `expected_flush_seconds` | `integer` | NOT NULL | `60` |  |
+| `documented_at` | `timestamp with time zone` | NOT NULL | `now()` |  |
+| `documented_by_user_id` | `uuid` | NOT NULL |  |  |
+
+Constraints:
+
+- `supported_network_advertised_resolver_v4_not_null` — `NOT NULL advertised_resolver_v4`
+- `supported_network_advertised_resolver_v6_not_null` — `NOT NULL advertised_resolver_v6`
+- `supported_network_blocks_public_doh_not_null` — `NOT NULL blocks_public_doh`
+- `supported_network_documented_at_not_null` — `NOT NULL documented_at`
+- `supported_network_documented_by_user_id_not_null` — `NOT NULL documented_by_user_id`
+- `supported_network_documenter_fk` — `FOREIGN KEY (tenant_id, documented_by_user_id) REFERENCES identity.user_account(tenant_id, id) ON DELETE RESTRICT`
+- `supported_network_expected_flush_seconds_not_null` — `NOT NULL expected_flush_seconds`
+- `supported_network_flush_is_sane` — `CHECK (((expected_flush_seconds >= 1) AND (expected_flush_seconds <= 3600)))`
+- `supported_network_outlet_fk` — `FOREIGN KEY (tenant_id, outlet_id) REFERENCES edge.outlet_hostname(tenant_id, outlet_id) ON DELETE CASCADE`
+- `supported_network_outlet_id_not_null` — `NOT NULL outlet_id`
+- `supported_network_pkey` — `PRIMARY KEY (tenant_id, outlet_id)`
+- `supported_network_resolver_families` — `CHECK (((family(advertised_resolver_v4) = 4) AND (family(advertised_resolver_v6) = 6)))`
+- `supported_network_tenant_id_not_null` — `NOT NULL tenant_id`
+
+Policies:
+
+- `supported_network_isolation` — `app.row_in_scope(tenant_id, outlet_id)`
 
 #### `edge.update_bundle`
 

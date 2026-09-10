@@ -77,6 +77,9 @@ FIRST_VERSION = 1
 #   payments.payment_adapter        which payment providers this outlet accepts
 #   edge.deployment_profile         whether this outlet may run cloud-only, and where
 #   edge.plain_language             what a restriction and a sync state are called here
+#   edge.outlet_hostname            the public name this outlet's QR carries, answered
+#                                   two ways
+#   edge.supported_network          the resolver it advertises and whether it blocks DoH
 #
 # The two M5a added meet the same test, and the first of them is the clearest case in the
 # set: edge.deployment_profile decides whether an outlet is production and therefore
@@ -93,6 +96,15 @@ FIRST_VERSION = 1
 # table to the privileged pass that nothing writes would widen the boundary for nothing,
 # which is the opposite of what "narrow" is protecting. Eight, not nine.
 #
+# THE TWO M5b ADDS PASS THE SAME TEST AND edge.node_certificate DELIBERATELY FAILS IT.
+# A person chooses what an outlet is called and a person documents which resolver it hands
+# out; both are revisited, and neither is produced by trade. A CERTIFICATE IS NOT DECIDED
+# BY ANYBODY — a node generates a key, submits a CSR and a CA answers, and the row records
+# that exchange. It is the same shape as a bill, which is SELECT-only to the app role
+# because a FUNCTION writes it rather than because it is configuration. 0055 added
+# edge.request_certificate() so the seed goes through the state machine instead of around
+# it. Ten tables, not eleven.
+#
 # Each is a decision an installer makes and a manager revisits; none is a bill, a payment,
 # an order or a ticket. The counter-example is the test: a bill IS produced by trade, and
 # billing.bill is SELECT-only to the app role too — because a FUNCTION writes it, not
@@ -107,6 +119,8 @@ PROVISIONABLE_TABLES = frozenset({
     "payments.payment_adapter",
     "edge.deployment_profile",
     "edge.plain_language",
+    "edge.outlet_hostname",
+    "edge.supported_network",
 })
 
 # THE SET IS NAMED, AND THE NAMING IS CHECKED. Growing PROVISIONABLE_TABLES without saying
@@ -117,7 +131,9 @@ PROVISIONABLE_TABLES_DECLARED = (
     "billing.tip_setting",
     "billing.tip_suggestion",
     "edge.deployment_profile",
+    "edge.outlet_hostname",
     "edge.plain_language",
+    "edge.supported_network",
     "fulfillment.routing_rule",
     "fulfillment.routing_rule_set",
     "fulfillment.station_profile",
@@ -184,6 +200,13 @@ PROVISIONABLE_FUNCTIONS = frozenset({
     # five services arrive together — FR-EDG-002A's "exactly five" is enforced inside it,
     # and a seed that INSERTed the rows itself could write four.
     "edge.register_node",
+    # Writes edge.node_certificate, which is NOT in PROVISIONABLE_TABLES and should not be
+    # — see the note above the set. These two are the state machine's entrance and its
+    # exit, and going through them is what makes the seeded floor demonstrate a state that
+    # code actually produces.
+    "edge.request_certificate",
+    "edge.record_certificate_issued",
+    "edge.verify_and_install_certificate",
     # Writes identity.governed_action, and only the one row M5b introduces. Vetted rather
     # than written as a statement because the registry is SELECT-only to the application
     # role by design: which acts need stronger authentication is not a screen's business.

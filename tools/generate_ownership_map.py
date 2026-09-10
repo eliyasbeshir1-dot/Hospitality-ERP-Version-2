@@ -289,6 +289,20 @@ MIGRATION_SLICE = {
     # any live grant would have done. This is the third time a new governed action has
     # needed all three of trigger, installer and caller.
     "0052": "M1-B",
+    # 0053 is FR-OPS-017 and FR-EDG-022A/B/C: one hostname per outlet, the certificate's
+    # life, and three of the four prohibitions as constraints. The fourth — a manual
+    # browser bypass — is a property of a surface and is asserted where surfaces are.
+    "0053": "M5b",
+    # 0054 is FR-EDG-028: the four ways a real phone resolves a name, both address
+    # families on both horizons, and the translated guidance an unsupported one gets.
+    "0054": "M5b",
+    # 0055 adds the certificate state machine's entrance. Attributed to M5b because 0053
+    # is: writing seeds/0016 showed that edge.node_certificate had an install path and no
+    # request path, so the only way in was a bare INSERT.
+    "0055": "M5b",
+    # 0056 repairs 0054's bypass check, which never ran: `~*` and `||` share a precedence
+    # class, so the pattern was half a regex with an unclosed parenthesis.
+    "0056": "M5b",
 }
 
 
