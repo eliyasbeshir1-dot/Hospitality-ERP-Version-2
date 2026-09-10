@@ -54,6 +54,8 @@ sys.path.insert(0, str(REPO / "tools"))
 import controls as registry                                   # noqa: E402
 
 import verify_opa as opa                                      # noqa: E402
+sys.path.insert(0, str(REPO / "tests" / "opd"))
+import verify_opd as opd                                      # noqa: E402
 
 ADMIN = os.environ["M1A_ADMIN_DSN"]
 APP = os.environ["M1A_APP_DSN"]
@@ -271,9 +273,15 @@ def section_sync() -> None:
     first = q(f"""
         SELECT string_agg(event_kind, ',' ORDER BY sequence)
           FROM integration.claim_outbox_batch('{TENANT}','{node}');""").scalar
+    # THE PROPERTY, NOT THE CONTENTS OF AN IDLE QUEUE — the same correction GJ-10 needed,
+    # found the same way. This asserted the batch EQUALS "bill.issued", which is true of a
+    # queue holding nothing else and false of every real outlet; the reordered sweep ran
+    # it against a queue that already held an unacknowledged print job. FR-EDG-005 asks
+    # that a CHILD not travel before its PARENT. Unrelated work alongside it is not a
+    # violation.
     record("a child event does not travel before its parent is acknowledged",
-           first == "bill.issued",
-           f"claimed: {first} (the payment names the bill it depends on)")
+           "bill.issued" in (first or "") and "payment.captured" not in (first or ""),
+           f"claimed: {first} — the bill is offered and the payment naming it is not")
 
     q(f"SELECT integration.acknowledge_outbox('{TENANT}','{node}','{bill_event}');")
     second = q(f"""
@@ -459,18 +467,60 @@ def section_readiness_and_authority() -> None:
 # ===========================================================================
 
 def section_print() -> None:
+    # A JOB KEY PER RUN, because the receipt is now an existing one and the key is
+    # derived from it. Stable across runs, the second run finds the first run's job
+    # already PRINTED and cannot claim it — the idempotency working exactly as
+    # designed, and a lifecycle the suite can then never exercise again. The run
+    # token separates runs; the two enqueues WITHIN a run still share a key, which is
+    # what the idempotency check asserts.
+    run_token = os.urandom(4).hex()
     print("\n--- 6. Resilient local receipt printing (FR-EDG-029) ---")
 
-    try:
-        import verify_m4c as m4c                               # noqa: PLC0415
-        m4c.CONTEXT.update(CONTEXT)
-        settled = m4c.a_settled_bill()
-        receipt = m4c.a_receipt(settled)
-    except Exception as error:                                  # noqa: BLE001
-        record("a real receipt was available to queue", False,
-               f"the M4-C helpers could not produce one: {type(error).__name__}: "
-               f"{str(error)[:200]}")
-        return
+    # A REAL RECEIPT, NOT NECESSARILY A NEW ONE.
+    #
+    # The queue has to be proved against a receipt the system actually issued, and this
+    # gate does not care WHICH. Insisting on a fresh one made the section depend on the
+    # kitchen having room: FR-ORD-006 throttles the hot station at 12 concurrent tickets,
+    # and after the reordered sweep the outlet holds 33 live ones, so the new order was
+    # refused with SUBMISSION_REVALIDATION_FAILED. That is a suite that only works when it
+    # runs first, which is precisely what the reordered sweep exists to find — and it
+    # found it here.
+    #
+    # Standing the kitchen down first was the other option and it is worse: OP-D's
+    # clear-down cancels QUEUED tickets, and after a full run they are spread across
+    # preparing, ready and rework, so it would have needed to grow a cancellation path for
+    # states M3-B owns the transitions for. Taking an existing receipt asks less of the
+    # rest of the system and proves the same thing.
+    # AND AT WHICHEVER OUTLET HAS ONE. This suite works at Sarbet; every receipt in the
+    # chain is issued at Kazanchis, because that is where the M4 suites and the journeys
+    # trade. Scoping the search to this suite's own outlet found none and then tried to
+    # create one, which is how it ended up fighting the capacity rule at the other outlet
+    # anyway. The queue is not a Sarbet feature; it is proved where the paper is.
+    # AND ONE THAT HAS NOT BEEN PRINTED YET. M4-C refuses a second ORIGINAL print of the
+    # same receipt — "a receipt printed twice is a customer holding two records of one
+    # payment" — so reusing whichever receipt is newest works once and is refused on the
+    # next run. The queue lifecycle FR-EDG-029 describes is the one for an original, so
+    # the receipt this section takes is one no attempt has been recorded against.
+    found = q(f"""
+        SELECT r.id::text, r.outlet_id::text FROM docs.receipt r
+         WHERE r.tenant_id = '{TENANT}'
+           AND NOT EXISTS (SELECT 1 FROM docs.print_attempt a
+                            WHERE a.receipt_id = r.id)
+         ORDER BY r.generated_at DESC LIMIT 1;""", outlet=None).rows
+    receipt = found[0][0] if found else ""
+    print_outlet = found[0][1] if found else OUTLET
+    if not receipt:
+        try:
+            import verify_m4c as m4c                            # noqa: PLC0415
+            m4c.CONTEXT.update(CONTEXT)
+            receipt = m4c.a_receipt(m4c.a_settled_bill())
+        except Exception as error:                              # noqa: BLE001
+            record("a real receipt was available to queue", False,
+                   f"this outlet has issued none, and the M4-C helpers could not produce "
+                   f"one either: {type(error).__name__}: {str(error)[:200]}")
+            return
+    record("a real receipt was available to queue", bool(receipt),
+           f"receipt {receipt[:8]} — issued by the settlement path, not written here")
 
     # THE PRINTER'S OWN SINK, NOT A CONSTANT. M4-C refuses a print recorded against a
     # sink the printer is not classified for — PRINT_EVIDENCE_DISAGREES — and it is right
@@ -482,41 +532,51 @@ def section_print() -> None:
         SELECT id::text, sink::text,
                COALESCE(device_path, host_and_port, '')
           FROM docs.printer
-         WHERE tenant_id = '{TENANT}' AND outlet_id = '{OUTLET}' AND status = 'active'
-         ORDER BY registered_at LIMIT 1;""").rows[0]
+         WHERE tenant_id = '{TENANT}' AND outlet_id = '{print_outlet}' AND status = 'active'
+         ORDER BY registered_at LIMIT 1;""", outlet=print_outlet).rows[0]
     printer, printer_sink, printer_destination = printer_row
 
     job = q(f"""
-        SELECT docs.enqueue_print_job('{TENANT}','{OUTLET}','{receipt}','{printer}',
-               'receipt:{receipt}:original','{ADMINISTRATOR}')::text;""").scalar
+        SELECT docs.enqueue_print_job('{TENANT}','{print_outlet}','{receipt}','{printer}',
+               'receipt:{receipt}:{run_token}','{ADMINISTRATOR}')::text;""",
+        outlet=print_outlet).scalar
     again = q(f"""
-        SELECT docs.enqueue_print_job('{TENANT}','{OUTLET}','{receipt}','{printer}',
-               'receipt:{receipt}:original','{ADMINISTRATOR}')::text;""").scalar
+        SELECT docs.enqueue_print_job('{TENANT}','{print_outlet}','{receipt}','{printer}',
+               'receipt:{receipt}:{run_token}','{ADMINISTRATOR}')::text;""",
+        outlet=print_outlet).scalar
     record("asking twice for the same receipt queues one job",
            job == again and bool(job),
            "a cashier who pressed the button twice asked for one receipt")
 
     claimed = q(f"""
-        SELECT count(*)::text FROM docs.claim_print_jobs('{TENANT}','{OUTLET}',
-               'suite-agent', 1, 10);""").scalar
+        SELECT count(*)::text FROM docs.claim_print_jobs('{TENANT}','{print_outlet}',
+               'suite-agent', 1, 10);""", outlet=print_outlet).scalar
     record("the agent claims the job under a lease", claimed == "1", f"claimed {claimed}")
 
     # RESTART RECOVERY: the lease expires because the agent stopped. Nothing here deletes
     # or rewrites the job — the queue survives the process, which is the property.
     q("SELECT pg_sleep(1.2);")
     recovered = q(f"""
-        SELECT docs.recover_expired_print_claims('{TENANT}','{OUTLET}')::text;""").scalar
-    state = q(f"SELECT state::text FROM docs.print_job WHERE id = '{job}';").scalar
+        SELECT docs.recover_expired_print_claims('{TENANT}','{print_outlet}')::text;""",
+        outlet=print_outlet).scalar
+    state = q(f"SELECT state::text FROM docs.print_job WHERE id = '{job}';",
+              outlet=print_outlet).scalar
+    # AT LEAST ONE, AND THIS ONE. Asserting exactly one recovered is asserting that no
+    # other run ever left an expired claim at this outlet, which is a fact about the
+    # database's history rather than about the lease. The property is that THIS job came
+    # back; anything else recovering alongside is the same mechanism working twice.
     record("a job held by an agent that stopped returns to the queue",
-           recovered == "1" and state == "queued",
+           int(recovered or 0) >= 1 and state == "queued",
            f"recovered {recovered}, now {state} — a lease expires; a flag would not")
 
-    q(f"""SELECT docs.claim_print_jobs('{TENANT}','{OUTLET}','suite-agent', 120, 10);""")
+    q(f"""SELECT docs.claim_print_jobs('{TENANT}','{print_outlet}','suite-agent', 120, 10);""",
+      outlet=print_outlet)
     q(f"""
         SELECT docs.complete_print_job('{TENANT}','{job}','{printer_sink}',
                '{printer_destination}', '{'a' * 64}'::character(64), 512,
-               '{ADMINISTRATOR}');""")
-    printed = q(f"SELECT state::text FROM docs.print_job WHERE id = '{job}';").scalar
+               '{ADMINISTRATOR}');""", outlet=print_outlet)
+    printed = q(f"SELECT state::text FROM docs.print_job WHERE id = '{job}';",
+                outlet=print_outlet).scalar
     record("completing the job records the print through M4-C's own ledger",
            printed == "printed",
            f"state {printed}; the attempt row is docs.print_attempt, not a second ledger")
@@ -525,26 +585,30 @@ def section_print() -> None:
         SELECT COALESCE(docs.complete_print_job('{TENANT}','{job}','{printer_sink}',
                '{printer_destination}', '{'a' * 64}'::character(64), 512,
                '{ADMINISTRATOR}')::text, '(no second attempt)');
-        """).scalar
+        """, outlet=print_outlet).scalar
     attempts = q(f"""
-        SELECT count(*)::text FROM docs.print_attempt WHERE receipt_id = '{receipt}';""").scalar
+        SELECT count(*)::text FROM docs.print_attempt WHERE receipt_id = '{receipt}';""",
+        outlet=print_outlet).scalar
     record("reporting the same print twice does not print twice",
            twice == "(no second attempt)" and attempts == "1",
            f"second report: {twice}; attempts recorded: {attempts}")
 
     record("a printed job cannot be returned to the queue",
-           refusal(f"""UPDATE docs.print_job SET state = 'queued' WHERE id = '{job}';""")
+           refusal(f"""UPDATE docs.print_job SET state = 'queued' WHERE id = '{job}';""",
+                   outlet=print_outlet)
            == "PRINT_JOB_ALREADY_PRINTED",
            "paper cannot be un-cut, so a second copy is a reprint with its own job")
 
     reconciled = q(f"""
         SELECT count(*)::text FROM integration.outbox
-         WHERE subject = 'print_job' AND subject_id = '{job}';""").scalar
+         WHERE subject = 'print_job' AND subject_id = '{job}';""",
+        outlet=print_outlet).scalar
     record("the cloud is told once, when the link returns", reconciled == "1",
            f"{reconciled} outbox event for this job, keyed on the job id")
 
     health = q(f"""
-        SELECT count(*)::text FROM docs.printer_health('{TENANT}','{OUTLET}');""").scalar
+        SELECT count(*)::text FROM docs.printer_health('{TENANT}','{print_outlet}');""",
+        outlet=print_outlet).scalar
     record("printer health reports every active printer, jobs or not",
            int(health or 0) >= 1, f"{health} printer(s) reported")
 

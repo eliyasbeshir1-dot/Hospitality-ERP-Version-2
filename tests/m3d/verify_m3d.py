@@ -997,8 +997,15 @@ def probe(payload: dict) -> dict:
     target = WORKSPACE / "m3d_probe.mjs"
     target.write_text((HERE / "render_probe.mjs").read_text(encoding="utf-8"),
                       encoding="utf-8")
+    # WRITTEN BESIDE THE PROBE RATHER THAN PASSED AS AN ARGUMENT. Windows caps a command
+    # line at 32767 characters and this payload is built from the database, so its size
+    # follows how much trade has happened. The reordered sweep — m3d running after every
+    # M4 and OP suite has added rows — died with WinError 206 several frames from anything
+    # naming a payload.
+    payload_path = WORKSPACE / "m3d_probe_payload.json"
+    payload_path.write_text(json.dumps(payload), encoding="utf-8")
     proc = subprocess.run(
-        ["node", str(target), CONTEXT["base_url"], json.dumps(payload)],
+        ["node", str(target), CONTEXT["base_url"], str(payload_path)],
         capture_output=True, text=True, encoding="utf-8", cwd=str(WORKSPACE),
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
     if proc.returncode != 0 or not proc.stdout.strip():

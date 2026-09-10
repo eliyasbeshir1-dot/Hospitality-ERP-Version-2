@@ -21,7 +21,19 @@
  */
 import { chromium } from 'playwright';
 
-const [, , baseUrl, payloadJson] = process.argv;
+// THE PAYLOAD ARRIVES IN A FILE, NOT IN argv.
+//
+// It used to be passed as a command-line argument, and Windows caps a command line at
+// 32767 characters. The payload is built from the database, so it grows with the data:
+// the forward chain passed and the REORDERED sweep — where m3d runs after every M4 and
+// OP suite has added rows — died with WinError 206, "The filename or extension is too
+// long", several frames from anything that mentions a payload.
+//
+// A limit that depends on how much trade has happened is a limit that will be hit in
+// production and not in a test. A file has no such ceiling.
+import { readFileSync as readPayload } from 'node:fs';
+const [, , baseUrl, payloadPath] = process.argv;
+const payloadJson = readPayload(payloadPath, 'utf8');
 const payload = JSON.parse(payloadJson);
 
 const out = { normal: null, accessible: null, flattened: null, confirm: null, errors: [] };
