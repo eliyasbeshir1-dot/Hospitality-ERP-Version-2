@@ -192,6 +192,100 @@ already there would have been the rounding-up this register exists to stop.
 
 ---
 
+## F-M5A-6 — what the chain found that reading could not
+
+M5a was code-complete before the chain ran. The chain then found **seventeen defects across
+eight runs**, every one mine, and the distribution is the finding:
+
+| Where | How many |
+|---|---|
+| the gate's own code | 3 |
+| the verification — suites, journeys, the local runner | 9 |
+| documents and registers that derive from the repository | 5 |
+
+**Two thirds of them were in the machinery that proves things, not in the thing being
+proved.** A green suite is not evidence that a gate works; it is evidence that a suite ran.
+What separated the two here was running everything, in order, from empty, twice.
+
+The ones worth naming:
+
+- **A fenced identifier.** `integration.inbox.delivery_count`. "delivery" is one of the 63
+  terms FR-TEN-002B fences, and tests/m1a found it within minutes. The gate does not care
+  that it counted MESSAGE arrivals; a schema that admits the word is one somebody
+  eventually builds the feature in. Renamed `arrivals`. The same thing happened again with
+  `edge.action_authority`, which GJ-01A fences until M5b builds local write authority — it
+  became `edge.action_dependency`. **In both cases the table moved rather than the fence.**
+  A blunt gate that has to be argued with stops being a gate.
+
+- **CR bytes in six checksum-locked and executable files.** Not cosmetic: `.gitattributes`
+  says at the top of its own file that `set -euo pipefail` with a trailing CR is not a
+  valid option string, so bash errors and carries on WITHOUT `-e`. Every driver would have
+  run with errors ignored — a fail-open. I had looked at this earlier in the slice,
+  compared blobs through Git Bash, concluded the convention was CRLF, and moved on. It is
+  not, and M1-A has forbidden it since M1-A.
+
+- **Three gate fences that correctly broke.** M1-B's "the outlet node and its print queue
+  are still M5a's", M4-C's "printing has no queue", and M4-C's "no outlet node or
+  synchronization surface exists". A fence a correct change must break is doing its job
+  when it breaks. Each was retired the way M4-A retired six of them — replaced by the
+  boundary it stood for, which stays checkable AFTER the thing it fenced exists: M1's
+  migrations may not create an `edge` table, M4-C's may not create `docs.print_job`, and
+  M5a's synchronization surface may not grow into `report`.
+
+- **Five suites carrying prose M5a made false** without failing — "the outlet node is
+  M5a's" in the future tense, "the sync protocol is absent", "there is no outlet node to
+  fail over to". Assertions unchanged; sentences corrected. A claim in a diagnostic is
+  still a claim.
+
+- **The local runner refused a shell that could not do the job.** `bash` on a Windows PATH
+  is ambiguous — `System32ash.exe` is the WSL launcher — so prepending System32 to reach
+  `taskkill` started a LINUX shell against the Windows checkout. It ran for ten minutes,
+  ignored every exported variable because those belong to the other shell, and died on
+  `psql: command not found`. It now refuses, naming what it verified.
+
+- **The reordered sweep had two defects of its own.** It deleted the forward log it exists
+  to compare against and reported the absence as the caller's mistake; and because suites
+  run directly rather than through a driver, nothing built `M1A_ADMIN_DSN` — so every suite
+  died in two seconds and the sweep announced **twenty state-dependency findings, none of
+  which existed**.
+
+- **And the sweep then found a real one.** GJ-10 asserted that the first outbox batch
+  EQUALS `['bill.issued']` — true of a queue holding nothing else, false of every real
+  outlet. Under reordering an earlier run had left an unacknowledged print job in the
+  queue. The property FR-EDG-005 requires is that a child does not travel before its
+  parent; other work travelling alongside is not a violation, it is Tuesday. The check now
+  asserts the property.
+
+---
+
+## F-M5A-7 — decisions taken without asking, recorded to be overturned
+
+Taken under a standing instruction to choose the safer option and record why.
+
+**The uplink cut is readable from a FILE as well as an environment variable.**
+`EDGE_UPLINK=cut` cannot be changed in a running process, so cutting the link on a live
+floor meant killing the sync worker and starting another — and `pkill -f sync-worker`
+matched nothing on Windows and left THREE workers running, one still reporting the outlet
+connected while the "cut" one disagreed. A demonstration built on that would have shown a
+banner that never moved. `EDGE_UPLINK_CUT_FILE` names a path; touch it and the link is cut,
+delete it and it is back. It is still ONE seam — both forms are read in `link.ts` and
+nowhere else. **Overturn this** if a file-based switch is unacceptable in a production
+image; the env var alone still works and the file can be left unset.
+
+**GJ-10 settles at the service tier rather than through the till's browser.**
+`settle_at_the_till()` returned an empty scene because GJ-10 runs straight after GJ-07,
+which refunds and reprints against the same table. Chasing that would have meant changing a
+helper five other journeys share. GJ-10's own PASS criteria are durability and
+reconciliation; how the till renders is FR-TST-005A's, which moved to M6 with its reasons.
+The journey summary labels GJ-10 **service tier**, which is the honest word. **Overturn
+this** if GJ-10 must be browser tier, in which case the shared helper needs its own fixture
+table rather than sharing GJ-07's.
+
+**The demonstration floor now starts three of the node's five services.**
+`open_the_floor.sh` served the CLOUD profile, so walking it showed none of M5a. It now runs
+the local API in the node profile, the sync worker and the realtime gateway, and reads the
+node's identity out of the database rather than holding constants.
+
 ## The bounds — what M5a does not prove
 
 Named here and named again in the suite's own output, so a reader meets them rather than

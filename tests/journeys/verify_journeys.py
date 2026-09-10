@@ -2053,8 +2053,21 @@ def gj_10() -> None:
     first = [r[0] for r in rows(f"""
         SELECT event_kind FROM integration.claim_outbox_batch('{fx.TENANT}','{node}')
          ORDER BY sequence;""", dsn=ADMIN)]
+    # THE PROPERTY, NOT THE CONTENTS OF AN IDLE QUEUE.
+    #
+    # This asserted first == ["bill.issued"], which is true of a queue holding nothing
+    # else and false of every real outlet. The reordered sweep caught it: an earlier run
+    # had left an unacknowledged print_job.printed in the outbox, the batch came back as
+    # two events, and a journey that passes only when it runs first is the exact thing
+    # FR-TST-020 exists to find.
+    #
+    # What FR-EDG-005 requires is that a CHILD does not travel before its PARENT. Other
+    # work travelling alongside is not a violation; it is Tuesday.
     record(journey, "the child does not travel before its parent",
-           first == ["bill.issued"], f"offered: {first}")
+           "bill.issued" in first and "payment.captured" not in first,
+           f"offered: {first} — the bill is offered and the payment that depends on it is "
+           f"not. Anything else in the batch is unrelated work, which is what a real "
+           f"outlet's queue looks like")
     scalar(f"SELECT integration.acknowledge_outbox('{fx.TENANT}','{node}','{parent}');",
            dsn=ADMIN)
     second = [r[0] for r in rows(f"""
