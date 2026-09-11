@@ -80,6 +80,10 @@ FIRST_VERSION = 1
 #   edge.outlet_hostname            the public name this outlet's QR carries, answered
 #                                   two ways
 #   edge.supported_network          the resolver it advertises and whether it blocks DoH
+#   ops.backup_policy               how often this estate is backed up
+#   ops.runbook                     which document covers which situation
+#   ops.alert_ownership             who answers when an alert fires
+#   ops.cutover                     which commit went live, who reviewed it, the way back
 #
 # The two M5a added meet the same test, and the first of them is the clearest case in the
 # set: edge.deployment_profile decides whether an outlet is production and therefore
@@ -111,6 +115,18 @@ FIRST_VERSION = 1
 # nodes — the schedule existed only as four DEFAULT clauses nobody had inserted against.
 # Eleven tables, not ten and not twelve.
 #
+# M6'S FOUR JOIN THEM, AND THE THIRD SEED IN A ROW TO NEED THIS IS WHY THE TEST IS WRITTEN
+# DOWN RATHER THAN REMEMBERED. Each passes "who decides this row": an installer writes how
+# often the estate is backed up and which document covers which situation; a manager
+# revisits who answers when an alert fires; an operator records which commit went live,
+# who reviewed it and how to get back. Not one is produced by trade.
+#
+# They were content seeds first and failed in the chain with `permission denied for table
+# backup_policy` — because a content seed runs as the APPLICATION role, which holds SELECT
+# and nothing else on a configuration table. That is the same shape seeds/0016 hit with
+# CREATE TEMP TABLE and seeds/0018 hit with config.policy: a seed that works when applied
+# by a superuser and refuses as the role that will actually apply it. Fifteen tables.
+#
 # Each is a decision an installer makes and a manager revisits; none is a bill, a payment,
 # an order or a ticket. The counter-example is the test: a bill IS produced by trade, and
 # billing.bill is SELECT-only to the app role too — because a FUNCTION writes it, not
@@ -128,6 +144,10 @@ PROVISIONABLE_TABLES = frozenset({
     "edge.outlet_hostname",
     "edge.supported_network",
     "edge.lease_policy",
+    "ops.backup_policy",
+    "ops.runbook",
+    "ops.alert_ownership",
+    "ops.cutover",
 })
 
 # THE SET IS NAMED, AND THE NAMING IS CHECKED. Growing PROVISIONABLE_TABLES without saying
@@ -140,9 +160,13 @@ PROVISIONABLE_TABLES_DECLARED = (
     "edge.deployment_profile",
     "edge.lease_policy",
     "edge.outlet_hostname",
+    "ops.alert_ownership",
+    "ops.backup_policy",
+    "ops.cutover",
     "edge.plain_language",
     "edge.supported_network",
     "fulfillment.routing_rule",
+    "ops.runbook",
     "fulfillment.routing_rule_set",
     "fulfillment.station_profile",
     "payments.payment_adapter",
