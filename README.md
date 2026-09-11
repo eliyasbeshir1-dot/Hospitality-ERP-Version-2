@@ -266,8 +266,8 @@ history: seeds are data, not structure.
 - `0017_the_two_nodes_are_given_a_lease_policy_and_the_authority_to_write.provision.sql`
 - `0018_kazanchis_can_say_who_is_accountable_now_that_it_has_something_to_say.sql`
 - `0019_kazanchis_has_a_manager_and_the_notices_now_reach_a_person.sql`
-- `0020_the_estate_says_how_often_it_is_backed_up.sql`
-- `0021_the_runbooks_the_owners_and_a_cutover_that_was_reviewed.sql`
+- `0020_the_estate_says_how_often_it_is_backed_up.provision.sql`
+- `0021_the_runbooks_the_owners_and_a_cutover_that_was_reviewed.provision.sql`
 
 ## Verification
 
