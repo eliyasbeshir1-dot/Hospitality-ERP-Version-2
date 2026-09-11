@@ -77,6 +77,12 @@ SUITES = (
     ("opc", "OP-C being seated, and taking something back out"),
     ("opd", "OP-D the order reaching the kitchen, and what a menu says"),
     ("m5a", "M5a the outlet continuity node, synchronization and the print queue"),
+    ("m5b", "M5b the same QR, one writer, and fencing"),
+    ("m6a", "M6-A the built artifact, and nothing in it that can reset production"),
+    ("m6b", "M6-B backup: encrypted, read back, off-site"),
+    ("m6c", "M6-C restore proved by destroying and rebuilding"),
+    ("m6d", "M6-D reporting, exports, and an export that is a governed act"),
+    ("m6e", "M6-E pilot readiness: runbooks, owners, a signed cutover"),
     ("fenced_gate", "Fenced-domain gate, vocabulary and mutations"),
     ("journeys", "The golden journeys, end to end"),
 )
@@ -348,6 +354,19 @@ JOURNEYS = [
               "its own number and a marked reprint carrying operator and reason, and the "
               "first receipt's own record left unchanged",
               "M1-B · M4-B · M4-C"),
+    ("GJ-08", "The same QR during an outage, on the phones people actually carry: one "
+              "hostname per outlet, split-horizon answers on both address families, and "
+              "a cached-answer, encrypted-DNS or dual-stack device either reaching the "
+              "trusted local endpoint or failing safe to translated staff guidance - "
+              "never to a certificate warning and never to a manual bypass. Run at "
+              "Sarbet, the one outlet whose gateway blocks public DoH",
+              "M5b"),
+    ("GJ-09", "An asymmetric partition and an emergency replacement of the writer: cloud "
+              "forwarding expiring safely while LAN authority continues, a replacement "
+              "that is not writable until fence evidence exists, the old node refused on "
+              "its own LAN, rollback rejected by every writer, stale events quarantined, "
+              "and recovery demanding three valid bidirectional proofs",
+              "M5b"),
     ("GJ-10", "The outlet trading through an outage: a session, order, check, payment, "
               "tip and receipt; the internet cut; the banner in the room; a guest ordering, "
               "the kitchen working the ticket and the cashier taking cash with the cloud "

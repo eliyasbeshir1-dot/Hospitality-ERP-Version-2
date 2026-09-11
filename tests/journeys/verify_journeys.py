@@ -2347,6 +2347,57 @@ def gj_08() -> None:
         record(journey, f"{label} reaches the node over a trusted certificate",
                answer == f"trusted_local|{hostname}", f"{condition} -> {answer}")
 
+    # ---- 2b. AND THE ROUTE A PHONE ACTUALLY CALLS ------------------------------------
+    #
+    # Everything above drives edge.resolve_customer_entry() in SQL, and the rule it proves
+    # is the database's. But a phone does not call a function; it calls
+    # GET /c/v1/:tenantId/:outletId/resolve, and until this was added NOTHING called that
+    # route -- tools/uncalled_routes.py listed it among the routes the service exposes and
+    # no suite, journey or surface reaches. That is the condition every "the tests pass and
+    # a person cannot" finding in this repository has been hiding in, and GJ-08's whole
+    # subject is where a browser gets sent.
+    #
+    # The route is not a thin wrapper, which is the other reason to call it. It decides two
+    # things the function is merely told: whether the request ARRIVED at the node, in which
+    # case the server's evidence overrides whatever the client believes about its own DNS,
+    # and whether the cloud is reachable at all. Those decisions are the route's own, and
+    # asserting about the function says nothing whatever about either.
+    # ALL FIVE OF edge.client_condition, not a sample. The set is closed and small, and the
+    # one this journey exists to keep safe is whichever one nobody thought to try.
+    # THE PERMITTED SET IS READ FROM THE TYPE, not written out here. A literal list would
+    # be a second declaration of edge.resolution_outcome, and the failure mode of a second
+    # declaration is that somebody adds a fourth label and this assertion goes on passing
+    # against the three it remembers. The first draft of this check did exactly that and
+    # was wrong about two of the three names.
+    safe = {r[0] for r in rows(
+        "SELECT unnest(enum_range(NULL::edge.resolution_outcome))::text;", dsn=ADMIN)}
+
+    for condition, label in (("lan_resolver", "a phone on the outlet Wi-Fi"),
+                             ("dual_stack", "a dual-stack IPv4/IPv6 phone"),
+                             ("cached_public_answer", "a phone holding the public answer"),
+                             ("encrypted_dns", "a phone resolving over DoH"),
+                             ("public_internet", "a phone that is nowhere near the place")):
+        served = service("GET", f"/c/v1/{fx.TENANT}/{sarbet}/resolve"
+                                f"?condition={condition}&locale=am&sinceJoin=5", token="")
+        outcome = served.get("outcome")
+        record(journey, f"{label} asks the route and is given a safe answer",
+               ok(served) and outcome in safe,
+               f"status {served.get('status')}, outcome {outcome!r}, endpoint "
+               f"{served.get('endpoint')!r}. {len(safe)} outcomes exist — "
+               f"{', '.join(sorted(safe))} — and none of them is a bypass, so there is no "
+               f"answer this route can give that puts a guest in front of a certificate "
+               f"warning")
+
+    # AND A CONDITION NOBODY DECLARED IS REFUSED RATHER THAN GUESSED AT. A resolver asked
+    # about a device it does not recognise must not fall through to whichever branch is
+    # written first; that is how a bypass gets built by accident rather than on purpose.
+    nonsense = service("GET", f"/c/v1/{fx.TENANT}/{sarbet}/resolve?condition=whatever",
+                       token="")
+    record(journey, "and a condition nobody declared is refused rather than guessed at",
+           nonsense.get("status") == 400,
+           f"status {nonsense.get('status')}. edge.client_condition is a closed set and "
+           f"the route treats it as one")
+
     # ---- 3. A DEVICE THAT WALKED IN HOLDING THE PUBLIC ANSWER ------------------------
     inside = scalar(f"""
         SELECT outcome::text || '|' || coalesce(endpoint, phrase_code)

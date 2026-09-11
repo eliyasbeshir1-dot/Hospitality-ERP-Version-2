@@ -290,12 +290,12 @@ The audit grades its own evidence rather than implying a strength it did not mea
 | `ran` | The citation sits on a check that executed and reported. **Verifies the citation runs. Does not establish it can fail.** |
 | `ci-step` | The citation sits in a workflow step, which fails the build on a non-zero exit. Can fail; cannot show a planted defect. |
 
-Gates that have landed: M0, M0R, M1, M2, M3, M4, M5a. The package carries 336 active requirements and 312 of them belong to a landed gate.
+Gates that have landed: M0, M0R, M1, M2, M3, M4, M5a, M5b, M6. The package carries 336 active requirements and 336 of them belong to a landed gate.
 
 
 ## FR-AUTH-001: the audit reported staff login delivered, and nobody can log in
 
-**This is the strongest concrete evidence in this document that *delivered* was a weaker word than the count suggested, and it is why the section above matters more than it reads.** The audit passes only when nothing is unaccounted, and it accounts for all 312 requirements belonging to a landed gate. FR-AUTH-001 — *Staff login*, P0, introduced at M1 — sat inside that account, on the delivered side, until the second M4 repair took it off.
+**This is the strongest concrete evidence in this document that *delivered* was a weaker word than the count suggested, and it is why the section above matters more than it reads.** The audit passes only when nothing is unaccounted, and it accounts for all 336 requirements belonging to a landed gate. FR-AUTH-001 — *Staff login*, P0, introduced at M1 — sat inside that account, on the delivered side, until the second M4 repair took it off.
 
 The clause asks for three things: verified phone or email login, secure password or OTP flows, and a replaceable provider adapter. M1-B built and proved the first and the third. Its section 1 shows two distinct verified channel kinds and no provider-specific type reaching the domain model — and **that section heading was the only citation of FR-AUTH-001 anywhere in the run.** A heading over two structural checks was what graded a login flow delivered.
 
@@ -303,7 +303,7 @@ The clause asks for three things: verified phone or email login, secure password
 
 The middle limb is the flow, and it now exists — what follows is the evidence, not a gap:
 
-- `identity` exposes 9 operator-callable writers — `authenticate_credential`, `authorize_action`, `authorize_service_principal`, `credential_key_derivation`, `emit_security_event`, `establish_session_context`, `register_auth_attempt`, `register_auth_attempt_id`, `resolve_attempt_as_success`. One of them turns a presented credential into a session.
+- `identity` exposes 10 operator-callable writers — `authenticate_credential`, `authorize_action`, `authorize_service_principal`, `credential_key_derivation`, `emit_security_event`, `establish_session_context`, `install_governed_actions_for`, `register_auth_attempt`, `register_auth_attempt_id`, `resolve_attempt_as_success`. One of them turns a presented credential into a session.
 - 1 file(s) under `api/src` reads `identity.credential`: `api/src/routes/auth.ts`.
 - Every staff bearer token in this build existed because a fixture inserted a row into `identity.session` directly, until a login route began issuing them.
 
@@ -316,9 +316,9 @@ What makes this worth a reviewer's attention is not that a gap exists. It is tha
 
 **This is a finding in its own right, not a footnote.** GJ-01A's lesson was that `ordering.preview_cart()` and `ordering.submit_order()` were both proved against the database while no route called either and no button reached one: every unit check passed and the feature was unreachable. M4-A shipped its billing routes the same way. The first HTTP call ever made to `POST /s/v1/checks` — made while repairing the journeys, after the slice had closed — failed on two production defects at once, because nothing had ever called it.
 
-Of 127 addressable routes, 97 are called by some suite, journey or surface and **30 are called by nothing**. A route with no caller is not necessarily broken. It is unproved, which is the condition both of those defects were hiding in.
+Of 129 addressable routes, 99 are called by some suite, journey or surface and **30 are called by nothing**. A route with no caller is not necessarily broken. It is unproved, which is the condition both of those defects were hiding in.
 
-**And that number pooled two different questions until OP-D.** 50 of 127 routes are REACHABLE BY A PERSON — one of the four surfaces calls them. 47 are proved by a suite and reached by no screen at all. That second set is not a defect on its own: an operator route or an integration endpoint has no surface by design. It is where every "the tests pass and a person cannot" finding in this repository has come from, and it was invisible while one count answered both questions.
+**And that number pooled two different questions until OP-D.** 50 of 129 routes are REACHABLE BY A PERSON — one of the four surfaces calls them. 49 are proved by a suite and reached by no screen at all. That second set is not a defect on its own: an operator route or an integration endpoint has no surface by design. It is where every "the tests pass and a person cannot" finding in this repository has come from, and it was invisible while one count answered both questions.
 
 `POST /s/v1/orders/:orderId/accept` is the case that forced the split. It is the step without which no guest order reaches a kitchen under `staff_confirmed`; it was called by `tests/journeys` and `tests/opa` and by no surface; and the census reported it green while a guest's order sat in `submitted` with no screen in the system able to show it, let alone admit it.
 

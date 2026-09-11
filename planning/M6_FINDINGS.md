@@ -292,6 +292,154 @@ Named here and named again in each suite's own output.
 13. **`node_modules` is not scanned for reset-shaped code.** It is third-party and enormous;
     scanning it would report on other people's code.
 
+
+## F-M6-11 · A control that the register becoming correct had disarmed
+
+NC-M4B-008 plants "a closure resting on a completer that is itself incomplete." It did not
+build that state; it FOUND one — a closed entry whose `completed_by` still had an open
+aspect — and added the one field that makes the entry admit it. When M6-E closed FR-FUL-012,
+FR-FUL-015 and FR-TST-005A, the last such near-miss went with them, and the control refused
+to run:
+
+```
+FAIL M4B_VERIFICATION_UNUSABLE: no closed entry rests on a completer with an open entry,
+so this control has nothing to plant on and would pass by emptiness
+```
+
+**The refusal was correct and the design behind it was not.** Refusing beats asserting over
+an empty set, and that rule has caught real defects in this project. But it was the only
+alternative on offer, and the reason it was the only one is that the control borrowed half
+its defect from the register instead of constructing it. That made a check on the register's
+correctness depend on the register containing a near-instance of the very fault it detects —
+so the register getting better disarmed the thing keeping it good. A control that goes quiet
+exactly when its subject is clean is measuring the wrong thing.
+
+It now builds both halves: a synthetic OPEN entry is appended for some closed entry's
+completer, and that closed entry is then made to claim it rests on the gap. The invented
+entry names `PILOT` as its completing gate — declared in
+`planning/post_phase_1_milestones.json`, unable to land from this repository — so
+`PARTIAL_CLOSURE_NOT_REVISITED` stays quiet and the rule under test is the one that fires.
+Red on the planted state, green after revert, and the committed register restored byte for
+byte.
+
+I took the safer option where the choice was open: the control still refuses, but only if
+the register holds no closed entry naming a completer at all, which is a genuinely empty
+register rather than a merely tidy one.
+
+---
+
+## F-M6-12 · The evidence report had not counted a suite since M5a, and only the GREEN half of a control noticed
+
+`tools/generate_evidence_report.py` carries `SUITES` — the list it walks to produce the
+report's totals. It ended at `m5a`. **Six suites were missing: `m5b`, and every one of
+`m6a` through `m6e`.** The report was stating a total short by two entire gates while
+reading as complete, which is precisely the defect NC-M4B-009 exists to catch: *a
+verification suite the evidence report does not count.*
+
+**What is worth recording is how it surfaced.** Not the forward chain, which was green.
+NC-M4B-009's RED half passed the whole time — it plants an uncounted suite and the report
+duly failed to count it. The gap only appeared in the GREEN half, the assertion that after
+reverting the plant the report covers the repository *as it actually stands*. And that half
+could not run until F-M6-11 was fixed, because NC-M4B-008 sits before it and was refusing,
+taking the suite down before NC-M4B-009's green half was ever reached.
+
+So two controls were dark, and one was hiding the other. The one that refused was loud about
+it. The one behind it was silent — it had been passing its interesting half and never
+reaching its dull one. **The dull half was the one with something to say.** This is the
+fourth time in this project that a check has been found asserting over less than it appeared
+to; it is the first time one check's refusal masked another's finding.
+
+Nothing generated from `SUITES` was wrong — every suite the report named, it counted
+correctly. The report was incomplete, not false, which is why nothing else caught it: there
+is no cross-check that the number of suites the report counts equals the number the
+repository has, other than this control. There is now one that runs.
+
+
+## F-M6-13 · Two reporting functions held a privilege their callers lacked, and the fix made the guarantee stronger
+
+M4-C has asked this of every function in schema `report` since it was written:
+
+> **no reporting function has a privilege its caller lacks** — Tenant and outlet scoping is
+> the database's, not a WHERE clause a route appends and could forget.
+
+`0065` shipped two that answer it wrongly. `report.kitchen_consumption()` and
+`report.record_export()` were both SECURITY DEFINER. The rule is older than this gate and
+its reasoning is sound, so the functions changed rather than the rule, in `0067`.
+
+**`kitchen_consumption()` needed no defence.** Its `p_tenant_id` and `p_outlet_id`
+arguments were the *only* thing holding it inside one outlet — exactly the WHERE clause the
+rule names. As INVOKER they are a filter on top of a scope the database enforces.
+
+**`record_export()` is the one worth reading.** DEFINER there was load-bearing: the
+fresh-grant demand lived INSIDE the function, so the function had to be the only way in, so
+it had to own the INSERT. Dropping to INVOKER without moving that check would have left
+FR-AUTH-006's demand sitting in a function anybody holding INSERT could route around — a
+control that reads as enforced and is merely conventional.
+
+So the check moved to a `BEFORE INSERT` trigger on `report.export_event`. **0059 learned
+this one gate ago** — the revoked-session rule moved out of a WHERE clause into a row
+trigger for the same reason — and the outcome is the same shape: the rule now holds for
+every path into the table rather than for callers of one function, and the row is written
+under row level security so it cannot be recorded for an outlet the caller is not in. The
+function got weaker and the guarantee got stronger. That is why this is a repair and not a
+concession, and it is the third time on this project that moving a rule from a query into
+the table has been the answer.
+
+`report.export_event` was also unclassified — `app.financial_table_class()` said nothing
+about a table in a financial schema, which the same suite refuses. It is a **ledger**: an
+export that happened does not stop having happened, and `report.refuse_export_rewrite()`
+already enforced exactly that. The class was the property the table already had, finally
+declared.
+
+**And M4-C itself had to change, in the direction that keeps coverage rather than loses
+it.** Its export check called the route with a staff token and asserted 200. M6-D made the
+route demand a step-up — which the registry had described since migration 0002 and nothing
+had ever called — so the check went to 403. The route was right and the check was out of
+date. The fix asserts the refusal FIRST and then steps up, because a check that stops
+exercising an unauthorised path *because the path started being refused* has quietly
+converted a new control into lost coverage.
+
+---
+
+## F-M6-14 · Two routes nobody had ever called, one of which a partial closure was closed on
+
+Regenerating `planning/M4_REVIEW_FINDINGS.md` with M5b and M6 landed moved the count of
+routes with no caller from 30 to **32**. The two new ones were both mine:
+
+- `GET /s/v1/reports/kitchen-consumption` — built at M6-D
+- `GET /c/v1/:tenantId/:outletId/resolve` — built at M5b
+
+**FR-FUL-012 was closed on the first of them.** `tests/m6d` proved
+`report.kitchen_consumption()` — the function, its columns, its figures — and never asked
+whether a kitchen manager could obtain any of it. That is the shape this project has found
+four times already (OP-C with `table.seat`, OP-D with `order.accept`, M5b with
+`node.authority.claim`, M6-D with `report.export`), and closing a partial closure on it
+would have made five. The register would have said *delivered* about a reading no person
+could reach.
+
+Both routes are now called by the suite that owns them: kitchen-consumption from
+`tests/m6d`, resolve from GJ-08 across all five of `edge.client_condition`. **Calling them
+found three more things**, which is the argument for calling rather than reporting:
+
+1. **`kitchen-consumption` answered in snake_case** while every neighbouring route answers
+   in camelCase. Nothing had noticed because nothing had asked. Aliased in the route.
+2. **My first version of the m6d check inspected `stations[0]` only `if stations`** — and
+   the default window is a day, so it returned 200, an empty list, and a silently skipped
+   assertion. Pass by emptiness, in a check written to close a gap about proving things.
+   It now asks over all recorded time and fails if there is nothing to read.
+3. **My first version of the GJ-08 check listed the permitted outcomes by hand and got two
+   of the three names wrong** (`cloud` for `cloud_served`, `cached_public` for
+   `cached_public_answer`). The route's 400 on the bad condition name was correct
+   behaviour. The list is now read from `enum_range(edge.resolution_outcome)`, because a
+   hand-written copy of a type is a second declaration, and the way a second declaration
+   fails is that somebody adds a fourth label and the assertion goes on passing against the
+   three it remembers.
+
+**The uncalled-route count is not a defect on its own** and the document says so: an
+operator route or an integration endpoint has no surface by design. What it is, is the
+condition every "the tests pass and a person cannot" finding here has been hiding in. Thirty
+remain, unchanged from M4 — carried, named, and not grown by this gate.
+
 ---
 
 ## What M6 delivered

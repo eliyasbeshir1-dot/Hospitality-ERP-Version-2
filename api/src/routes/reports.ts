@@ -402,9 +402,19 @@ export function registerReportRoutes(app: FastifyInstance, deps: ReportDependenc
         const [from, to] = windowOf(request.query);
         try {
           const { rows } = await client.query(
-            `SELECT station_name, tickets::int, lines::int,
-                    preparation_seconds_p50, wait_seconds_p50,
-                    sla_breaches::int, slowest_seconds
+            // ALIASED TO camelCase HERE, like every other route in this service. The
+            // first version returned the function's own column names, so this one route
+            // answered in snake_case while its neighbours answered in camelCase — and
+            // nothing noticed, because until M6-D added the caller in tests/m6d nothing
+            // had ever called it. A route with no caller is not necessarily broken; it is
+            // unproved, and this is the kind of thing that lives in that condition.
+            `SELECT station_name              AS "stationName",
+                    tickets::int              AS "tickets",
+                    lines::int                AS "lines",
+                    preparation_seconds_p50   AS "preparationSecondsP50",
+                    wait_seconds_p50          AS "waitSecondsP50",
+                    sla_breaches::int         AS "slaBreaches",
+                    slowest_seconds           AS "slowestSeconds"
                FROM report.kitchen_consumption($1::uuid, $2::uuid,
                       coalesce($3::timestamptz, now() - interval '1 day'),
                       coalesce($4::timestamptz, now()))`,

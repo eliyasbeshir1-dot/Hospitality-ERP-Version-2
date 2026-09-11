@@ -131,9 +131,11 @@ def signature_of(error: str) -> str:
 
 
 def call(method: str, path: str, token: str, body: dict | None = None,
-         key: str | None = None) -> dict:
+         key: str | None = None, extra: dict | None = None) -> dict:
     url = f"{CONTEXT['base_url']}{path}"
     headers = {"authorization": f"Bearer {token}"}
+    if extra:
+        headers.update(extra)
     data = None
     if body is not None:
         headers["content-type"] = "application/json"
@@ -693,7 +695,26 @@ def section_exports_and_dashboards() -> None:
            f"database's, not a WHERE clause a route appends and could forget")
 
     token = CONTEXT["manager_token"]
-    exported = call("GET", "/s/v1/reports/exports/metrics.csv", token)
+
+    # AN EXPORT IS A GOVERNED ACT, AND THIS SUITE ASKED FOR ONE WITHOUT STEPPING UP UNTIL
+    # M6-D. The registry has described `report.export` as strong + step-up with a fifteen
+    # minute window since migration 0002, carrying governed_from_gate = 'M6'; nothing
+    # called it, so the route asked for a staff session and nothing more and this check
+    # passed on that. When M6-D finally built the caller, this check went to 403 -- which
+    # is the route being right and the check being out of date.
+    #
+    # So the refusal is asserted FIRST rather than quietly dropped. A check that stops
+    # exercising an unauthorised path because the path started being refused has converted
+    # a new control into lost coverage.
+    refused = call("GET", "/s/v1/reports/exports/metrics.csv", token)
+    record("an export without a step-up is refused before the figures are assembled",
+           refused.get("status") == 403,
+           f"status {refused.get('status')}. Building the CSV and then declining to hand "
+           f"it over would put an outlet's whole trade in the process's memory on the "
+           f"strength of a request nobody authorised")
+
+    grant = {"x-step-up-grant": fx.step_up(CONTEXT["manager_session"], "report.export")}
+    exported = call("GET", "/s/v1/reports/exports/metrics.csv", token, extra=grant)
     body = exported.get("text", "")
     header = body.splitlines()[0] if body else ""
     record("the export is CSV with a documented header",
@@ -708,7 +729,9 @@ def section_exports_and_dashboards() -> None:
     # count still has a real zero, and that is the pair a spreadsheet must be able to tell
     # apart.
     quiet = call("GET", "/s/v1/reports/exports/metrics.csv?from=2020-01-01T00:00:00Z"
-                        "&to=2020-01-02T00:00:00Z", token)
+                        "&to=2020-01-02T00:00:00Z", token,
+                 extra={"x-step-up-grant":
+                        fx.step_up(CONTEXT["manager_session"], "report.export")})
     quiet_lines = (quiet.get("text") or "").splitlines()[1:]
     empty = [line for line in quiet_lines if line.split(",")[2] == ""]
     zero = [line for line in quiet_lines if line.split(",")[2] == "0"]
@@ -2516,8 +2539,9 @@ def main() -> int:
     CONTEXT["log_dir"] = Path(os.environ.get("M4C_LOG_DIR", str(SCRATCH / "logs")))
 
     try:
-        _manager_session, manager_token = fx.staff_session(fx.USER_FINANCE_MANAGER)
+        manager_session, manager_token = fx.staff_session(fx.USER_FINANCE_MANAGER)
         CONTEXT["manager_token"] = manager_token
+        CONTEXT["manager_session"] = manager_session
 
         establish()
 

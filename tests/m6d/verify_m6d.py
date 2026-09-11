@@ -44,13 +44,20 @@ from pg import run                                         # noqa: E402
 import controls as registry                                # noqa: E402
 import verify_opa as opa                                   # noqa: E402
 
+sys.path.insert(0, str(REPO / "tests" / "m1d"))
+from service import Service, sync_and_build                # noqa: E402
+
 ADMIN = os.environ["M1A_ADMIN_DSN"]
 TENANT = opa.TENANT
 OUTLET = opa.OUTLET
 KAZANCHIS = "33330001-0000-4000-8000-000000000001"
 MANAGER = "3333cccc-0000-4000-8000-000000000001"
+# Kazanchis's OUTLET_MANAGER, created by seeds/0019 so the outlet's notices reach a
+# person. They are the one who would ask their own kitchen how it did.
+KAZANCHIS_MANAGER = "3333cccc-0000-4000-8000-000000000004"
 
 results: list[tuple[str, bool, str, str]] = []
+CONTEXT: dict = {}
 
 
 def record(name: str, ok: bool, detail: str = "", *, evidence: str = "asserted") -> None:
@@ -205,6 +212,66 @@ def section_consumption() -> None:
 # 3. FR-FUL-015 — a reroute while the node is authoritative
 # ===========================================================================
 
+
+def section_the_route_a_person_reaches() -> None:
+    """FR-FUL-012 closed on a reading. This asks whether anybody can get at it.
+
+    section_consumption above proves report.kitchen_consumption(): the function, its
+    columns, its figures. It does not prove that a kitchen manager can obtain any of it,
+    and when planning/M4_REVIEW_FINDINGS.md was regenerated with M6 landed it said so
+    plainly -- GET /s/v1/reports/kitchen-consumption was one of the routes the service
+    exposes that NOTHING has ever called.
+
+    That is the exact shape this project has found four times already, and closing a
+    partial closure on it would have made five. So the route is called here, by the suite
+    that owns the closure, rather than reported as unproved in a document a reviewer may
+    or may not reach.
+    """
+    print("\n--- 2b. FR-FUL-012: and somebody can actually reach it ---")
+
+    # THE WINDOW IS WIDE ON PURPOSE. The route's default is the last day, and asking over
+    # it returned 200 and an empty list — which is a true answer about a quiet day and
+    # proves nothing about the shape of a row. A check that inspects listed[0] only "if
+    # listed" passes by emptiness, and this suite refuses that everywhere else.
+    token = CONTEXT["manager_token"]
+    served = opa.call("GET", "/s/v1/reports/kitchen-consumption"
+                             "?from=2020-01-01T00:00:00Z&to=2100-01-01T00:00:00Z",
+                      token=token)
+    stations = served.get("stations")
+    listed = stations if isinstance(stations, list) else []
+    record("a manager asking the route gets a reading back",
+           served.get("status") == 200 and isinstance(stations, list),
+           f"status {served.get('status')}, {len(listed)} station(s). The closure said "
+           f"the times compute per station from timestamps the fold wrote out of the "
+           f"ledger; this is that reading arriving somewhere a person is")
+
+    # AND THERE IS SOMETHING TO READ. Asserted rather than assumed, because the check
+    # below reads the first row and would otherwise be skipped into silence.
+    wanted = {"preparationSecondsP50", "waitSecondsP50", "slaBreaches"}
+    present = wanted & set(listed[0]) if listed else set()
+    record("and the three figures the requirement names are all on the row",
+           bool(listed) and present == wanted,
+           f"{len(listed)} station(s) over all of recorded time; {sorted(present)} of "
+           f"{sorted(wanted)}. Prep, wait and SLA side by side is what analytical "
+           f"consumption means for a kitchen — not a new measurement, a way to look at "
+           f"the ones there are. An empty reading here would leave this assertion with "
+           f"no row to make it about")
+
+    # AND IT HOLDS NO PRIVILEGE ITS CALLER LACKS. 0067 made report.kitchen_consumption()
+    # SECURITY INVOKER for this reason: its tenant and outlet arguments used to be the
+    # only thing holding it inside one outlet, which is precisely the WHERE clause a route
+    # appends and could forget.
+    definer = q("""SELECT p.prosecdef::text FROM pg_proc p
+                     JOIN pg_namespace n ON n.oid = p.pronamespace
+                    WHERE n.nspname = 'report'
+                      AND p.proname = 'kitchen_consumption';""").scalar
+    record("and the reading holds no privilege its caller lacks",
+           definer == "false",
+           f"prosecdef = {definer}. SECURITY INVOKER since 0067, so the rows this route "
+           f"returns are the rows row level security lets the caller see rather than the "
+           f"rows an argument asked for")
+
+
 def section_reroute() -> None:
     print("\n--- 3. FR-FUL-015: rerouting while the outlet node holds authority ---")
 
@@ -338,12 +405,62 @@ def section_bounds() -> None:
         record("recorded in planning/M6_FINDINGS.md", True, bound)
 
 
+def a_manager_with_a_live_session() -> str:
+    """A strong session for the finance manager, as `tenant.outlet.secret`.
+
+    The same shape M1-D's db.withSession() parses, and only its sha256 reaches the
+    database (FR-SEC-007). Written here rather than imported because every suite that has
+    one keeps it in a module called `fixtures`, and there are six of those on this path.
+    """
+    # AT KAZANCHIS RATHER THAN SARBET, and the reason is worth stating because getting it
+    # wrong looked exactly like a defect. The kitchen-consumption route scopes to the
+    # outlet on the CALLER'S SESSION — that is the whole point of 0067 making the function
+    # SECURITY INVOKER — and every completed ticket in this database is at Kazanchis. A
+    # session at Sarbet gets 200 and an empty list, which is the truth about Sarbet and
+    # says nothing about the reading. The outlet is chosen to match where the work
+    # happened, not to make the assertion pass.
+    secret = os.urandom(16).hex()
+    token = f"{TENANT}.{KAZANCHIS}.{secret}"
+    planted = run(ADMIN, f"""
+        SELECT set_config('app.tenant_id', '{TENANT}', false);
+        SELECT set_config('app.outlet_id', '{KAZANCHIS}', false);
+        INSERT INTO identity.session
+            (tenant_id, outlet_id, user_account_id, token_digest, established_with,
+             issued_at, expires_at)
+        VALUES ('{TENANT}', '{KAZANCHIS}', '{KAZANCHIS_MANAGER}',
+                sha256(convert_to('{token}', 'UTF8')), 'strong', now(),
+                now() + interval '1 hour');
+    """, tx=True)
+    if not planted.ok:
+        raise RuntimeError(f"could not plant a manager session: {planted.err[:300]}")
+    return token
+
+
 def main() -> int:
     print("=" * 74)
     print("  M6-D — reporting, exports, and two closures that came due")
     print("=" * 74)
 
-    for section in (section_export, section_consumption, section_reroute,
+    # A LIVE SERVICE, because one of the things this gate closed is only true if a route
+    # answers. Everything else in this suite is SQL and would run without one.
+    sync_and_build()
+    service = Service(os.environ["M1A_APP_DSN"])
+    if not service.start():
+        print(f"FAIL SERVICE_DID_NOT_START\n{service.logs()[-2000:]}")
+        return 1
+    CONTEXT["base_url"] = f"http://127.0.0.1:{service.port}"
+    opa.CONTEXT["base_url"] = CONTEXT["base_url"]
+    CONTEXT["manager_token"] = a_manager_with_a_live_session()
+
+    try:
+        return _run_sections()
+    finally:
+        service.stop()
+
+
+def _run_sections() -> int:
+    for section in (section_export, section_consumption,
+                    section_the_route_a_person_reaches, section_reroute,
                     section_controls, section_bounds):
         try:
             section()
