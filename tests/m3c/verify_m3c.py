@@ -2082,7 +2082,8 @@ def section_governance() -> None:
            not later,
            f"{[r[0] for r in later] or 'none'} — the waiter surface and journeys are "
            f"M3-D; checks, payments, tips and receipts are M4; the outlet node, sync and "
-           f"the print queue are M5a")
+           f"the print queue landed at M5a, in edge, integration and docs rather "
+           f"than in the three schemas this check reads")
 
     secrets = [name for name in SOURCES
                if re.search(r"(password|secret|token)\s*[=:]\s*['\"][A-Za-z0-9+/]{12,}",

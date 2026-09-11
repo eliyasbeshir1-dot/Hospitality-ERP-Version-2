@@ -159,7 +159,10 @@ def main() -> int:
                  "Never edit this script, add exclusions, or suppress the check."),
     }
     if args.json_report:
-        Path(args.json_report).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        # LF explicitly: text mode would write CRLF on Windows and LF on Linux, so the
+        # artefact would differ by the platform that generated it while --check compares
+        # it against one committed copy.
+        Path(args.json_report).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8", newline="\n")
 
     if findings:
         print(f"FAIL M0R_SKELETON — {len(findings)} finding(s)\n", file=sys.stderr)

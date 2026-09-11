@@ -144,6 +144,107 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
     }),
   );
 
+  /**
+   * FR-POS-004's complement: the tables with nobody at them.
+   *
+   * pos.table_view() returns one row per OPEN occupancy, so a free table is correctly
+   * absent from it — and before OP-C that was the whole story, because nothing could open
+   * an occupancy anyway. A waiter seats from this list.
+   */
+  app.get('/s/v1/tables/seatable', async (request, reply) =>
+    asStaff(request, reply, async (client, tenantId, outletId) => {
+      const { rows } = await client.query(
+        `SELECT table_node_id, table_reference, display_name, seat_count
+           FROM pos.seatable_tables($1::uuid, $2::uuid)`,
+        [tenantId, outletId],
+      );
+      return { tables: rows };
+    }),
+  );
+
+  /**
+   * FR-ORD-004. The orders still waiting to be admitted to the kitchen.
+   *
+   * THE LIST THAT DID NOT EXIST, AND THE REASON A GUEST ORDER STOPPED DEAD.
+   *
+   * Where the outlet's ordering policy says a channel is `staff_confirmed`, a placed
+   * order sits in 'submitted' until a person accepts it. POST /s/v1/orders/:orderId/accept
+   * has existed since OP-A and works. No surface called it, and — worse — no screen
+   * anywhere listed an order awaiting acceptance: the station board shows TICKETS, and an
+   * unaccepted order has none. So the order was invisible on every screen in the system
+   * until somebody accepted it, and nobody could accept it because no screen showed it.
+   *
+   * It is a STAFF route and it belongs to the waiter floor, not the station board. A cook
+   * cooks; gating an order is a host act. Nothing stops the station surface calling this —
+   * routes are not addressed to screens — but the screen that draws it is the floor.
+   */
+  app.get('/s/v1/orders/pending', async (request, reply) =>
+    asStaff(request, reply, async (client, tenantId, outletId) => {
+      const { rows } = await client.query(
+        `SELECT order_id, order_number, table_session_id, table_reference, origin,
+                submitted_at, waiting_seconds, lines,
+                total_amount_minor::text AS total_amount_minor, currency_code
+           FROM pos.pending_orders($1::uuid, $2::uuid)`,
+        [tenantId, outletId],
+      );
+      return { orders: rows };
+    }),
+  );
+
+  /**
+   * FR-TAB-003. A member of staff seats a table.
+   *
+   * The acting user is resolved FROM THE SESSION, as everything else in this file is: a
+   * user id a caller can supply is a user id a caller can choose, and this one is written
+   * into an audit column and into who is accountable for the table.
+   *
+   * The same service.open_table_session() a guest's scan calls, with a different opening
+   * source. That is the whole of the difference, and it is the difference
+   * service.opening_source has modelled since M2-B without ever having a writer.
+   */
+  app.post<{ Params: { tableNodeId: string } }>(
+    '/s/v1/tables/:tableNodeId/seat',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['tableNodeId'],
+          properties: { tableNodeId: { type: 'string', format: 'uuid' } },
+        },
+      },
+    },
+    async (request, reply) =>
+      asStaff(request, reply, async (client, tenantId, _outletId, userId) => {
+        try {
+          const { rows } = await client.query(
+            `SELECT service.open_table_session($1::uuid, $2::uuid,
+                                               'staff'::service.opening_source,
+                                               $3::uuid, NULL) AS id`,
+            [tenantId, request.params.tableNodeId, userId],
+          );
+          return { tableSessionId: rows[0].id };
+        } catch (error) {
+          const signature = signatureOf(error);
+          if (signature) {
+            // Three refusals, three statuses, because the floor screen does a different
+            // thing with each. A waiter who taps a table somebody else has just seated
+            // has hit a conflict and the screen redraws; a table that does not resolve is
+            // gone from the floor and the list is stale; anything else is the request
+            // itself being wrong. A single status for all three would send the screen to
+            // one behaviour for three situations — which is the shape of the four 500s
+            // documents.ts has answered to working business rules.
+            const STATUS: Record<string, number> = {
+              OCCUPANCY_ALREADY_OPEN: 409,
+              TABLE_UNKNOWN: 404,
+            };
+            reply.code(STATUS[signature] ?? 422);
+            return { error: 'refused', reason: signature };
+          }
+          throw error;
+        }
+      }),
+  );
+
   /** FR-UX-015. How much friction each action carries. The surface reads this; it never decides it. */
   app.get('/s/v1/confirmation-requirements', async (request, reply) =>
     asStaff(request, reply, async (client, tenantId) => {
@@ -266,6 +367,58 @@ export function registerStaffRoutes(app: FastifyInstance, deps: StaffDependencie
           const signature = signatureOf(error);
           if (signature) {
             reply.code(422);
+            return { error: 'refused', reason: signature };
+          }
+          throw error;
+        }
+      }),
+  );
+
+  /**
+   * Taking a line back out, and the reason this route exists at all (FR-POS-003A).
+   *
+   * OP-C gave the guest surface a remove control and a route behind it, and M3-D's
+   * structural check refused the result: the guest channel named two cart-line functions
+   * and this one named one. That check requires both channels to reach THE SAME functions
+   * for the same rule, and it was reporting something true — a waiter taking an order at
+   * the table could add a dish and could not take one off, which is F-OPB-10 again on the
+   * other channel.
+   *
+   * Nobody had noticed because no waiter journey has ever changed its mind either. The
+   * check found it from the catalog, structurally, before any test walked it.
+   *
+   * service.remove_cart_line() unchanged — the same writer the guest route calls, and the
+   * same refusal when the basket has already been ordered from.
+   */
+  app.delete<{ Params: { lineId: string }; Querystring: { cartId?: string } }>(
+    '/s/v1/cart/lines/:lineId',
+    {
+      schema: {
+        params: {
+          type: 'object', required: ['lineId'],
+          properties: { lineId: { type: 'string', format: 'uuid' } },
+        },
+        querystring: {
+          type: 'object',
+          properties: { cartId: { type: 'string', format: 'uuid' } },
+        },
+      },
+    },
+    async (request, reply) =>
+      asStaff(request, reply, async (client, tenantId) => {
+        try {
+          const { rows } = await client.query(
+            'SELECT service.remove_cart_line($1::uuid, $2::uuid, $3::uuid) AS cart_id',
+            [tenantId, request.params.lineId, request.query.cartId ?? null],
+          );
+          return { removed: request.params.lineId, cartId: rows[0].cart_id };
+        } catch (error) {
+          const signature = signatureOf(error);
+          if (signature) {
+            // The same split the guest route makes, for the same reason: a line already
+            // gone and a basket frozen by an order are different situations, and a screen
+            // does a different thing with each.
+            reply.code(signature === 'CART_LINE_UNKNOWN' ? 404 : 409);
             return { error: 'refused', reason: signature };
           }
           throw error;

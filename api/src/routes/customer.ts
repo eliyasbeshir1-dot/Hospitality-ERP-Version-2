@@ -196,7 +196,84 @@ export function registerCustomerRoutes(app: FastifyInstance, deps: CustomerDepen
             // it is the one refusal a guest can actually resolve.
             return { error: 'verification required', reason: 'STALE_QR_VERIFICATION_REQUIRED' };
           }
-          throw error;
+          // AND EVERY OTHER NAMED REFUSAL, which this route used to answer 500 to.
+          //
+          // NO_OPEN_OCCUPANCY was the one a person actually met: the first guest to scan
+          // the demonstration floor was told the server had broken, when the service was
+          // correctly reporting that the table had no session to join. That is the fifth
+          // instance in this repository of a named business rule answered as a server
+          // fault — F-OPB-4b counted four in documents.ts — and it is the same shape every
+          // time: a map of the refusals somebody remembered, beside a set of refusals
+          // somebody else adds to.
+          //
+          // Derived rather than listed here, so a refusal added to
+          // service.join_table_session() tomorrow does not become a 500 by being new.
+          const matched = /\b([A-Z][A-Z_]{4,})\b/.exec(message);
+          if (!matched) throw error;
+          reply.code(409);
+          return { error: 'refused', reason: matched[1] };
+        }
+      }),
+  );
+
+  /**
+   * Being seated: the route the guest surface calls after a scan (FR-TAB-003).
+   *
+   * `/c/v1/join` above joins an occupancy that already exists, and until OP-C nothing in
+   * this repository created one — every INSERT INTO service.table_session was in a test.
+   * So a guest who scanned an unoccupied table got a session, a scan, and then
+   * NO_OPEN_OCCUPANCY from the cart, which is what the first person to open the
+   * demonstration floor met.
+   *
+   * THE BRANCH IS NOT HERE. service.seat_guest_from_scan() decides whether this scan
+   * opens an occupancy or joins one, because a surface that decided would be a second
+   * opinion about whether a table is busy and the two would disagree the moment a party
+   * sits down between the scan and the tap. This route passes the verification arguments
+   * through unread and reports what came back.
+   */
+  app.post<{ Body: { scanId: string; verification?: string; evidence?: string } }>(
+    '/c/v1/seat',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          required: ['scanId'],
+          properties: {
+            scanId: { type: 'string', format: 'uuid' },
+            verification: { type: 'string', maxLength: 64 },
+            evidence: { type: 'string', maxLength: 500 },
+          },
+        },
+      },
+    },
+    async (request, reply) =>
+      asGuest(request, reply, async (client, tenantId) => {
+        try {
+          const { rows } = await client.query(
+            `SELECT table_session_id, opened
+               FROM service.seat_guest_from_scan($1::uuid, $2::uuid,
+                                                $3::service.verification_method, $4)`,
+            [tenantId, request.body.scanId, request.body.verification ?? null,
+             request.body.evidence ?? null],
+          );
+          return { tableSessionId: rows[0].table_session_id, opened: rows[0].opened };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '';
+          if (message.includes('STALE_QR_VERIFICATION_REQUIRED')) {
+            reply.code(409);
+            // Named, not flattened into a generic failure, for the same reason as on the
+            // join route: it is the one refusal a guest can actually resolve, and after
+            // OP-C the surface resolves it by presenting the code again rather than by
+            // finding a member of staff.
+            return { error: 'verification required', reason: 'STALE_QR_VERIFICATION_REQUIRED' };
+          }
+          // Every other refusal this path raises is named by the database, and a named
+          // domain refusal is not a server fault. Reporting one as a 500 is the defect
+          // the guest route already carried once, at M3-D, and four times in documents.ts.
+          const matched = /\b([A-Z][A-Z_]{4,})\b/.exec(message);
+          if (!matched) throw error;
+          reply.code(409);
+          return { error: 'refused', reason: matched[1] };
         }
       }),
   );
@@ -257,6 +334,10 @@ export function registerCustomerRoutes(app: FastifyInstance, deps: CustomerDepen
                   g.amount_minor::text AS amount_minor,
                   g.allergen_kitchen_code, g.declaration_class::text AS declaration_class,
                   g.written_warning, g.icon_key,
+                  -- FR-MNU-004. Present in the seed since 0003 and returned by nothing
+                  -- until OP-D, so a guest read a name and a price and decided on that.
+                  g.short_description, g.long_description,
+                  g.customer_visible_ingredients, g.preparation_minutes,
                   l.item_id, l.variant_id
              FROM menu.published_menu_for_guest($1::uuid, $2::uuid, $3::menu.customer_locale) g
              JOIN menu.publication_snapshot_line l
@@ -268,6 +349,8 @@ export function registerCustomerRoutes(app: FastifyInstance, deps: CustomerDepen
         const byItem = new Map<string, {
           itemCode: string; itemId: string; variantId: string; name: string;
           currencyCode: string; amountMinor: string;
+          shortDescription: string | null; longDescription: string | null;
+          ingredients: string | null; preparationMinutes: number | null;
           allergens: { kitchenCode: string; declarationClass: string; writtenWarning: string;
                        iconKey: string | null }[];
         }>();
@@ -282,6 +365,13 @@ export function registerCustomerRoutes(app: FastifyInstance, deps: CustomerDepen
               name: row.display_name,
               currencyCode: row.currency_code,
               amountMinor: row.amount_minor,
+              // Null travels as null. A dish with no description gets no description on
+              // the screen; substituting the name, or an empty string the surface would
+              // render as a blank line, would be this route inventing prose nobody wrote.
+              shortDescription: row.short_description ?? null,
+              longDescription: row.long_description ?? null,
+              ingredients: row.customer_visible_ingredients ?? null,
+              preparationMinutes: row.preparation_minutes ?? null,
               allergens: [],
             });
           }
@@ -465,6 +555,60 @@ export function registerCustomerRoutes(app: FastifyInstance, deps: CustomerDepen
   );
 
   /**
+   * Taking a line back out of the basket (FR-ORD-002).
+   *
+   * There was no way to until OP-C. service.add_cart_line() has existed since M3-D and
+   * nothing ever removed one — no function, no route, no control on the guest surface.
+   * Every golden journey adds items and places the order; none has ever changed its mind,
+   * which is how an absence this plain survived three gates of browser measurement.
+   *
+   * NOT idempotent-keyed, and the asymmetry with the POST above is deliberate. A repeated
+   * add is a second line and a duplicate charge, which is what the key exists to prevent.
+   * A repeated remove of a line that is already gone is CART_LINE_UNKNOWN and has removed
+   * nothing twice, so a retry needs no ledger to be safe.
+   */
+  app.delete<{ Params: { lineId: string }; Querystring: { cartId?: string } }>(
+    '/c/v1/cart/lines/:lineId',
+    {
+      schema: {
+        params: {
+          type: 'object',
+          required: ['lineId'],
+          properties: { lineId: { type: 'string', format: 'uuid' } },
+        },
+        querystring: {
+          type: 'object',
+          properties: { cartId: { type: 'string', format: 'uuid' } },
+        },
+      },
+    },
+    async (request, reply) =>
+      asGuest(request, reply, async (client, tenantId) => {
+        try {
+          const { rows } = await client.query(
+            'SELECT service.remove_cart_line($1::uuid, $2::uuid, $3::uuid) AS cart_id',
+            [tenantId, request.params.lineId, request.query.cartId ?? null],
+          );
+          return { removed: request.params.lineId, cartId: rows[0].cart_id };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '';
+          // CART_LINE_UNKNOWN is a 404 and CART_ALREADY_SUBMITTED is a 409, and the
+          // difference matters to the surface: the first means the line is already gone
+          // and the basket should simply be redrawn without it, the second means the
+          // basket is frozen and redrawing would hide a refusal the guest needs to see.
+          if (message.includes('CART_LINE_UNKNOWN')) {
+            reply.code(404);
+            return { error: 'refused', reason: 'CART_LINE_UNKNOWN' };
+          }
+          const matched = /\b([A-Z][A-Z_]{4,})\b/.exec(message);
+          if (!matched) throw error;
+          reply.code(409);
+          return { error: 'refused', reason: matched[1] };
+        }
+      }),
+  );
+
+  /**
    * FR-ORD-002. The server-calculated preview a guest is shown before committing.
    *
    * Added at M3-D, and the reason is worth recording. M3-A built ordering.preview_cart()
@@ -557,7 +701,29 @@ export function registerCustomerRoutes(app: FastifyInstance, deps: CustomerDepen
              JSON.stringify(request.body.allergyDeclarations ?? []),
              JSON.stringify(request.body.notes ?? [])],
           );
-          return { orderId: rows[0].id as string };
+          // THE STATE TRAVELS BACK, AND THE SURFACE NEEDS IT TO TELL THE TRUTH.
+          //
+          // This used to answer with an id alone, so the guest surface had no way to know
+          // what had become of the order and said "Your order is with the kitchen" in
+          // every case. Under FR-ORD-007A's `staff_confirmed` that sentence is false: the
+          // order is in 'submitted', no kitchen has seen it, and it waits for a person.
+          // The surface cannot be truthful about an outcome it was not told.
+          //
+          // Read back rather than inferred from the policy. ordering.submit_order() may
+          // accept automatically, may leave the order submitted, and at FR-ORD-007B may
+          // hold it pending a verified payment; asking the row what happened is one
+          // answer, and a surface that recomputed the policy would be a second.
+          const placed = await client.query(
+            `SELECT state::text AS state, accepted_at IS NOT NULL AS accepted
+               FROM ordering.customer_order
+              WHERE tenant_id = $1::uuid AND id = $2::uuid`,
+            [tenantId, rows[0].id],
+          );
+          return {
+            orderId: rows[0].id as string,
+            state: placed.rows[0]?.state ?? null,
+            accepted: placed.rows[0]?.accepted ?? false,
+          };
         } catch (error) {
           const message = error instanceof Error ? error.message : '';
           const matched = /\b([A-Z][A-Z_]{4,})\b/.exec(message);

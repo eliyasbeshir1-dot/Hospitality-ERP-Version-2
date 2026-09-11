@@ -150,6 +150,101 @@ CONTROLS = [
     ("NC-M4C-008", "A customer receipt printed on a printer nobody tested", "PRINTER_NEVER_TESTED", "m4c"),
     ("NC-M4C-009", "A journey the suite walks that the evidence report never reports", "JOURNEY_UNACCOUNTED", "m4c"),
     ("NC-M4C-010", "An evidence report generated from a tree with uncommitted work", "REPORT_TREE_NOT_CLEAN", "m4c"),
+    # The operator gate. Each of these is a way the connection between a person and the
+    # behaviour beneath it could be made to look present while being wrong — which is the
+    # class this gate exists for, so its controls break the CONNECTION rather than the
+    # logic the connection reaches.
+    ("NC-OPA-001", "A credential accepted without verification", "CREDENTIAL_ACCEPTED_UNVERIFIED", "opa"),
+    ("NC-OPA-002", "A session issued for a revoked or removed role", "SESSION_ISSUED_FOR_REVOKED_ROLE", "opa"),
+    ("NC-OPA-003", "A quick PIN authorising a step-up-governed action", "LOW_RISK_CREDENTIAL_USED_FOR_SENSITIVE_ACTION", "opa"),
+    ("NC-OPA-004", "A kitchen route re-implementing a transition rule", "CHANNEL_RULE_DIVERGENCE", "opa"),
+    ("NC-OPA-005", "A route driving a ticket into an illegal state", "ILLEGAL_TRANSITION_ACCEPTED", "opa"),
+    ("NC-OPA-006", "Expo releasing an incomplete set", "INCOMPLETE_SET_SERVED", "opa"),
+    ("NC-OPA-007", "A seeded row bypassing the runner or RLS", "SEED_BYPASSED_RUNNER", "opa"),
+    ("NC-OPA-008", "Lockout not firing after the configured failures", "LOCKOUT_NOT_ENFORCED", "opa"),
+    ("NC-OPA-009", "A caller's claim recorded as a print the agent never made", "PRINT_OUTCOME_FORGED", "opa"),
+    # OP-B — the staff screens. Every one of these is planted in a SURFACE and measured in
+    # a real browser, because that is where these particular defects live: a rule the
+    # database enforces perfectly can still be undone by the screen that draws it.
+    ("NC-OPB-001", "A station renders an allergy without its written warning", "WRITTEN_WARNING_ABSENT_FROM_RENDER", "opb"),
+    ("NC-OPB-002", "Allergy emphasis carried by colour alone", "STATE_CONVEYED_BY_COLOUR_ALONE", "opb"),
+    ("NC-OPB-003", "The tip box rendered inside the bill summary", "TIP_COMMINGLED_WITH_BILL", "opb"),
+    ("NC-OPB-004", "A tip option preselected for the guest", "TIP_PRESELECTED", "opb"),
+    ("NC-OPB-005", "An override accepted without the manager's own session", "OVERRIDE_WITHOUT_STEP_UP", "opb"),
+    ("NC-OPB-006", "A destructive action proceeding with no reason", "DESTRUCTIVE_ACTION_WITHOUT_REASON", "opb"),
+    ("NC-OPB-007", "The station screen driving a ticket into an illegal state", "ILLEGAL_TRANSITION_ACCEPTED", "opb"),
+    ("NC-OPB-008", "A screen re-implementing a rule the route enforces", "CHANNEL_RULE_DIVERGENCE", "opb"),
+    # OP-C — being seated, and taking something back out. Four of these break a RULE and
+    # three break a SCREEN, which is the split the gate itself has: seating is a database
+    # function nothing had ever called, and the three missing controls were absences in
+    # the surfaces. The first is the one that matters most — it proves this gate did not
+    # buy its feature by weakening M2-B's stale-QR guarantee.
+    ("NC-OPC-001", "A scan bound to no occupancy admitted to one opened since", "STALE_QR_VERIFICATION_REQUIRED", "opc"),
+    ("NC-OPC-002", "A table seated twice, with two open occupancies", "OCCUPANCY_ALREADY_OPEN", "opc"),
+    ("NC-OPC-003", "An occupancy opened without saying who opened it", "OPENING_SOURCE_UNATTRIBUTED", "opc"),
+    ("NC-OPC-004", "A line removed from a basket somebody has ordered from", "CART_ALREADY_SUBMITTED", "opc"),
+    ("NC-OPC-005", "A basket a guest can add to and cannot take from", "REMOVE_CONTROL_ABSENT", "opc"),
+    ("NC-OPC-006", "A surface with a network layer and no way in", "SIGN_IN_UNREACHABLE", "opc"),
+    ("NC-OPC-007", "A bordered box that never says what it is", "BOX_UNLABELLED", "opc"),
+    # OP-D — the order reaching the kitchen. Two break a rule and three break a screen.
+    # The first is the one that keeps repeating: a new action on a staff surface is
+    # ungraded until somebody grades it, and the fail-closed default then makes the button
+    # demand a written reason and do nothing. table.seat behaved that way at OP-C and
+    # order.accept would have here.
+    ("NC-OPD-001", "A new staff action offered before it was graded", "ACTION_OFFERED_UNGRADED", "opd"),
+    ("NC-OPD-002", "Acceptance working under only one of its policy values", "ACCEPTANCE_POLICY_UNHONOURED", "opd"),
+    ("NC-OPD-003", "A menu that says only what a dish costs", "MENU_SAYS_ONLY_NAME_AND_PRICE", "opd"),
+    ("NC-OPD-004", "A guest told the kitchen has an order it has not seen", "SURFACE_CLAIMS_THE_KITCHEN_HAS_IT", "opd"),
+    ("NC-OPD-005", "An order waiting on no screen anybody can open", "NO_SCREEN_SHOWS_A_WAITING_ORDER", "opd"),
+    # The P0 an external review found at e3ef1a3, and the control that should have existed
+    # since M1-B. Every check of FR-AUTH-007 drives the lockout with FAILURES, because the
+    # rule is "N failures lock you out"; nobody states "N successes must not". OP-B met the
+    # symptom, read it as the limiter working, and worked around it — twice inherited.
+    ("NC-OPD-006", "A successful login counted as a failed one", "SUCCESSFUL_LOGIN_COUNTED_AS_FAILURE", "opd"),
+
+    # M5a — the outlet keeps working when the cloud does not. Three of these five defend
+    # a distinction this gate kept getting wrong: "I could not see it" is not "it is not
+    # there", and every one of those looked like a sensible answer.
+    ("NC-M5A-001", "A production outlet permitted to run cloud-only", "PRODUCTION_WITHOUT_A_NODE", "m5a"),
+    ("NC-M5A-002", "A node registered with four of its five services", "NODE_SERVICE_INVENTORY_INCOMPLETE", "m5a"),
+    ("NC-M5A-003", "A node started at a sibling outlet", "NODE_OUTLET_MISMATCH", "m5a"),
+    ("NC-M5A-004", "A connectivity banner reporting CONNECTED because it could not see the node", "CONNECTIVITY_OUT_OF_SCOPE", "m5a"),
+    ("NC-M5A-005", "An action allowed during an outage because nobody classified it", "ACTION_UNCLASSIFIED", "m5a"),
+
+    # M5b. The same QR, one writer, and a phone that never sees a warning.
+    ("NC-M5B-001", "A LAN answer that is publicly routable, so the horizons are not split", "outlet_hostname_horizons_are_actually_split", "m5b"),
+    ("NC-M5B-002", "A replacement claimed while the old node still answers the LAN", "AUTHORITY_FENCE_UNPROVEN", "m5b"),
+    ("NC-M5B-003", "Guidance that tells a guest to click through a certificate warning", "RESOLUTION_GUIDANCE_OFFERS_A_BYPASS", "m5b"),
+    ("NC-M5B-004", "A node installing a certificate the LAN is not serving", "CERTIFICATE_SERVED_DOES_NOT_MATCH_ISSUED", "m5b"),
+    ("NC-M5B-005", "A revoked session handed to a node as still valid", "CONTINUITY_OFFERED_A_REVOKED_SESSION", "m5b"),
+
+    # M6-A. The built artifact, and nothing in it that can reset production.
+    ("NC-M6A-001", "A demonstration seed loader shipped inside the production artifact", "ARTIFACT_CONTAINS_A_SEED_LOADER", "m6a"),
+    ("NC-M6A-002", "An advertised entry point whose dependency the build left behind", "ARTIFACT_ENTRY_POINT_CANNOT_EXECUTE", "m6a"),
+    ("NC-M6A-003", "A demo-reset function installed in the database", "DATABASE_CONTAINS_A_RESET", "m6a"),
+    ("NC-M6A-004", "An image definition edited away from its manifest", "DOCKERFILE_DRIFT", "m6a"),
+
+    # M6-B. A backup that was encrypted, read back, and put somewhere else.
+    ("NC-M6B-001", "A backup recorded with no encryption", "backup_run_is_encrypted", "m6b"),
+    ("NC-M6B-002", "A backup called verified with nothing to show for it", "backup_run_verification_is_evidenced", "m6b"),
+    ("NC-M6B-003", "A verification that read a different archive", "BACKUP_DIGEST_MISMATCH", "m6b"),
+    ("NC-M6B-004", "An off-site copy of an archive nobody has read", "BACKUP_NOT_VERIFIED", "m6b"),
+    ("NC-M6B-005", "A captured backup's digest edited after the fact", "BACKUP_RUN_REWRITTEN", "m6b"),
+
+    # M6-C. Restore proved by destroying and rebuilding.
+    ("NC-M6C-001", "A truncated archive restored as if whole", "RESTORE_FAILED", "m6c"),
+    ("NC-M6C-002", "A restore attempted with the wrong key", "DECRYPT_FAILED", "m6c"),
+    ("NC-M6C-003", "An estate restored without the grants that make it usable", "RESTORED_BUT_UNUSABLE", "m6c"),
+
+    # M6-D. Reporting, exports, and two closures that came due.
+    ("NC-M6D-001", "An export taken on a step-up for a different act", "EXPORT_STEP_UP_ABSENT", "m6d"),
+    ("NC-M6D-002", "An export record edited after the fact", "EXPORT_EVENT_REWRITTEN", "m6d"),
+    ("NC-M6D-003", "An export taken on a grant older than its window", "EXPORT_STEP_UP_ABSENT", "m6d"),
+
+    # M6-E. Pilot readiness: runbooks, owners, and a cutover somebody signed.
+    ("NC-M6E-001", "An alert nobody owns", "ALERT_UNOWNED", "m6e"),
+    ("NC-M6E-002", "A cutover to live from an unaudited branch", "cutover_live_was_audited", "m6e"),
+    ("NC-M6E-003", "A runbook pointing anywhere it likes", "runbook_path_is_stated", "m6e"),
 ]
 
 
@@ -249,20 +344,40 @@ def count() -> int:
     return len(CONTROLS)
 
 
+# A REPAIR PASS IS NOT A GATE, AND ITS CONTROLS BELONG TO THE GATE THEY REPAIR.
+#
+# OP-A is the repair pass for four of the five P0 findings the M4 executing review
+# returned, so its controls are counted against M4 — the gate whose defects they close —
+# rather than inventing a tenth gate for work that landed no new requirement. The mapping
+# is a single table rather than a wildcard, so an identifier this file has never heard of
+# still raises rather than being silently filed somewhere.
+REPAIR_PASS_GATE = {"OPA": "M4", "OPB": "M4", "OPC": "M4", "OPD": "M4"}
+
+
+def gate_of(identifier: str) -> str | None:
+    """The gate a control belongs to, or None if its name says nothing about one."""
+    numbered = re.fullmatch(r"NC-(M\d)[A-Z]?-\d+", identifier)
+    if numbered:
+        return numbered.group(1)
+    named = re.fullmatch(r"NC-([A-Z]+)-\d+", identifier)
+    return REPAIR_PASS_GATE.get(named.group(1)) if named else None
+
+
 def by_gate() -> list[tuple[str, int]]:
     """How many controls each gate owns, derived from the identifiers themselves.
 
     NC-M1-001 and NC-M1B-001 both belong to M1: the letter is the slice within the gate,
-    and a gate's total is what a reader of the matrix wants.
+    and a gate's total is what a reader of the matrix wants. NC-OPA-001 belongs to M4 by
+    the table above, for the reason recorded there.
     """
     tally: dict[str, int] = {}
     for identifier, _p, _s, _suite in CONTROLS:
-        gate = re.fullmatch(r"NC-(M\d)[A-Z]?-\d+", identifier)
+        gate = gate_of(identifier)
         if not gate:
             raise ControlDrift(
                 f"CONTROL_IDENTIFIER_UNPARSEABLE: {identifier} does not name a gate, so "
                 f"no distribution can be derived from it")
-        tally[gate.group(1)] = tally.get(gate.group(1), 0) + 1
+        tally[gate] = tally.get(gate, 0) + 1
     return sorted(tally.items())
 
 

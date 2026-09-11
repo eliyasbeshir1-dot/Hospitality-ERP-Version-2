@@ -66,6 +66,25 @@ const STATUS: Record<string, number> = {
   // "unmapped database refusal" for a business rule working exactly as designed. Same
   // shape as the M4-A billing routes and GJ-01A — the first caller finds the defect.
   DUPLICATE_RECEIPT_PRINTED: 409,
+  // FOURTH INSTANCE OF THE SAME PATTERN, found the same way again. A second receipt for
+  // one bill revision is refused by a UNIQUE constraint — FR-BIL-010's one original per
+  // settlement, working exactly as designed — and it answered 500 because the constraint
+  // name was not in this map. The first caller to ask twice was OP-B's till, once the
+  // journeys started issuing receipts through the screen.
+  'UNIQUE_VIOLATION:receipt_one_per_bill_revision': 409,
+  // AND THE THIRD INSTANCE OF THE SAME PATTERN, found the same way. NC-OPA-009 is the
+  // first thing ever to POST to the printer-test route, and the refusals migration 0034
+  // added were missing from this map exactly as DUPLICATE_RECEIPT_PRINTED had been: a
+  // forged request was refused correctly by the database and then answered 500, which
+  // reads as "this service is broken" rather than "your claim was rejected". The data was
+  // never at risk; the answer was wrong. 422 rather than 409 to match SINK_MISMATCH
+  // below, which is the same kind of disagreement about where bytes went.
+  PRINTER_TEST_EVIDENCE_DISAGREES: 422,
+  PRINT_EVIDENCE_DISAGREES: 422,
+  // Registering a printer at a null-device path while claiming a device sink. The CHECK
+  // is the boundary, so the constraint's own name is the signature.
+  'CHECK_VIOLATION:printer_null_device_is_not_a_device_sink': 422,
+  'CHECK_VIOLATION:printer_null_device_names_the_null_device': 422,
   RECEIPT_INCOMPLETE_IN_LOCALE: 422,
   RECEIPT_FIGURE_UNFAITHFUL: 409,
   TIP_MERGED_ON_RECEIPT: 409,
@@ -169,23 +188,45 @@ export function registerDocumentRoutes(
     }));
 
   /**
-   * FR-CFG-001D's other half, and the half a setup screen usually skips. The OUTCOME is
-   * docs.print_outcome, which a preview printer cannot produce a value of — 0027's
-   * printer_test_needs_a_device trigger refuses the row — so a file that received bytes
-   * cannot be recorded as a printer that works.
+   * FR-CFG-001D's other half, and the half a setup screen usually skips.
+   *
+   * THE CALLER REPORTS WHAT THE AGENT OBSERVED. IT DOES NOT NAME THE OUTCOME.
+   *
+   * This route used to take `outcome` from the request body and record it. A staff session
+   * — the least-privileged one, no step-up — could POST outcome='printed' against a
+   * printer whose device_path was './NUL', and the build would then report that printer as
+   * tested and working with no agent having run and no bytes having gone anywhere. The M4
+   * review forged exactly that.
+   *
+   * The body now carries the agent's REPORT: which sink it put the bytes on and what the
+   * platform resolved the destination to. docs.record_printer_test() compares that with
+   * the printer's own classification and derives the outcome. A printer that discards
+   * cannot be recorded as having printed, whatever this request says.
+   *
+   * What this does not do is authenticate the agent — there is no shared secret, so a
+   * caller can still misreport what it saw. What changed is that a misreport is now
+   * checked against the row it is about, and the specific forgery the review used is
+   * refused by the database rather than by anything here.
+   *
+   * 0027's printer_test_needs_a_device trigger still stands underneath all of this: a
+   * preview printer can produce no outcome at all, so a file that received bytes cannot
+   * be recorded as a printer that works.
    */
   app.post<{
     Params: { printerId: string };
-    Body: { outcome: string; bytesSha256: string; byteCount: number; detail?: string };
+    Body: { agentSink: string; resolvedDestination: string; bytesSha256: string;
+            byteCount: number; detail?: string };
   }>('/s/v1/printers/:printerId/test', {
     schema: {
       params: { type: 'object', required: ['printerId'],
                 properties: { printerId: UUID } },
       body: {
-        type: 'object', required: ['outcome', 'bytesSha256', 'byteCount'],
+        type: 'object',
+        required: ['agentSink', 'resolvedDestination', 'bytesSha256', 'byteCount'],
         additionalProperties: false,
         properties: {
-          outcome: { type: 'string', minLength: 1, maxLength: 20 },
+          agentSink: { type: 'string', minLength: 1, maxLength: 20 },
+          resolvedDestination: { type: 'string', minLength: 1, maxLength: 400 },
           bytesSha256: DIGEST,
           byteCount: { type: 'integer', minimum: 1 },
           detail: { type: 'string', maxLength: 2000 },
@@ -197,10 +238,10 @@ export function registerDocumentRoutes(
       try {
         const { rows } = await client.query(
           `SELECT docs.record_printer_test($1::uuid, $2::uuid, $3::uuid,
-                    $4::docs.print_outcome, $5::char(64), $6::integer, $7, $8::uuid) AS id`,
-          [tenantId, outletId, request.params.printerId, request.body.outcome,
-           request.body.bytesSha256, request.body.byteCount,
-           request.body.detail ?? null, userId]);
+                    $4::docs.sink_kind, $5, $6::char(64), $7::integer, $8, $9::uuid) AS id`,
+          [tenantId, outletId, request.params.printerId, request.body.agentSink,
+           request.body.resolvedDestination, request.body.bytesSha256,
+           request.body.byteCount, request.body.detail ?? null, userId]);
         return { printerTestId: rows[0].id as string };
       } catch (error) {
         return answer(reply, error);
@@ -328,7 +369,8 @@ export function registerDocumentRoutes(
   app.post<{
     Params: { receiptId: string };
     Body: {
-      printerId: string; outcome: string; bytesSha256: string; byteCount: number;
+      printerId: string; agentSink: string; resolvedDestination: string;
+      bytesSha256: string; byteCount: number;
       isReprint?: boolean; reasonCodeId?: string; reasonText?: string; detail?: string;
     };
   }>('/s/v1/receipts/:receiptId/prints', {
@@ -336,11 +378,14 @@ export function registerDocumentRoutes(
       params: { type: 'object', required: ['receiptId'],
                 properties: { receiptId: UUID } },
       body: {
-        type: 'object', required: ['printerId', 'outcome', 'bytesSha256', 'byteCount'],
+        type: 'object',
+        required: ['printerId', 'agentSink', 'resolvedDestination',
+                   'bytesSha256', 'byteCount'],
         additionalProperties: false,
         properties: {
           printerId: UUID,
-          outcome: { type: 'string', minLength: 1, maxLength: 20 },
+          agentSink: { type: 'string', minLength: 1, maxLength: 20 },
+          resolvedDestination: { type: 'string', minLength: 1, maxLength: 400 },
           bytesSha256: DIGEST,
           byteCount: { type: 'integer', minimum: 1 },
           isReprint: { type: 'boolean' },
@@ -355,10 +400,11 @@ export function registerDocumentRoutes(
       try {
         const { rows } = await client.query(
           `SELECT docs.record_receipt_print($1::uuid, $2::uuid, $3::uuid, $4::uuid,
-                    $5::docs.print_outcome, $6::char(64), $7::integer, $8::uuid,
-                    $9::boolean, $10::uuid, $11, $12) AS id`,
+                    $5::docs.sink_kind, $6, $7::char(64), $8::integer, $9::uuid,
+                    $10::boolean, $11::uuid, $12, $13) AS id`,
           [tenantId, outletId, request.params.receiptId, request.body.printerId,
-           request.body.outcome, request.body.bytesSha256, request.body.byteCount,
+           request.body.agentSink, request.body.resolvedDestination,
+           request.body.bytesSha256, request.body.byteCount,
            userId, request.body.isReprint ?? false, request.body.reasonCodeId ?? null,
            request.body.reasonText ?? null, request.body.detail ?? null]);
         return { printAttemptId: rows[0].id as string };
@@ -376,7 +422,9 @@ export function registerDocumentRoutes(
       params: { type: 'object', required: ['receiptId'],
                 properties: { receiptId: UUID } },
       body: {
-        type: 'object', required: ['printerId', 'outcome', 'bytesSha256', 'byteCount'],
+        type: 'object',
+        required: ['printerId', 'agentSink', 'resolvedDestination',
+                   'bytesSha256', 'byteCount'],
         additionalProperties: false,
         properties: {
           printerId: UUID,

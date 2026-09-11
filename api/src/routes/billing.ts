@@ -452,6 +452,94 @@ export function registerBillingRoutes(app: FastifyInstance, deps: BillingDepende
   );
 
   /**
+   * THE SAME BILL, READ BY THE PERSON TAKING THE MONEY.
+   *
+   * FR-BIL-005 and FR-BIL-006 were delivered at M4-A and reachable only by a guest.
+   * billing.bill_summary(), billing.bill_preview_lines() and billing.tip_options() are
+   * called by /c/v1/bill and /c/v1/bill/tip-options under asGuest and by nothing else, so
+   * a till could open a bill, split it and take payment for it while having no route that
+   * told it what the bill SAID. That is the sixth instance of a requirement met in SQL and
+   * unreachable by the person it is written for, and OP-B could not build a cashier screen
+   * without closing it.
+   *
+   * THE SAME FUNCTIONS, NOT A STAFF VARIANT. The SQL below is the guest route's SQL. A
+   * second implementation that agrees today is the divergence M3-D's single-implementation
+   * proof exists to catch, and tests/opb asserts these two routes and the guest pair name
+   * the same functions rather than trusting this comment.
+   *
+   * WHAT DIFFERS is only how the bill is identified: a guest is seated, so its bill is
+   * derived from the table; a cashier names the bill. Everything after that is identical.
+   *
+   * SCOPE IS THE DATABASE'S, NOT THIS FILE'S. billing.bill and billing.bill_share carry
+   * RLS FORCE with app.row_in_scope(tenant_id, outlet_id), and all three functions are
+   * SECURITY INVOKER, so a bill belonging to another tenant or a sibling outlet returns no
+   * rows under a staff session's context. There is deliberately no ownership check here to
+   * go stale beside the policy that already enforces it — tests/opb proves the refusal
+   * from both directions instead.
+   */
+  app.get<{ Params: { billId: string } }>(
+    '/s/v1/bills/:billId',
+    { schema: { params: { type: 'object', required: ['billId'],
+                          properties: { billId: UUID } } } },
+    async (request, reply) =>
+      asStaff(request, reply, async (client, tenantId) => {
+        const bill = request.params.billId;
+        const summary = await client.query(
+          `SELECT bill_number, state::text AS state, currency_code,
+                  bill_total_minor::text AS bill_total_minor,
+                  disposed_minor::text AS disposed_minor,
+                  outstanding_minor::text AS outstanding_minor,
+                  calculation_version, locale::text AS locale
+             FROM billing.bill_summary($1::uuid, $2::uuid)`,
+          [tenantId, bill],
+        );
+        // Out of scope and absent are the same answer on purpose. Telling a cashier that a
+        // bill exists but belongs to another outlet is the disclosure the policy prevents.
+        if (summary.rows.length === 0) {
+          reply.code(404);
+          return { error: 'not found', reason: 'BILL_NOT_FOUND' };
+        }
+        const lines = await client.query(
+          `SELECT stage, kind::text AS kind, label, currency_code,
+                  amount_minor::text AS amount_minor
+             FROM billing.bill_preview_lines($1::uuid, $2::uuid)`,
+          [tenantId, bill],
+        );
+        // THE BILL'S LOCALE, NOT THE CASHIER'S. It is returned as the bill's own field so
+        // a till renders what the document says rather than what the operator's session
+        // prefers — the same rule that stops a receipt changing language when a manager
+        // reprints it.
+        return { bill: { id: bill, ...summary.rows[0] }, lines: lines.rows };
+      }),
+  );
+
+  /** The tip box for one share, for the till. Same function, same "nothing preselected". */
+  app.get<{ Params: { billId: string }; Querystring: { shareId?: string } }>(
+    '/s/v1/bills/:billId/tip-options',
+    { schema: { params: { type: 'object', required: ['billId'],
+                          properties: { billId: UUID } } } },
+    async (request, reply) =>
+      asStaff(request, reply, async (client, tenantId) => {
+        const bill = request.params.billId;
+        const share = request.query.shareId
+          ? request.query.shareId
+          : (await client.query(
+              `SELECT id FROM billing.bill_share
+                WHERE bill_id = $1::uuid ORDER BY share_number LIMIT 1`, [bill],
+            )).rows[0]?.id ?? null;
+        if (!share) return { shareId: null, options: [] };
+
+        const { rows } = await client.query(
+          `SELECT display_order, percentage::text AS percentage, currency_code,
+                  amount_minor::text AS amount_minor
+             FROM billing.tip_options($1::uuid, $2::uuid)`,
+          [tenantId, share],
+        );
+        return { shareId: share, options: rows };
+      }),
+  );
+
+  /**
    * FR-BIL-003's five modes, each dispatched to the function that implements it.
    *
    * The dispatch is a switch over the mode and nothing else: no amount is computed here,

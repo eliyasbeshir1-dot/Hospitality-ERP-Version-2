@@ -215,7 +215,10 @@ def main() -> int:
                  "it pass."),
     }
     if args.json_report:
-        Path(args.json_report).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        # LF explicitly: text mode would write CRLF on Windows and LF on Linux, so the
+        # artefact would differ by the platform that generated it while --check compares
+        # it against one committed copy.
+        Path(args.json_report).write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8", newline="\n")
 
     if findings:
         print(f"FAIL M1_FORBIDDEN_SURFACE — {len(findings)} finding(s)\n", file=sys.stderr)
@@ -227,7 +230,8 @@ def main() -> int:
     print(f"  repository files scanned : {scanned}")
     print(f"  docs package files       : {docs_files}")
     print(f"  vocabulary loaded        : {terms} terms across {domains} domains")
-    print(f"  vocabulary source        : {RULES_PATH.relative_to(Path(__file__).resolve().parents[1])}")
+    print("  vocabulary source        : "
+          f"{RULES_PATH.relative_to(Path(__file__).resolve().parents[1]).as_posix()}")
     print("  fenced-domain surface    : none")
     return 0
 

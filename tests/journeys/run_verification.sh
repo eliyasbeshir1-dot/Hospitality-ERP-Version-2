@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Golden journey driver: rebuild from empty through every slice, then walk the journeys.
 #
-# Runs AFTER the slice suites — the M4-B driver, which chains the whole history beneath
+# Runs AFTER the slice suites — the OP-A driver, which chains the whole history beneath
 # it — and reports its own outcome whether or not one of them failed. If a slice check and a journey fail together that is one signal; if only the
 # journey fails that is a different and more interesting one, and a driver that stopped
 # at the first slice failure would hide the second case entirely.
@@ -24,7 +24,13 @@ fi
 export PYTHON="$PY_BIN"
 
 slice_status=0
-bash "$REPO/tests/m4c/run_verification.sh" || slice_status=$?
+# OP-D, which chains OP-C, which chains OP-B, which chains OP-A, and the rest. The chain is extended
+# at its head rather than beside it for the reason F-OPB-8 records: a suite that nothing
+# chains from would exist, pass locally, be enumerated in the CI matrix, and never run.
+# M6-E, which chains M6-D, which chains M6-C, which chains the rest. The head of the chain
+# moves with the gate: a suite that nothing chains from would exist, pass locally, be
+# enumerated in the CI matrix and never run, which is what F-OPB-8 records.
+bash "$REPO/tests/m6e/run_verification.sh" || slice_status=$?
 
 PGHOST_DIR="${PGHOST_DIR:-/var/lib/m1apg/run}"
 PGPORT="${PGPORT:-5433}"

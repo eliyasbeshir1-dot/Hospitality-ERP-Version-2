@@ -103,8 +103,12 @@ def _bash_candidates() -> "list[Path]":
     return candidates
 
 
-def _sees_this_filesystem(bash: "Path | str") -> bool:
+def _sees_this_filesystem(bash: "Path | str") -> "tuple[bool, str]":
     """Can this bash open the very file it is about to be asked to run?
+
+    Returns (usable, why_not). The reason is returned rather than inferred by the caller,
+    because there are two ways to fail here and they need different words: a bash that
+    ran and could not see the file, and a bash that could not be run at all.
 
     The WSL launcher is a real bash on a real filesystem — just not this one. It is
     excluded by what it can reach, not by where it is installed, because a name is not
@@ -114,9 +118,20 @@ def _sees_this_filesystem(bash: "Path | str") -> bool:
     build = (REPO / "api" / "build.sh").as_posix()
     try:
         proc = run_command([str(bash), "-c", 'test -f "$1"', "probe", build])
-    except (CommandUnreadable, OSError):
-        return False
-    return proc.returncode == 0
+    except (CommandUnreadable, OSError) as failure:
+        # NOT THE SAME ANSWER AS "IT CANNOT SEE THE FILESYSTEM", and this used to say it
+        # was. If the process cannot be STARTED, this probe has learned nothing about
+        # which volume that bash mounts — and the caller went on to tell the reader to
+        # install Git for Windows on a machine where Git for Windows was working.
+        #
+        # Observed for real: a detached run whose stdin handle had gone invalid could not
+        # spawn any child at all, and every candidate failed with WinError 6. The
+        # diagnostic named a cause it had not verified, which is the one thing a
+        # diagnostic in this repository may not do.
+        return False, f"could not be started: {type(failure).__name__}: {failure}"
+    if proc.returncode == 0:
+        return True, ""
+    return False, f"cannot open {build}"
 
 
 def bash_executable() -> str:
@@ -140,10 +155,27 @@ def bash_executable() -> str:
 
     examined: list[str] = []
     for candidate in _bash_candidates():
-        if _sees_this_filesystem(candidate):
+        usable, why_not = _sees_this_filesystem(candidate)
+        if usable:
             _BASH = str(candidate)
             return _BASH
-        examined.append(f"{candidate} (cannot open {(REPO / 'api' / 'build.sh').as_posix()})")
+        examined.append(f"{candidate} ({why_not})")
+
+    # THE REMEDY FOLLOWS FROM WHAT WAS OBSERVED, rather than being one sentence for two
+    # different failures. Every candidate failing to START is a fact about this process —
+    # most often a standard handle it cannot pass on, which is what a detached run with a
+    # closed stdin leaves behind — and telling that reader to install Git for Windows
+    # sends them to fix something that was never broken.
+    unstartable = [line for line in examined if "could not be started" in line]
+    if examined and len(unstartable) == len(examined):
+        raise RuntimeError(
+            "PREREQUISITE_ABSENT: no bash could be STARTED by this process, which is not "
+            "the same as no bash being able to see this filesystem — this probe never got "
+            "far enough to ask that. Every candidate failed at process creation, so look "
+            "at what this process can hand a child rather than at what is installed: a "
+            "detached run whose stdin handle has been closed fails exactly this way on "
+            "Windows (WinError 6). "
+            + f"Examined: {'; '.join(examined)}.")
 
     raise RuntimeError(
         "PREREQUISITE_ABSENT: no bash on this machine can see this filesystem. The API "

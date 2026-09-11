@@ -14,6 +14,7 @@ same RLS policies the application runs under (FR-DAT-017).
 from __future__ import annotations
 
 import hashlib
+import json
 import secrets
 from dataclasses import dataclass, field
 
@@ -37,8 +38,36 @@ PRINCIPAL_SYNC = "ffff0001-0000-4000-8000-000000000001"
 
 
 def digest(value: str) -> str:
-    """Hex-encoded SHA-256 of a secret. Only this ever reaches the database."""
+    """Hex-encoded SHA-256 of a secret. Only this ever reaches the database.
+
+    Correct for the HIGH-ENTROPY secrets in this file — a session token, an OTP — where
+    the stored value is a digest of a random 128-bit draw and there is no low-entropy
+    secret for a KDF to protect. It is NOT correct for a secret a person chooses; see
+    stretch() below, and the constraint that now refuses the difference.
+    """
     return hashlib.sha256(value.encode()).hexdigest()
+
+
+# THE PARAMETERS THE SERVICE ACTUALLY USES, not a cheaper variant.
+#
+# api/src/routes/auth.ts derives with scrypt at N=16384, r=8, p=1 and a 32-byte key, and
+# these fixtures write credentials the login route then has to verify. Fixtures that
+# stretched more weakly would be exercising a code path the product does not have — and
+# the whole point of this file is that what M1-B proves is what the service does.
+KDF = {"cost": 16384, "blockSize": 8, "parallelization": 1}
+
+
+def stretch(secret: str, salt: bytes) -> str:
+    """Hex-encoded scrypt derived key for a secret a PERSON chooses.
+
+    Migration 0033 made this structural: identity.credential refuses a 'password' or
+    'quick_pin' row that carries no salt or names a fast hash. That constraint caught this
+    very file on its first run — these fixtures had been storing a password and a four
+    digit PIN as unsalted sha-256 since M1-B, which is the evidence that FR-AUTH-007's
+    secure-storage limb was never met at its own gate rather than a detail of this repair.
+    """
+    return hashlib.scrypt(secret.encode(), salt=salt, n=KDF["cost"], r=KDF["blockSize"],
+                          p=KDF["parallelization"], dklen=32, maxmem=64 * 1024 * 1024).hex()
 
 
 @dataclass
@@ -150,6 +179,11 @@ def seed(app_dsn: str) -> Fixtures:
     # ---- memberships, credentials and sessions (outlet A1) ----
     pin_secret = secrets.token_hex(16)          # never leaves this process
     password_secret = secrets.token_urlsafe(24)
+    # A salt per credential, drawn at run time like the secrets themselves. Nothing about
+    # either value is in the repository, which is what section 2 of this suite asserts.
+    pin_salt = secrets.token_bytes(16)
+    password_salt = secrets.token_bytes(16)
+    kdf_json = json.dumps(KDF)
     res = run(app_dsn, f"""
         INSERT INTO identity.membership (tenant_id, outlet_id, user_account_id, role_id) VALUES
             ('{TENANT_ACME}', '{OUTLET_A1}', '{USER_ALICE}', '{ROLE_MANAGER}');
@@ -160,12 +194,15 @@ def seed(app_dsn: str) -> Fixtures:
         VALUES ('{DEVICE_A1}', '{TENANT_ACME}', '{OUTLET_A1}');
 
         INSERT INTO identity.credential
-            (tenant_id, outlet_id, user_account_id, kind, secret_digest, digest_algorithm, confers_strength)
+            (tenant_id, outlet_id, user_account_id, kind, secret_digest, digest_algorithm,
+             salt, kdf_params, confers_strength)
         VALUES
             ('{TENANT_ACME}', '{OUTLET_A1}', '{USER_BOB}', 'quick_pin',
-             decode('{digest(pin_secret)}', 'hex'), 'sha-256', 'low'),
+             decode('{stretch(pin_secret, pin_salt)}', 'hex'), 'scrypt',
+             decode('{pin_salt.hex()}', 'hex'), '{kdf_json}'::jsonb, 'low'),
             ('{TENANT_ACME}', NULL, '{USER_ALICE}', 'password',
-             decode('{digest(password_secret)}', 'hex'), 'sha-256', 'standard');
+             decode('{stretch(password_secret, password_salt)}', 'hex'), 'scrypt',
+             decode('{password_salt.hex()}', 'hex'), '{kdf_json}'::jsonb, 'standard');
 
         INSERT INTO identity.session
             (tenant_id, outlet_id, user_account_id, device_id, token_digest, established_with, expires_at)

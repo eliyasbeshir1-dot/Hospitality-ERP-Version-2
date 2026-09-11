@@ -39,7 +39,19 @@ type StringKey =
   // M3-D. Placing the order — the step the golden journeys found had no surface at all.
   | 'placeOrder' | 'orderPlaced' | 'orderRefused'
   // M4-A. The bill, and then the tip. Separate keys because they are separate blocks.
-  | 'billHeading' | 'billTotal' | 'tipHeading' | 'tipHint' | 'tipChosen' | 'tipRefused';
+  | 'billHeading' | 'billTotal' | 'tipHeading' | 'tipHint' | 'tipChosen' | 'tipRefused'
+  // OP-D. What actually became of the order. "with the kitchen" is only true when the
+  // outlet accepted it; under FR-ORD-007A's staff_confirmed it is waiting for a person,
+  // and saying otherwise is the surface telling the guest something that is not so.
+  | 'orderWaiting'
+  // OP-D. FR-MNU-004's labels. `minutes` is the unit, appended to a number the server
+  // sent — never a formatted duration built here, for the same reason a price travels as
+  // minor units and a currency code.
+  | 'ingredients' | 'prepTime' | 'minutes'
+  // OP-C. Taking something back out. `remove` is the control's own label and
+  // `removeLine` is what a screen reader announces for a particular line, because "Remove"
+  // repeated down a list tells somebody who cannot see the list nothing about which one.
+  | 'remove' | 'removeLine' | 'removeRefused';
 
 const STRINGS: Record<Locale, Record<StringKey, string>> = {
   en: {
@@ -60,12 +72,16 @@ const STRINGS: Record<Locale, Record<StringKey, string>> = {
     completed: 'Done', withdrawn: 'Withdrawn', closed: 'Closed',
     placeOrder: 'Place the order',
     orderPlaced: 'Your order is with the kitchen.',
+    orderWaiting: 'Your order has been sent and is waiting to be confirmed by a member of staff.',
+    ingredients: 'Ingredients', prepTime: 'Ready in', minutes: 'min',
     orderRefused: 'That could not be sent. Please ask a member of staff.',
     billHeading: 'Your bill', billTotal: 'Total',
     tipHeading: 'Add a tip',
     tipHint: 'A tip is optional and is separate from your bill.',
     tipChosen: 'Thank you. Your tip has been recorded separately from the bill.',
     tipRefused: 'That tip could not be recorded. Please ask a member of staff.',
+    remove: 'Remove', removeLine: 'Remove from your basket',
+    removeRefused: 'That cannot be removed now — it has already gone to the kitchen.',
   },
   am: {
     title: 'ዝርዝር', menuHeading: 'ዛሬ', cartHeading: 'ቅርጫትዎ',
@@ -85,12 +101,16 @@ const STRINGS: Record<Locale, Record<StringKey, string>> = {
     completed: 'ተጠናቋል', withdrawn: 'ተሰርዟል', closed: 'ተዘግቷል',
     placeOrder: 'ትዕዛዙን ያስገቡ',
     orderPlaced: 'ትዕዛዝዎ ወደ ማብሰያው ደርሷል።',
+    orderWaiting: 'ትዕዛዝዎ ተልኳል፤ በሠራተኛ እስኪረጋገጥ በመጠባበቅ ላይ ነው።',
+    ingredients: 'ግብዓቶች', prepTime: 'የሚዘጋጅበት', minutes: 'ደቂቃ',
     orderRefused: 'መላክ አልተቻለም። እባክዎ ሰራተኛ ይጠይቁ።',
     billHeading: 'ሂሳብዎ', billTotal: 'ጠቅላላ ድምር',
     tipHeading: 'ጉርሻ ይጨምሩ',
     tipHint: 'ጉርሻ በፈቃደኝነት ነው፤ ከሂሳብዎ ተለይቶ ይያዛል።',
     tipChosen: 'እናመሰግናለን። ጉርሻዎ ከሂሳቡ ተለይቶ ተመዝግቧል።',
     tipRefused: 'ጉርሻው ሊመዘገብ አልቻለም። እባክዎ ሠራተኛ ይጠይቁ።',
+    remove: 'አስወግድ', removeLine: 'ከቅርጫትዎ ያስወግዱ',
+    removeRefused: 'አሁን ማስወገድ አይቻልም — አስቀድሞ ወደ ማብሰያው ተልኳል።',
   },
   ar: {
     title: 'قائمة الطعام', menuHeading: 'اليوم', cartHeading: 'سلتك',
@@ -110,12 +130,16 @@ const STRINGS: Record<Locale, Record<StringKey, string>> = {
     completed: 'تم', withdrawn: 'تم السحب', closed: 'مغلق',
     placeOrder: 'أرسل الطلب',
     orderPlaced: 'طلبك في المطبخ الآن.',
+    orderWaiting: 'تم إرسال طلبك وهو بانتظار تأكيد أحد الموظفين.',
+    ingredients: 'المكونات', prepTime: 'جاهز خلال', minutes: 'دقيقة',
     orderRefused: 'تعذّر الإرسال. من فضلك اسأل أحد الموظفين.',
     billHeading: 'فاتورتك', billTotal: 'المجموع',
     tipHeading: 'أضف بقشيشًا',
     tipHint: 'البقشيش اختياري ويُسجَّل بشكل منفصل عن فاتورتك.',
     tipChosen: 'شكرًا لك. سُجِّل بقشيشك بشكل منفصل عن الفاتورة.',
     tipRefused: 'تعذّر تسجيل البقشيش. من فضلك اسأل أحد الموظفين.',
+    remove: 'إزالة', removeLine: 'أزل من سلتك',
+    removeRefused: 'لا يمكن إزالته الآن — فقد أُرسل إلى المطبخ بالفعل.',
   },
 };
 
@@ -212,6 +236,14 @@ interface Item {
   name: string;
   currencyCode: string;
   amountMinor: string;
+  // FR-MNU-004. Nullable, and null means the dish has no such text — not an empty string
+  // to render as a blank line. The seed has written all three since 0003 and the menu
+  // function returned none of them until OP-D, so a guest chose between five dishes
+  // knowing a name and a price.
+  shortDescription: string | null;
+  longDescription: string | null;
+  ingredients: string | null;
+  preparationMinutes: number | null;
   allergens: Allergen[];
 }
 
@@ -224,6 +256,15 @@ interface CartLine {
   currencyCode: string;
   amountMinor: number;
   state: SurfaceState;
+  /**
+   * The id the server gave this line, once it has one.
+   *
+   * Null until the line is `synchronized`, and that is the whole of what decides whether
+   * removing it needs the network. `commit()` used to discard this id — the surface had no
+   * use for it, because it had no way to refer to a line after making it. A basket that
+   * cannot name its own lines cannot remove one.
+   */
+  lineId: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -340,6 +381,43 @@ function renderMenu(): void {
     head.append(name, price);
     li.append(head);
 
+    // WHAT THE DISH IS (FR-MNU-004). Each part is drawn only if the server sent it: a
+    // missing description is a missing paragraph, never an empty one, and never a label
+    // with nothing after it.
+    //
+    // The long description is deliberately NOT drawn. The short one is what a guest reads
+    // while choosing; putting both on every card makes a five-dish menu a page of prose
+    // and buries the price and the allergens under it. The long text is carried to the
+    // surface and is there for a detail view somebody may build — recorded in
+    // planning/OPD_FINDINGS.md rather than rendered because it happens to have arrived.
+    if (item.shortDescription) {
+      const description = document.createElement('p');
+      description.className = 'item-description';
+      description.textContent = item.shortDescription;
+      li.append(description);
+    }
+
+    // Ingredients and preparation time on one line, each labelled. menu.translatable_field
+    // marks customer_visible_ingredients SAFETY CRITICAL, so it is never abbreviated,
+    // never truncated and never behind a control somebody has to find: a guest avoiding
+    // an ingredient reads it where they are already reading.
+    const facts = document.createElement('p');
+    facts.className = 'item-facts';
+    if (item.ingredients) {
+      const ingredients = document.createElement('span');
+      ingredients.className = 'item-ingredients';
+      ingredients.textContent = `${strings.ingredients}: ${item.ingredients}`;
+      facts.append(ingredients);
+    }
+    if (item.preparationMinutes !== null) {
+      const minutes = document.createElement('span');
+      minutes.className = 'item-prep';
+      // In words with a unit, not a bare number. "35" beside a price is a second price.
+      minutes.textContent = `${strings.prepTime}: ${item.preparationMinutes} ${strings.minutes}`;
+      facts.append(minutes);
+    }
+    if (facts.childElementCount > 0) li.append(facts);
+
     if (item.allergens.length > 0) {
       const allergens = document.createElement('ul');
       allergens.className = 'allergens';
@@ -426,7 +504,22 @@ function renderCart(): void {
     state.className = 'cart-line-state';
     state.textContent = `${GLYPH[line.state]} ${strings[line.state]}`;
 
-    li.append(name, price, state);
+    // Removing a line (F-OPB-10). One control per line, on every line, in every state:
+    // a basket a guest can add to and cannot take from is not a basket, and a remove
+    // offered only on some lines would make the guest work out which.
+    //
+    // Its accessible name says WHICH line. "Remove" repeated down a list is four
+    // identical controls to somebody using a screen reader, and the visible word stays
+    // short because the label is doing that job.
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'cart-line-remove';
+    remove.dataset.remove = line.key;
+    remove.textContent = strings.remove;
+    remove.setAttribute('aria-label', `${strings.removeLine}: ${line.name}`);
+    remove.addEventListener('click', () => { void removeFromCart(line.key); });
+
+    li.append(name, price, state, remove);
     list.append(li);
   }
 
@@ -500,6 +593,7 @@ function addToCart(item: Item): void {
     // Held on the device before anything leaves it, so a guest who loses signal mid-tap
     // still has their choice (FR-UX-007).
     state: 'saved_locally',
+    lineId: null,
   };
   app.cart.push(line);
   persist();
@@ -522,6 +616,10 @@ async function commit(line: CartLine): Promise<void> {
     const response = await send(work);
     if (response.ok) {
       line.state = 'synchronized';
+      // The id the server gave it, kept so the line can later be removed by name. A
+      // replay answers with the FIRST attempt's id, which is the same line and the right
+      // one to hold.
+      line.lineId = await lineIdFrom(response);
       pending = null;
       $('retry').hidden = true;
     } else if (response.status === 401 || response.status === 409) {
@@ -540,6 +638,74 @@ async function commit(line: CartLine): Promise<void> {
   renderCart();
 }
 
+/** The line id out of a successful POST, or null if the body was not what we expect. */
+async function lineIdFrom(response: Response): Promise<string | null> {
+  try {
+    const body = await response.json() as { id?: string };
+    return typeof body.id === 'string' ? body.id : null;
+  } catch {
+    // A line that committed and whose id we could not read is still committed. It simply
+    // cannot be removed over the network, and removeFromCart() says so rather than
+    // pretending the removal worked.
+    return null;
+  }
+}
+
+/**
+ * Taking a line back out of the basket (F-OPB-10).
+ *
+ * There was no control for this anywhere in this file before OP-C: no remove, no
+ * decrement, no delete. A guest could add and could not take away. Every golden journey
+ * adds items and places the order, and none of them has ever changed its mind — which is
+ * why an absence this plain survived M2-B, M2-C and three gates of browser measurement.
+ *
+ * WHAT THE LINE'S STATE DECIDES. A line the server has never seen — saved locally,
+ * queued, failed, or refused — is removed from the device and nothing is sent, because
+ * there is nothing on the server to remove. A synchronized line is removed on the server
+ * FIRST and only then from the device: a basket that dropped the line locally and then
+ * failed to delete it would show a guest one basket and charge them for another, and of
+ * the two possible errors, "still there after I removed it" is the one they can act on.
+ */
+async function removeFromCart(key: string): Promise<void> {
+  const index = app.cart.findIndex((line) => line.key === key);
+  if (index === -1) return;
+  const line = app.cart[index];
+
+  const forget = (): void => {
+    const at = app.cart.findIndex((candidate) => candidate.key === key);
+    if (at !== -1) app.cart.splice(at, 1);
+    // A pending retry for a line that is gone would re-commit it. Clearing it is part of
+    // removing the line, not a tidy-up.
+    if (pending?.lineKey === key) { pending = null; $('retry').hidden = true; }
+    persist();
+    renderCart();
+  };
+
+  if (line.state !== 'synchronized' || !line.lineId) { forget(); return; }
+
+  const outcome = $('order-outcome');
+  try {
+    const response = await fetch(
+      `/c/v1/cart/lines/${line.lineId}?cartId=${encodeURIComponent(CART_ID)}`,
+      { method: 'DELETE', headers: { authorization: `Guest ${credentials?.guestToken ?? ''}` } },
+    );
+    if (response.ok || response.status === 404) {
+      // 404 is CART_LINE_UNKNOWN: the line is already gone, so the basket on the device
+      // is the stale one and forgetting it is the correct repair rather than an error.
+      outcome.hidden = true;
+      forget();
+      return;
+    }
+    // Anything else and the line stays. CART_ALREADY_SUBMITTED is the ordinary case —
+    // the basket was ordered from and is frozen — and it is said in the guest's language.
+    outcome.hidden = false;
+    outcome.textContent = STRINGS[app.locale].removeRefused;
+  } catch {
+    outcome.hidden = false;
+    outcome.textContent = STRINGS[app.locale].removeRefused;
+  }
+}
+
 async function retry(): Promise<void> {
   if (!pending) return;
   const line = app.cart.find((candidate) => candidate.key === pending!.lineKey);
@@ -551,7 +717,11 @@ async function retry(): Promise<void> {
   try {
     const response = await send(work);
     line.state = response.ok ? 'synchronized' : 'failed';
-    if (response.ok) { pending = null; $('retry').hidden = true; }
+    if (response.ok) {
+      line.lineId = await lineIdFrom(response);
+      pending = null;
+      $('retry').hidden = true;
+    }
   } catch {
     line.state = 'failed';
   }
@@ -620,7 +790,14 @@ function persist(): void {
 function restore(): void {
   try {
     const raw = localStorage.getItem('cart');
-    if (raw) app.cart = JSON.parse(raw) as CartLine[];
+    if (raw) {
+      // lineId is normalised rather than trusted. A basket persisted by a build from
+      // before OP-C has no such field, and `undefined` would flow into a URL as the
+      // string "undefined" and delete nothing while reporting success. A line with no
+      // id is removed from the device only, which is the honest outcome.
+      app.cart = (JSON.parse(raw) as CartLine[]).map(
+        (line) => ({ ...line, lineId: typeof line.lineId === 'string' ? line.lineId : null }));
+    }
   } catch { /* unreadable storage is an empty cart, never a crash */ }
 }
 
@@ -688,28 +865,7 @@ async function start(): Promise<void> {
   }
 
   try {
-    const opened = await fetch(`/c/v1/${tenant}/${outlet}/session`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ code }),
-    });
-    if (!opened.ok) { setState('blocked'); return; }
-    const session = await opened.json() as { guestToken: string; scanId: string; tableSessionId: string };
-    credentials = { guestToken: session.guestToken, tableSessionId: session.tableSessionId };
-
-    const joined = await fetch('/c/v1/join', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Guest ${session.guestToken}` },
-      body: JSON.stringify({ scanId: session.scanId }),
-    });
-    if (!joined.ok) {
-      // A stale code needs a member of staff, which is a different thing from a broken
-      // one and is why "cannot send" and "did not send" are separate states.
-      setState('blocked');
-      return;
-    }
-    const seated = await joined.json() as { tableSessionId: string };
-    credentials.tableSessionId = seated.tableSessionId;
+    if (!await beSeated(tenant, outlet, code)) { setState('blocked'); return; }
 
     const locale = await refreshCart();
     // A locale already snapshotted on this occupancy is a choice somebody made, so it
@@ -737,6 +893,69 @@ async function start(): Promise<void> {
   await loadBill();
 }
 
+
+/**
+ * Getting seated (F-OPB-9, FR-TAB-003).
+ *
+ * This used to be a scan followed by POST /c/v1/join, and it could not work: nothing in
+ * the delivered code path had ever opened a table occupancy, so `join` had nothing to
+ * join and answered NO_OPEN_OCCUPANCY at every unoccupied table. The guest scanned, chose
+ * dishes, and could not place the order — which is what the first person to open the
+ * demonstration floor met, past nineteen green suites.
+ *
+ * Now it calls POST /c/v1/seat, which opens the occupancy when the table is empty and
+ * joins it when it is not. THE SURFACE DOES NOT MAKE THAT CHOICE and does not ask which
+ * happened: service.seat_guest_from_scan() decides, because a screen that decided would
+ * be a second opinion about whether a table is busy and the two would disagree the moment
+ * a party sits down between the scan and the tap.
+ *
+ * THE ONE RETRY, AND WHY IT IS NOT A WAY AROUND THE STALE-QR RULE. Two people at an empty
+ * table can scan in the same instant: one opens the occupancy and the other's scan, taken
+ * when the table was still empty, is bound to no occupancy — so M2-B refuses it as stale,
+ * exactly as it refuses a photograph from last week. The rule is right and it is not
+ * loosened here. What the device does is what that rule asks of anybody: present the code
+ * again. The second scan is a real scan, taken now, under the occupancy that is now open,
+ * and it joins on its own merits. Bounded to one attempt, because a loop would be a way
+ * of waiting out a refusal rather than answering it.
+ */
+async function beSeated(tenant: string, outlet: string, code: string): Promise<boolean> {
+  const scan = async (): Promise<{ guestToken: string; scanId: string } | null> => {
+    const opened = await fetch(`/c/v1/${tenant}/${outlet}/session`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    if (!opened.ok) return null;
+    return await opened.json() as { guestToken: string; scanId: string };
+  };
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const session = await scan();
+    if (!session) return false;
+    credentials = { guestToken: session.guestToken, tableSessionId: '' };
+
+    const seat = await fetch('/c/v1/seat', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json',
+                 authorization: `Guest ${session.guestToken}` },
+      body: JSON.stringify({ scanId: session.scanId }),
+    });
+    if (seat.ok) {
+      const seated = await seat.json() as { tableSessionId: string };
+      credentials.tableSessionId = seated.tableSessionId;
+      return true;
+    }
+
+    const refusal = await seat.json().catch(() => ({})) as { reason?: string };
+    // Anything other than a stale scan is not resolved by scanning again. A revoked code
+    // is revoked and a table that does not resolve will not start resolving, and retrying
+    // either would just be two identical refusals instead of one.
+    if (refusal.reason !== 'STALE_QR_VERIFICATION_REQUIRED') return false;
+  }
+  // Refused twice. The guest needs a member of staff, which is a different thing from a
+  // broken code and is why "cannot send" and "did not send" are separate states.
+  return false;
+}
 
 /** Resolve when the browser has a spare moment, or after a short bound either way. */
 function whenIdle(bound = 400): Promise<void> {
@@ -1065,8 +1284,16 @@ async function placeOrder(): Promise<void> {
     const result = await placed.json();
     outcome.hidden = false;
     if (result.orderId) {
-      outcome.textContent = strings.orderPlaced;
+      // WHAT IS TRUE, PER CASE. The route now reports the state the order landed in.
+      // `accepted` means a kitchen has it; 'submitted' means it is sent and waiting for a
+      // member of staff to admit it. Read from the answer rather than from the policy,
+      // because the surface recomputing the policy would be a second opinion about what
+      // just happened — and it would still be wrong the day FR-ORD-007B holds an order
+      // pending a verified payment.
+      const accepted = result.accepted === true || result.state === 'accepted';
+      outcome.textContent = accepted ? strings.orderPlaced : strings.orderWaiting;
       outcome.dataset.orderId = String(result.orderId);
+      outcome.dataset.orderState = String(result.state ?? '');
       delete outcome.dataset.reason;
       // The basket that was ordered from is frozen — changing it would change what
       // somebody agreed to — so the next round needs a new one. Asked for rather than

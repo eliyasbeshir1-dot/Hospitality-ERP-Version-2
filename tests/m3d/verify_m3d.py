@@ -997,8 +997,15 @@ def probe(payload: dict) -> dict:
     target = WORKSPACE / "m3d_probe.mjs"
     target.write_text((HERE / "render_probe.mjs").read_text(encoding="utf-8"),
                       encoding="utf-8")
+    # WRITTEN BESIDE THE PROBE RATHER THAN PASSED AS AN ARGUMENT. Windows caps a command
+    # line at 32767 characters and this payload is built from the database, so its size
+    # follows how much trade has happened. The reordered sweep — m3d running after every
+    # M4 and OP suite has added rows — died with WinError 206 several frames from anything
+    # naming a payload.
+    payload_path = WORKSPACE / "m3d_probe_payload.json"
+    payload_path.write_text(json.dumps(payload), encoding="utf-8")
     proc = subprocess.run(
-        ["node", str(target), CONTEXT["base_url"], json.dumps(payload)],
+        ["node", str(target), CONTEXT["base_url"], str(payload_path)],
         capture_output=True, text=True, encoding="utf-8", cwd=str(WORKSPACE),
         env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
     if proc.returncode != 0 or not proc.stdout.strip():
@@ -1190,7 +1197,11 @@ def section_governance() -> None:
     # statement, in dependency order, so nothing is left dangling. What breaks is a
     # DURABLE table referencing one, which is why the source side is excluded here rather
     # than the rule being relaxed for the pair that happens to exist today.
-    projection_sql = """
+    # Raw, because the SQL regex below contains \. and Python must hand the backslash to
+    # PostgreSQL rather than read it as an escape of its own. It survives today only
+    # because an unrecognised escape is currently preserved; that is a SyntaxWarning now
+    # and a SyntaxError in a later Python, at which point this check would stop running.
+    projection_sql = r"""
         SELECT DISTINCT m[1]
         FROM pg_proc p
         CROSS JOIN LATERAL regexp_matches(
@@ -1318,7 +1329,8 @@ def section_governance() -> None:
     record("nothing belonging to a later slice was built here",
            later == [],
            f"{later or 'none'} — payment capture is M4-B and receipts M4-C; the outlet "
-           f"node, synchronization and the print queue are M5a. Billing landed at M4-A "
+           f"node, synchronization and the print queue landed at M5a as edge, "
+           f"integration and docs, never as schemas of these names. Billing landed at M4-A "
            f"and left this list, as the order surface left M2-A's when M3-A built it")
 
     secrets = []

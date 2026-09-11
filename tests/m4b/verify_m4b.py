@@ -1857,8 +1857,9 @@ def section_health_and_versions() -> None:
           FROM integration.protocol ORDER BY protocol;""")}
     record("the protocols this deployment speaks are declared with a version range",
            len(protocols) >= 3 and all(c >= m for c, m in protocols.values()),
-           f"{protocols}. Only the protocols that EXIST: the outlet-node synchronization "
-           f"protocol is M5a's and is absent rather than declared at version zero")
+           f"{protocols}. Only the protocols that EXIST, which is why this count is a floor "
+           f"and not an equality: sync.event and node.api joined the table at M5a, "
+           f"and until then were absent rather than declared at version zero")
 
     agreed = int(scalar("SELECT integration.negotiate('adapter.payment', 1);"))
     record("a peer speaking a version in range is agreed with",
@@ -2812,10 +2813,46 @@ def section_controls() -> None:
         target = next((e for e in payload["partial_closures"]
                        if e.get("state") == "closed"
                        and e.get("completed_by") in still_open), None)
+
         if target is None:
-            raise CommandUnreadable(
-                "no closed entry rests on a completer with an open entry, so this control "
-                "has nothing to plant on and would pass by emptiness")
+            # NOTHING IN THE REGISTER RESTS ON AN INCOMPLETE COMPLETER, SO THE CONTROL
+            # BUILDS ITS OWN. It used to refuse here — "would pass by emptiness" — and
+            # refusing was right while it was the only alternative to a vacuous pass. But
+            # it made this control depend on the register happening to contain a NEAR-MISS
+            # of the very defect it detects, and M6-E closed the last one: FR-FUL-012,
+            # FR-FUL-015 and FR-TST-005A all closed, leaving no open entry any closed entry
+            # rests on. The register becoming correct should not disarm the check that
+            # keeps it correct.
+            #
+            # So both halves of the defect are planted rather than one. A synthetic OPEN
+            # entry is appended for some closed entry's completer, and that closed entry is
+            # then made to claim it rests on the gap. That is the state the rule exists to
+            # refuse, constructed rather than borrowed — which is what "plant the defect
+            # yourself" means, and it is how this control should have been written.
+            target = next((e for e in payload["partial_closures"]
+                           if e.get("state") == "closed" and e.get("completed_by")), None)
+            if target is None:
+                raise CommandUnreadable(
+                    "the register holds no closed entry naming a completer at all, so "
+                    "there is nothing to build a closure-resting-on-a-gap out of")
+            invented = {
+                "requirement": target["completed_by"],
+                "aspect": "planted by NC-M4B-008 and removed with it",
+                "opened_at": target.get("opened_at", "M1-A"),
+                # PILOT is declared in planning/post_phase_1_milestones.json and cannot
+                # land from this repository, so naming it keeps
+                # PARTIAL_CLOSURE_NOT_REVISITED quiet and lets the rule under test be the
+                # one that fires.
+                "completing_gate": "PILOT",
+                "state": "open",
+                "completed_by": target["completed_by"],
+                "why": "A synthetic open entry planted by NC-M4B-008 so the closed entry "
+                       "below has an incomplete completer to rest on. Removed byte for "
+                       "byte by the control's green half.",
+            }
+            payload["partial_closures"].append(invented)
+            still_open.setdefault(target["completed_by"], set()).add(invented["aspect"])
+
         target["completer_aspect"] = sorted(still_open[target["completed_by"]])[0]
         register_path.write_bytes(
             (json.dumps(payload, indent=2, ensure_ascii=False) + "\n").encode("utf-8"))

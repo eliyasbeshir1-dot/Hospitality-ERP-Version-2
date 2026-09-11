@@ -1829,7 +1829,7 @@ def section_governance(states: list[str]) -> None:
            f"{[r[0] for r in later] or 'none'} — service requests and notification "
            f"transport are M3-C; the waiter surface and journeys are M3-D; checks, "
            f"payments, tips and receipts are M4; the resilient local print queue and the "
-           f"outlet node are M5a")
+           f"outlet node landed at M5a, in docs and edge rather than here")
 
     secrets = [name for name in SOURCES
                if re.search(r"(password|secret|token)\s*[=:]\s*['\"][A-Za-z0-9+/]{12,}",

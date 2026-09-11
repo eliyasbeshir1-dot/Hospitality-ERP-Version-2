@@ -156,6 +156,33 @@ input[type="search"] {
 
 label { display: block; margin: 0.5rem 1rem 0.25rem; font-weight: 600; }
 
+/*
+ * The way in (F-OPB-12), and the line that reports what happened.
+ *
+ * Same target floor as everything else on this surface: a waiter signs in one-handed on a
+ * device in a busy room, and a field too small to hit is a field they will mis-hit.
+ */
+#sign-in-panel .field input {
+  display: block;
+  min-height: var(--target);
+  width: calc(100% - 2rem);
+  margin: 0.25rem 1rem 0;
+  padding: 0.5rem;
+  font: inherit;
+  border: 2px solid var(--ink);
+  border-radius: 6px;
+}
+
+#sign-in-panel button { margin: 0.75rem 1rem; }
+
+/* The one place this screen reports an outcome. A word, never a colour on its own. */
+#notice {
+  margin: 0.5rem 1rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 4px solid var(--ink);
+  font-weight: 600;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }

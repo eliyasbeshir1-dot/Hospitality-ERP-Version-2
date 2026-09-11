@@ -51,8 +51,12 @@ ENTRY_PURPOSE = {
     ".gitignore": "caches, dependency directories, generated validator output",
     "README.md": "gate status, prohibitions, lineage — generated",
     "api": "the cloud API: Fastify and TypeScript, two runtime dependencies",
+    "cashier": "the till: the cashier's surface, vanilla TypeScript like the other three, "
+               "a fourth entry point because a guest, a kitchen, a waiter and a cashier "
+               "share no audience and no authentication",
     "docs": "the pinned package, byte-identical, verified by its own SHA256SUMS.txt",
     "docs-local": "cross-platform command reference and its verification record",
+    "deploy": "how the artifact is packaged. Generated from tools/artifact.py and check-locked against it, because an image with its own COPY list is a second manifest and a second manifest goes stale.",
     "evidence": "the generated evidence report",
     "migrations": "ordered, checksum-locked SQL history beginning at 0001",
     "planning": "conformance, ownership, the CI matrix, known limitations, the closure register",
@@ -62,6 +66,9 @@ ENTRY_PURPOSE = {
     "schema": "the schema catalog, generated from the live database",
     "seeds": "demonstration tenants and reason-code sets, with their own ordered record",
     "station": "the kitchen display surface",
+    "surfaces": "what more than one surface needs and none of them owns — at M5a, the "
+                "continuity banner FR-EDG-009 puts on all four screens, compiled once "
+                "rather than copied four times",
     "tests": "verification suites and the cross-cutting suites",
     "tools": "migration and seed runners, generators, verifiers",
     "waiter": "the staff surface",
@@ -259,7 +266,10 @@ def main() -> int:
         print(f"  {len(generated.splitlines())} lines verified against the repository")
         return 0
 
-    Path(args.out).write_text(generated, encoding="utf-8")
+    # LF explicitly: text mode would write CRLF on Windows and LF on Linux, so the
+    # artefact would differ by the platform that generated it while --check compares
+    # it against one committed copy.
+    Path(args.out).write_text(generated, encoding="utf-8", newline="\n")
     print(f"wrote {args.out} ({len(generated.splitlines())} lines)")
     return 0
 

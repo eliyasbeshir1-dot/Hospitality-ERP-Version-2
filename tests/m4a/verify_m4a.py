@@ -52,7 +52,7 @@ sys.path.insert(0, str(HERE))
 import fixtures as fx                                            # noqa: E402
 from channel_differential import (                               # noqa: E402
     OPERATIONS, ORIGIN_QUERY, ORIGIN_SURFACE, RULE_FUNCTION_QUERY, SURFACES,
-    DifferentialUnusable, route_paths, rules_by_surface, strip_comments)
+    DifferentialUnusable, handler_block, route_paths, rules_by_surface, strip_comments)
 from fenced import fenced_identifier_pattern                     # noqa: E402
 from pg import CommandUnreadable, ProbeFailed, count, run, run_command   # noqa: E402
 from service import Service, TSC, WORKSPACE, sync_and_build      # noqa: E402
@@ -2076,12 +2076,15 @@ $$;""")
                           f"no route specific to any channel, "
                           f"{len(universe)} rule functions enumerated from the catalog")
 
-    def _block(source: str, path: str) -> str:
-        marker = f"'{path}'"
-        start = source.index(marker)
-        following = [m.start() for m in re.finditer(r"app\.(get|post)[<(]", source)
-                     if m.start() > start]
-        return source[start:following[0] if following else len(source)]
+    # THE THIRD COPY OF THIS READER, DELETED AT OP-C.
+    #
+    # channel_differential.py exists because "a second copy of the check that proves there
+    # is only one implementation would be the joke writing itself" — its own words — and a
+    # twenty-line copy of handler_block() was sitting here anyway, carrying the same
+    # get|post defect the shared one carried. OP-C added the first DELETE route in the
+    # repository and the shared reader was repaired; this one would have kept its blind
+    # spot, in the file whose subject is that two implementations must not exist.
+    _block = handler_block
 
     def red_divergence():
         patch_route(

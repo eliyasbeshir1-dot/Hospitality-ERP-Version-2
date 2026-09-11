@@ -236,14 +236,267 @@ export function renderAll(payload: {
   if (expo && payload.expo) renderExpo(expo, payload.expo);
 }
 
+/* ===========================================================================
+ * THE NETWORK LAYER (OP-B)
+ * ===========================================================================
+ *
+ * Everything above renders. Until OP-B nothing above was ever CALLED by anything but a
+ * test handing it a payload: this file contained no fetch, so OP-A's thirteen kitchen
+ * routes existed and no cook could reach one. A screen that can only be driven by its own
+ * test suite is the same defect as a route with no caller, one layer out.
+ *
+ * TWO RULES SHAPE WHAT FOLLOWS.
+ *
+ * First, NOTHING HERE DECIDES WHAT IS LEGAL. The buttons on a ticket are drawn from the
+ * `transitions` the service returns, which it reads from fulfillment.transition — the same
+ * ordered pairs the database enforces. This file contains no state table, no list of
+ * allowed moves, and no opinion about what a cook may do next. If the machine changes,
+ * this screen changes with it without being edited.
+ *
+ * Second, THE RENDER FUNCTIONS STAY PURE. M3-B measures this surface by calling
+ * window.stationSurface.renderAll(payload) in a browser with no service behind it, and
+ * that must keep working exactly as it did. So nothing below runs on import except
+ * attaching the surface object and looking for a saved session; with no session the screen
+ * shows a sign-in panel and issues no requests at all, which is the state M3-B measures in.
+ */
+
+interface Session { token: string; stationId: string; base: string; }
+
+const SESSION_KEY = 'station.session';
+let session: Session | null = null;
+let poller: number | null = null;
+
+function saved(): Session | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) as Session : null;
+  } catch { return null; }
+}
+
+async function api(method: string, path: string, body?: unknown): Promise<{
+  status: number; data: Record<string, unknown>;
+}> {
+  const response = await fetch(path, {
+    method,
+    headers: {
+      'content-type': 'application/json',
+      ...(session ? { authorization: `Bearer ${session.token}` } : {}),
+    },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  const text = await response.text();
+  let data: Record<string, unknown> = {};
+  try { data = text ? JSON.parse(text) as Record<string, unknown> : {}; } catch { /* not json */ }
+  return { status: response.status, data };
+}
+
+/** A refusal is shown, never swallowed. A cook who taps and sees nothing taps again. */
+function report(message: string): void {
+  const bar = document.getElementById('notice') ?? element('p', 'notice');
+  bar.id = 'notice';
+  bar.setAttribute('role', 'status');
+  bar.textContent = message;
+  document.body.insertBefore(bar, document.body.firstChild);
+}
+
+/**
+ * One action button.
+ *
+ * Large by default because FR-UX-002 asks for a target a cook can hit at arm's length
+ * with wet hands, and because the alternative — a dense list of small controls — is the
+ * shape that makes people tap the wrong ticket.
+ */
+function actionButton(label: string, run: () => Promise<void>): HTMLElement {
+  const button = element('button', 'action', label);
+  button.setAttribute('type', 'button');
+  button.addEventListener('click', () => {
+    button.setAttribute('disabled', 'disabled');
+    void run().finally(() => button.removeAttribute('disabled'));
+  });
+  return button;
+}
+
+async function act(method: string, path: string, body: unknown, what: string): Promise<void> {
+  const answer = await api(method, path, body);
+  if (answer.status >= 400) {
+    // The database's own words. A screen that translates a refusal into "something went
+    // wrong" has thrown away the only part a cook can act on.
+    report(`${what}: ${String(answer.data.reason ?? answer.data.error ?? answer.status)}`);
+    return;
+  }
+  report(`${what}: done`);
+  await refresh();
+}
+
+export async function openTicket(ticketId: string): Promise<void> {
+  if (!session) return;
+  const answer = await api('GET', `/s/v1/tickets/${ticketId}`);
+  if (answer.status >= 400) { report(`ticket: ${answer.status}`); return; }
+
+  const detail = answer.data as unknown as TicketDetail & {
+    transitions: { to_state: string; reason: string }[];
+  };
+  const root = document.getElementById('detail');
+  if (!root) return;
+  renderTicket(root, detail);
+
+  const actions = element('div', 'actions');
+
+  // THE ALLERGY ACKNOWLEDGEMENT COMES FIRST, and only while there is one to make. It is
+  // the one action whose absence is a safety matter rather than an inconvenience.
+  if (detail.allergies.length > 0 && !detail.ticket.allergy_acknowledged) {
+    actions.appendChild(actionButton('Acknowledge allergy', () =>
+      act('POST', `/s/v1/tickets/${ticketId}/allergy-acknowledgement`, {},
+          'allergy acknowledgement')));
+  }
+
+  // DRAWN FROM THE CATALOG, NOT FROM A TABLE IN THIS FILE. Each button is one row of
+  // fulfillment.transition for this ticket's current state, and its label is the reason
+  // the database records for that pair — so the button says what the move means in the
+  // machine's own words rather than in this surface's.
+  for (const move of detail.transitions ?? []) {
+    actions.appendChild(actionButton(`${move.to_state} — ${move.reason}`, () =>
+      act('POST', `/s/v1/tickets/${ticketId}/transitions`,
+          { toState: move.to_state }, move.to_state)));
+  }
+
+  for (const line of detail.lines) {
+    if (line.ready_quantity < line.quantity) {
+      actions.appendChild(actionButton(
+        `+1 ready — ${line.canonical_name}`, () =>
+        act('POST', `/s/v1/tickets/${ticketId}/unit-progress`,
+            { ticketLineId: line.id, readyQuantity: line.ready_quantity + 1 },
+            'unit progress')));
+    }
+  }
+
+  actions.appendChild(actionButton('Recall', () =>
+    act('POST', `/s/v1/tickets/${ticketId}/recall`,
+        { reason: 'recalled from the station board' }, 'recall')));
+  actions.appendChild(actionButton('Waste', () =>
+    act('POST', `/s/v1/tickets/${ticketId}/waste`,
+        { reason: 'wasted at the station' }, 'waste')));
+  actions.appendChild(actionButton('Priority — rush', () =>
+    act('POST', `/s/v1/tickets/${ticketId}/priority`,
+        { priority: 'rush', reason: 'set from the station board' }, 'priority')));
+
+  root.appendChild(actions);
+}
+
+export async function refresh(): Promise<void> {
+  if (!session) return;
+  const queue = await api('GET', `/s/v1/stations/${session.stationId}/queue`);
+  if (queue.status === 401) { signOut(); return; }
+  const root = document.getElementById('queue');
+  if (!root) return;
+
+  const tickets = (queue.data.tickets ?? []) as QueueTicket[];
+  renderQueue(root, tickets);
+
+  // Opening a ticket is how a cook starts work, so the whole card is the target rather
+  // than a separate control on it.
+  for (const card of Array.from(root.querySelectorAll('[data-ticket]'))) {
+    const id = card.getAttribute('data-ticket');
+    if (id) card.addEventListener('click', () => { void openTicket(id); });
+  }
+}
+
+function signOut(): void {
+  session = null;
+  sessionStorage.removeItem(SESSION_KEY);
+  if (poller !== null) { clearInterval(poller); poller = null; }
+  renderSignIn();
+}
+
+function renderSignIn(): void {
+  const root = document.getElementById('queue');
+  if (!root) return;
+  root.textContent = '';
+  const form = element('form', 'sign-in');
+  form.id = 'sign-in';
+
+  function field(name: string, label: string, type: string): HTMLInputElement {
+    const row = element('label', 'field', label);
+    const input = document.createElement('input');
+    input.type = type;
+    input.name = name;
+    input.id = `sign-in-${name}`;
+    row.appendChild(input);
+    form.appendChild(row);
+    return input;
+  }
+
+  const tenantId = field('tenantId', 'Tenant', 'text');
+  const outletId = field('outletId', 'Outlet', 'text');
+  const stationId = field('stationId', 'Station', 'text');
+  const channelValue = field('channelValue', 'Email', 'text');
+  const secret = field('secret', 'Password', 'password');
+
+  const submit = element('button', 'action', 'Sign in');
+  submit.setAttribute('type', 'submit');
+  form.appendChild(submit);
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    void (async () => {
+      const ok = await signIn(tenantId.value, outletId.value, stationId.value,
+                              channelValue.value, secret.value);
+      if (!ok) report('sign in: refused');
+    })();
+  });
+  root.appendChild(form);
+}
+
+function start(): void {
+  void refresh();
+  // Polling, not a socket. M5a owns the outlet node and anything that pushes; a board that
+  // re-reads its own queue is the honest amount of machinery for what this gate delivers.
+  if (poller === null) poller = window.setInterval(() => { void refresh(); }, 5000);
+}
+
+export async function signIn(tenantId: string, outletId: string, stationId: string,
+                             channelValue: string, secret: string): Promise<boolean> {
+  const answer = await api('POST', '/v1/auth/login', {
+    tenantId, outletId, channel: 'email', channelValue, kind: 'password', secret,
+  });
+  if (answer.status !== 200 || !answer.data.token) return false;
+  session = { token: String(answer.data.token), stationId, base: '' };
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  start();
+  return true;
+}
+
+export async function loadExpo(orderId: string): Promise<void> {
+  if (!session) return;
+  const answer = await api('GET', `/s/v1/orders/${orderId}/expo`);
+  const root = document.getElementById('expo');
+  if (!root || answer.status >= 400) return;
+  renderExpo(root, answer.data as unknown as ExpoView);
+
+  const release = actionButton('Release to service', () =>
+    act('POST', `/s/v1/orders/${orderId}/release-to-service`, {}, 'release to service'));
+  root.appendChild(release);
+}
+
 declare global {
   interface Window {
     stationSurface: {
       renderAll: typeof renderAll;
       renderAllergy: typeof renderAllergy;
       BUCKETS: readonly Bucket[];
+      signIn: typeof signIn;
+      refresh: typeof refresh;
+      openTicket: typeof openTicket;
+      loadExpo: typeof loadExpo;
     };
   }
 }
 
-window.stationSurface = { renderAll, renderAllergy, BUCKETS };
+window.stationSurface = { renderAll, renderAllergy, BUCKETS, signIn, refresh,
+                          openTicket, loadExpo };
+
+// NOTHING IS FETCHED WITHOUT A SESSION. This is what keeps M3-B's measurement honest: it
+// opens this page with no service to talk to, calls renderAll() with its own payload, and
+// measures the result. With no saved session there is no poll to overwrite what it drew.
+session = saved();
+if (session) start();
+else if (document.getElementById('queue')) renderSignIn();

@@ -131,9 +131,11 @@ def signature_of(error: str) -> str:
 
 
 def call(method: str, path: str, token: str, body: dict | None = None,
-         key: str | None = None) -> dict:
+         key: str | None = None, extra: dict | None = None) -> dict:
     url = f"{CONTEXT['base_url']}{path}"
     headers = {"authorization": f"Bearer {token}"}
+    if extra:
+        headers.update(extra)
     data = None
     if body is not None:
         headers["content-type"] = "application/json"
@@ -693,7 +695,26 @@ def section_exports_and_dashboards() -> None:
            f"database's, not a WHERE clause a route appends and could forget")
 
     token = CONTEXT["manager_token"]
-    exported = call("GET", "/s/v1/reports/exports/metrics.csv", token)
+
+    # AN EXPORT IS A GOVERNED ACT, AND THIS SUITE ASKED FOR ONE WITHOUT STEPPING UP UNTIL
+    # M6-D. The registry has described `report.export` as strong + step-up with a fifteen
+    # minute window since migration 0002, carrying governed_from_gate = 'M6'; nothing
+    # called it, so the route asked for a staff session and nothing more and this check
+    # passed on that. When M6-D finally built the caller, this check went to 403 -- which
+    # is the route being right and the check being out of date.
+    #
+    # So the refusal is asserted FIRST rather than quietly dropped. A check that stops
+    # exercising an unauthorised path because the path started being refused has converted
+    # a new control into lost coverage.
+    refused = call("GET", "/s/v1/reports/exports/metrics.csv", token)
+    record("an export without a step-up is refused before the figures are assembled",
+           refused.get("status") == 403,
+           f"status {refused.get('status')}. Building the CSV and then declining to hand "
+           f"it over would put an outlet's whole trade in the process's memory on the "
+           f"strength of a request nobody authorised")
+
+    grant = {"x-step-up-grant": fx.step_up(CONTEXT["manager_session"], "report.export")}
+    exported = call("GET", "/s/v1/reports/exports/metrics.csv", token, extra=grant)
     body = exported.get("text", "")
     header = body.splitlines()[0] if body else ""
     record("the export is CSV with a documented header",
@@ -708,7 +729,9 @@ def section_exports_and_dashboards() -> None:
     # count still has a real zero, and that is the pair a spreadsheet must be able to tell
     # apart.
     quiet = call("GET", "/s/v1/reports/exports/metrics.csv?from=2020-01-01T00:00:00Z"
-                        "&to=2020-01-02T00:00:00Z", token)
+                        "&to=2020-01-02T00:00:00Z", token,
+                 extra={"x-step-up-grant":
+                        fx.step_up(CONTEXT["manager_session"], "report.export")})
     quiet_lines = (quiet.get("text") or "").splitlines()[1:]
     empty = [line for line in quiet_lines if line.split(",")[2] == ""]
     zero = [line for line in quiet_lines if line.split(",")[2] == "0"]
@@ -901,7 +924,7 @@ def section_printer() -> None:
 
     untested = run(APP, f"""
         SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}',
-            '{fx.PRINTER_UNTESTED}', '{fx.PRINT_OUTCOME}', repeat('b', 64)::char(64), 64,
+            '{fx.PRINTER_UNTESTED}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}', repeat('b', 64)::char(64), 64,
             '{fx.USER_CASHIER}');""", tx=True, **CTX)
     record("a customer receipt cannot be printed on a printer nobody tested",
            untested.failed_with("PRINTER_NEVER_TESTED"),
@@ -910,7 +933,7 @@ def section_printer() -> None:
 
     printed = scalar(f"""
         SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}',
-            '{fx.PRINTER_DEVICE}', '{fx.PRINT_OUTCOME}', repeat('c', 64)::char(64), 512,
+            '{fx.PRINTER_DEVICE}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}', repeat('c', 64)::char(64), 512,
             '{fx.USER_CASHIER}');""")
     record("and on a tested one it is printed, once",
            bool(printed),
@@ -920,7 +943,7 @@ def section_printer() -> None:
 
     again = run(APP, f"""
         SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}',
-            '{fx.PRINTER_DEVICE}', '{fx.PRINT_OUTCOME}', repeat('c', 64)::char(64), 512,
+            '{fx.PRINTER_DEVICE}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}', repeat('c', 64)::char(64), 512,
             '{fx.USER_CASHIER}');""", tx=True, **CTX)
     record("and a second original print of the same settlement is refused",
            again.failed_with("DUPLICATE_RECEIPT_PRINTED", "print_attempt_one_original"),
@@ -930,7 +953,7 @@ def section_printer() -> None:
 
     reprint_without_reason = run(APP, f"""
         SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}',
-            '{fx.PRINTER_DEVICE}', '{fx.PRINT_OUTCOME}', repeat('d', 64)::char(64), 512,
+            '{fx.PRINTER_DEVICE}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}', repeat('d', 64)::char(64), 512,
             '{fx.USER_CASHIER}', true, NULL, NULL);""", tx=True, **CTX)
     record("a reprint with no reason is refused by constraint",
            not reprint_without_reason.ok,
@@ -939,7 +962,7 @@ def section_printer() -> None:
 
     reprint = scalar(f"""
         SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}',
-            '{fx.PRINTER_DEVICE}', '{fx.PRINT_OUTCOME}', repeat('d', 64)::char(64), 512,
+            '{fx.PRINTER_DEVICE}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}', repeat('d', 64)::char(64), 512,
             '{fx.USER_CASHIER}', true, '{fx.reason_code("M4C_RECEIPT_REPRINT")}',
             'the customer asked for another copy');""")
     marked = rows(f"""
@@ -965,7 +988,7 @@ def section_printer() -> None:
     # where it lives, at the table, by an INSERT that gets past the first lock.
     through_the_function = run(APP, f"""
         SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}',
-            '{fx.PRINTER_PREVIEW}', '{fx.PRINT_OUTCOME}', repeat('e', 64)::char(64), 64,
+            '{fx.PRINTER_PREVIEW}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}', repeat('e', 64)::char(64), 64,
             '{fx.USER_CASHIER}');""", tx=True, **CTX)
     record("a preview printer is refused a print before the sink rule is even reached",
            through_the_function.failed_with("PRINTER_NEVER_TESTED"),
@@ -978,10 +1001,12 @@ def section_printer() -> None:
     # get here.
     at_the_table = run(APP, f"""
         INSERT INTO docs.print_attempt
-            (tenant_id, outlet_id, receipt_id, printer_id, outcome, is_reprint,
+            (tenant_id, outlet_id, receipt_id, printer_id, outcome, agent_sink,
+             resolved_destination, is_reprint,
              reason_code_id, reason_text, operator_user_id, bytes_sha256, byte_count)
         VALUES ('{fx.TENANT}', '{fx.OUTLET_H1}', '{receipt}', '{fx.PRINTER_PREVIEW}',
-                '{fx.PRINT_OUTCOME}', true, '{fx.reason_code("M4C_RECEIPT_REPRINT")}',
+                '{fx.PRINT_OUTCOME}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}',
+                true, '{fx.reason_code("M4C_RECEIPT_REPRINT")}',
                 'a reprint aimed at a file', '{fx.USER_CASHIER}',
                 repeat('e', 64)::char(64), 64);""", tx=True, **CTX)
     record("and the table refuses a print against a preview sink by name",
@@ -1444,12 +1469,29 @@ def section_boundary() -> None:
            AND c.relname ~* 'print'
            AND a.attname ~* '(queue|pending|retry|attempts_remaining|next_attempt)'
          ORDER BY 1;""", dsn=ADMIN)
-    record("printing has no queue, and that is M5a's to build",
-           not queued,
-           f"queue-shaped columns on a print table: {[r[0] for r in queued] or 'none'}. "
-           f"FR-BIL-017's later_behavior places durable local queueing, retry, restart "
-           f"recovery and outage continuity at M5a. What M4-C proves is a print that "
-           f"happened, once, and said so")
+    # THE FENCE HAS FALLEN. M5a's 0044 builds docs.print_job, so "printing has no queue"
+    # is now false — which is what a fence a correct change must break looks like when the
+    # change arrives. Replaced by the boundary it stood for: M4-C proves a print that
+    # HAPPENED, and the queue in front of it is somebody else's migration.
+    m4c_migrations = sorted(
+        p for p in (REPO / "migrations").glob("00[23][0-9]_*.sql")
+        if 26 <= int(p.name[:4]) <= 34)
+    built_here = sorted({
+        path.name for path in m4c_migrations
+        if re.search(r"^\s*CREATE TABLE (?:IF NOT EXISTS )?docs\.print_job",
+                     path.read_text(encoding="utf-8"), re.MULTILINE | re.IGNORECASE)})
+    queue_landed = rows("""
+        SELECT n.nspname || '.' || c.relname
+          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE c.relkind = 'r' AND n.nspname = 'docs' AND c.relname = 'print_job';""",
+        dsn=ADMIN)
+    record("the durable print queue landed at M5a, and M4-C did not build it",
+           bool(queue_landed) and not built_here,
+           f"{[r[0] for r in queue_landed] or 'no queue yet'}; created by "
+           f"{built_here or 'no M4-C migration'}. FR-BIL-017's later_behavior places "
+           f"durable local queueing, retry, restart recovery and outage continuity at "
+           f"M5a. What M4-C proves is a print that happened, once, and said so — and the "
+           f"queue may not migrate backwards into this slice")
 
     sync = rows("""
         SELECT n.nspname || '.' || c.relname
@@ -1457,12 +1499,29 @@ def section_boundary() -> None:
          WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
            AND c.relname ~* '(^|_)(sync|synchronization|outlet_node|replication)($|_)'
          ORDER BY 1;""", dsn=ADMIN)
-    record("and no outlet node or synchronization surface exists",
-           not sync,
-           f"{[r[0] for r in sync] or 'none'}. FR-RPT-002's later_behavior asks for local "
-           f"versus cloud source and staleness at M5a, and a build that showed a "
-           f"synchronization status with nothing synchronizing would be showing a "
-           f"fabricated one")
+    # THE SECOND FENCE IN THIS SECTION TO FALL, and it falls for the same reason: M5a
+    # arrived. FR-RPT-002's later_behavior asks for local-versus-cloud source and
+    # staleness at M5a, and M4-C's claim was that a synchronization status shown with
+    # nothing synchronizing would be a fabricated one. Something IS synchronizing now.
+    #
+    # What outlives it is the half that stays true: M4-C's own reporting still shows no
+    # source or staleness column, because that is M5a's to add and it did not add it to
+    # report. The synchronization surface may exist; it may not have grown into this
+    # slice's schema.
+    reporting_claims_a_source = rows("""
+        SELECT n.nspname || '.' || c.relname || '.' || a.attname
+          FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+          JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+         WHERE c.relkind = 'r' AND n.nspname = 'report'
+           AND a.attname ~* '(^|_)(sync|synchronization|staleness|source_of_truth)($|_)'
+         ORDER BY 1;""", dsn=ADMIN)
+    record("the synchronization surface landed at M5a and did not grow into reporting",
+           bool(sync) and not reporting_claims_a_source,
+           f"{[r[0] for r in sync] or 'nothing synchronizing yet'} exist; "
+           f"{[r[0] for r in reporting_claims_a_source] or 'no'} reporting column claims "
+           f"a source or a staleness. FR-RPT-002's later_behavior places local-versus-"
+           f"cloud source at M5a, and M5a put it in integration and edge where it belongs "
+           f"rather than in the metric catalog")
 
     fenced, fenced_terms = fenced_identifier_pattern()
     offending = rows(f"""
@@ -1743,7 +1802,7 @@ def section_controls() -> None:
     duplicate_receipt = a_receipt(duplicate_settlement)
     scalar(f"""
         SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}',
-            '{duplicate_receipt}', '{fx.PRINTER_DEVICE}', '{fx.PRINT_OUTCOME}',
+            '{duplicate_receipt}', '{fx.PRINTER_DEVICE}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}',
             repeat('1', 64)::char(64), 256, '{fx.USER_CASHIER}');""")
 
     trigger_body = definition("docs.refuse_duplicate_receipt_print()")
@@ -1751,7 +1810,7 @@ def section_controls() -> None:
     def print_it_again():
         return run(APP, f"""
             SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}',
-                '{duplicate_receipt}', '{fx.PRINTER_DEVICE}', '{fx.PRINT_OUTCOME}',
+                '{duplicate_receipt}', '{fx.PRINTER_DEVICE}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}',
                 repeat('2', 64)::char(64), 256, '{fx.USER_CASHIER}');""",
             tx=True, **CTX)
 
@@ -2207,8 +2266,11 @@ def section_controls() -> None:
     # A customer receipt printed on a printer nobody tested. The precondition lives in
     # docs.record_receipt_print(), and it is the only thing that function adds beyond the
     # INSERT — so removing it is exactly the defect a reviewer would miss.
+    # The fifth argument is the AGENT'S REPORTED SINK, not the outcome. 0034 took the
+    # outcome away from the caller after the M4 review recorded a print that never
+    # happened, and the outcome is now derived from the printer's own classification.
     print_body = definition(
-        "docs.record_receipt_print(uuid, uuid, uuid, uuid, docs.print_outcome, char, "
+        "docs.record_receipt_print(uuid, uuid, uuid, uuid, docs.sink_kind, text, char, "
         "integer, uuid, boolean, uuid, text, text)")
 
     def print_on_the_untested_one():
@@ -2216,7 +2278,7 @@ def section_controls() -> None:
         receipt = a_receipt(settlement)
         return run(APP, f"""
             SELECT docs.record_receipt_print('{fx.TENANT}', '{fx.OUTLET_H1}',
-                '{receipt}', '{fx.PRINTER_UNTESTED}', '{fx.PRINT_OUTCOME}',
+                '{receipt}', '{fx.PRINTER_UNTESTED}', '{fx.SINK}'::docs.sink_kind, '{fx.DEVICE_PATH}',
                 repeat('3', 64)::char(64), 128, '{fx.USER_CASHIER}');""",
             tx=True, **CTX)
 
@@ -2477,8 +2539,9 @@ def main() -> int:
     CONTEXT["log_dir"] = Path(os.environ.get("M4C_LOG_DIR", str(SCRATCH / "logs")))
 
     try:
-        _manager_session, manager_token = fx.staff_session(fx.USER_FINANCE_MANAGER)
+        manager_session, manager_token = fx.staff_session(fx.USER_FINANCE_MANAGER)
         CONTEXT["manager_token"] = manager_token
+        CONTEXT["manager_session"] = manager_session
 
         establish()
 

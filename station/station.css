@@ -79,3 +79,53 @@ main, section { padding: 0.75rem 1rem; }
 .block { font-weight: 700; }
 .block::before { content: "BLOCKED: "; }
 .empty { font-style: italic; }
+
+/*
+ * THE CONTROLS OP-B ADDED, AND WHY THEY ARE THIS SIZE.
+ *
+ * FR-UX-002 asks for a surface a cook can use at arm's length across a pass, with wet or
+ * gloved hands, glancing rather than reading. So an action is a large target with a large
+ * label, and the targets are spaced far enough apart that a mis-tap lands on nothing
+ * rather than on the neighbouring ticket — which on this screen would mean firing the
+ * wrong dish. 3rem is above the 44px minimum every touch guideline settles on, chosen for
+ * a knuckle rather than a fingertip.
+ *
+ * Nothing here introduces a colour that carries meaning. The buttons are ink on paper with
+ * a rule around them, exactly like everything else, so the colour-flattened render this
+ * suite performs still shows every control and every word.
+ */
+.actions { display: flex; flex-wrap: wrap; gap: 0.75rem; padding: 0.75rem 0; }
+.action {
+  min-height: 3rem;
+  min-width: 8rem;
+  padding: 0.75rem 1.25rem;
+  font: inherit;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--paper);
+  border: 2px solid var(--rule);
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+.action:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+.action[disabled] { opacity: 0.6; cursor: progress; }
+
+/* A refusal is a sentence at the top of the screen, not a colour change on a control. */
+.notice {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  border-bottom: 2px solid var(--rule);
+}
+
+.sign-in { display: grid; gap: 0.75rem; padding: 1rem; max-width: 32rem; }
+.field { display: grid; gap: 0.25rem; font-weight: 600; }
+.field input {
+  min-height: 3rem;
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  border: 2px solid var(--rule);
+  border-radius: 0.25rem;
+}
+.ticket { cursor: pointer; }

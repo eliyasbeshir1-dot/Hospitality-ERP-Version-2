@@ -315,22 +315,111 @@ export function registerReportRoutes(app: FastifyInstance, deps: ReportDependenc
    * text/csv because that is what it is; the scoping is not this route's doing, it is
    * report.export_metrics_csv() being SECURITY INVOKER under the caller's row level
    * security.
+   *
+   * AND IT DEMANDS A STEP-UP, which it did not until M6-D. `report.export` has been in
+   * identity.install_governed_actions() since migration 0002 as strong + step-up with a
+   * fifteen-minute window — the only action in the registry whose window is not five
+   * minutes — carrying governed_from_gate = 'M6'. Nothing called it. So an action the
+   * registry described as governed was ungoverned through M4, M5a and M5b, and this route
+   * asked for a staff session and nothing more.
+   *
+   * That is the fourth time this shape has been found: OP-C with table.seat, OP-D with
+   * order.accept, M5b with node.authority.claim, and this. seeds/0010 wrote the pattern
+   * down — a governed action needs the trigger, an installer for tenants that already
+   * exist, and THE CALLER — and here the first two had been in place for sixty-three
+   * migrations.
+   *
+   * The grant arrives in a header rather than a query parameter because a query parameter
+   * lands in access logs, and a grant identifier in a log is a grant identifier in a log.
    */
-  app.get<{ Querystring: { from?: string; to?: string; currency?: string } }>(
+  app.get<{
+    Querystring: { from?: string; to?: string; currency?: string };
+    Headers: { 'x-step-up-grant'?: string };
+  }>(
     '/s/v1/reports/exports/metrics.csv', {
       schema: { querystring: { type: 'object', properties: WINDOW } },
     },
     async (request, reply) =>
       asStaff(request, reply, async (client, tenantId, outletId, userId) => {
         const [from, to, currency] = windowOf(request.query);
+        const grant = request.headers['x-step-up-grant'];
+        if (typeof grant !== 'string' || grant.trim() === '') {
+          // REFUSED BEFORE THE FIGURES ARE ASSEMBLED. Building the CSV and then declining
+          // to hand it over would put an outlet's whole trade in this process's memory on
+          // the strength of a request nobody authorised.
+          reply.code(403);
+          return {
+            error: 'export requires a step-up grant',
+            detail:
+              'An export removes an outlet\'s figures into a file with none of the access '
+              + 'controls they have here. Step up for report.export and present the grant '
+              + 'in x-step-up-grant.',
+          };
+        }
+
         try {
           const { rows } = await client.query(
             `SELECT report.export_metrics_csv($1::uuid, $2::uuid,
                       coalesce($3::timestamptz, now() - interval '1 day'),
                       coalesce($4::timestamptz, now()), $5::char(3), $6::uuid) AS csv`,
             [tenantId, outletId, from, to, currency, userId]);
+          const csv = rows[0].csv as string;
+
+          // THE RECORD IS WRITTEN BEFORE THE BYTES LEAVE, and it is what enforces the
+          // step-up: report.record_export() refuses a grant that is not a fresh
+          // report.export grant belonging to this person. If it refuses, nothing is sent.
+          await client.query(
+            `SELECT report.record_export($1::uuid, $2::uuid, 'metrics'::report.export_kind,
+                      coalesce($3::timestamptz, now() - interval '1 day'),
+                      coalesce($4::timestamptz, now()), $5::char(3), $6::uuid, $7::uuid,
+                      $8::integer, encode(sha256($9::bytea), 'hex')::character(64))`,
+            [tenantId, outletId, from, to, currency, userId, grant.trim(),
+             Buffer.byteLength(csv, 'utf8'), Buffer.from(csv, 'utf8')]);
+
           reply.header('content-type', 'text/csv; charset=utf-8');
-          return rows[0].csv as string;
+          return csv;
+        } catch (error) {
+          return answer(reply, error);
+        }
+      }));
+
+  // -------------------------------------------------------------------------
+  // Kitchen consumption (FR-FUL-012)
+  // -------------------------------------------------------------------------
+
+  /**
+   * Prep, wait and SLA per station, which is what "analytical consumption" means for a
+   * kitchen: not a new measurement, a way to look at the ones the fold already wrote.
+   *
+   * The partial closure this completes has been open since M3-B and said so plainly —
+   * the times "compute per station, item and order from timestamps the fold wrote out of
+   * the ledger. Consuming them as analytics is operational reporting at M6."
+   */
+  app.get<{ Querystring: { from?: string; to?: string } }>(
+    '/s/v1/reports/kitchen-consumption',
+    async (request, reply) =>
+      asStaff(request, reply, async (client, tenantId, outletId) => {
+        const [from, to] = windowOf(request.query);
+        try {
+          const { rows } = await client.query(
+            // ALIASED TO camelCase HERE, like every other route in this service. The
+            // first version returned the function's own column names, so this one route
+            // answered in snake_case while its neighbours answered in camelCase — and
+            // nothing noticed, because until M6-D added the caller in tests/m6d nothing
+            // had ever called it. A route with no caller is not necessarily broken; it is
+            // unproved, and this is the kind of thing that lives in that condition.
+            `SELECT station_name              AS "stationName",
+                    tickets::int              AS "tickets",
+                    lines::int                AS "lines",
+                    preparation_seconds_p50   AS "preparationSecondsP50",
+                    wait_seconds_p50          AS "waitSecondsP50",
+                    sla_breaches::int         AS "slaBreaches",
+                    slowest_seconds           AS "slowestSeconds"
+               FROM report.kitchen_consumption($1::uuid, $2::uuid,
+                      coalesce($3::timestamptz, now() - interval '1 day'),
+                      coalesce($4::timestamptz, now()))`,
+            [tenantId, outletId, from, to]);
+          return { stations: rows };
         } catch (error) {
           return answer(reply, error);
         }

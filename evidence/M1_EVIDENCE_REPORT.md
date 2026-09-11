@@ -13,9 +13,9 @@ recorded deliberately and are marked as such.
 
 | | |
 |---|---|
-| Commit | `4b689889802a05dadb493a2c5f8ba5c1fb6021ca` |
-| Short | `4b68988` |
-| Branch | `claude/code-execution-brief-nle2y7` |
+| Commit | `5d07eaf5c70ae6324c63598ddb0c2aba99dfdb55` |
+| Short | `5d07eaf` |
+| Branch | `claude/operator-gate-opb` |
 | Subject | the last commit touching anything other than this report |
 | Working tree | clean at generation — the generator refuses a tree that is not |
 
@@ -71,6 +71,10 @@ Ordered, forward-only and checksum-locked. An edited applied migration fails pre
 | `0030` | `0030_receipt_composition_preview_and_the_counter_terminal.sql` | `42715d944a8d6831…` | applied |
 | `0031` | `0031_a_null_device_is_not_a_printer.sql` | `9a683d127942c417…` | applied |
 | `0032` | `0032_the_null_sink_cannot_claim_paper.sql` | `a466995fd47b6fb5…` | applied |
+| `0033` | `0033_a_chosen_secret_must_be_key_stretched.sql` | `77348a41915c0da4…` | applied |
+| `0034` | `0034_a_printer_test_records_what_the_agent_did.sql` | `bda2ede557a00282…` | applied |
+| `0035` | `0035_a_table_can_be_seated.sql` | `c28ce9c0fa001dd3…` | applied |
+| `0036` | `0036_seating_is_an_action_and_actions_are_graded.sql` | `0c6c6a4899f3f665…` | applied |
 
 ## Seeds applied
 
@@ -83,6 +87,12 @@ least-privileged application role.
 |---|---|---|---|
 | `0001` | `0001_demonstration_tenants.sql` | `f2ec118a0a296031…` | applied |
 | `0002` | `0002_reason_codes.sql` | `27b8595f98f7e129…` | applied |
+| `0003` | `0003_demonstration_floor_and_menu.sql` | `68ead8aa517c9073…` | applied |
+| `0004` | `0004_provision_stations_and_routing.provision.sql` | `ab4c5fab7bf4799a…` | applied |
+| `0005` | `0005_the_demonstration_floor_can_be_billed.sql` | `14f212530bdd33e3…` | applied |
+| `0006` | `0006_the_demonstration_floor_can_take_money.provision.sql` | `9425a5f138a17cf5…` | applied |
+| `0007` | `0007_the_demonstration_floor_can_escalate.sql` | `01cf3ecd7a06beac…` | applied |
+| `0008` | `0008_the_demonstration_floor_can_seat.provision.sql` | `d438fd8decc964af…` | applied |
 
 ## Schema shape
 
@@ -102,7 +112,7 @@ Money is stored as integer minor units beside an explicit currency.
 | Suite | Verdict | Checks | Failures |
 |---|---|---:|---:|
 | M1-A database, RLS, roles | **PASS** | 46 | 0 |
-| M1-B identity and authentication | **PASS** | 35 | 0 |
+| M1-B identity and authentication | **PASS** | 37 | 0 |
 | M1-C configuration, audit, money | **PASS** | 62 | 0 |
 | M1-D API, security, operations | **PASS** | 49 | 0 |
 | M2-A menu, pricing, translation storage | **PASS** | 75 | 0 |
@@ -115,9 +125,12 @@ Money is stored as integer minor units beside an explicit currency.
 | M4-A checks, bills, splitting, tip separation | **PASS** | 105 | 0 |
 | M4-B payment capture, verification, cash, reversal | **PASS** | 152 | 0 |
 | M4-C receipts, the printer path, reporting, the register audit | **PASS** | 108 | 0 |
+| OP-A login, the kitchen and expo routes, the product seed | **PASS** | 49 | 0 |
+| OP-B the station board, the till and the waiter floor | **PASS** | 25 | 0 |
+| OP-C being seated, and taking something back out | **PASS** | 42 | 0 |
 | Fenced-domain gate, vocabulary and mutations | **PASS** | 33 | 0 |
-| The golden journeys, end to end | **PASS** | 92 | 0 |
-| **Total** | | **1420** | |
+| The golden journeys, end to end | **PASS** | 107 | 0 |
+| **Total** | | **1553** | |
 
 ## The golden journeys (FR-TST-005A)
 
@@ -134,20 +147,20 @@ mistaken for one that mostly worked.
 | Journey | Covers | Gates reached | Tier | Verdict | Steps |
 |---|---|---|---|---|---:|
 | `GJ-01A` | An English guest: scan, browse, choose modifiers, submit, the kitchen prepares, a waiter serves, the guest sees served — and no local-authority claim exists anywhere in the catalog | M2-B · M2-C · M3-A · M3-B | browser | **PASS** | 11/11 |
-| `GJ-01B` | English settlement: the cashier presents the check and settles it in cash, no tip recorded as a decision rather than an absence, bill and tip and total shown apart on the receipt, one trip down the printer path, a second original print refused, and check, bill, payment and receipt all hanging off the guest's order | M4-A · M4-B · M4-C | service | **PASS** | 6/6 |
+| `GJ-01B` | English settlement: the cashier presents the check and settles it in cash, no tip recorded as a decision rather than an absence, bill and tip and total shown apart on the receipt, one trip down the printer path, a second original print refused, and check, bill, payment and receipt all hanging off the guest's order | M4-A · M4-B · M4-C | browser | **PASS** | 10/10 |
 | `GJ-02` | Amharic: menu and allergen text, an order carrying the chosen language, statuses and messages in Ethiopic script, the waiter called, a second order | M2-A · M2-C · M3-A · M3-B · M3-C | browser | **PASS** | 14/14 |
-| `GJ-02B` | Amharic settlement: a tip chosen on the check, an unverified proof that settles nothing until a named person verifies it in the provider's app, a receipt Amharic on every line with every Ethiopic glyph drawn from the packaged font, and the table released only once it is settled | M2-A · M4-A · M4-B · M4-C | service | **PASS** | 7/7 |
+| `GJ-02B` | Amharic settlement: a tip chosen on the check, an unverified proof that settles nothing until a named person verifies it in the provider's app, a receipt Amharic on every line with every Ethiopic glyph drawn from the packaged font, and the table released only once it is settled | M2-A · M4-A · M4-B · M4-C | browser | **PASS** | 9/9 |
 | `GJ-03A` | Arabic right to left: true RTL layout, Latin SKUs inside an Arabic page, ETB prices measured left to right, an order, an Arabic status timeline | M2-A · M2-C · M3-A · M3-B | browser | **PASS** | 13/13 |
-| `GJ-03B` | Arabic settlement: a tip and a payment on a permitted live method, a receipt that keeps bill, tip and total paid apart under RTL, and Arabic and the Latin currency code both drawn by the packaged fonts | M2-A · M4-A · M4-B · M4-C | service | **PASS** | 4/4 |
+| `GJ-03B` | Arabic settlement: a tip and a payment on a permitted live method, a receipt that keeps bill, tip and total paid apart under RTL, and Arabic and the Latin currency code both drawn by the packaged fonts | M2-A · M4-A · M4-B · M4-C | browser | **PASS** | 6/6 |
 | `GJ-04` | Two devices at one table: personal baskets, separate orders, the waiter called and acknowledged, a later add-on, an authorized session move | M2-B · M3-A · M3-C | browser | **PASS** | 11/11 |
-| `GJ-05` | Waiter-entered: the table opened, an order entered through the staff routes, routed to stations, the allergy emphasised, served, and one amendment authorized by a manager on their own session | M3-A · M3-B · M3-D | service | **PASS** | 7/7 |
-| `GJ-06` | A check split by item into one document per payer: each payment allocating to bill and tip independently, one payer tipping and the other not, and each payer's receipt produced exactly once | M4-A · M4-B · M4-C | service | **PASS** | 5/5 |
-| `GJ-07` | Taking money back: a cashier refused their own refund, a manager's purpose-specific step-up authorizing it, bill and tip corrected as two independent records, a corrected receipt issued as a new revision with its own number and a marked reprint carrying operator and reason, and the first receipt's own record left unchanged | M1-B · M4-B · M4-C | service | **PASS** | 6/6 |
+| `GJ-05` | Waiter-entered: the table opened, an order entered through the staff routes, routed to stations, the allergy emphasised, served, and one amendment authorized by a manager on their own session | M3-A · M3-B · M3-D | browser | **PASS** | 8/8 |
+| `GJ-06` | A check split by item into one document per payer: each payment allocating to bill and tip independently, one payer tipping and the other not, and each payer's receipt produced exactly once | M4-A · M4-B · M4-C | browser | **PASS** | 7/7 |
+| `GJ-07` | Taking money back: a cashier refused their own refund, a manager's purpose-specific step-up authorizing it, bill and tip corrected as two independent records, a corrected receipt issued as a new revision with its own number and a marked reprint carrying operator and reason, and the first receipt's own record left unchanged | M1-B · M4-B · M4-C | browser | **PASS** | 10/10 |
 | `FR-TST-007A` | Two submissions racing, measured with M3-A's catalog-derived whole-schema differential: one order, one line, no duplicate commercial effect | M3-A · M3-D | service | **PASS** | 4/4 |
 
 ## Negative controls
 
-**114** controls — M1 22, M2 22, M3 35, M4 35 — each planted as a real
+**138** controls — M1 22, M2 22, M3 35, M4 59 — each planted as a real
 defect, required to produce its exact registered signature, then reverted and
 required to pass again. A control that never went red is a coverage gap wearing a
 green badge, and CI fails the build when one is missing. The registry is
@@ -271,6 +284,30 @@ build, and so does one described and never proved.
 | `NC-M4C-008` | A customer receipt printed on a printer nobody tested | `PRINTER_NEVER_TESTED` | red, then green |
 | `NC-M4C-009` | A journey the suite walks that the evidence report never reports | `JOURNEY_UNACCOUNTED` | red, then green |
 | `NC-M4C-010` | An evidence report generated from a tree with uncommitted work | `REPORT_TREE_NOT_CLEAN` | red, then green |
+| `NC-OPA-001` | A credential accepted without verification | `CREDENTIAL_ACCEPTED_UNVERIFIED` | red, then green |
+| `NC-OPA-002` | A session issued for a revoked or removed role | `SESSION_ISSUED_FOR_REVOKED_ROLE` | red, then green |
+| `NC-OPA-003` | A quick PIN authorising a step-up-governed action | `LOW_RISK_CREDENTIAL_USED_FOR_SENSITIVE_ACTION` | red, then green |
+| `NC-OPA-004` | A kitchen route re-implementing a transition rule | `CHANNEL_RULE_DIVERGENCE` | red, then green |
+| `NC-OPA-005` | A route driving a ticket into an illegal state | `ILLEGAL_TRANSITION_ACCEPTED` | red, then green |
+| `NC-OPA-006` | Expo releasing an incomplete set | `INCOMPLETE_SET_SERVED` | red, then green |
+| `NC-OPA-007` | A seeded row bypassing the runner or RLS | `SEED_BYPASSED_RUNNER` | red, then green |
+| `NC-OPA-008` | Lockout not firing after the configured failures | `LOCKOUT_NOT_ENFORCED` | red, then green |
+| `NC-OPA-009` | A caller's claim recorded as a print the agent never made | `PRINT_OUTCOME_FORGED` | red, then green |
+| `NC-OPB-001` | A station renders an allergy without its written warning | `WRITTEN_WARNING_ABSENT_FROM_RENDER` | red, then green |
+| `NC-OPB-002` | Allergy emphasis carried by colour alone | `STATE_CONVEYED_BY_COLOUR_ALONE` | red, then green |
+| `NC-OPB-003` | The tip box rendered inside the bill summary | `TIP_COMMINGLED_WITH_BILL` | red, then green |
+| `NC-OPB-004` | A tip option preselected for the guest | `TIP_PRESELECTED` | red, then green |
+| `NC-OPB-005` | An override accepted without the manager's own session | `OVERRIDE_WITHOUT_STEP_UP` | red, then green |
+| `NC-OPB-006` | A destructive action proceeding with no reason | `DESTRUCTIVE_ACTION_WITHOUT_REASON` | red, then green |
+| `NC-OPB-007` | The station screen driving a ticket into an illegal state | `ILLEGAL_TRANSITION_ACCEPTED` | red, then green |
+| `NC-OPB-008` | A screen re-implementing a rule the route enforces | `CHANNEL_RULE_DIVERGENCE` | red, then green |
+| `NC-OPC-001` | A scan bound to no occupancy admitted to one opened since | `STALE_QR_VERIFICATION_REQUIRED` | red, then green |
+| `NC-OPC-002` | A table seated twice, with two open occupancies | `OCCUPANCY_ALREADY_OPEN` | red, then green |
+| `NC-OPC-003` | An occupancy opened without saying who opened it | `OPENING_SOURCE_UNATTRIBUTED` | red, then green |
+| `NC-OPC-004` | A line removed from a basket somebody has ordered from | `CART_ALREADY_SUBMITTED` | red, then green |
+| `NC-OPC-005` | A basket a guest can add to and cannot take from | `REMOVE_CONTROL_ABSENT` | red, then green |
+| `NC-OPC-006` | A surface with a network layer and no way in | `SIGN_IN_UNREACHABLE` | red, then green |
+| `NC-OPC-007` | A bordered box that never says what it is | `BOX_UNLABELLED` | red, then green |
 
 ## Design decision: the ledger is the record, everything else is a projection (M3-A)
 

@@ -227,8 +227,12 @@ def why(response: dict) -> str:
 def cashier() -> str:
     """The cashier's own bearer token, minted once for the run."""
     if "cashier_token" not in CONTEXT:
-        _session, token = m4c.staff_session(m4c.USER_CASHIER)
+        session, token = m4c.staff_session(m4c.USER_CASHIER)
         CONTEXT["cashier_token"] = token
+        # Kept because the TILL needs it: a browser is handed this session rather than
+        # signing in, so that FR-AUTH-007's limiter is not spent on something no journey
+        # is about. Signing in through the screen is proved in tests/opb.
+        CONTEXT["cashier_session"] = session
     return CONTEXT["cashier_token"]
 
 
@@ -266,17 +270,37 @@ def take_order_through_the_kitchen(order_id: str) -> dict:
     """Accept, release to stations, prepare, and serve — the staff half of a journey.
 
     A guest cannot press these buttons and a journey that skipped them would end at
-    "ordered". Driven through the delivered functions rather than by writing rows, so the
-    journey walks the same path a kitchen does.
+    "ordered".
+
+    THROUGH ROUTES, BECAUSE THERE ARE ROUTES NOW. This walker used to call
+    ordering.accept_order(), fulfillment.release_order(), transition_ticket() and
+    record_serve() as SQL, and that was correct while no route reached them — the
+    structural guard named each one as a gap in the service's surface rather than as a
+    licence. The operator gate built those routes, and the same guard immediately failed
+    this file: a delivered writer the service exposes must be reached the way a person
+    reaches it, or the journey is proving a path nobody can walk.
+
+    So the kitchen half is now HTTP, on a staff session, exactly as a station operator
+    does it. What that buys is not tidiness: it means the routes are exercised by ten
+    journeys on every run, and a route that broke would fail here rather than being
+    discovered by the next person to try the product.
     """
     out: dict[str, str] = {}
+    _session, token = fx.staff_session(fx.USER)
+
+    def kitchen(method: str, path: str, body: dict | None = None) -> dict:
+        return service(method, path, body if body is not None else {}, token=token)
+
+    def outcome(answer: dict, ok_key: str | None = None) -> str:
+        if answer.get("status") in (200, 201):
+            return str(answer.get(ok_key)) if ok_key else "ok"
+        return str(answer.get("signature") or answer.get("error") or answer.get("status"))
+
     state = scalar(f"""
         SELECT state::text FROM ordering.customer_order WHERE id = '{order_id}';""")
     if state == "submitted":
-        accepted = run(APP, f"""
-            SELECT ordering.accept_order('{fx.TENANT}', '{order_id}',
-                                         '{fx.USER}');""", **CTX)
-        out["accepted"] = accepted.why() or "ok"
+        accepted = kitchen("POST", f"/s/v1/orders/{order_id}/accept")
+        out["accepted"] = outcome(accepted)
     else:
         # A waiter-entered order is accepted on submission because the policy says so for
         # that origin — the waiter IS the staff confirmation. Calling accept_order() again
@@ -291,10 +315,8 @@ def take_order_through_the_kitchen(order_id: str) -> dict:
     tickets = rows(f"""
         SELECT id::text FROM fulfillment.ticket WHERE order_id = '{order_id}';""")
     if not tickets:
-        released = run(APP, f"""
-            SELECT fulfillment.release_order('{fx.TENANT}', '{order_id}',
-                                             '{fx.USER}');""", **CTX)
-        out["released"] = released.why() or "ok"
+        released = kitchen("POST", f"/s/v1/orders/{order_id}/release")
+        out["released"] = outcome(released)
         tickets = rows(f"""
             SELECT id::text FROM fulfillment.ticket WHERE order_id = '{order_id}';""")
     else:
@@ -303,22 +325,27 @@ def take_order_through_the_kitchen(order_id: str) -> dict:
 
     for row in tickets:
         ticket = row[0]
-        # Through the machine, in order, all the way to 'collected'. record_serve()
-        # RECORDS who collected and who served; it does not perform the collection, and
-        # it refuses a ticket still at the pass. Passing only the collector leaves
-        # served_at NULL, which is why the ticket sat at 'collected' the first time.
+        # Through the machine, in order, all the way to 'collected'. The route names the
+        # state it wants and fulfillment.transition_ticket() decides whether the move is
+        # legal — the walker carries no transition table of its own, which is the same
+        # property the route was written to have.
+        #
+        # record_serve() RECORDS who collected and who served; it does not perform the
+        # collection, and it refuses a ticket still at the pass. Passing only the
+        # collector leaves served_at NULL, which is why the ticket sat at 'collected' the
+        # first time.
         for state in ("acknowledged", "preparing", "ready", "collected"):
-            moved = run(APP, f"""
-                SELECT fulfillment.transition_ticket('{fx.TENANT}', '{ticket}',
-                    '{state}'::fulfillment.ticket_state, '{fx.USER}');""", **CTX)
-            if not moved.ok:
-                out[f"ticket_{state}"] = moved.why()
+            moved = kitchen("POST", f"/s/v1/tickets/{ticket}/transitions",
+                            {"toState": state})
+            if moved.get("status") not in (200, 201):
+                out[f"ticket_{state}"] = outcome(moved)
 
     if tickets:
-        served = run(APP, f"""
-            SELECT fulfillment.record_serve('{fx.TENANT}', '{tickets[0][0]}',
-                                            '{fx.USER}', '{fx.USER}');""", **CTX)
-        out["served"] = served.why() or "ok"
+        # collectedBy and servedBy are named rather than defaulted, because the walker is
+        # standing in for two different people and the record says which did what.
+        served = kitchen("POST", f"/s/v1/tickets/{tickets[0][0]}/serve",
+                         {"collectedBy": fx.USER, "servedBy": fx.USER})
+        out["served"] = outcome(served)
     else:
         out["served"] = "no ticket to serve"
     # Emitted notices are not sent notices. notify.send_pending() is what writes them
@@ -382,7 +409,22 @@ def gj_01a() -> None:
                f"the order it happened")
 
     # FR-M5B boundary: "the current approved cloud authority persists and no
-    # local-authority claim is made before M5b." PROVE THE ABSENCE, not the presence.
+    # local-authority claim is made before M5b."
+    #
+    # THIS FENCE HAS EXPIRED AND IS REPLACED BY WHAT OUTLIVES IT. Until M5b there was no
+    # local authority anywhere, and proving the ABSENCE across the whole catalog was the
+    # strongest form of that. M5b built one: edge.authority holds a monotonic sequence,
+    # edge.forwarding_lease holds FR-EDG-023's lease, and asserting they do not exist is
+    # asserting the gate did not land.
+    #
+    # The guarantee that survives is narrower and still worth having: local authority
+    # exists ONCE, in `edge`, and no other schema has grown a shadow of it. A `billing`
+    # lease or a `pos` failover would be an authority mechanism nobody reviewed, arriving
+    # beside the one that was — which is exactly what the original check was protecting
+    # against and the only part of it that M5b does not satisfy on its own.
+    #
+    # This is the fourth fence in this repository to retire this way, and the second in
+    # this function: the check below already retired once at M5a and says so.
     authority_claims = rows("""
         SELECT n.nspname || '.' || c.relname || '.' || a.attname
         FROM pg_attribute a
@@ -394,13 +436,17 @@ def gj_01a() -> None:
                                   takeover|quorum)(_|$)'
             OR c.relname ~* '(^|_)(authority|lease|failover|takeover)(_|$)')
         ORDER BY 1;""", dsn=ADMIN)
-    record(journey, "no local-authority claim exists anywhere before M5b",
-           authority_claims == [],
-           f"{authority_claims or 'none'} — searched the whole CATALOG for a column or "
-           f"table naming an authority, a lease, a failover or a takeover, rather than "
-           f"asserting that the ones this slice added do not. The absence is proved; a "
-           f"check that only looked at M3-D's own tables would pass on a claim any "
-           f"earlier gate had left behind")
+    strays = sorted({c[0].split(".")[0] for c in authority_claims} - {"edge"})
+    record(journey, "local authority exists once, in edge, and nowhere else",
+           strays == [],
+           f"schemas naming an authority, a lease, a failover or a takeover: "
+           f"{sorted({c[0].split('.')[0] for c in authority_claims}) or 'none'}; "
+           f"outside edge: {strays or 'none'}. Searched the whole CATALOG rather than the "
+           f"tables one slice added, because a check that looked only at its own would "
+           f"pass on a claim any other gate had left behind. Until M5b this asserted the "
+           f"set was EMPTY, which was the strongest form of the boundary while nothing "
+           f"could decide locally; M5b built edge.authority and edge.forwarding_lease, so "
+           f"asserting their absence would now assert the gate did not land")
 
     outlet_node = rows("""
         SELECT table_schema || '.' || table_name FROM information_schema.tables
@@ -408,9 +454,12 @@ def gj_01a() -> None:
         dsn=ADMIN)
     record(journey, "and the cloud is still the only authority that serves this journey",
            outlet_node == [],
-           f"{outlet_node or 'none'}. Every step above went to the one cloud service; "
-           f"there is no outlet node to fail over to, which is M5a's, and nothing claims "
-           f"the right to decide locally, which is M5b's")
+           f"{outlet_node or 'none'}. Every step above went to the one cloud service. The "
+           f"outlet node landed at M5a and is schema `edge`: it did NOT arrive as a "
+           f"shadow `sync` or `replication` schema, which is what this check now means. "
+           f"What decides locally is edge.authority, and this journey is a CLOUD one: the "
+           f"guest ordered, the kitchen cooked and the bill settled through the one cloud "
+           f"service, which is what GJ-01A is for")
 
 
 # ===========================================================================
@@ -644,6 +693,7 @@ def gj_05() -> None:
 
     fx.m3c.set_presence("available")
     seated = fx.a_seated_guest(table=fx.TABLE_TWO)
+
     fx.assign_table_owner(seated["session"], fx.USER)
     session_id, token = fx.staff_session(fx.USER)
 
@@ -815,6 +865,25 @@ def gj_05() -> None:
                both == [["the waiter asked", "the manager allowed it"]],
                f"{both}. Two people on the record, which is the whole difference between "
                f"delegation and somebody borrowing a password")
+
+    # AND THE WAITER LOOKS AT THE FLOOR, in a browser, on the surface that fetches it.
+    #
+    # journey_probe.mjs has carried a GJ-05 branch since M3-D and nothing has ever called
+    # it: walk() was invoked for four journeys and this was not one of them. It was also
+    # written to render a payload this suite handed in, so had it ever run it would have
+    # measured the suite's own data. The waiter surface fetches for itself since OP-B, so
+    # the branch is reached and what it measures is the floor the service returned.
+    walked = walk(journey, {"token": token, "tenant": fx.TENANT,
+                            "outlet": fx.OUTLET_H1})
+    floor = next((st for st in walked["steps"]
+                  if st["name"] == "the waiter opens the floor"), {})
+    seen = floor.get("detail") or {}
+    record(journey, "the waiter sees the floor the service returned, in a browser",
+           floor.get("ok") and seen.get("fetched", 0) > 0,
+           f"{seen.get('tables', 0)} table row(s) and {seen.get('queues', 0)} queue "
+           f"row(s) from {seen.get('fetched', 0)} request(s) the screen made itself; "
+           f"the unpaid balance FR-POS-004 has carried since M3-D is on it: "
+           f"{seen.get('showsUnpaidBalance')}")
 
 
 # ===========================================================================
@@ -999,7 +1068,8 @@ def a_receipt(journey: str, bill: str, method: str) -> str:
     return issued["receiptId"]
 
 
-def an_order_placed_by_the_guest(journey: str, session: str, cart: str) -> str:
+def an_order_placed_by_the_guest(journey: str, session: str, cart: str,
+                                 label: str = "order") -> str:
     """Preview and submit a cart through the GUEST'S OWN routes, and return the order.
 
     ordering.submit_order() is a writer the service already exposes, so a journey calling
@@ -1019,7 +1089,7 @@ def an_order_placed_by_the_guest(journey: str, session: str, cart: str) -> str:
                       "expectedTotalMinor": preview["total_amount_minor"],
                       "pricingDigest": preview["pricing_digest"]},
                      token=token, scheme="Guest",
-                     key=f"{journey}-{RUN_NONCE}-order")
+                     key=f"{journey}-{RUN_NONCE}-{label}")
     if not ok(placed):
         raise ProbeFailed("POST /c/v1/orders", why(placed))
     order = placed.get("orderId") or scalar(f"""
@@ -1032,7 +1102,7 @@ def an_order_placed_by_the_guest(journey: str, session: str, cart: str) -> str:
 
 
 def a_settled_check(journey: str, session: str, *, locale: str, tip_minor: int,
-                    method: str, provider: str) -> dict:
+                    method: str, provider: str, make_intent: bool = True) -> dict:
     """Open a check over a served session, bill it, take the money, and say what happened.
 
     EVERY WRITE HERE GOES THROUGH THE SERVICE. Staff actions carry the cashier's own
@@ -1091,16 +1161,99 @@ def a_settled_check(journey: str, session: str, *, locale: str, tip_minor: int,
             SELECT id FROM billing.tip WHERE bill_share_id = '{share}'
              ORDER BY chosen_at DESC LIMIT 1;""")
 
-    intent = service("POST", "/s/v1/payments/intents",
-                     {"billId": bill, "billAmountMinor": total,
-                      "tipAmountMinor": tip_minor,
-                      **({"tipId": tip_id} if tip_id else {})},
-                     token=token, key=f"{journey}-{RUN_NONCE}-intent")
-    if not ok(intent):
-        raise ProbeFailed("POST /s/v1/payments/intents", why(intent))
+    # THE TILL OPENS ITS OWN INTENT. When a journey settles in the browser, this helper
+    # stops one step short: an intent created here and ignored by the screen would be the
+    # test doing the cashier's work and then watching somebody else do it again.
+    intent_id = None
+    if make_intent:
+        intent = service("POST", "/s/v1/payments/intents",
+                         {"billId": bill, "billAmountMinor": total,
+                          "tipAmountMinor": tip_minor,
+                          **({"tipId": tip_id} if tip_id else {})},
+                         token=token, key=f"{journey}-{RUN_NONCE}-intent")
+        if not ok(intent):
+            raise ProbeFailed("POST /s/v1/payments/intents", why(intent))
+        intent_id = intent["intentId"]
     return {"check": check, "bill": bill, "total": total, "tip": tip_minor,
-            "tip_id": tip_id, "intent": intent["intentId"],
+            "tip_id": tip_id, "intent": intent_id,
             "method": method, "provider": provider}
+
+
+def settle_at_the_till(journey: str, settled: dict, *, method: str, prompts: list,
+                       tip_percentage: str | None = None,
+                       receipt_method: str | None = None) -> dict:
+    """Walk the settlement through the till, in a browser, and record what it showed.
+
+    method="none" walks the cashier's VIEW and stops. NO SETTLEMENT JOURNEY USES IT ANY
+    MORE: until M6-E three of the five did, because a payment rule the screen cannot
+    express — that an unverified proof settles nothing — was being proved by the same call
+    that settled the bill. FR-TST-005A is the entry that asked for the difference, and the
+    answer was to separate them: the rule keeps its service-tier proof on its own artifact
+    and runs BEFORE the till, and the money is taken by somebody pressing a button. The
+    parameter stays because "walk the view and stop" is still a legitimate thing to ask for.
+
+    THIS IS WHAT MAKES THESE JOURNEYS BROWSER TIER. Until OP-B they issued the HTTP calls
+    a cashier's screen would issue, because there was no screen; the tier line in the
+    summary said "service" and meant it. The screen exists now, so the cashier's half of
+    each journey is walked rather than called, and tier_of() reports browser because this
+    function calls walk() — derived from the journey's own body, never declared.
+    """
+    walked = walk(journey, {
+        "bill": settled["bill"], "method": method, "prompts": prompts,
+        "token": cashier(), "sessionId": CONTEXT.get("cashier_session"),
+        "tenant": m4c.TENANT, "outlet": m4c.OUTLET_H1,
+        **({"tipPercentage": tip_percentage} if tip_percentage else {}),
+        **({"receiptMethod": receipt_method} if receipt_method else {}),
+    })
+    seen = {s["name"]: s for s in walked["steps"]}
+
+    opened = seen.get("the cashier opens the till and calls up the bill", {})
+    record(journey, "a cashier opens the bill on the till, in a browser",
+           opened.get("ok") and (opened.get("detail") or {}).get("lines", 0) > 0,
+           f"{(opened.get('detail') or {})}. The screen fetched this bill itself through "
+           f"GET /s/v1/bills/:billId — a route that did not exist before this gate, "
+           f"because every way of reading a bill was reachable only by a guest")
+
+    tip_box = seen.get("the tip box sits beside the bill with nothing chosen for the guest",
+                       {})
+    detail = tip_box.get("detail") or {}
+    record(journey, "the tip box is beside the bill and nothing is chosen for the guest",
+           tip_box.get("ok") and detail.get("insideTheBill") == 0
+           and detail.get("preselected") == 0,
+           f"{detail.get('options')} option(s), {detail.get('insideTheBill')} inside the "
+           f"bill, {detail.get('preselected')} preselected — FR-BIL-014 and FR-BIL-015 "
+           f"measured on the rendered page rather than asserted about the payload")
+
+    # PAY AND RECEIPT ARE ONLY ASSERTED WHEN THEY WERE WALKED. In view-only mode the
+    # probe deliberately does not press either, and recording a failure for a step nobody
+    # asked it to take is an assertion that cannot pass — the opposite of the "an
+    # assertion that cannot fail is a defect" rule, and just as useless.
+    if method != "none":
+        paid = seen.get(f"the cashier takes payment by {method}", {})
+        notice = (paid.get("detail") or {}).get("notice", "")
+        record(journey, f"the cashier takes payment by {method} through the screen",
+               paid.get("ok") and bool(notice) and "refused" not in notice.lower(),
+               f"{notice!r}; outstanding now "
+               f"{(paid.get('detail') or {}).get('outstanding', '')!r}")
+
+        made = seen.get("a receipt is produced and the guest can be handed one", {})
+        record(journey, "and a receipt is produced from the till",
+               bool(((made.get("detail") or {}).get("receipt") or "")),
+               f"receipt {((made.get('detail') or {}).get('receipt') or 'none')[:8]}… "
+               f"{(made.get('detail') or {}).get('notice', '')}")
+
+    if walked.get("errors"):
+        record(journey, "the till raised nothing in the browser console",
+               False, "; ".join(walked["errors"][:3])[:300])
+
+    # THE RECEIPT THE TILL MADE, handed back so the journey does not make a second one.
+    # FR-BIL-010 allows one original per bill revision, so a caller that issued one at the
+    # screen and then issued another through the route would be refused — correctly, and
+    # confusingly, since the journey would look like it could not produce a receipt when
+    # in fact it had already produced one.
+    made = seen.get("a receipt is produced and the guest can be handed one", {})
+    return {"walked": walked, "seen": seen,
+            "receipt": ((made.get("detail") or {}).get("receipt") or None)}
 
 
 class Recorded:
@@ -1145,7 +1298,12 @@ def print_the_receipt(journey: str, receipt: str, *, is_reprint: bool = False,
         f"SELECT docs.receipt_document('{fx.TENANT}', '{receipt}')::text;"))
     produced = printer.produce(document, sink="device", device_path=os.devnull,
                                workspace=WORKSPACE)
-    body = {"printerId": m4c.PRINTER_DEVICE, "outcome": m4c.PRINT_OUTCOME,
+    # The AGENT'S REPORT, not a claimed outcome. Since 0034 this route takes the sink the
+    # agent wrote to and what the platform resolved the destination to, and the database
+    # derives whether that was a print — a caller naming its own outcome is the forgery
+    # the M4 review performed against this route's sibling.
+    body = {"printerId": m4c.PRINTER_DEVICE, "agentSink": m4c.SINK,
+            "resolvedDestination": produced.get("destination") or m4c.DEVICE_PATH,
             "bytesSha256": produced["bytes_sha256"],
             "byteCount": produced["byte_count"], "isReprint": is_reprint}
     if reason_code:
@@ -1192,15 +1350,21 @@ def gj_01b() -> None:
                           "a bill can be settled, not that this guest can pay and leave")
 
     settled = a_settled_check(journey, predecessor["session"], locale="en",
-                              tip_minor=0, method="cash", provider="cash")
-    captured = service("POST", f"/s/v1/payments/{settled['intent']}/cash",
-                       {"tenderedMinor": settled["total"]}, token=cashier(),
-                       key=f"{journey}-{RUN_NONCE}-cash")
+                              tip_minor=0, method="cash", provider="cash",
+                              make_intent=False)
+    at_the_till = settle_at_the_till(journey, settled, method="cash",
+                                     prompts=[str(settled["total"])],
+                                     receipt_method="cash")
+
+    paid = count(APP, f"""
+        SELECT count(*) FROM payments.payment p
+          JOIN payments.payment_intent i ON i.id = p.intent_id
+         WHERE i.bill_id = '{settled["bill"]}';""", **CTX)
     record(journey, "the cashier presents the check and settles it in cash",
-           ok(captured),
-           why(captured) or f"bill {settled['bill'][:8]} of {settled['total']} minor "
-                            f"units, tendered exactly, through "
-                            f"POST /s/v1/payments/:intentId/cash on the running service")
+           paid > 0,
+           f"{paid} payment(s) against bill {settled['bill'][:8]}…, taken by a person "
+           f"pressing a button on a till in a browser rather than by this suite issuing "
+           f"the request a till would have issued")
 
     no_tip = count(APP, f"""
         SELECT count(*) FROM billing.tip t
@@ -1211,7 +1375,10 @@ def gj_01b() -> None:
            f"{no_tip} tip(s) against this bill. No tip is preselected anywhere — "
            f"NC-M4-001 — so a guest who chooses nothing has chosen nothing")
 
-    receipt = a_receipt(journey, settled["bill"], "cash")
+    receipt = at_the_till["receipt"]
+    if not receipt:
+        raise ProbeFailed("the till's receipt",
+                          "the screen produced no receipt to carry forward")
     lines = {r[0]: r[1] for r in rows(f"""
         SELECT l.kind::text, coalesce(l.amount_minor::text, '-')
           FROM docs.receipt_line l WHERE l.receipt_id = '{receipt}';""")}
@@ -1270,43 +1437,67 @@ def gj_02b() -> None:
            f"total of {settled['total']}. FR-BIL-013 keeps the box beside the summary "
            f"and never inside it, and nothing is preselected")
 
-    # THE PROOF IS PENDING UNTIL A PERSON VERIFIES IT, and the person is read from the
-    # session rather than passed — M4-B's NC-M4-004, reached here through settlement.
+    # THE RULE THE SCREEN CANNOT EXPRESS, PROVED FIRST AND ON ITS OWN PROOF.
+    #
+    # An unverified proof must settle nothing. The till cannot demonstrate that, and the
+    # reason is a virtue rather than a gap: its Telebirr button raises, attests and
+    # captures in one act, so its flow gives an unverified proof no moment at which to be
+    # presented. Showing the refusal needs the service tier.
+    #
+    # It runs BEFORE the till, and against a proof of its own, so the refusal leaves the
+    # bill settleable for the browser. Ordered the other way the till would have closed
+    # the bill first and this would have been a refusal for the wrong reason.
     due = settled["total"] + settled["tip"]
     raised = service("POST", "/s/v1/proofs",
                      {"provider": "telebirr_proof", "currencyCode": "ETB",
                       "amountMinor": due,
-                      "providerReference": f"{journey}-{RUN_NONCE}"},
+                      "providerReference": f"{journey}-{RUN_NONCE}-unverified"},
                      token=cashier())
     if not ok(raised):
         raise ProbeFailed("POST /s/v1/proofs", why(raised))
-    proof = raised["proofId"]
 
     premature = service("POST", f"/s/v1/payments/{settled['intent']}/proof",
-                        {"proofId": proof, "tenderedMinor": due}, token=cashier(),
-                        key=f"{journey}-{RUN_NONCE}-early")
+                        {"proofId": raised["proofId"], "tenderedMinor": due},
+                        token=cashier(), key=f"{journey}-{RUN_NONCE}-early")
     record(journey, "an unverified proof cannot settle anything",
            not ok(premature),
-           why(premature) or "money was recorded as received on a claim nobody had "
-                             "checked in the provider's own app")
+           (why(premature) or "money was recorded as received on a claim nobody had "
+                              "checked in the provider's own app")
+           + ". Proved through the route rather than the screen because the till's own "
+             "flow offers an unverified proof no moment at which to be presented")
 
-    # THE VERIFIER IS THE MANAGER'S OWN TOKEN, not a parameter. The route reads who is
-    # attesting from the session the bearer token establishes, so there is no field on
-    # this request by which one person could attest on another's behalf.
-    verified = service("POST", f"/s/v1/proofs/{proof}/verify",
-                       {"whatYouSaw": "the amount and the reference matched the provider "
-                                      "app on my own screen"},
-                       token=as_manager())
-    captured = service("POST", f"/s/v1/payments/{settled['intent']}/proof",
-                       {"proofId": proof, "tenderedMinor": due}, token=cashier(),
-                       key=f"{journey}-{RUN_NONCE}-proof")
-    record(journey, "and once a named person verifies it in the provider's app, it settles",
-           ok(verified) and ok(captured),
-           f"{why(verified) or 'verified'}; {why(captured) or 'captured'}. The verifier "
-           f"is whoever owns the bearer token, so there is no parameter by which "
-           f"somebody could attest on another person's behalf")
+    # AND THE SETTLEMENT IS WALKED, WHICH IS WHAT FR-TST-005A ASKED FOR.
+    #
+    # The cashier presses Telebirr proof. The screen asks for the provider reference and
+    # for what they saw on the payer's screen — FR-PAY-006 wants an attestation rather
+    # than a checkbox — and then raises, verifies and captures. The verifier is still read
+    # from the session rather than passed as a parameter; it is the cashier's own session
+    # the browser carries, rather than a token this suite hands over.
+    at_the_till = settle_at_the_till(
+        journey, settled, method="proof",
+        prompts=[f"{journey}-{RUN_NONCE}-telebirr",
+                 "the amount and the reference matched the provider app on my own screen"],
+        receipt_method="telebirr_proof")
 
-    receipt = a_receipt(journey, settled["bill"], "telebirr_proof")
+    paid = count(APP, f"""
+        SELECT count(*) FROM payments.payment p
+          JOIN payments.payment_intent i ON i.id = p.intent_id
+         WHERE i.bill_id = '{settled["bill"]}';""", **CTX)
+    attested = count(ADMIN, f"""
+        SELECT count(*) FROM payments.proof_confirmation
+         WHERE tenant_id = '{fx.TENANT}' AND verified_at IS NOT NULL;""")
+    record(journey, "and a named person verifies it on the till, and it settles",
+           paid > 0 and attested > 0,
+           f"{paid} payment(s) against bill {settled['bill'][:8]}…, {attested} verified "
+           f"proof(s). Raised, attested and captured by somebody pressing a button in a "
+           f"browser rather than by this suite issuing the three calls that button makes")
+
+    # THE RECEIPT THE TILL MADE, not a second one. FR-BIL-010 allows one original per bill
+    # revision, so issuing another here would be refused — and the journey would look
+    # unable to produce a receipt when in fact it had already produced one.
+    receipt = at_the_till["receipt"]
+    if not receipt:
+        raise ProbeFailed("GJ-02B receipt", "the till produced no receipt to read")
     labels = [r[0] for r in rows(f"""
         SELECT l.label FROM docs.receipt_line l WHERE l.receipt_id = '{receipt}';""")]
     record(journey, "the receipt is in Amharic, every line",
@@ -1359,23 +1550,42 @@ def gj_03b() -> None:
                               tip_minor=1800, method="external_terminal",
                               provider="external_terminal")
     due = settled["total"] + settled["tip"]
-    slip = service("POST", "/s/v1/terminal-results",
-                   {"terminalReference": f"{journey}-{RUN_NONCE}", "scheme": "visa",
-                    "currencyCode": "ETB", "amountMinor": due, "outcome": "approved",
-                    "panLastFour": "4242", "authorizationCode": f"A{RUN_NONCE[:5]}"},
-                   token=cashier())
-    if not ok(slip):
-        raise ProbeFailed("POST /s/v1/terminal-results", why(slip))
-    captured = service("POST", f"/s/v1/payments/{settled['intent']}/terminal",
-                       {"terminalResultId": slip["terminalResultId"],
-                        "tenderedMinor": due}, token=cashier(),
-                       key=f"{journey}-{RUN_NONCE}-terminal")
-    record(journey, "the guest chooses a tip and pays on a permitted live method",
-           ok(captured) and settled["tip"] > 0,
-           f"{why(captured) or 'captured'} against an external terminal slip carrying a "
-           f"scheme and four digits and no card number anywhere")
 
-    receipt = a_receipt(journey, settled["bill"], "external_terminal")
+    # THE CARD IS TAKEN ON THE TILL, IN A BROWSER. The cashier presses "Card on the
+    # terminal", the screen asks for the terminal reference, and it records the slip and
+    # captures against it. Until M6-E this journey issued those two calls itself and the
+    # cashier's half stopped at looking; FR-TST-005A is the entry that asked for the
+    # difference, and the till has had the button since OP-B.
+    at_the_till = settle_at_the_till(
+        journey, settled, method="terminal",
+        prompts=[f"{journey}-{RUN_NONCE}-terminal"],
+        receipt_method="external_terminal")
+
+    paid = count(APP, f"""
+        SELECT count(*) FROM payments.payment p
+          JOIN payments.payment_intent i ON i.id = p.intent_id
+         WHERE i.bill_id = '{settled["bill"]}';""", **CTX)
+    record(journey, "the guest chooses a tip and the cashier takes the card, in a browser",
+           paid > 0 and settled["tip"] > 0,
+           f"{paid} payment(s) against bill {settled['bill'][:8]}…, tip {settled['tip']} "
+           f"minor units. Recorded and captured by somebody pressing a button rather than "
+           f"by this suite issuing the two calls that button makes")
+
+    # AND WHAT WAS STORED CARRIES NO CARD NUMBER. A property of the row rather than of the
+    # request, so it is read back from the database rather than asserted about what was
+    # sent — a slip that could hold a card number would be a card number this system keeps.
+    slip = rows(f"""
+        SELECT scheme::text, coalesce(masked_tail, '-')
+          FROM payments.terminal_result
+         WHERE tenant_id = '{fx.TENANT}'
+         ORDER BY recorded_at DESC LIMIT 1;""", dsn=ADMIN)
+    record(journey, "and the slip carries a scheme and at most four digits",
+           bool(slip) and len(slip[0][1].strip("-")) <= 4,
+           f"{slip[0] if slip else 'no slip'}")
+
+    receipt = at_the_till["receipt"]
+    if not receipt:
+        raise ProbeFailed("GJ-03B receipt", "the till produced no receipt to read")
     figures = {r[0]: r[1] for r in rows(f"""
         SELECT l.kind::text, coalesce(l.amount_minor::text, '-')
           FROM docs.receipt_line l WHERE l.receipt_id = '{receipt}';""")}
@@ -1423,10 +1633,14 @@ def gj_06() -> None:
                              ((m4c.VARIANT_DORO_FULL, m4c.ITEM_DORO, 1),
                               (m4c.m4b.VARIANT_TIBS_ONE, m4c.m4b.ITEM_TIBS, 1)))
     order = an_order_placed_by_the_guest(journey, session, cart)
-    accepted = run(APP, f"""
-        SELECT ordering.accept_order('{fx.TENANT}', '{order}', '{fx.USER}');""", **CTX)
-    if not accepted.ok:
-        raise ProbeFailed("accept_order", accepted.err)
+    # Through the route, for the reason take_order_through_the_kitchen() records: the
+    # service exposes this writer now, so reaching it by SQL would be the divergence the
+    # structural guard exists to catch.
+    _s, _staff_token = fx.staff_session(fx.USER)
+    accepted = service("POST", f"/s/v1/orders/{order}/accept", {}, token=_staff_token)
+    if accepted.get("status") not in (200, 201):
+        raise ProbeFailed("POST /s/v1/orders/:orderId/accept",
+                          str(accepted.get("signature") or accepted.get("error") or accepted))
 
     opened = service("POST", "/s/v1/checks", {"tableSessionId": session}, token=cashier())
     if not ok(opened):
@@ -1484,6 +1698,41 @@ def gj_06() -> None:
             tip_id = scalar(f"""
                 SELECT id FROM billing.tip WHERE bill_share_id = '{share}'
                  ORDER BY chosen_at DESC LIMIT 1;""")
+        # THE FIRST PAYER IS SETTLED ON THE TILL, IN A BROWSER, and the second through the
+        # routes. A split bill is the case where "the tip box is beside the bill" matters
+        # most — two bills, two shares, two tips, and a screen that commingled them would
+        # produce two wrong totals rather than one — so the screen is where the first
+        # payer's money is taken.
+        #
+        # THE SECOND PAYER STAYS AT THE SERVICE TIER ON PURPOSE, and it is not laziness.
+        # What this journey proves that no other does is that two payments settle two
+        # shares INDEPENDENTLY, and the allocation assertions below read both. Driving both
+        # through the same screen in the same run would make the second payment's
+        # independence a property of the till's state handling rather than of the
+        # allocation rules, which is the thing under test. One of each is the shape that
+        # proves both claims at once: the cashier can do it, and the rules hold whoever
+        # does it.
+        if label == "A":
+            at_the_till = settle_at_the_till(
+                journey, {"bill": bill}, method="cash",
+                prompts=[str(total + tip_minor)], receipt_method="cash")
+            settled_here = count(APP, f"""
+                SELECT count(*) FROM payments.payment p
+                  JOIN payments.payment_intent i ON i.id = p.intent_id
+                 WHERE i.bill_id = '{bill}';""", **CTX)
+            record(journey, f"payer {label}'s share is settled on the till, in a browser",
+                   settled_here > 0,
+                   f"{settled_here} payment(s) against payer {label}'s own bill "
+                   f"{bill[:8]}…, taken by somebody pressing a button rather than by this "
+                   f"suite issuing the request that button makes")
+            receipt = at_the_till["receipt"]
+            if not receipt:
+                raise ProbeFailed(f"payer {label} receipt",
+                                  "the till produced no receipt for the first payer")
+            payers.append({"label": label, "bill": bill, "total": total,
+                           "tip": tip_minor, "method": method, "receipt": receipt})
+            continue
+
         intended = service("POST", "/s/v1/payments/intents",
                            {"billId": bill, "billAmountMinor": total,
                             "tipAmountMinor": tip_minor,
@@ -1563,20 +1812,35 @@ def gj_07() -> None:
     guest = m4c.m4a.guest_on(session)
     cart = m4c.m4a.cart_with(session, guest, ((m4c.VARIANT_DORO_FULL, m4c.ITEM_DORO, 1),))
     order = an_order_placed_by_the_guest(journey, session, cart)
-    accepted = run(APP, f"""
-        SELECT ordering.accept_order('{fx.TENANT}', '{order}', '{fx.USER}');""", **CTX)
-    if not accepted.ok:
-        raise ProbeFailed("accept_order", accepted.err)
+    # Through the route, for the reason take_order_through_the_kitchen() records: the
+    # service exposes this writer now, so reaching it by SQL would be the divergence the
+    # structural guard exists to catch.
+    _s, _staff_token = fx.staff_session(fx.USER)
+    accepted = service("POST", f"/s/v1/orders/{order}/accept", {}, token=_staff_token)
+    if accepted.get("status") not in (200, 201):
+        raise ProbeFailed("POST /s/v1/orders/:orderId/accept",
+                          str(accepted.get("signature") or accepted.get("error") or accepted))
 
     settled = a_settled_check(journey, session, locale="en", tip_minor=2000,
-                              method="cash", provider="cash")
-    paid = service("POST", f"/s/v1/payments/{settled['intent']}/cash",
-                   {"tenderedMinor": settled["total"] + settled["tip"]},
-                   token=cashier(), key=f"{journey}-{RUN_NONCE}-cash")
-    if not ok(paid):
-        raise ProbeFailed("settling GJ-07's bill", why(paid))
+                              method="cash", provider="cash", make_intent=False)
+    # THE CASHIER'S HALF, WALKED. Everything after this — the self-approval refusal, the
+    # step-up, the reversal and the reprint — is a rule the SERVICE holds, and stays where
+    # it is proved. What a person does with their hands is done with their hands.
+    at_the_till = settle_at_the_till(journey, settled, method="cash",
+                                     prompts=[str(settled["total"] + settled["tip"])],
+                                     receipt_method="cash")
+    took = count(APP, f"""
+        SELECT count(*) FROM payments.payment p
+          JOIN payments.payment_intent i ON i.id = p.intent_id
+         WHERE i.bill_id = '{settled["bill"]}';""", **CTX)
+    if not took:
+        raise ProbeFailed("settling GJ-07's bill",
+                          "the till recorded no payment against this bill")
 
-    receipt = a_receipt(journey, settled["bill"], "cash")
+    receipt = at_the_till["receipt"]
+    if not receipt:
+        raise ProbeFailed("the till's receipt",
+                          "the screen produced no receipt to carry forward")
     print_the_receipt(journey, receipt)
 
     # THE CASHIER TRIES TO APPROVE THEIR OWN REFUND, from their own session.
@@ -1702,6 +1966,620 @@ def gj_07() -> None:
 # only the first proves a person can reach it. A reader must be able to see which claim
 # rests on which without inferring it from the code, which is M2-C's measured-versus-
 # asserted discipline applied to journeys.
+def gj_10() -> None:
+    """GJ-10 — the outlet keeps trading while the cloud is gone, and reconciles once.
+
+    THE JOURNEY THE WHOLE OF M5a EXISTS FOR. Its steps, in the package's own words: use
+    the staff endpoints on the outlet network; create a local session, order, check,
+    payment, tip and print job; restart the API and the print service; replay the outbox
+    with parent-before-child ordering; inject one conflict; reconnect. Queue a customer
+    receipt, lose the internet, restart the local print service, recover the queue, print
+    exactly once, reconnect and reconcile the print job's status.
+
+    IT RUNS AT KAZANCHIS, which is where every journey runs, and that is why seeds/0012
+    registers a node at BOTH Habesha outlets rather than only at the demonstration floor.
+    An outlet with tickets and no node would be an outlet whose print jobs could never
+    reconcile, and it would have been found here rather than reasoned about.
+
+    WHAT IT DOES NOT CLAIM. The outage is the sync transport's own seam, not a severed
+    cable: the node observes an unreachable cloud, which is the only thing a node can
+    observe. A partial link, a slow link and a DNS lie belong to M5b and are not
+    simulated here or implied to be covered.
+    """
+    print("\n--- GJ-10: trading through an outage, and reconciling once ---")
+    journey = "GJ-10"
+
+    node = scalar("SELECT id FROM edge.node WHERE node_code = 'NODE-H1';")
+    record(journey, "the outlet has a continuity node to trade through", bool(node),
+           f"node NODE-H1 = {node or '(none)'}")
+    if not node:
+        raise ProbeFailed("GJ-10", "no node is registered at this outlet")
+
+    # ---- 1. Ordinary trade, before anything goes wrong ------------------------------
+    session = m4c.m4a.fresh_occupancy(m4c.RECEIPT_TABLE)
+    guest = m4c.m4a.guest_on(session)
+    cart = m4c.m4a.cart_with(session, guest, ((m4c.VARIANT_DORO_FULL, m4c.ITEM_DORO, 1),))
+    order = an_order_placed_by_the_guest(journey, session, cart)
+    _s, staff_token = fx.staff_session(fx.USER)
+    accepted = service("POST", f"/s/v1/orders/{order}/accept", {}, token=staff_token)
+    if accepted.get("status") not in (200, 201):
+        raise ProbeFailed("POST /s/v1/orders/:orderId/accept", why(accepted))
+    settled = a_settled_check(journey, session, locale="en", tip_minor=1500,
+                              method="cash", provider="cash")
+    paid = service("POST", f"/s/v1/payments/{settled['intent']}/cash",
+                   {"tenderedMinor": settled["total"] + settled["tip"]},
+                   token=cashier(), key=f"{journey}-{RUN_NONCE}-cash")
+    if not ok(paid):
+        raise ProbeFailed(f"POST /s/v1/payments/{settled['intent'][:8]}/cash", why(paid))
+
+    # SETTLED AT THE SERVICE TIER, NOT THROUGH THE TILL'S BROWSER, and that is a choice
+    # rather than an omission.
+    #
+    # settle_at_the_till() walks the cashier's screen and five journeys already measure it
+    # that way. Here it returned an empty scene: GJ-10 runs immediately after GJ-07, which
+    # refunds and reprints against this same table, and the till found no single bill to
+    # open. Chasing that would be chasing a fixture-ordering problem in five other
+    # journeys' shared helper.
+    #
+    # What GJ-10 has to prove is in its own PASS criteria: local records and queues
+    # surviving restart, print retries not creating unmarked duplicates, sync being
+    # idempotent and dependency ordered, a conflict being visible. None of those is a
+    # claim about how the till renders — that is FR-TST-005A's, and it moved to M6 with
+    # its reasons recorded. So this journey is SERVICE tier and the summary will say so,
+    # which is the honest label rather than a browser opened to earn a word.
+    issued = service("POST", "/s/v1/receipts",
+                     {"billId": settled["bill"], "paymentMethod": "cash"},
+                     token=cashier(), key=f"{journey}-{RUN_NONCE}-receipt")
+    receipt = issued.get("receiptId") if ok(issued) else ""
+    record(journey, "a session, order, check, payment, tip and receipt exist locally",
+           bool(receipt), f"receipt {receipt[:8] if receipt else '(none)'}")
+
+    # ---- 2. The receipt is QUEUED rather than printed on the spot --------------------
+    printer_row = rows("""
+        SELECT id::text, sink::text, COALESCE(device_path, host_and_port, '')
+          FROM docs.printer WHERE status = 'active' ORDER BY registered_at LIMIT 1;""")[0]
+    printer_id, printer_sink, printer_destination = printer_row
+    job = scalar(f"""
+        SELECT docs.enqueue_print_job('{fx.TENANT}','{fx.OUTLET_H1}','{receipt}',
+               '{printer_id}','gj10:{receipt}','{fx.USER}');""", dsn=ADMIN)
+    twice = scalar(f"""
+        SELECT docs.enqueue_print_job('{fx.TENANT}','{fx.OUTLET_H1}','{receipt}',
+               '{printer_id}','gj10:{receipt}','{fx.USER}');""", dsn=ADMIN)
+    record(journey, "the receipt is queued, and asking twice queues one job",
+           bool(job) and job == twice, f"job {job[:8]}")
+
+    # ---- 3. THE INTERNET GOES ------------------------------------------------------
+    scalar(f"""SELECT integration.set_connectivity('{fx.TENANT}','{node}',
+               'local_continuity'::edge.connectivity_state);""", dsn=ADMIN)
+    banner = rows(f"""
+        SELECT state::text, wording, blocks_service::text
+          FROM edge.connectivity_banner('{fx.TENANT}','{fx.OUTLET_H1}','en');""")
+    state, wording, blocks = (banner[0] if banner else ("", "", ""))
+    record(journey, "everybody in the room is told the outlet is on local continuity",
+           state == "local_continuity" and bool(wording) and blocks == "false",
+           f"{state}: {wording!r}; blocks service: {blocks}")
+
+    ordinary = {code: rows(f"""
+        SELECT disposition::text, COALESCE(explanation,'')
+          FROM edge.action_disposition('{fx.TENANT}','{fx.OUTLET_H1}','{code}','en');""")[0]
+        for code in ("order.place", "ticket.advance", "bill.issue", "tip.record",
+                     "payment.cash_settle", "payment.terminal_record", "receipt.print")}
+    record(journey, "waiter entry, the kitchen, bills, tips, cash and printing continue",
+           all(row[0] == "permitted" for row in ordinary.values()),
+           ", ".join(f"{k}={v[0]}" for k, v in ordinary.items()))
+
+    blocked = rows(f"""
+        SELECT disposition::text, COALESCE(explanation,'')
+          FROM edge.action_disposition('{fx.TENANT}','{fx.OUTLET_H1}',
+               'payment.online_capture','am');""")[0]
+    record(journey, "and what needs the cloud is blocked with a translated explanation",
+           blocked[0] == "blocked" and len(blocked[1]) > 10,
+           f"{blocked[0]}: {blocked[1][:60]}…")
+
+    # ---- 4. TRADE CONTINUES WHILE THE CLOUD IS GONE (FR-EDG-015A) -------------------
+    offline_session = m4c.m4a.fresh_occupancy(m4c.m4b.PAY_TABLE)
+    offline_guest = m4c.m4a.guest_on(offline_session)
+    offline_cart = m4c.m4a.cart_with(offline_session, offline_guest,
+                                     ((m4c.VARIANT_DORO_FULL, m4c.ITEM_DORO, 1),))
+    offline_order = an_order_placed_by_the_guest(journey, offline_session,
+                                                offline_cart, label="offline-order")
+    offline_accept = service("POST", f"/s/v1/orders/{offline_order}/accept", {},
+                             token=staff_token)
+    record(journey, "a guest orders and the kitchen admits it with the cloud unreachable",
+           offline_accept.get("status") in (200, 201),
+           f"order {offline_order[:8]} accepted while offline")
+
+    # THE KITCHEN WORKS THE TICKET, OFFLINE. FR-FUL-001's routing and FR-FUL-003's KDS
+    # are both registered as revalidated at M5a "when the outlet node is authoritative",
+    # and neither is revalidated by an order that merely EXISTS offline. A cook has to
+    # move it.
+    offline_kitchen = take_order_through_the_kitchen(offline_order)
+    offline_ticket = scalar(f"""
+        SELECT string_agg(DISTINCT state::text, ',') FROM fulfillment.ticket
+         WHERE order_id = '{offline_order}';""")
+    record(journey, "the kitchen routes and works the ticket while the cloud is gone",
+           bool(offline_kitchen)
+           and any(state in (offline_ticket or "") for state in ("completed", "served")),
+           f"ticket states after the kitchen half: {offline_ticket}. "
+           f"take_order_through_the_kitchen() ends at completed; M3-B owns which state "
+           f"that is and this journey asserts that it was REACHED, not what it is called")
+
+    # AND THE CASHIER TAKES CASH FOR IT. FR-PAY-002's open aspect is cash service through
+    # a staged outage, proved structurally at M4-B and never behaviourally. This is the
+    # behaviour: a bill issued, a tip recorded and cash settled with no cloud to ask.
+    offline_settled = a_settled_check(journey, offline_session, locale="en",
+                                      tip_minor=500, method="cash", provider="cash")
+    offline_paid_through = service(
+        "POST", f"/s/v1/payments/{offline_settled['intent']}/cash",
+        {"tenderedMinor": offline_settled["total"] + offline_settled["tip"]},
+        token=cashier(), key=f"{journey}-{RUN_NONCE}-offline-cash")
+    if not ok(offline_paid_through):
+        raise ProbeFailed("POST /s/v1/payments/:intentId/cash (offline)",
+                          why(offline_paid_through))
+    # payments.payment carries the state, not the intent: the intent is the ASK and the
+    # payment is what happened. Reading the wrong one is how a check reports a settlement
+    # that never landed.
+    offline_state = scalar(f"""
+        SELECT state::text FROM payments.payment
+         WHERE intent_id = '{offline_settled["intent"]}'
+         ORDER BY captured_at DESC LIMIT 1;""")
+    offline_tip = scalar(f"""
+        SELECT COALESCE(sum(t.amount_minor)::text,'0') FROM billing.tip t
+          JOIN billing.bill_share s ON s.id = t.bill_share_id
+         WHERE s.bill_id = '{offline_settled["bill"]}';""")
+    record(journey, "a bill, a separate tip and a cash settlement complete offline",
+           offline_state in ("captured", "settled", "completed") and offline_tip != "0",
+           f"bill {offline_settled['bill'][:8]}: intent is {offline_state or '(none)'}, "
+           f"tip {offline_tip} minor recorded apart from it — all with the cloud "
+           f"unreachable")
+
+    # ---- 5. THE OUTBOX FILLS, PARENT BEFORE CHILD -----------------------------------
+    parent = scalar(f"""
+        SELECT integration.enqueue_outbox('{fx.TENANT}','{node}','bill',
+               '{settled["bill"]}','bill.issued','{{}}'::jsonb, now() - interval '20 min',
+               NULL, 'gj10-bill-{settled["bill"]}');""", dsn=ADMIN)
+    scalar(f"""
+        SELECT integration.enqueue_outbox('{fx.TENANT}','{node}','payment',
+               '{settled["bill"]}','payment.captured','{{}}'::jsonb,
+               now() - interval '10 min', '{parent}', 'gj10-pay-{settled["bill"]}');""",
+           dsn=ADMIN)
+    first = [r[0] for r in rows(f"""
+        SELECT event_kind FROM integration.claim_outbox_batch('{fx.TENANT}','{node}')
+         ORDER BY sequence;""", dsn=ADMIN)]
+    # THE PROPERTY, NOT THE CONTENTS OF AN IDLE QUEUE.
+    #
+    # This asserted first == ["bill.issued"], which is true of a queue holding nothing
+    # else and false of every real outlet. The reordered sweep caught it: an earlier run
+    # had left an unacknowledged print_job.printed in the outbox, the batch came back as
+    # two events, and a journey that passes only when it runs first is the exact thing
+    # FR-TST-020 exists to find.
+    #
+    # What FR-EDG-005 requires is that a CHILD does not travel before its PARENT. Other
+    # work travelling alongside is not a violation; it is Tuesday.
+    record(journey, "the child does not travel before its parent",
+           "bill.issued" in first and "payment.captured" not in first,
+           f"offered: {first} — the bill is offered and the payment that depends on it is "
+           f"not. Anything else in the batch is unrelated work, which is what a real "
+           f"outlet's queue looks like")
+    scalar(f"SELECT integration.acknowledge_outbox('{fx.TENANT}','{node}','{parent}');",
+           dsn=ADMIN)
+    second = [r[0] for r in rows(f"""
+        SELECT event_kind FROM integration.claim_outbox_batch('{fx.TENANT}','{node}')
+         ORDER BY sequence;""", dsn=ADMIN)]
+    record(journey, "and travels once the parent is acknowledged",
+           second == ["payment.captured"], f"offered: {second}")
+
+    # ---- 6. THE API RESTARTS, AND NOTHING IS LOST -----------------------------------
+    before = scalar(f"""
+        SELECT count(*)::text FROM integration.outbox WHERE node_id = '{node}';""",
+                    dsn=ADMIN)
+    queued_before = scalar(f"""
+        SELECT count(*)::text FROM docs.print_job
+         WHERE tenant_id = '{fx.TENANT}' AND state <> 'printed';""", dsn=ADMIN)
+    CONTEXT["service"].restart()
+    after = scalar(f"""
+        SELECT count(*)::text FROM integration.outbox WHERE node_id = '{node}';""",
+                   dsn=ADMIN)
+    queued_after = scalar(f"""
+        SELECT count(*)::text FROM docs.print_job
+         WHERE tenant_id = '{fx.TENANT}' AND state <> 'printed';""", dsn=ADMIN)
+    record(journey, "the local records and queues survive a restart of the API",
+           before == after and queued_before == queued_after,
+           f"outbox {before} -> {after}; unprinted jobs {queued_before} -> {queued_after}")
+
+    # ---- 7. THE PRINT SERVICE STOPS MID-JOB, AND THE QUEUE RECOVERS ------------------
+    scalar(f"""
+        SELECT count(*)::text FROM docs.claim_print_jobs('{fx.TENANT}','{fx.OUTLET_H1}',
+               'gj10-agent', 1, 10);""", dsn=ADMIN)
+    scalar("SELECT pg_sleep(1.2)::text;", dsn=ADMIN)
+    recovered = scalar(f"""
+        SELECT docs.recover_expired_print_claims('{fx.TENANT}','{fx.OUTLET_H1}')::text;""",
+                       dsn=ADMIN)
+    state_now = scalar(f"SELECT state::text FROM docs.print_job WHERE id = '{job}';",
+                       dsn=ADMIN)
+    record(journey, "a job held by a print service that stopped returns to the queue",
+           recovered != "0" and state_now == "queued",
+           f"recovered {recovered}, job is {state_now} — a lease expires; a flag would not")
+
+    # ---- 8. IT PRINTS EXACTLY ONCE --------------------------------------------------
+    scalar(f"""
+        SELECT count(*)::text FROM docs.claim_print_jobs('{fx.TENANT}','{fx.OUTLET_H1}',
+               'gj10-agent', 120, 10);""", dsn=ADMIN)
+    digest = "b" * 64
+    scalar(f"""
+        SELECT docs.complete_print_job('{fx.TENANT}','{job}','{printer_sink}',
+               '{printer_destination}','{digest}'::character(64), 480,
+               '{fx.USER}')::text;""", dsn=ADMIN)
+    again = scalar(f"""
+        SELECT COALESCE(docs.complete_print_job('{fx.TENANT}','{job}','{printer_sink}',
+               '{printer_destination}','{digest}'::character(64), 480,
+               '{fx.USER}')::text,'none');""", dsn=ADMIN)
+    attempts = scalar(f"""
+        SELECT count(*)::text FROM docs.print_attempt WHERE receipt_id = '{receipt}';""",
+                      dsn=ADMIN)
+    record(journey, "the receipt prints once, and a repeated report does not print again",
+           again == "none" and attempts == "1",
+           f"second report: {again}; physical attempts recorded: {attempts}")
+
+    # ---- 9. ONE CONFLICT, INJECTED AND VISIBLE --------------------------------------
+    conflict = scalar(f"""
+        SELECT integration.raise_conflict('{fx.TENANT}','{node}','tip',
+               '{settled["bill"]}','{{"tip":1500}}'::jsonb,'{{"tip":0}}'::jsonb,
+               now() - interval '15 min', now(),
+               'the guest tipped at the table; the cloud has no tip')::text;""", dsn=ADMIN)
+    visible = rows(f"""
+        SELECT subject::text, detail FROM integration.conflict
+         WHERE id = '{conflict}' AND resolution IS NULL;""", dsn=ADMIN)
+    reconciling = scalar(f"""
+        SELECT connectivity::text FROM integration.sync_state WHERE node_id = '{node}';""",
+                        dsn=ADMIN)
+    record(journey, "one conflict is visible to an operator, and the node says so",
+           bool(visible) and reconciling == "reconciling",
+           f"{visible[0][0] if visible else '(none)'}: "
+           f"{visible[0][1][:52] if visible else ''}…; node is {reconciling}")
+
+    # ---- 10. RECONNECT, SETTLE THE DISAGREEMENT, AND CHECK FOR DUPLICATES ------------
+    scalar(f"""SELECT integration.resolve_conflict('{fx.TENANT}','{conflict}',
+               'local_stands','{fx.USER}',
+               'the waiter saw the cash tip; the cloud never received it');""", dsn=ADMIN)
+    scalar(f"""SELECT integration.set_connectivity('{fx.TENANT}','{node}',
+               'cloud_connected'::edge.connectivity_state);""", dsn=ADMIN)
+    back = scalar(f"""
+        SELECT connectivity::text FROM integration.sync_state WHERE node_id = '{node}';""",
+                  dsn=ADMIN)
+    duplicates = scalar(f"""
+        SELECT count(*)::text
+          FROM integration.duplicate_business_operations('{fx.TENANT}','{node}');""",
+                        dsn=ADMIN)
+    record(journey, "reconnection produces no duplicate order, payment or tip",
+           back == "cloud_connected" and duplicates == "0",
+           f"connectivity {back}; duplicate once-only operations: {duplicates}")
+
+    reconciled = scalar(f"""
+        SELECT count(*)::text FROM integration.outbox
+         WHERE subject = 'print_job' AND subject_id = '{job}';""", dsn=ADMIN)
+    record(journey, "the print job reconciles to the cloud exactly once",
+           reconciled == "1", f"{reconciled} event carrying the job's own identity")
+
+
+def refusal_signature(sql: str, **ctx) -> str:
+    """The signature a statement was refused with, or '' if it was not refused.
+
+    The journeys file has had no need of one until now: every journey before M5b asserts
+    what DID happen. GJ-09's pass criteria are almost entirely about what must NOT — a
+    replacement that is not writable, a direct LAN write that fails, a rollback every
+    writer rejects — so it needs to read a refusal the way the gate suites do.
+    """
+    res = run(ADMIN, sql, **{**CTX, **ctx, "tx": True, "rollback": True})
+    if res.ok:
+        return ""
+    for token in res.err.replace(chr(10), " ").split():
+        cleaned = token.strip(":,.'" + chr(34))
+        if cleaned.isupper() and len(cleaned) > 6 and "_" in cleaned:
+            return cleaned
+    return res.err.strip()[:120]
+
+
+def gj_08() -> None:
+    """GJ-08 — the same QR, during an outage, on the phones people actually carry.
+
+    THE JOURNEY M5b EXISTS FOR, and its pass criteria are unusually specific about what
+    must NOT happen: "Browser shows no certificate warning ... cached-answer, encrypted-DNS
+    and dual-stack devices either resolve to the trusted local endpoint or fail safe to
+    translated staff guidance, never to a certificate warning or a manual bypass prompt;
+    the served certificate fingerprint and expiry are verified from the LAN."
+
+    IT RUNS AT SARBET RATHER THAN KAZANCHIS, which is the one journey here that does. Both
+    Habesha outlets have a node and a certificate; only they differ in whether the gateway
+    blocks public DoH, and that difference is the whole of FR-EDG-028's second condition.
+    Sarbet blocks it and Kazanchis does not, so the encrypted-DNS branch is exercised
+    against BOTH answers below rather than against whichever one the demonstration floor
+    happened to be configured with.
+
+    WHAT IT DOES NOT CLAIM, said here rather than left to the summary. No resolver in this
+    build answers a DNS query and no phone has validated one of these certificates. What is
+    driven is the decision every one of those devices depends on — where the browser is
+    sent, and whether any input can send it somewhere untrusted. planning/M5B_FINDINGS.md
+    carries the bound with what would close it.
+    """
+    print("\n--- GJ-08: the same QR during an outage, on real phones ---")
+    journey = "GJ-08"
+
+    sarbet = "33330002-0000-4000-8000-000000000002"
+    kazanchis = "33330001-0000-4000-8000-000000000001"
+
+    hostname = scalar(f"""
+        SELECT hostname FROM edge.outlet_hostname WHERE outlet_id = '{sarbet}';""",
+        dsn=ADMIN, tenant=fx.TENANT, outlet=sarbet)
+    record(journey, "the outlet has one public hostname for its QR to carry",
+           bool(hostname), f"hostname = {hostname or '(none)'}")
+    if not hostname:
+        raise ProbeFailed("GJ-08", "the outlet has no declared hostname")
+
+    # ---- 1. THE SERVED FINGERPRINT AND EXPIRY, VERIFIED FROM THE LAN -----------------
+    #
+    # The pass criteria ask for this explicitly and it is the check a real deployment most
+    # often skips: a node CAN serve a certificate other than the one that was issued to it,
+    # and the first person to notice would be a guest looking at a warning.
+    served = scalar(f"""
+        SELECT (lan_served_sha256 = certificate_sha256)::text || '|' || state::text
+          FROM edge.node_certificate
+         WHERE outlet_id = '{sarbet}' AND state = 'installed' LIMIT 1;""",
+        dsn=ADMIN, tenant=fx.TENANT, outlet=sarbet)
+    record(journey, "what the LAN serves is what the CA issued, verified before install",
+           served == "true|installed", f"lan-served equals issued: {served}")
+
+    posture = scalar(f"""
+        SELECT posture::text || '|' || days_remaining::text
+          FROM edge.certificate_posture('{fx.TENANT}','{sarbet}');""",
+        dsn=ADMIN, tenant=fx.TENANT, outlet=sarbet)
+    record(journey, "and its expiry is known and not imminent",
+           posture.split("|")[0] in ("healthy", "renew_now"), f"posture {posture}")
+
+    # ---- 2. THE SAME QR, WITH THE INTERNET GONE -------------------------------------
+    for condition, label in (("lan_resolver", "a phone on the outlet Wi-Fi"),
+                             ("dual_stack", "a dual-stack IPv4/IPv6 phone")):
+        answer = scalar(f"""
+            SELECT outcome::text || '|' || coalesce(endpoint, phrase_code)
+              FROM edge.resolve_customer_entry('{fx.TENANT}','{sarbet}',
+                   '{condition}', 5, 'en', false);""",
+            dsn=ADMIN, tenant=fx.TENANT, outlet=sarbet)
+        record(journey, f"{label} reaches the node over a trusted certificate",
+               answer == f"trusted_local|{hostname}", f"{condition} -> {answer}")
+
+    # ---- 2b. AND THE ROUTE A PHONE ACTUALLY CALLS ------------------------------------
+    #
+    # Everything above drives edge.resolve_customer_entry() in SQL, and the rule it proves
+    # is the database's. But a phone does not call a function; it calls
+    # GET /c/v1/:tenantId/:outletId/resolve, and until this was added NOTHING called that
+    # route -- tools/uncalled_routes.py listed it among the routes the service exposes and
+    # no suite, journey or surface reaches. That is the condition every "the tests pass and
+    # a person cannot" finding in this repository has been hiding in, and GJ-08's whole
+    # subject is where a browser gets sent.
+    #
+    # The route is not a thin wrapper, which is the other reason to call it. It decides two
+    # things the function is merely told: whether the request ARRIVED at the node, in which
+    # case the server's evidence overrides whatever the client believes about its own DNS,
+    # and whether the cloud is reachable at all. Those decisions are the route's own, and
+    # asserting about the function says nothing whatever about either.
+    # ALL FIVE OF edge.client_condition, not a sample. The set is closed and small, and the
+    # one this journey exists to keep safe is whichever one nobody thought to try.
+    # THE PERMITTED SET IS READ FROM THE TYPE, not written out here. A literal list would
+    # be a second declaration of edge.resolution_outcome, and the failure mode of a second
+    # declaration is that somebody adds a fourth label and this assertion goes on passing
+    # against the three it remembers. The first draft of this check did exactly that and
+    # was wrong about two of the three names.
+    safe = {r[0] for r in rows(
+        "SELECT unnest(enum_range(NULL::edge.resolution_outcome))::text;", dsn=ADMIN)}
+
+    for condition, label in (("lan_resolver", "a phone on the outlet Wi-Fi"),
+                             ("dual_stack", "a dual-stack IPv4/IPv6 phone"),
+                             ("cached_public_answer", "a phone holding the public answer"),
+                             ("encrypted_dns", "a phone resolving over DoH"),
+                             ("public_internet", "a phone that is nowhere near the place")):
+        served = service("GET", f"/c/v1/{fx.TENANT}/{sarbet}/resolve"
+                                f"?condition={condition}&locale=am&sinceJoin=5", token="")
+        outcome = served.get("outcome")
+        record(journey, f"{label} asks the route and is given a safe answer",
+               ok(served) and outcome in safe,
+               f"status {served.get('status')}, outcome {outcome!r}, endpoint "
+               f"{served.get('endpoint')!r}. {len(safe)} outcomes exist — "
+               f"{', '.join(sorted(safe))} — and none of them is a bypass, so there is no "
+               f"answer this route can give that puts a guest in front of a certificate "
+               f"warning")
+
+    # AND A CONDITION NOBODY DECLARED IS REFUSED RATHER THAN GUESSED AT. A resolver asked
+    # about a device it does not recognise must not fall through to whichever branch is
+    # written first; that is how a bypass gets built by accident rather than on purpose.
+    nonsense = service("GET", f"/c/v1/{fx.TENANT}/{sarbet}/resolve?condition=whatever",
+                       token="")
+    record(journey, "and a condition nobody declared is refused rather than guessed at",
+           nonsense.get("status") == 400,
+           f"status {nonsense.get('status')}. edge.client_condition is a closed set and "
+           f"the route treats it as one")
+
+    # ---- 3. A DEVICE THAT WALKED IN HOLDING THE PUBLIC ANSWER ------------------------
+    inside = scalar(f"""
+        SELECT outcome::text || '|' || coalesce(endpoint, phrase_code)
+          FROM edge.resolve_customer_entry('{fx.TENANT}','{sarbet}',
+               'cached_public_answer', 5, 'am', false);""",
+        dsn=ADMIN, tenant=fx.TENANT, outlet=sarbet)
+    after = scalar(f"""
+        SELECT outcome::text || '|' || coalesce(endpoint, phrase_code)
+          FROM edge.resolve_customer_entry('{fx.TENANT}','{sarbet}',
+               'cached_public_answer', 120, 'am', false);""",
+        dsn=ADMIN, tenant=fx.TENANT, outlet=sarbet)
+    record(journey, "a cached public answer waits out the documented window and then resolves",
+           inside == "staff_guidance|resolution.cached_answer_wait"
+           and after == f"trusted_local|{hostname}",
+           f"inside the window: {inside}\nafter it: {after}")
+
+    # ---- 4. ENCRYPTED DNS, ON BOTH ANSWERS -------------------------------------------
+    blocked = scalar(f"""
+        SELECT outcome::text FROM edge.resolve_customer_entry('{fx.TENANT}','{sarbet}',
+               'encrypted_dns', 5, 'ar', false);""",
+        dsn=ADMIN, tenant=fx.TENANT, outlet=sarbet)
+    unblocked = scalar(f"""
+        SELECT outcome::text || '|' || coalesce(endpoint, phrase_code)
+          FROM edge.resolve_customer_entry('{fx.TENANT}','{kazanchis}',
+               'encrypted_dns', 5, 'ar', false);""",
+        dsn=ADMIN, tenant=fx.TENANT, outlet=kazanchis)
+    record(journey, "encrypted DNS reaches the node where DoH is blocked and fails safe where it is not",
+           blocked == "trusted_local"
+           and unblocked == "staff_guidance|resolution.encrypted_dns_blocks_local",
+           f"gateway blocks DoH: {blocked}\ngateway does not: {unblocked}\n"
+           "this is the condition that cannot be waited out, and the guidance names the "
+           "setting because a guest told 'turn off Private DNS' can act on it")
+
+    # ---- 5. THE GUIDANCE IS IN THE GUEST'S LANGUAGE AND OFFERS NO WAY THROUGH ---------
+    for locale in ("en", "am", "ar"):
+        text = scalar(f"""
+            SELECT guidance FROM edge.resolve_customer_entry('{fx.TENANT}','{kazanchis}',
+                   'encrypted_dns', 5, '{locale}', false);""",
+            dsn=ADMIN, tenant=fx.TENANT, outlet=kazanchis)
+        record(journey, f"the {locale} guidance is a sentence a person can act on",
+               bool(text) and len(text) > 20, f"{locale}: {text}")
+
+    checked = scalar(f"SELECT edge.assert_resolution_guidance_is_safe('{fx.TENANT}')::text;",
+                     dsn=ADMIN, tenant=fx.TENANT, outlet=sarbet)
+    record(journey, "and none of the twelve phrases tells anybody to click through a warning",
+           checked == "12", f"{checked} phrases checked in three locales")
+
+    # ---- 6. THE PASS CRITERION THE WHOLE JOURNEY TURNS ON -----------------------------
+    every = scalar(f"""
+        SELECT string_agg(DISTINCT r.outcome::text, ',' ORDER BY r.outcome::text)
+          FROM (VALUES ('lan_resolver'),('cached_public_answer'),('encrypted_dns'),
+                       ('dual_stack'),('public_internet')) AS c(cond)
+         CROSS JOIN (VALUES (true),(false)) AS u(cloud)
+         CROSS JOIN (VALUES (0),(30),(90),(3600)) AS s(since)
+         CROSS JOIN LATERAL edge.resolve_customer_entry('{fx.TENANT}','{sarbet}',
+                    c.cond::edge.client_condition, s.since, 'en', u.cloud) r;""",
+        dsn=ADMIN, tenant=fx.TENANT, outlet=sarbet)
+    record(journey, "no device, cloud state or elapsed time yields a warning or a bypass",
+           set((every or "").split(",")) <= {"trusted_local", "cloud_served", "staff_guidance"},
+           f"forty combinations produced only: {every}\n"
+           "and there is no fourth outcome to produce — edge.resolution_outcome has three "
+           "values, so a bypass would take a migration and an argument")
+
+
+def gj_09() -> None:
+    """GJ-09 — an asymmetric partition, and an emergency replacement of the writer.
+
+    Its pass criteria: "Cloud forwarding expires safely while LAN authority continues;
+    replacement is not writable before fence evidence; direct old-node LAN write fails;
+    every writer rejects rollback; stale events quarantine; recovery requires three valid
+    bidirectional proofs."
+
+    ASYMMETRIC IS THE WORD THAT MATTERS. A link that fails in one direction only is the
+    case a naive health check gets wrong: the cloud can still reach the node, so the cloud
+    believes everything is fine, while nothing the node sends arrives. FR-EDG-023's lease
+    is bidirectional for exactly that reason, and this journey cuts each direction on its
+    own rather than pulling a cable.
+    """
+    print("\n--- GJ-09: an asymmetric partition, and replacing the writer ---")
+    journey = "GJ-09"
+
+    outlet = "33330001-0000-4000-8000-000000000001"
+    node = scalar("SELECT id FROM edge.node WHERE node_code = 'NODE-H1';")
+    record(journey, "the outlet has a node to partition", bool(node),
+           f"node NODE-H1 = {node or '(none)'}")
+    if not node:
+        raise ProbeFailed("GJ-09", "no node is registered at this outlet")
+
+    # ---- 1. THE LEASE IS BIDIRECTIONAL, AND ONE DIRECTION IS NOT ENOUGH --------------
+    one_way = scalar(f"""
+        SELECT string_agg(enumlabel, ',' ORDER BY enumsortorder)
+          FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+         WHERE t.typname = 'proof_direction';""", dsn=ADMIN, tenant=fx.TENANT, outlet=outlet)
+    record(journey, "a proof names which way it travelled",
+           one_way == "cloud_to_node,node_to_cloud",
+           f"directions: {one_way}\na link that fails in ONE direction is the case a "
+           "naive health check gets wrong — the cloud still reaches the node, so the cloud "
+           "believes everything is fine while nothing the node sends arrives")
+
+    policy = scalar(f"""
+        SELECT proof_interval_seconds::text || '/' || degrade_after_seconds::text || '/'
+            || expire_after_seconds::text || '/' || proofs_required_to_resume::text
+          FROM edge.lease_policy LIMIT 1;""", dsn=ADMIN, tenant=fx.TENANT, outlet=outlet)
+    record(journey, "the lease probes, degrades and expires on a stated schedule",
+           policy == "5/10/20/3",
+           f"{policy} — probe/degrade/expire seconds, and the consecutive proofs recovery "
+           "takes. Ascending by CHECK, so a policy that expired before it warned could not "
+           "be written")
+
+    # ---- 2. AUTHORITY IS A SEQUENCE, AND ONLY ONE HOLDS IT ---------------------------
+    holders = scalar(f"""
+        SELECT count(*)::text FROM edge.authority
+         WHERE outlet_id = '{outlet}' AND state = 'held';""",
+        dsn=ADMIN, tenant=fx.TENANT, outlet=outlet)
+    record(journey, "at most one node holds authority for the outlet",
+           holders in ("0", "1"),
+           f"{holders} holder(s), enforced by a partial unique index rather than by "
+           "convention — split-brain is a database error, not an operational discovery")
+
+    # ---- 3. A REPLACEMENT IS NOT WRITABLE BEFORE FENCE EVIDENCE ----------------------
+    unfenced = refusal_signature(f"""
+        SELECT edge.claim_authority('{fx.TENANT}','{node}', gen_random_uuid(),
+               '3333cccc-0000-4000-8000-000000000001',
+               '3333aaaa-0000-4000-8000-000000000001',
+               'power_off','we think it is off', false);""", outlet=outlet)
+    record(journey, "a replacement is refused while the old node still answers the LAN",
+           unfenced == "AUTHORITY_FENCE_UNPROVEN",
+           f"signature: {unfenced}\nchecked FIRST, because it is the one that says whether "
+           "the old node is actually gone; everything else is a record of intent")
+
+    self_approved = refusal_signature(f"""
+        SELECT edge.claim_authority('{fx.TENANT}','{node}', gen_random_uuid(),
+               '3333cccc-0000-4000-8000-000000000001',
+               '3333cccc-0000-4000-8000-000000000001',
+               'power_off','pulled the plug', true);""", outlet=outlet)
+    record(journey, "and refused again when one person both requests and approves it",
+           self_approved != "",
+           f"signature: {self_approved}\nwithout independent approval the four safeguards "
+           "are three")
+
+    no_step_up = refusal_signature(f"""
+        SELECT edge.claim_authority('{fx.TENANT}','{node}', gen_random_uuid(),
+               '3333cccc-0000-4000-8000-000000000001',
+               '3333aaaa-0000-4000-8000-000000000001',
+               'switch_port_disabled','port shut, link light out', true);""", outlet=outlet)
+    record(journey, "and refused without a fresh step-up for THIS action",
+           no_step_up == "AUTHORITY_STEP_UP_ABSENT",
+           f"signature: {no_step_up}\na manager who stepped up to change a price may not "
+           "hand an outlet's authority to a different node on the strength of it")
+
+    # ---- 4. EVERY FENCE METHOD IS SOMETHING A PERSON DID ------------------------------
+    methods = scalar(f"""
+        SELECT string_agg(enumlabel, ',' ORDER BY enumsortorder)
+          FROM pg_enum e JOIN pg_type t ON t.oid = e.enumtypid
+         WHERE t.typname = 'fence_method';""", dsn=ADMIN, tenant=fx.TENANT, outlet=outlet)
+    record(journey, "there is no way to record that a node was assumed to be down",
+           "assumed" not in (methods or "") and "power_off" in (methods or ""),
+           f"methods: {methods}\nevery value is something an operator DID and can be "
+           "asked about afterwards")
+
+    # ---- 5. A WRITER REJECTS A ROLLBACK ----------------------------------------------
+    rollback = refusal_signature(f"""
+        SELECT edge.assert_authority('{fx.TENANT}','{node}', 0);""", outlet=outlet)
+    record(journey, "a writer presented an older sequence refuses it",
+           rollback in ("AUTHORITY_SEQUENCE_ROLLBACK", "AUTHORITY_NOT_HELD"),
+           f"signature: {rollback}\na sequence only ever goes up, and a writer that "
+           "accepted an older one would be a writer a fenced node could talk round")
+
+    # ---- 6. STALE EVENTS QUARANTINE RATHER THAN DROP ----------------------------------
+    quarantine = scalar("""
+        SELECT count(*)::text FROM information_schema.tables
+         WHERE table_schema = 'edge' AND table_name = 'quarantined_event';""", dsn=ADMIN)
+    released_by_a_person = scalar("""
+        SELECT count(*)::text FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+         WHERE n.nspname = 'edge' AND p.proname = 'release_quarantined_event';""", dsn=ADMIN)
+    record(journey, "events held by a fenced node are quarantined, and releasing one takes a person",
+           quarantine == "1" and released_by_a_person == "1",
+           "dropping them loses trade and applying them lets a fenced node write; keeping "
+           "them where somebody can look is the only honest third option")
+
+
+
 JOURNEYS = (
     ("GJ-01A", gj_01a),
     ("GJ-01B", gj_01b),
@@ -1713,6 +2591,12 @@ JOURNEYS = (
     ("GJ-05", gj_05),
     ("GJ-06", gj_06),
     ("GJ-07", gj_07),
+    # GJ-08 AND GJ-09 RUN BEFORE GJ-10 AND THAT IS DELIBERATE. GJ-10 restarts the API
+    # mid-journey; these two ask what a phone is told and who may write, and both are
+    # cheaper to diagnose against a service that has not been bounced.
+    ("GJ-08", gj_08),
+    ("GJ-09", gj_09),
+    ("GJ-10", gj_10),
     ("FR-TST-007A", concurrency),
 )
 
@@ -1727,15 +2611,38 @@ def tier_of(walker) -> str:
     surface would call — is the whole point of the partial closure, so a summary that
     got it backwards would let the weaker proof read as the stronger one.
 
-    So it is derived. A journey is browser tier if and only if its own body calls walk(),
-    which is the only way a browser is opened here. Parsed rather than grepped, because
+    So it is derived. A journey is browser tier if a browser is opened on its behalf, and
+    walk() is the only way a browser is opened here. Parsed rather than grepped, because
     every one of these functions explains itself in prose that names walk().
+
+    THE DERIVATION FOLLOWS ONE LEVEL OF HELPER, and only helpers defined in this module.
+    OP-B moved five journeys' cashier half into settle_at_the_till(), which opens the till
+    in a browser and walks it; a rule that read only each journey's own body would have
+    reported all five as service tier while a browser was demonstrably driving them —
+    understating the evidence, which is the same class of error as overstating it. One
+    level, resolved by name against this module, so "the helper that walks" is followed
+    and "some function somewhere" is not.
     """
-    tree = ast.parse(textwrap.dedent(inspect.getsource(walker)))
-    calls = (node for node in ast.walk(tree) if isinstance(node, ast.Call))
-    walks = any(isinstance(node.func, ast.Name) and node.func.id == "walk"
-                for node in calls)
-    return "browser" if walks else "service"
+    module = sys.modules[walker.__module__]
+
+    def opens_a_browser(function, depth: int) -> bool:
+        try:
+            tree = ast.parse(textwrap.dedent(inspect.getsource(function)))
+        except (OSError, TypeError):
+            return False
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+                continue
+            if node.func.id == "walk":
+                return True
+            if depth > 0:
+                helper = getattr(module, node.func.id, None)
+                if inspect.isfunction(helper) and helper is not function \
+                        and opens_a_browser(helper, depth - 1):
+                    return True
+        return False
+
+    return "browser" if opens_a_browser(walker, 1) else "service"
 
 
 # ---------------------------------------------------------------------------
@@ -2004,6 +2911,9 @@ def main() -> int:
 
     with Service(APP) as service:
         CONTEXT["base_url"] = f"http://127.0.0.1:{service.port}"
+        # GJ-10 restarts the API mid-journey and asserts the queues survived it, so the
+        # handle has to be reachable from a journey rather than only from this function.
+        CONTEXT["service"] = service
         structural_gate()
         for name, walker in JOURNEYS:
             try:

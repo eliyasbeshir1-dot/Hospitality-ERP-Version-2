@@ -16,8 +16,10 @@ Usage:
 """
 from __future__ import annotations
 
+import json
 import os
 import re
+import secrets
 import sys
 from pathlib import Path
 
@@ -28,6 +30,7 @@ use_utf8_output()
 
 
 HERE = Path(__file__).resolve().parent
+REPO = HERE.parents[1]
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent / "m1a"))
 
@@ -321,13 +324,54 @@ def section_secrets() -> None:
                 'a-plaintext-password'::bytea, 'none', 'standard');
     """, **ctx)
     record("a plaintext secret cannot be stored", plaintext.failed_with("23514", "22001"),
-           "the 32-byte digest CHECK rejects anything that is not a digest")
+           "refused by a CHECK: a plaintext password is neither 32 bytes nor key-stretched")
 
     non_digest = count(ADMIN, """
         SELECT count(*) FROM identity.credential WHERE octet_length(secret_digest) <> 32;
     """)
     record("every stored credential is a digest", non_digest == 0,
            f"{non_digest} credential row(s) are not 32-byte digests")
+
+    # AND A WELL-FORMED FAST HASH IS REFUSED TOO, which is the rule the row above does
+    # not actually test. 'a-plaintext-password' is 20 bytes, so the 32-byte CHECK alone
+    # refuses it and the key-stretching rule is never asked — a control that passes for a
+    # reason other than the one it names. This row IS 32 bytes and IS a digest, and is
+    # still refused, because a password stored as an unsalted sha-256 is what M1-B wrote
+    # until migration 0033 and what FR-AUTH-007's secure-storage limb forbids.
+    fast_hash = run(APP, f"""
+        INSERT INTO identity.credential
+            (tenant_id, outlet_id, user_account_id, kind, secret_digest, digest_algorithm, confers_strength)
+        VALUES ('{fx.TENANT_ACME}', '{fx.OUTLET_A1}', '{fx.USER_BOB}', 'password',
+                sha256('correct-horse'::bytea), 'sha-256', 'standard');
+    """, **ctx)
+    record("a chosen secret stored as an unsalted fast hash is refused",
+           fast_hash.failed_with("23514"),
+           "credential_chosen_secret_is_key_stretched: 32 bytes and a real digest, and "
+           "still not storage a password may have. This is the shape THESE FIXTURES used "
+           "until 0033, which is why the rule is structural rather than remembered")
+
+    # And the same secret, salted and stretched the way the login route derives it, is
+    # accepted — so the constraint above refuses fast hashes rather than refusing
+    # everything, which a control that only ever went red could not distinguish.
+    salt = secrets.token_bytes(16)
+    stretched = run(APP, f"""
+        INSERT INTO identity.credential
+            (tenant_id, outlet_id, user_account_id, kind, secret_digest, digest_algorithm,
+             salt, kdf_params, confers_strength)
+        VALUES ('{fx.TENANT_ACME}', '{fx.OUTLET_A1}', '{fx.USER_BOB}', 'password',
+                decode('{fx.stretch("correct-horse", salt)}', 'hex'), 'scrypt',
+                decode('{salt.hex()}', 'hex'), '{json.dumps(fx.KDF)}'::jsonb, 'standard');
+    """, **ctx)
+    record("and the same secret, salted and key-stretched, is accepted",
+           stretched.ok,
+           f"scrypt N={fx.KDF['cost']} r={fx.KDF['blockSize']} p={fx.KDF['parallelization']}, "
+           f"32-byte derived key — the parameters api/src/routes/auth.ts derives with, so "
+           f"what this suite stores is what the login route verifies"
+           if stretched.ok else stretched.err)
+    run(APP, f"""
+        DELETE FROM identity.credential
+         WHERE tenant_id = '{fx.TENANT_ACME}' AND user_account_id = '{fx.USER_BOB}'
+           AND digest_algorithm = 'scrypt' AND kind = 'password';""", **ctx)
 
     # Nothing secret may sit in the repository. Fixtures generate secrets at run time.
     repo = Path(__file__).resolve().parents[2]
@@ -574,37 +618,36 @@ def section_scope_boundary() -> None:
     # FR-CFG-001D requires the printer registered and tested, so docs.print_attempt is the
     # requirement rather than a violation of it.
     #
-    # What has NOT changed is the M5a boundary, and it is now asserted directly instead of
-    # by proxy. M5a owns the outlet node, its synchronization, and the RESILIENT LOCAL
-    # PRINT QUEUE. So: no sync, outbox, inbox or edge table at all, and printing exists
-    # with NO QUEUE — nothing pending, nothing retried, nothing scheduled for a later
-    # attempt. A queue is what makes a print survive an outage, and surviving an outage is
-    # exactly what this gate does not build.
+    # THIS FENCE HAS FALLEN, AND IS REPLACED BY WHAT OUTLIVES IT.
     #
-    # Strictly stronger than what it replaces: "no printing" was a fence that a correct
-    # change had to break, and "no queued printing" is one that stays true through M5a's
-    # arrival and fails if the queue lands early.
-    outlet_node_behaviour = count(ADMIN, """
+    # It asserted that no sync, outbox, inbox or edge table existed and that printing had
+    # no queue. Both were true until M5a and both are now false: migrations 0039 to 0048
+    # build the outlet continuity node, its synchronization and docs.print_job. A fence a
+    # correct change must break is doing its job when it breaks — the same retirement
+    # M4-A performed on six of these, "each replaced by what outlives the gate".
+    #
+    # What outlives it is the boundary the fence was standing in for: M1-B did not build
+    # the node, and no later edit may move it here. That claim stays checkable forever,
+    # and it fails if somebody adds an edge table to an M1 migration — which the absence
+    # check could never have caught, because by then the absence was already gone.
+    m1_migrations = sorted((REPO / "migrations").glob("000[1-5]_*.sql"))
+    trespass = sorted({
+        f"{path.name}: {schema}"
+        for path in m1_migrations
+        for schema in re.findall(r"^\s*CREATE TABLE (?:IF NOT EXISTS )?(edge|ops|integration)\.",
+                                 path.read_text(encoding="utf-8"), re.MULTILINE | re.IGNORECASE)})
+    node_landed = count(ADMIN, """
         SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND c.relname ~* '(^|_)(sync|outbox|inbox|edge)($|_)';
+        WHERE c.relkind = 'r' AND n.nspname IN ('edge', 'ops', 'integration');
     """)
-    print_queue = count(ADMIN, """
-        SELECT count(*) FROM pg_attribute a
-          JOIN pg_class c ON c.oid = a.attrelid
-          JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relkind = 'r' AND n.nspname NOT IN ('pg_catalog', 'information_schema')
-          AND a.attnum > 0 AND NOT a.attisdropped
-          AND c.relname ~* '(^|_)print($|_)'
-          AND a.attname ~* '(queue|pending|retry|attempts_remaining|next_attempt)';
-    """)
-    record("the outlet node and its print queue are still M5a's, and printing has no queue",
-           principal_classes == 4 and outlet_node_behaviour == 0 and print_queue == 0,
-           f"{principal_classes} principal classes registered; "
-           f"{outlet_node_behaviour} sync, outbox, inbox or edge table(s); "
-           f"{print_queue} queue-shaped column(s) on a print table. FR-BIL-017 makes the "
-           f"minimum print path this gate's; the queue that would make it survive an "
-           f"outage stays M5a's")
+    record("the outlet node landed at M5a, and none of it was built here",
+           principal_classes == 4 and not trespass,
+           f"{principal_classes} principal classes registered — edge_node and print_agent "
+           f"among them, declared here at M1-B and given their first holder at M5a; "
+           f"{node_landed} table(s) now in edge, ops and integration, and "
+           f"{trespass or 'none'} of them created by an M1 migration. The fence that said "
+           f"they did not exist retired when they did; what replaces it is that they may "
+           f"not move here")
 
 
 def session_context_leak_gate() -> tuple[bool, str, str]:

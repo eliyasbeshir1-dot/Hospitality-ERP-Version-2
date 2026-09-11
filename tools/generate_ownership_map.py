@@ -71,6 +71,10 @@ DOMAIN_PURPOSE = {
     "fulfillment": "routing, station tickets and the fulfillment state machine",
     "notify": "notification templates, deliveries and status wording",
     "integration": "outbound integration runtime and the dead-letter queue",
+    "edge": "the outlet continuity node: its deployment profile, its binding to one "
+            "outlet, its five services, its identity and its health",
+    "ops": "the outlet's physical estate — the node, routers, access points, terminals, "
+           "KDS devices and printers — with location and support owner",
     "pos": "terminals, override approval, handover and the staff read models",
     "billing": "checks, allocation, bills, splitting, dispositions and tips",
     "docs": "documents somebody outside this system reads: receipts, their revisions and "
@@ -190,6 +194,148 @@ MIGRATION_SLICE = {
     # review: an applied migration is checksum-locked, so a repair to what M4-C shipped
     # is a further migration at M4-C rather than an edit of 0027.
     "0031": "M4-C", "0032": "M4-C",
+    # 0033 and 0034 are the OP-A repair pass, which the M4 executing review's five P0
+    # findings turned into M4's repair rather than a gate of its own. 0033 gives the
+    # chosen-secret credential a salt and stored KDF parameters, closing FR-AUTH-007's
+    # storage limb, which M1-B never met; 0034 makes a printer test record what the agent
+    # did rather than what the caller claimed, and classifies the null device where the
+    # path is stored. Both are attributed to the slice whose defect they close.
+    "0033": "M1-B", "0034": "M4-C",
+    # 0035 is OP-C, and it is attributed to M2-B for the same reason 0033 is attributed to
+    # M1-B: the slice whose defect it closes. FR-TAB-003 asked for a table session with an
+    # opening source and a host, and M2-B built the table, the column and the enum and
+    # never a writer — so the requirement was met in shape and unreachable in fact, and a
+    # guest scanning a real placard could not order. The ownership half of it repairs
+    # M3-D's handover, which had no first owner to hand over FROM; the basket half repairs
+    # M2-C's guest surface, which could add and not take away. One migration, three
+    # slices' omissions, filed under the earliest.
+    "0035": "M2-B",
+    # 0036 is OP-C's second migration and belongs to M3-D, the slice that built the
+    # confirmation registry and the waiter surface that reads it. A screen gained an action
+    # the registry had never been told about, and the ungraded default — deliberate, with a
+    # written reason — made seating unusable. The grade is the repair, and it repairs the
+    # gate that owns the registry rather than the gate that added the button.
+    "0036": "M3-D",
+    # 0037 is OP-D and belongs to M2-A, the slice that built the menu and the publication
+    # snapshot. FR-MNU-004's description, ingredients and preparation time were written by
+    # the seed and returned by nothing, so the requirement was met in the schema and
+    # invisible to a guest. The pending-orders half repairs M3-A's acceptance policy, which
+    # had a staff_confirmed branch no screen could serve; filed under the earlier slice.
+    "0037": "M2-A",
+    # 0038 repairs FR-AUTH-007 and belongs to M1-B, the slice that built the lockout. A
+    # successful login was being counted as a failed one, because the speculative failure
+    # written before verification was never removed when the attempt resolved as a
+    # success. Filed under the slice whose requirement it is, not the pass that found it.
+    "0038": "M1-B",
+    # 0039 is M5a's own, and the first migration since 0001 that brings a whole domain
+    # into being rather than correcting an earlier one. Every gate before this assumed the
+    # system runs in one place; FR-EDG-001 says a production outlet may not. The schema is
+    # the outlet continuity node: what it is bound to, what it is made of, what it proves
+    # about itself and what it reports.
+    "0039": "M5a",
+    # 0040 is M5a's second, and owns `ops` for one table: the outlet's physical estate.
+    # It is a separate migration rather than a section of 0039 because the two own
+    # different domains, and "no migration spans domains" is a statement this map makes
+    # about every row in it.
+    "0040": "M5a",
+    # 0041 is M5a's synchronization runtime and owns `integration`, the schema M3-C
+    # created for the dead-letter queue and left otherwise empty. The outbox, the inbox,
+    # the cursors and the evidence ledger are one mechanism and land as one migration.
+    "0041": "M5a",
+    # 0042 owns nothing: it creates no table and no schema. It repairs
+    # app.refuse_financial_mutation(), whose message cited a classification that does not
+    # exist for four of the tables it guards — pos.counter_order_entry since M4-C, and the
+    # three M5a was about to add. Attributed to M4-C, the slice that attached the guard to
+    # a table outside the financial schemas and made the sentence false.
+    "0042": "M4-C",
+    # 0043 is M5a's conflict policy and reconnection, and owns `integration` alongside
+    # 0041 for the same reason: a conflict is a synchronization outcome, and putting it
+    # anywhere else would separate the disagreement from the mechanism that found it.
+    "0043": "M5a",
+    # 0044 is M5a's durable print queue and owns `docs`, the schema M4-C built the
+    # receipt and its evidence in. The queue is the half M4-C did not build: it recorded
+    # what the agent DID and nothing held a receipt between "settle this bill" and "the
+    # agent got round to it".
+    "0044": "M5a",
+    # 0045 is M5a's third `edge` migration: what the node holds before service, what it
+    # may do when it is alone, and what it says about both. Three requirements that look
+    # unrelated and are one question asked from three angles.
+    "0045": "M5a",
+    # 0046 repairs 0039 and is attributed to M5a, the slice that wrote it. The
+    # wrong-outlet refusal FR-CFG-001E turns on was unreachable: the lookup was scoped by
+    # the outlet it was about to check, so a node at the wrong outlet was told it did not
+    # exist. Found by starting the process rather than by reading the function.
+    "0046": "M5a",
+    # 0047 gives edge.plain_language a third namespace and adds the banner FR-EDG-009's
+    # strip reads. Also M5a's, and also a repair: the first connectivity_banner() treated
+    # "I could not see a node" as "there is no node" and answered CONNECTED.
+    "0047": "M5a",
+    # 0048 is FR-OPS-010: signed updates, the database compatibility check, and a rollback
+    # that has to prove it did not lose queued work.
+    "0048": "M5a",
+    # 0049 opens M5b: the bidirectional reachability lease FR-EDG-023 specifies down to
+    # the second. It owns `edge` alongside M5a's, because a lease is a fact about a node.
+    "0049": "M5b",
+    # 0050 is FR-EDG-024: one writer per outlet, as a monotonic sequence, and the four
+    # things a replacement must show before it may hold one.
+    "0050": "M5b",
+    # 0051 retires M5a's one-active-node-per-outlet index. It owns nothing: it drops an
+    # index and replaces two comments. Attributed to M5b because M5b is what makes the
+    # index wrong — FR-EDG-024 requires a STANDBY, and a standby that cannot exist
+    # alongside the node it stands by is a spare in a cupboard.
+    "0051": "M5b",
+    # 0052 registers node.authority.claim as a governed action. Attributed to M1-B, the
+    # slice that owns the step-up registry: 0050 required a grant and named no action, so
+    # any live grant would have done. This is the third time a new governed action has
+    # needed all three of trigger, installer and caller.
+    "0052": "M1-B",
+    # 0053 is FR-OPS-017 and FR-EDG-022A/B/C: one hostname per outlet, the certificate's
+    # life, and three of the four prohibitions as constraints. The fourth — a manual
+    # browser bypass — is a property of a surface and is asserted where surfaces are.
+    "0053": "M5b",
+    # 0054 is FR-EDG-028: the four ways a real phone resolves a name, both address
+    # families on both horizons, and the translated guidance an unsupported one gets.
+    "0054": "M5b",
+    # 0055 adds the certificate state machine's entrance. Attributed to M5b because 0053
+    # is: writing seeds/0016 showed that edge.node_certificate had an install path and no
+    # request path, so the only way in was a bare INSERT.
+    "0055": "M5b",
+    # 0056 repairs 0054's bypass check, which never ran: `~*` and `||` share a precedence
+    # class, so the pattern was half a regex with an unclosed parenthesis.
+    "0056": "M5b",
+    # 0057 is FR-EDG-026: what a node needs to answer for a session the cloud started, so
+    # a retry across the cloud-to-LAN transition is absorbed rather than cooked twice.
+    "0057": "M5b",
+    # 0058 repairs 0057's cast to identity.authentication_strength, a type that has never
+    # existed. The second migration in this gate to apply cleanly and be unrunnable.
+    "0058": "M5b",
+    # 0059 moves the revoked-session rule from a WHERE clause to the row. NC-M5B-005 named
+    # a signature nothing could raise, which is what showed a filter is not a refusal.
+    "0059": "M5b",
+    # 0060 adds `node` to ordering.artifact_kind. Attributed to M3-C, the slice that added
+    # notify.catalog_event's edge events: they have named outlet notices since then and
+    # notify.notification.subject_kind had nothing for them to point at.
+    "0060": "M3-C",
+    # 0061 is the producers for FR-NOT-001, FR-NOT-005 and FR-INT-007 — the three partial
+    # closures that named M5b as the gate that would decide which transitions are alertable.
+    "0061": "M5b",
+    # 0062 widens notify.payload_within_bounds by seven keys so an edge notice can say what
+    # it is about. Attributed to M3-C for the reason 0060 is: the allowlist was chosen when
+    # every notice was about an order.
+    "0062": "M3-C",
+    # 0063 gives `node` a rebuild answer and refuses it as a correlation artifact.
+    # Attributed to M3-D, the slice that owns the projection-rebuild rule tests/m4b
+    # enforces: a kind that names no rebuild is that rule's defect, not M5b's.
+    "0063": "M3-D",
+    # 0064 is FR-OPS-006 and FR-SEC-019: the backup schedule as something that can be
+    # asked, and a backup that is not `verified` until something has read it back.
+    "0064": "M6-B",
+    # 0065 gives report.export the caller it has been registered for since
+    # 0002, and FR-FUL-012 the reading that consumes what the fold wrote.
+    "0065": "M6-D",
+    # 0066 is FR-OPS-011, FR-OPS-012 and FR-OPS-015: the runbook register,
+    # an owner for every raisable alert, and a cutover somebody signed.
+    "0066": "M6-E",
 }
 
 
@@ -300,7 +446,10 @@ def main() -> int:
         print(f"  {len(generated.splitlines())} lines verified against the repository")
         return 0
 
-    Path(args.out).write_text(generated, encoding="utf-8")
+    # LF explicitly: text mode would write CRLF on Windows and LF on Linux, so the
+    # artefact would differ by the platform that generated it while --check compares
+    # it against one committed copy.
+    Path(args.out).write_text(generated, encoding="utf-8", newline="\n")
     print(f"wrote {args.out} ({len(generated.splitlines())} lines)")
     return 0
 

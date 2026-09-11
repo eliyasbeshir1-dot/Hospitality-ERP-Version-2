@@ -90,6 +90,88 @@ SLICE_DELIVERS = {
             "were entered at; a metric catalog that IS the metrics, readings that carry "
             "their source and their freshness, a shift snapshot no recomputation can "
             "rewrite, and the FR-GOV-004 audit of every requirement whose gate has landed",
+    "M5-A": "the outlet continuity node: an outlet that keeps trading when the cloud is "
+            "unreachable. A node bound to exactly one outlet, made of the five services "
+            "FR-EDG-002A names, refusing to start anywhere else; a production outlet that "
+            "cannot be RECORDED as cloud-only; a transactional outbox whose events keep "
+            "the identity and the time they were given at the outlet, travel parent "
+            "before child, and are acknowledged only when the cloud names them; an "
+            "idempotent inbox that makes a repeated delivery a no-op it reports rather "
+            "than swallows; conflicts over the six domains that cannot be settled without "
+            "a person and a sentence; a durable print queue where a lease expires but a "
+            "printed job never returns; readiness counted out of the tables service "
+            "reads; every action classified once so a route asks a registry instead of "
+            "carrying its own copy of the rule, and an unclassified one refused rather "
+            "than allowed by omission; one connectivity banner compiled once for all four "
+            "screens, worded in three locales from the database; and signed updates whose "
+            "rollback refuses if the local queues have shrunk",
+    "M5-B": "the same QR, one writer, and a phone that never sees a warning. One public "
+            "hostname per outlet answered on both horizons in both address families, so a "
+            "dual-stack phone cannot reach the public address over IPv6 while standing in "
+            "the dining room; a certificate lifecycle whose install step requires the "
+            "fingerprint the LAN is actually serving to equal the one that was issued, and "
+            "a renewal schedule that alerts at thirty, fourteen and seven days; NO PRIVATE "
+            "KEY COLUMN ANYWHERE, proved by asking the catalog rather than by anybody "
+            "remembering; a resolution answer for the four ways a real phone resolves a "
+            "name — cached public answer, encrypted DNS, dual stack, and the intended path "
+            "— whose outcome type has three values and no fourth, so no input can produce "
+            "a certificate warning or a bypass prompt; authority as a monotonic sequence "
+            "with one holder per outlet, replaced only on step-up for THAT action, an "
+            "independent approver, fence evidence naming something a person did, and a LAN "
+            "probe that is checked first; stale events quarantined rather than dropped; a "
+            "session and its spent idempotency keys carried across the cloud-to-LAN "
+            "transition so a retry is absorbed rather than cooked twice; and the six "
+            "notification producers three partial closures had been waiting for since M3-C",
+    "M6-A": "the built production artifact, and nothing inside it that can reset "
+            "production. One manifest that the builder copies from, the Dockerfile is "
+            "generated from, the completeness check probes and the prohibition scan reads "
+            "— because a COPY list beside a build script beside a checklist is three "
+            "places to say one thing and two of them go stale. Every advertised entry "
+            "point is RUN from inside the built tree with PYTHONPATH and NODE_PATH "
+            "cleared, so a file that is present and fails because the build left a "
+            "dependency behind is caught where a missing file would have been obvious. "
+            "And no seed reaches it: every seed in this repository builds the "
+            "demonstration floor, so shipping one would put a way to create demonstration "
+            "tenants into production, which is worse than a way to reset them",
+    "M6-B": "a backup that was encrypted, read back, and put somewhere else. pg_dump piped "
+            "straight into openssl so the plaintext never becomes a file — deleting one "
+            "afterwards is not erasure on any filesystem in use here. There is NO STATE "
+            "meaning taken-and-assumed-good: `captured` becomes `verified` only when "
+            "something has decrypted the archive and counted its table of contents, and "
+            "only a verified archive may go off-site. The cipher column cannot hold "
+            "'none', the schedule is a row an operator can query rather than a line in a "
+            "scheduler nobody can audit, and an estate whose schedule was never written "
+            "down reports `undocumented` rather than healthy — because nothing can be late "
+            "against a schedule that does not exist",
+    "M6-C": "restore proved by destroying and rebuilding. The target is DROPPED before the "
+            "archive goes in, because restoring over a populated database proves nothing — "
+            "every row the archive failed to carry is still in the table, so the drill "
+            "passes on exactly the defect it exists to find. The estate is then read "
+            "through the least-privileged production role rather than a superuser, and "
+            "read THREE ways: what the archive carried, what that role sees with no tenant "
+            "context, and what it sees in scope. Any one alone can be right for the wrong "
+            "reason, because an empty restore looks exactly like a correctly isolated one. "
+            "Recovery time is wall clock from destruction to usable, not pg_restore's "
+            "duration, which excludes both ends that matter",
+    "M6-D": "reporting, exports, and two partial closures that came due. `report.export` "
+            "has been registered as a governed action since migration 0002 — strong, "
+            "step-up, a fifteen-minute window, the only action in the registry whose window "
+            "is not five minutes — and nothing had ever called it, so an action the "
+            "registry described as governed was ungoverned through M4, M5a and M5b. It has "
+            "a caller now, the record is written BEFORE the bytes leave, and what is "
+            "recorded cannot be edited: a record of who took an outlet''s trade off the "
+            "system is worth exactly as much as its immutability. Prep, wait and SLA are "
+            "read together per station as medians with the maximum beside them, and SLA "
+            "breaches are counted rather than averaged",
+    "M6-E": "pilot readiness: eleven runbooks that exist as documents rather than as a "
+            "folder somebody hopes is complete, an owner for every event that can actually "
+            "be raised — a FOREIGN KEY to a role, because avoiding unowned dashboards is "
+            "only structural if an owner has to exist — and a cutover naming the commit, "
+            "the operator, the data owner and the way back, unable to reach live without a "
+            "reviewer who is not the operator. ops.pilot_readiness() answers the question a "
+            "founder asks before letting a guest in, from rows rather than confidence, and "
+            "it is the conjunction of what six earlier gates built rather than a new "
+            "mechanism"
 }
 
 # The gates in order, and what each one brings that does not exist yet. Rows are emitted
@@ -141,13 +223,13 @@ def vendored_assets() -> list[str]:
             .get("Licence", ""))
         if not binaries:
             raise DescriptionNamesADerivableFact(
-                f"{record.relative_to(REPO)} names no file with a sha256 beside it, so "
+                f"{record.relative_to(REPO).as_posix()} names no file with a sha256 beside it, so "
                 f"the README cannot describe what this repository ships")
         for digest, name in sorted(binaries, key=lambda pair: pair[1]):
             on_disk = record.parent / name
             if not on_disk.is_file():
                 raise DescriptionNamesADerivableFact(
-                    f"{record.relative_to(REPO)} names {name}, which is not there. A "
+                    f"{record.relative_to(REPO).as_posix()} names {name}, which is not there. A "
                     f"licence line describing a file that does not exist is worse than "
                     f"none, because somebody would rely on it")
             found = True
@@ -194,6 +276,25 @@ DIRECTORY_PURPOSE = {
 SUITE_SPANS = {
     "fenced_gate": ["M1", "M2", "M3"],
     "journeys": ["M1", "M2", "M3"],
+    # M4 as well as M1-M3: the operator gate logs in (M1-B), orders against the seeded
+    # menu (M2-A, M2-B), drives the kitchen and expo (M3-A, M3-B), and replays the M4
+    # review's printer forgery over the route it was performed on (M4-C).
+    "opa": ["M1", "M2", "M3", "M4"],
+    # The screens sit on top of everything: identity to sign in, the menu to sell, the
+    # kitchen to cook, the bill to settle.
+    "opb": ["M1", "M2", "M3", "M4"],
+    # The same four, and for a blunter reason than OP-B's: seating sits UNDER all of them.
+    # Identity to sign a waiter in (M1-B), the occupancy and the basket M2-B built the
+    # tables for, the order and the handover M3 built on top, and the bill M4 settles —
+    # none of which a real guest could reach, because nobody could be seated.
+    "opc": ["M1", "M2", "M3", "M4"],
+    # The same four again: acceptance is M3-A's policy, the menu is M2-A's, the screens
+    # are M2-C's and M3-D's, and signing in to admit an order is M1-B's.
+    "opd": ["M1", "M2", "M3", "M4"],
+    # All four again, and for the first time that is not a coincidence: M5a proves the
+    # outlet keeps doing what M1 through M4 built while the cloud is unreachable, so
+    # every one of them is what it has to keep doing.
+    "m5a": ["M1", "M2", "M3", "M4"],
 }
 
 
@@ -244,6 +345,72 @@ SUITE_PURPOSE = {
            "unrewritable by a grant, by the source and by the attempt, an empty window "
            "proved to report nothing rather than zero where zero would be an invention, "
            "and the FR-GOV-004 audit of every requirement whose gate has landed",
+    "opa": "the operator gate: whether a person can reach what the slices built. A "
+           "credential turned into a session against storage that is salted and "
+           "key-stretched, a quick PIN that is refused away from its registered "
+           "terminal, lockout that fires and then clears, a guest order carried to a "
+           "station and moved acknowledge to preparing to ready through routes rather "
+           "than through the database, expo refusing to release an incomplete set, a "
+           "seed proved unable to bypass its runner or to widen a grant, and the M4 "
+           "review's printer forgery replayed over the route it was performed on",
+    "opb": "the staff screens, measured in a browser: a station board that signs a cook "
+           "in and draws its actions from the transition catalog rather than from a table "
+           "of its own, a till that reads a bill in the bill's own language and keeps the "
+           "tip beside it with nothing preselected, a waiter floor that fetches its own "
+           "tables with the unpaid balance on them, confirmation friction graded by the "
+           "database, and a manager override that takes the manager's own session",
+    "opc": "being seated, and taking something back out: the step that came before "
+           "everything the nineteen suites above had proved. A guest scanning an "
+           "unoccupied table opens the occupancy and a member of staff can open one too, "
+           "through one function with two opening sources that nothing had ever called; a "
+           "waiter who seats a table becomes accountable for it, which is the origin "
+           "FR-TAB-006's handover chain never had; a guest can take a dish back out of "
+           "the basket; and M2-B's stale-QR guarantee is proved unweakened by any of it",
+    "opd": "the order reaching the kitchen, and what a menu says a dish is. A QR order "
+           "is admitted without a waiter having to tap anything, and where an outlet "
+           "chooses staff confirmation instead the waiter floor lists the orders waiting "
+           "and admits them; the guest is told which of the two happened rather than "
+           "always the first; the menu carries the description, ingredients and "
+           "preparation time the seed has always written and nothing returned; and the "
+           "route census stops averaging \"a suite calls this\" together with \"a person "
+           "can reach this\"",
+    "m5a": "the outlet continuity node, and what an outlet can still do when the cloud "
+           "cannot be reached. A node that refuses to start at the wrong outlet and says "
+           "which outlet it is bound to; an outbox that carries a child only after its "
+           "parent and an inbox that makes a repeated delivery a reported no-op; "
+           "conflicts over orders, bills, payments, tips, cash and permissions that no "
+           "machine can settle; a print queue where a lease expires and a printed job "
+           "never returns; readiness counted rather than claimed; cash, terminal "
+           "recording and ordinary service permitted during an outage while what needs "
+           "the cloud is blocked or queued with a translated explanation; and a rollback "
+           "that refuses if the local queues have shrunk",
+    "m5b": "the same QR, one writer, and a phone that never sees a warning. A public "
+           "hostname answered on both horizons in both address families; a certificate "
+           "whose install step requires the fingerprint the LAN is serving to equal the "
+           "one that was issued, and a renewal schedule checked at nine boundaries; four "
+           "client conditions — cached public answer, encrypted DNS, dual stack, and the "
+           "intended path — over cloud up and cloud down, none of which can produce a "
+           "warning or a bypass because the outcome type has no value for one; authority "
+           "as a sequence and the four proofs replacing its holder takes; a session and "
+           "its spent idempotency keys surviving the move from cloud to LAN, so a retry "
+           "is absorbed rather than cooked twice; and every function this gate added, "
+           "CALLED — because three of them applied cleanly and could never have run",
+    "m6a": "the artifact that ships: built from the manifest, every advertised entry "
+           "point executed from inside it with the repository made unreachable, and "
+           "scanned — with the database — for any way to reset or reseed production",
+    "m6b": "a real encrypted backup, taken by the real tool against the live database, "
+           "decrypted and read back, and copied somewhere that is not where it was "
+           "written — plus the five ways of recording one that the schema refuses",
+    "m6c": "a real database destroyed and rebuilt from a real encrypted archive, under "
+           "the production role, timed — plus a truncated archive, a wrong key and a "
+           "restore that lost its grants, each refused",
+    "m6d": "an export refused without a fresh step-up for THAT act, refused on a stale "
+           "one, recorded before the bytes leave and unable to be edited afterwards; and "
+           "the kitchen''s prep, wait and SLA figures read together for the first time",
+    "m6e": "eleven runbooks present as files with a fallback section each, no event that "
+           "can be raised left unowned, a cutover that cannot go live unaudited or be "
+           "reviewed by the person who performed it, and six readiness clauses that must "
+           "all hold at once",
     "fenced_gate": "the forbidden-surface gate itself: vocabulary provenance and mutation coverage",
     "journeys": "the golden journeys end to end in a browser against real "
                 "persistence, plus the duplicate-submit race: what a guest and a waiter "
@@ -578,7 +745,10 @@ def main() -> int:
         return 0
 
     if args.out:
-        Path(args.out).write_text(generated, encoding="utf-8")
+        # LF explicitly: text mode would write CRLF on Windows and LF on Linux, so the
+        # artefact would differ by the platform that generated it while --check compares
+        # it against one committed copy.
+        Path(args.out).write_text(generated, encoding="utf-8", newline="\n")
         print(f"wrote {args.out} ({len(generated.splitlines())} lines)")
         return 0
 

@@ -1,0 +1,762 @@
+-- 0041: an outlet can speak to the cloud without losing anything, or saying it twice
+--
+-- FR-INT-003 asks for a transactional outbox, FR-INT-004 for an idempotent inbox,
+-- FR-EDG-005 for ordered cursors and dependency rules with NO database-replication path
+-- for business data, and FR-DAT-008C for synchronization evidence that is append-only
+-- across replay and restart. They are one mechanism and are built as one.
+--
+-- WHY THE OUTBOX IS NOT A QUEUE TABLE WITH A FLAG. Two properties make it an outbox
+-- rather than a list of things to do:
+--
+--   1. It is written in the SAME TRANSACTION as the business write it describes. If the
+--      order rolls back, the event announcing the order rolls back with it. A queue
+--      written after the commit can announce an order that does not exist, and a queue
+--      written before it can lose one that does.
+--   2. The row keeps the ORIGINAL identity and the ORIGINAL time. FR-EDG-027 requires
+--      replayed events to preserve their IDs and timestamps, so `event_id` is assigned
+--      once at the outlet and never reassigned, and `occurred_at` is when the thing
+--      happened rather than when it was sent. A synchronization that restamps events
+--      makes every outage look like it happened at reconnection.
+--
+-- WHY ORDER IS A SEQUENCE AND DEPENDENCY IS A LINK. `sequence` gives the cloud a cursor
+-- it can resume from; that alone orders events but does not express that a payment cannot
+-- be applied before the bill it pays. So a row may name the event it depends on, and
+-- integration.claim_outbox_batch() will not hand out a child whose parent is unsent.
+-- GJ-10 calls this "parent-before-child ordering" and it is refused rather than sorted.
+--
+-- WHY THE INBOX IS KEYED ON THE SENDER'S ID. Exactly-once delivery does not exist;
+-- exactly-once APPLICATION does, and it is built by making the second delivery a no-op.
+-- The cloud's message id is the primary key, so a repeated delivery collides rather than
+-- applies, and integration.accept_inbound() reports which of the two happened instead of
+-- swallowing it.
+--
+-- WHY THERE IS A FUNCTION THAT LOOKS FOR REPLICATION. FR-EDG-005 says direct database
+-- replication is not the business synchronization mechanism. That is a claim about what
+-- does NOT exist, and the only honest way to check it is to ask the server what
+-- publications it has. A comment saying "we do not use replication" is not evidence; a
+-- function that fails when somebody adds a publication over ordering.customer_order is.
+
+-- ---------------------------------------------------------------------------
+-- 1. VOCABULARY
+-- ---------------------------------------------------------------------------
+
+-- What an event is ABOUT. The first six are the domains FR-EDG-008 names for conflict
+-- policy; the rest are the operational traffic FR-INT-003 lists. Kept as one enum because
+-- the outbox carries all of it and a second enum would make "is this a conflict domain"
+-- a question answered in two places.
+CREATE TYPE integration.sync_subject AS ENUM (
+    'order', 'bill', 'payment', 'tip', 'cash', 'permission',
+    'print_job', 'notification', 'configuration', 'health');
+
+CREATE TYPE integration.sync_direction AS ENUM ('outlet_to_cloud', 'cloud_to_outlet');
+
+CREATE TYPE integration.outbox_state AS ENUM (
+    'pending', 'in_flight', 'acknowledged', 'rejected');
+
+CREATE TYPE integration.inbox_state AS ENUM ('received', 'applied', 'refused');
+
+-- What the evidence ledger records. Every one of these is something that HAPPENED, not a
+-- state something is in — the ledger is a history and the state columns are the present.
+CREATE TYPE integration.sync_event_kind AS ENUM (
+    'enqueued', 'claimed', 'acknowledged', 'rejected',
+    'duplicate_refused', 'conflict_raised', 'replayed',
+    'paused_incompatible', 'resumed');
+
+-- ---------------------------------------------------------------------------
+-- 2. THE OUTBOX (FR-INT-003, FR-EDG-005, FR-EDG-027)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE integration.outbox (
+    -- THE IDENTITY THE CLOUD WILL SEE, ASSIGNED HERE, ONCE. Not a serial: a serial is
+    -- unique per database, and this row's whole purpose is to be recognisable in another
+    -- one.
+    event_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+
+    tenant_id uuid NOT NULL,
+    outlet_id uuid NOT NULL,
+    node_id   uuid NOT NULL,
+
+    subject      integration.sync_subject NOT NULL,
+    subject_id   uuid NOT NULL,
+    event_kind   text NOT NULL,
+    payload      jsonb NOT NULL,
+
+    -- WHEN IT HAPPENED, not when it was sent. Preserved verbatim across replay.
+    occurred_at timestamptz NOT NULL,
+
+    -- The ordered cursor. Monotonic per node, which is the only scope in which ordering
+    -- is meaningful: two outlets have no order relative to each other and pretending they
+    -- do would serialize a whole tenant behind one slow node.
+    sequence bigint NOT NULL GENERATED BY DEFAULT AS IDENTITY,
+
+    -- PARENT BEFORE CHILD. A payment names the bill event it depends on; the claim
+    -- function will not hand out a child whose parent is unacknowledged.
+    depends_on_event_id uuid,
+
+    state    integration.outbox_state NOT NULL DEFAULT 'pending',
+    attempts integer NOT NULL DEFAULT 0,
+    last_error text,
+
+    claimed_at      timestamptz,
+    acknowledged_at timestamptz,
+    enqueued_at     timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT outbox_tenant_id_unique UNIQUE (tenant_id, event_id),
+    CONSTRAINT outbox_sequence_unique UNIQUE (node_id, sequence),
+    CONSTRAINT outbox_tenant_fk FOREIGN KEY (tenant_id)
+        REFERENCES org.tenant (id) ON DELETE RESTRICT,
+    CONSTRAINT outbox_outlet_fk FOREIGN KEY (tenant_id, outlet_id)
+        REFERENCES org.org_node (tenant_id, id) ON DELETE RESTRICT,
+    CONSTRAINT outbox_node_fk FOREIGN KEY (tenant_id, node_id)
+        REFERENCES edge.node (tenant_id, id) ON DELETE RESTRICT,
+    CONSTRAINT outbox_parent_fk FOREIGN KEY (tenant_id, depends_on_event_id)
+        REFERENCES integration.outbox (tenant_id, event_id) ON DELETE RESTRICT,
+    CONSTRAINT outbox_event_kind_is_stated CHECK (length(trim(event_kind)) > 0),
+    CONSTRAINT outbox_attempts_not_negative CHECK (attempts >= 0),
+    CONSTRAINT outbox_does_not_depend_on_itself CHECK (depends_on_event_id <> event_id),
+    CONSTRAINT outbox_rejection_is_explained CHECK (
+        state <> 'rejected' OR last_error IS NOT NULL),
+    CONSTRAINT outbox_acknowledgement_is_timed CHECK (
+        (state = 'acknowledged') = (acknowledged_at IS NOT NULL))
+);
+
+COMMENT ON TABLE integration.outbox IS
+    'FR-INT-003, FR-EDG-005, FR-EDG-027. Local-to-cloud events, written in the same '
+    'transaction as the business write they describe, carrying the identity and the time '
+    'they were given at the outlet. Ordered by a per-node sequence and, where one exists, '
+    'by a named dependency — a payment does not travel before the bill it pays.';
+
+COMMENT ON COLUMN integration.outbox.occurred_at IS
+    'When the thing happened, never when it was sent. A synchronization that restamps '
+    'events makes every outage look like it happened at reconnection.';
+
+CREATE INDEX outbox_pending_idx
+    ON integration.outbox (node_id, sequence) WHERE state = 'pending';
+CREATE INDEX outbox_subject_idx
+    ON integration.outbox (tenant_id, subject, subject_id);
+
+-- THE IMMUTABLE HALF IS IMMUTABLE. State, attempts and timings move; identity, ordering,
+-- content and time do not. Without this an "idempotent" replay could rewrite the event it
+-- claims to be replaying, and FR-EDG-027's guarantee would be a description of intent.
+CREATE FUNCTION integration.refuse_outbox_rewrite()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION
+            'OUTBOX_ROW_IS_PERMANENT: event % is evidence that it was enqueued; a queue '
+            'you can delete from cannot show what it failed to send', OLD.event_id
+            USING ERRCODE = 'HS409';
+    END IF;
+    IF NEW.event_id            <> OLD.event_id
+       OR NEW.tenant_id        <> OLD.tenant_id
+       OR NEW.outlet_id        <> OLD.outlet_id
+       OR NEW.node_id          <> OLD.node_id
+       OR NEW.subject          <> OLD.subject
+       OR NEW.subject_id       <> OLD.subject_id
+       OR NEW.event_kind       <> OLD.event_kind
+       OR NEW.payload::text    <> OLD.payload::text
+       OR NEW.occurred_at      <> OLD.occurred_at
+       OR NEW.sequence         <> OLD.sequence
+       OR NEW.depends_on_event_id IS DISTINCT FROM OLD.depends_on_event_id THEN
+        RAISE EXCEPTION
+            'OUTBOX_ROW_IS_IMMUTABLE: event % may change state, attempts and timings and '
+            'nothing else. FR-EDG-027 requires a replayed event to keep the id and the '
+            'timestamp it was given at the outlet', OLD.event_id
+            USING ERRCODE = 'HS409';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER outbox_identity_is_immutable
+    BEFORE UPDATE OR DELETE ON integration.outbox
+    FOR EACH ROW EXECUTE FUNCTION integration.refuse_outbox_rewrite();
+
+ALTER TABLE integration.outbox ENABLE ROW LEVEL SECURITY;
+ALTER TABLE integration.outbox FORCE ROW LEVEL SECURITY;
+CREATE POLICY outbox_isolation ON integration.outbox FOR ALL
+    USING (app.row_in_scope(tenant_id, outlet_id))
+    WITH CHECK (app.row_in_scope(tenant_id, outlet_id));
+
+-- ---------------------------------------------------------------------------
+-- 3. THE INBOX (FR-INT-004)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE integration.inbox (
+    -- THE SENDER'S ID IS THE KEY. That is the whole idempotency mechanism: a second
+    -- delivery of the same message collides with the first instead of applying.
+    message_id uuid PRIMARY KEY,
+
+    tenant_id uuid NOT NULL,
+    outlet_id uuid NOT NULL,
+    node_id   uuid NOT NULL,
+
+    subject    integration.sync_subject NOT NULL,
+    message_kind text NOT NULL,
+    payload    jsonb NOT NULL,
+
+    issued_at   timestamptz NOT NULL,
+    received_at timestamptz NOT NULL DEFAULT now(),
+
+    state      integration.inbox_state NOT NULL DEFAULT 'received',
+    applied_at timestamptz,
+    refusal_reason text,
+
+    -- How many times the cloud sent it. Recorded rather than ignored, because a peer
+    -- that sends the same message constantly is a fact worth having when diagnosing an
+    -- outage.
+    --
+    -- NAMED `arrivals` BECAUSE THE OBVIOUS NAME IS FENCED. FR-TEN-002B fences 63 business
+    -- terms and "delivery" is one of them; tests/m1a found this column within minutes of
+    -- it existing. The gate does not care that this counts MESSAGE arrivals rather than
+    -- courier deliveries, and it is right not to: a schema that admits the word is a
+    -- schema somebody eventually builds the feature in.
+    arrivals integer NOT NULL DEFAULT 1,
+
+    CONSTRAINT inbox_tenant_id_unique UNIQUE (tenant_id, message_id),
+    CONSTRAINT inbox_tenant_fk FOREIGN KEY (tenant_id)
+        REFERENCES org.tenant (id) ON DELETE RESTRICT,
+    CONSTRAINT inbox_outlet_fk FOREIGN KEY (tenant_id, outlet_id)
+        REFERENCES org.org_node (tenant_id, id) ON DELETE RESTRICT,
+    CONSTRAINT inbox_node_fk FOREIGN KEY (tenant_id, node_id)
+        REFERENCES edge.node (tenant_id, id) ON DELETE RESTRICT,
+    CONSTRAINT inbox_kind_is_stated CHECK (length(trim(message_kind)) > 0),
+    CONSTRAINT inbox_arrivals_positive CHECK (arrivals > 0),
+    CONSTRAINT inbox_application_is_timed CHECK (
+        (state = 'applied') = (applied_at IS NOT NULL)),
+    CONSTRAINT inbox_refusal_is_explained CHECK (
+        (state = 'refused') = (refusal_reason IS NOT NULL))
+);
+
+COMMENT ON TABLE integration.inbox IS
+    'FR-INT-004. Cloud-to-outlet configuration and commands, applied exactly once under '
+    'repeated delivery. Exactly-once DELIVERY does not exist; exactly-once APPLICATION '
+    'does, and it is built by keying on the sender''s message id so the second delivery '
+    'collides rather than applies.';
+
+ALTER TABLE integration.inbox ENABLE ROW LEVEL SECURITY;
+ALTER TABLE integration.inbox FORCE ROW LEVEL SECURITY;
+CREATE POLICY inbox_isolation ON integration.inbox FOR ALL
+    USING (app.row_in_scope(tenant_id, outlet_id))
+    WITH CHECK (app.row_in_scope(tenant_id, outlet_id));
+
+-- ---------------------------------------------------------------------------
+-- 4. CURSORS (FR-EDG-005)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE integration.sync_cursor (
+    tenant_id uuid NOT NULL,
+    outlet_id uuid NOT NULL,
+    node_id   uuid NOT NULL,
+    direction integration.sync_direction NOT NULL,
+
+    -- The last sequence the PEER has confirmed. Not the last one sent: a cursor that
+    -- advances on send loses everything in flight when the link drops, which is the exact
+    -- moment it matters.
+    acknowledged_through bigint NOT NULL DEFAULT 0,
+    updated_at timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT sync_cursor_pkey PRIMARY KEY (node_id, direction),
+    CONSTRAINT sync_cursor_node_fk FOREIGN KEY (tenant_id, node_id)
+        REFERENCES edge.node (tenant_id, id) ON DELETE CASCADE,
+    CONSTRAINT sync_cursor_outlet_fk FOREIGN KEY (tenant_id, outlet_id)
+        REFERENCES org.org_node (tenant_id, id) ON DELETE RESTRICT,
+    CONSTRAINT sync_cursor_not_negative CHECK (acknowledged_through >= 0)
+);
+
+COMMENT ON COLUMN integration.sync_cursor.acknowledged_through IS
+    'The last sequence the PEER confirmed, never the last one sent. A cursor that '
+    'advances on send loses everything in flight when the link drops, which is the exact '
+    'moment it matters.';
+
+-- A CURSOR ONLY MOVES FORWARD. Moving it back would re-send acknowledged work, and
+-- FR-EDG-016 requires reconnection to produce no duplicate order, payment or tip.
+CREATE FUNCTION integration.refuse_cursor_rewind()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.acknowledged_through < OLD.acknowledged_through THEN
+        RAISE EXCEPTION
+            'SYNC_CURSOR_REWIND_REFUSED: % would move from % back to %, which would '
+            're-send work the peer has already accepted',
+            NEW.direction, OLD.acknowledged_through, NEW.acknowledged_through
+            USING ERRCODE = 'HS409';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER sync_cursor_only_moves_forward
+    BEFORE UPDATE ON integration.sync_cursor
+    FOR EACH ROW EXECUTE FUNCTION integration.refuse_cursor_rewind();
+
+ALTER TABLE integration.sync_cursor ENABLE ROW LEVEL SECURITY;
+ALTER TABLE integration.sync_cursor FORCE ROW LEVEL SECURITY;
+CREATE POLICY sync_cursor_isolation ON integration.sync_cursor FOR ALL
+    USING (app.row_in_scope(tenant_id, outlet_id))
+    WITH CHECK (app.row_in_scope(tenant_id, outlet_id));
+
+-- ---------------------------------------------------------------------------
+-- 5. THE EVIDENCE LEDGER (FR-DAT-008C)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE integration.sync_evidence (
+    id        bigint PRIMARY KEY GENERATED BY DEFAULT AS IDENTITY,
+    tenant_id uuid NOT NULL,
+    outlet_id uuid NOT NULL,
+    node_id   uuid NOT NULL,
+
+    direction integration.sync_direction NOT NULL,
+    kind      integration.sync_event_kind NOT NULL,
+
+    -- Which event or message this is evidence about. No foreign key: evidence about a
+    -- refused duplicate names a message id that was deliberately never stored, and a key
+    -- would make the ledger unable to record the very thing it exists to record.
+    subject_ref uuid NOT NULL,
+    detail      text,
+
+    recorded_at timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT sync_evidence_tenant_fk FOREIGN KEY (tenant_id)
+        REFERENCES org.tenant (id) ON DELETE RESTRICT,
+    CONSTRAINT sync_evidence_outlet_fk FOREIGN KEY (tenant_id, outlet_id)
+        REFERENCES org.org_node (tenant_id, id) ON DELETE RESTRICT,
+    CONSTRAINT sync_evidence_node_fk FOREIGN KEY (tenant_id, node_id)
+        REFERENCES edge.node (tenant_id, id) ON DELETE RESTRICT
+);
+
+COMMENT ON TABLE integration.sync_evidence IS
+    'FR-DAT-008C. Append-only across replay and restart. Records what the synchronization '
+    'did, including the deliveries it REFUSED — which is why subject_ref carries no '
+    'foreign key: evidence about a duplicate names a message that was deliberately never '
+    'stored, and a key would stop the ledger recording the thing it exists for.';
+
+CREATE INDEX sync_evidence_subject_idx
+    ON integration.sync_evidence (tenant_id, subject_ref, recorded_at);
+
+CREATE TRIGGER sync_evidence_is_append_only
+    BEFORE UPDATE OR DELETE ON integration.sync_evidence
+    FOR EACH ROW EXECUTE FUNCTION app.refuse_financial_mutation();
+
+ALTER TABLE integration.sync_evidence ENABLE ROW LEVEL SECURITY;
+ALTER TABLE integration.sync_evidence FORCE ROW LEVEL SECURITY;
+CREATE POLICY sync_evidence_isolation ON integration.sync_evidence FOR ALL
+    USING (app.row_in_scope(tenant_id, outlet_id))
+    WITH CHECK (app.row_in_scope(tenant_id, outlet_id));
+
+-- ---------------------------------------------------------------------------
+-- 6. SYNCHRONIZATION STATE AND THE PROTOCOL PAUSE (FR-EDG-012, FR-EDG-009)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE integration.sync_state (
+    tenant_id uuid NOT NULL,
+    outlet_id uuid NOT NULL,
+    node_id   uuid NOT NULL,
+
+    connectivity edge.connectivity_state NOT NULL DEFAULT 'local_continuity',
+
+    -- FR-EDG-012. When a peer's protocol is out of range, synchronization pauses and
+    -- LOCAL SERVICE CONTINUES. The pause is a recorded state with a reason, not a crash:
+    -- a node that exits on an incompatible peer takes the outlet down to protect data
+    -- that was never in danger.
+    paused_reason text,
+    paused_at     timestamptz,
+
+    last_contact_at timestamptz,
+    updated_at      timestamptz NOT NULL DEFAULT now(),
+
+    CONSTRAINT sync_state_pkey PRIMARY KEY (node_id),
+    CONSTRAINT sync_state_tenant_id_unique UNIQUE (tenant_id, node_id),
+    CONSTRAINT sync_state_node_fk FOREIGN KEY (tenant_id, node_id)
+        REFERENCES edge.node (tenant_id, id) ON DELETE CASCADE,
+    CONSTRAINT sync_state_outlet_fk FOREIGN KEY (tenant_id, outlet_id)
+        REFERENCES org.org_node (tenant_id, id) ON DELETE RESTRICT,
+    CONSTRAINT sync_state_pause_is_explained CHECK (
+        (paused_at IS NULL) = (paused_reason IS NULL))
+);
+
+COMMENT ON TABLE integration.sync_state IS
+    'FR-EDG-012, FR-EDG-009. Whether this node is cloud-connected, running on local '
+    'continuity or reconciling, and whether synchronization is paused for an '
+    'incompatible peer. A pause is a state with a reason rather than a crash: a node that '
+    'exits on an incompatible peer takes the outlet down to protect data that was never '
+    'in danger.';
+
+ALTER TABLE integration.sync_state ENABLE ROW LEVEL SECURITY;
+ALTER TABLE integration.sync_state FORCE ROW LEVEL SECURITY;
+CREATE POLICY sync_state_isolation ON integration.sync_state FOR ALL
+    USING (app.row_in_scope(tenant_id, outlet_id))
+    WITH CHECK (app.row_in_scope(tenant_id, outlet_id));
+
+-- The two protocols M5a adds to the three already registered.
+INSERT INTO integration.protocol (protocol, current_version, minimum_supported_version, description)
+VALUES
+ ('sync.event', 1, 1,
+  'The event envelope the outlet and the cloud exchange: an id assigned at the outlet, '
+  'the time it happened, a per-node sequence and an optional named dependency.'),
+ ('node.api', 1, 1,
+  'The protocol the outlet continuity node serves its four screen families over on the '
+  'outlet network.');
+
+-- ---------------------------------------------------------------------------
+-- 7. ENQUEUE, CLAIM, ACKNOWLEDGE (FR-INT-003, FR-EDG-005)
+-- ---------------------------------------------------------------------------
+
+CREATE FUNCTION integration.enqueue_outbox(
+    p_tenant_id  uuid,
+    p_node_id    uuid,
+    p_subject    integration.sync_subject,
+    p_subject_id uuid,
+    p_event_kind text,
+    p_payload    jsonb,
+    p_occurred_at timestamptz DEFAULT now(),
+    p_depends_on_event_id uuid DEFAULT NULL)
+RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO 'pg_catalog', 'integration', 'edge', 'public'
+AS $$
+DECLARE
+    v_outlet uuid;
+    v_event  uuid;
+BEGIN
+    SELECT outlet_id INTO v_outlet FROM edge.node
+      WHERE tenant_id = p_tenant_id AND id = p_node_id AND status = 'active';
+    IF v_outlet IS NULL THEN
+        RAISE EXCEPTION 'NODE_UNKNOWN: no active node % for this tenant', p_node_id
+            USING ERRCODE = 'HS404';
+    END IF;
+
+    -- A DEPENDENCY MUST BE A REAL EVENT OF THE SAME NODE. Naming another node's event
+    -- would create an ordering constraint across two cursors that neither can satisfy.
+    IF p_depends_on_event_id IS NOT NULL THEN
+        PERFORM 1 FROM integration.outbox
+          WHERE tenant_id = p_tenant_id
+            AND event_id  = p_depends_on_event_id
+            AND node_id   = p_node_id;
+        IF NOT FOUND THEN
+            RAISE EXCEPTION
+                'OUTBOX_DEPENDENCY_UNKNOWN: event % is not an event of node %',
+                p_depends_on_event_id, p_node_id
+                USING ERRCODE = 'HS422';
+        END IF;
+    END IF;
+
+    INSERT INTO integration.outbox (
+        tenant_id, outlet_id, node_id, subject, subject_id, event_kind, payload,
+        occurred_at, depends_on_event_id)
+    VALUES (p_tenant_id, v_outlet, p_node_id, p_subject, p_subject_id, p_event_kind,
+            p_payload, p_occurred_at, p_depends_on_event_id)
+    RETURNING event_id INTO v_event;
+
+    INSERT INTO integration.sync_evidence (
+        tenant_id, outlet_id, node_id, direction, kind, subject_ref, detail)
+    VALUES (p_tenant_id, v_outlet, p_node_id, 'outlet_to_cloud', 'enqueued', v_event,
+            format('%s %s', p_subject, p_event_kind));
+
+    RETURN v_event;
+END;
+$$;
+
+COMMENT ON FUNCTION integration.enqueue_outbox(uuid, uuid, integration.sync_subject, uuid,
+                                               text, jsonb, timestamptz, uuid) IS
+    'FR-INT-003. Enqueues an event. Called INSIDE the transaction that performs the '
+    'business write, so an order that rolls back takes the announcement of it with it.';
+
+-- WHAT MAY TRAVEL NOW. Ordered by sequence, and a child whose parent has not been
+-- acknowledged is not returned — not sorted after it, not returned. Sorting would be
+-- enough only if the whole batch always succeeded.
+CREATE FUNCTION integration.claim_outbox_batch(
+    p_tenant_id uuid, p_node_id uuid, p_limit integer DEFAULT 100)
+RETURNS TABLE (
+    event_id    uuid,
+    sequence    bigint,
+    subject     integration.sync_subject,
+    subject_id  uuid,
+    event_kind  text,
+    payload     jsonb,
+    occurred_at timestamptz)
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO 'pg_catalog', 'integration', 'edge', 'public'
+AS $$
+DECLARE
+    v_outlet uuid;
+    v_paused text;
+BEGIN
+    SELECT n.outlet_id, s.paused_reason INTO v_outlet, v_paused
+      FROM edge.node n
+      LEFT JOIN integration.sync_state s ON s.node_id = n.id
+     WHERE n.tenant_id = p_tenant_id AND n.id = p_node_id AND n.status = 'active';
+    IF v_outlet IS NULL THEN
+        RAISE EXCEPTION 'NODE_UNKNOWN: no active node % for this tenant', p_node_id
+            USING ERRCODE = 'HS404';
+    END IF;
+
+    -- FR-EDG-012. A paused link hands out nothing, and says why rather than returning an
+    -- empty batch that looks like "nothing to send".
+    IF v_paused IS NOT NULL THEN
+        RAISE EXCEPTION
+            'SYNC_PAUSED: synchronization for node % is paused — %. Local service is '
+            'unaffected', p_node_id, v_paused
+            USING ERRCODE = 'HS409';
+    END IF;
+
+    RETURN QUERY
+    WITH claimable AS (
+        SELECT o.event_id
+          FROM integration.outbox o
+          LEFT JOIN integration.outbox parent
+                 ON parent.tenant_id = o.tenant_id
+                AND parent.event_id  = o.depends_on_event_id
+         WHERE o.tenant_id = p_tenant_id
+           AND o.node_id   = p_node_id
+           AND o.state     = 'pending'
+           -- PARENT BEFORE CHILD, as a refusal to hand out the child.
+           AND (o.depends_on_event_id IS NULL OR parent.state = 'acknowledged')
+         ORDER BY o.sequence
+         LIMIT p_limit
+    ), claimed AS (
+        UPDATE integration.outbox o
+           SET state = 'in_flight', claimed_at = now(), attempts = o.attempts + 1
+          FROM claimable c
+         WHERE o.event_id = c.event_id
+        RETURNING o.*
+    )
+    SELECT c.event_id, c.sequence, c.subject, c.subject_id, c.event_kind, c.payload,
+           c.occurred_at
+      FROM claimed c
+     ORDER BY c.sequence;
+END;
+$$;
+
+CREATE FUNCTION integration.acknowledge_outbox(
+    p_tenant_id uuid, p_node_id uuid, p_event_id uuid)
+RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO 'pg_catalog', 'integration', 'edge', 'public'
+AS $$
+DECLARE
+    o integration.outbox%ROWTYPE;
+BEGIN
+    SELECT * INTO o FROM integration.outbox
+      WHERE tenant_id = p_tenant_id AND event_id = p_event_id AND node_id = p_node_id;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'OUTBOX_EVENT_UNKNOWN: no event % for node %', p_event_id, p_node_id
+            USING ERRCODE = 'HS404';
+    END IF;
+
+    -- ACKNOWLEDGING TWICE IS NOT AN ERROR AND IS NOT A SECOND ACKNOWLEDGEMENT. A peer
+    -- that retries its acknowledgement after a dropped connection is behaving correctly.
+    IF o.state = 'acknowledged' THEN
+        INSERT INTO integration.sync_evidence (
+            tenant_id, outlet_id, node_id, direction, kind, subject_ref, detail)
+        VALUES (p_tenant_id, o.outlet_id, p_node_id, 'outlet_to_cloud',
+                'duplicate_refused', p_event_id,
+                'already acknowledged; the repeat changed nothing');
+        RETURN;
+    END IF;
+
+    UPDATE integration.outbox
+       SET state = 'acknowledged', acknowledged_at = now()
+     WHERE tenant_id = p_tenant_id AND event_id = p_event_id;
+
+    INSERT INTO integration.sync_cursor (
+        tenant_id, outlet_id, node_id, direction, acknowledged_through)
+    VALUES (p_tenant_id, o.outlet_id, p_node_id, 'outlet_to_cloud', o.sequence)
+    ON CONFLICT (node_id, direction) DO UPDATE
+       SET acknowledged_through = GREATEST(
+               integration.sync_cursor.acknowledged_through, EXCLUDED.acknowledged_through),
+           updated_at = now();
+
+    INSERT INTO integration.sync_evidence (
+        tenant_id, outlet_id, node_id, direction, kind, subject_ref, detail)
+    VALUES (p_tenant_id, o.outlet_id, p_node_id, 'outlet_to_cloud', 'acknowledged',
+            p_event_id, format('sequence %s', o.sequence));
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 8. ACCEPTING WHAT THE CLOUD SENDS (FR-INT-004)
+-- ---------------------------------------------------------------------------
+
+-- Returns true when this delivery was the first one and false when it was a repeat. Both
+-- are successes; the difference is reported rather than swallowed, because a caller that
+-- cannot tell them apart will apply the message twice to be safe.
+CREATE FUNCTION integration.accept_inbound(
+    p_tenant_id    uuid,
+    p_node_id      uuid,
+    p_message_id   uuid,
+    p_subject      integration.sync_subject,
+    p_message_kind text,
+    p_payload      jsonb,
+    p_issued_at    timestamptz)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO 'pg_catalog', 'integration', 'edge', 'public'
+AS $$
+DECLARE
+    v_outlet uuid;
+    v_first  boolean;
+BEGIN
+    SELECT outlet_id INTO v_outlet FROM edge.node
+      WHERE tenant_id = p_tenant_id AND id = p_node_id AND status = 'active';
+    IF v_outlet IS NULL THEN
+        RAISE EXCEPTION 'NODE_UNKNOWN: no active node % for this tenant', p_node_id
+            USING ERRCODE = 'HS404';
+    END IF;
+
+    INSERT INTO integration.inbox (
+        message_id, tenant_id, outlet_id, node_id, subject, message_kind, payload, issued_at)
+    VALUES (p_message_id, p_tenant_id, v_outlet, p_node_id, p_subject, p_message_kind,
+            p_payload, p_issued_at)
+    ON CONFLICT (message_id) DO UPDATE
+       SET arrivals = integration.inbox.arrivals + 1
+    RETURNING (xmax = 0) INTO v_first;
+
+    INSERT INTO integration.sync_evidence (
+        tenant_id, outlet_id, node_id, direction, kind, subject_ref, detail)
+    VALUES (p_tenant_id, v_outlet, p_node_id, 'cloud_to_outlet',
+            CASE WHEN v_first THEN 'enqueued'::integration.sync_event_kind
+                 ELSE 'duplicate_refused'::integration.sync_event_kind END,
+            p_message_id,
+            CASE WHEN v_first THEN format('%s %s', p_subject, p_message_kind)
+                 ELSE 'redelivered; the first application stands' END);
+
+    RETURN v_first;
+END;
+$$;
+
+COMMENT ON FUNCTION integration.accept_inbound(uuid, uuid, uuid, integration.sync_subject,
+                                               text, jsonb, timestamptz) IS
+    'FR-INT-004. True when this was the first delivery, false when it was a repeat. Both '
+    'are successes. A caller that cannot tell them apart will apply the message twice to '
+    'be safe, which is the failure this function exists to prevent.';
+
+-- ---------------------------------------------------------------------------
+-- 9. PROTOCOL COMPATIBILITY (FR-EDG-012)
+-- ---------------------------------------------------------------------------
+
+CREATE FUNCTION integration.check_peer_compatibility(
+    p_tenant_id uuid,
+    p_node_id   uuid,
+    p_protocol  text,
+    p_peer_version integer)
+RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO 'pg_catalog', 'integration', 'edge', 'public'
+AS $$
+DECLARE
+    p integration.protocol%ROWTYPE;
+    v_outlet uuid;
+    v_reason text;
+BEGIN
+    SELECT outlet_id INTO v_outlet FROM edge.node
+      WHERE tenant_id = p_tenant_id AND id = p_node_id AND status = 'active';
+    IF v_outlet IS NULL THEN
+        RAISE EXCEPTION 'NODE_UNKNOWN: no active node % for this tenant', p_node_id
+            USING ERRCODE = 'HS404';
+    END IF;
+
+    SELECT * INTO p FROM integration.protocol WHERE protocol = p_protocol;
+    IF NOT FOUND THEN
+        RAISE EXCEPTION
+            'PROTOCOL_UNKNOWN: % is not a protocol this build negotiates', p_protocol
+            USING ERRCODE = 'HS404';
+    END IF;
+
+    IF p_peer_version < p.minimum_supported_version THEN
+        v_reason := format('peer speaks %s v%s and the oldest this build understands is v%s',
+                           p_protocol, p_peer_version, p.minimum_supported_version);
+    ELSIF p_peer_version > p.current_version THEN
+        v_reason := format('peer speaks %s v%s and the newest this build understands is v%s',
+                           p_protocol, p_peer_version, p.current_version);
+    END IF;
+
+    INSERT INTO integration.sync_state (tenant_id, outlet_id, node_id, connectivity,
+                                        paused_reason, paused_at, last_contact_at)
+    VALUES (p_tenant_id, v_outlet, p_node_id,
+            CASE WHEN v_reason IS NULL THEN 'cloud_connected'::edge.connectivity_state
+                 ELSE 'local_continuity'::edge.connectivity_state END,
+            v_reason,
+            CASE WHEN v_reason IS NULL THEN NULL ELSE now() END,
+            now())
+    ON CONFLICT (node_id) DO UPDATE
+       SET connectivity = EXCLUDED.connectivity,
+           paused_reason = EXCLUDED.paused_reason,
+           paused_at     = EXCLUDED.paused_at,
+           last_contact_at = EXCLUDED.last_contact_at,
+           updated_at    = now();
+
+    INSERT INTO integration.sync_evidence (
+        tenant_id, outlet_id, node_id, direction, kind, subject_ref, detail)
+    VALUES (p_tenant_id, v_outlet, p_node_id, 'outlet_to_cloud',
+            CASE WHEN v_reason IS NULL THEN 'resumed'::integration.sync_event_kind
+                 ELSE 'paused_incompatible'::integration.sync_event_kind END,
+            p_node_id, COALESCE(v_reason, format('%s v%s accepted', p_protocol, p_peer_version)));
+
+    RETURN v_reason IS NULL;
+END;
+$$;
+
+COMMENT ON FUNCTION integration.check_peer_compatibility(uuid, uuid, text, integer) IS
+    'FR-EDG-012. Checks a peer''s protocol version and pauses synchronization when it is '
+    'out of range, leaving local service running. Returns whether the peer is compatible; '
+    'the pause and its reason are recorded so an operator is not left reading an empty '
+    'outbound batch and guessing.';
+
+-- ---------------------------------------------------------------------------
+-- 10. NO REPLICATION PATH FOR BUSINESS DATA (FR-EDG-005)
+-- ---------------------------------------------------------------------------
+
+-- FR-EDG-005's second sentence is a claim about what does NOT exist: "Direct database
+-- replication is not the business synchronization mechanism." A comment asserting that is
+-- not evidence. This asks the server, and names what it found.
+CREATE FUNCTION integration.business_replication_paths()
+RETURNS TABLE (publication text, relation text)
+LANGUAGE sql STABLE
+SET search_path TO 'pg_catalog', 'public'
+AS $$
+    SELECT p.pubname::text, (pt.schemaname || '.' || pt.tablename)::text
+      FROM pg_publication p
+      JOIN pg_publication_tables pt ON pt.pubname = p.pubname
+     WHERE pt.schemaname IN ('ordering','billing','payments','cash','service',
+                             'fulfillment','menu','docs','fiscal','pos','identity')
+     UNION ALL
+    -- A publication declared FOR ALL TABLES names no tables in pg_publication_tables
+    -- until they exist, and would carry every one of the schemas above the moment they
+    -- do. It is reported as what it is rather than missed on a technicality.
+    SELECT p.pubname::text, '(all tables)'::text
+      FROM pg_publication p WHERE p.puballtables
+     ORDER BY 1, 2;
+$$;
+
+COMMENT ON FUNCTION integration.business_replication_paths() IS
+    'FR-EDG-005. Every logical-replication publication covering business data, and every '
+    'FOR ALL TABLES publication whether or not it currently names one. The requirement is '
+    'that this returns nothing; a comment claiming so would not be evidence.';
+
+-- ---------------------------------------------------------------------------
+-- 11. GRANTS
+-- ---------------------------------------------------------------------------
+
+GRANT SELECT ON integration.outbox        TO hospitality_app;
+GRANT SELECT ON integration.inbox         TO hospitality_app;
+GRANT SELECT ON integration.sync_cursor   TO hospitality_app;
+GRANT SELECT ON integration.sync_evidence TO hospitality_app;
+GRANT SELECT ON integration.sync_state    TO hospitality_app;
+
+GRANT EXECUTE ON FUNCTION integration.enqueue_outbox(
+    uuid, uuid, integration.sync_subject, uuid, text, jsonb, timestamptz, uuid)
+    TO hospitality_app;
+GRANT EXECUTE ON FUNCTION integration.claim_outbox_batch(uuid, uuid, integer)
+    TO hospitality_app;
+GRANT EXECUTE ON FUNCTION integration.acknowledge_outbox(uuid, uuid, uuid)
+    TO hospitality_app;
+GRANT EXECUTE ON FUNCTION integration.accept_inbound(
+    uuid, uuid, uuid, integration.sync_subject, text, jsonb, timestamptz)
+    TO hospitality_app;
+GRANT EXECUTE ON FUNCTION integration.check_peer_compatibility(uuid, uuid, text, integer)
+    TO hospitality_app;
+GRANT EXECUTE ON FUNCTION integration.business_replication_paths() TO hospitality_app;

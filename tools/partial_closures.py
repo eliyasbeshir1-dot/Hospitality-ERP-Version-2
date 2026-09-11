@@ -145,7 +145,42 @@ def known_gates() -> set[str]:
         raise RegisterUnreadable(
             "requirements.json named no gates at all; a register that validated every "
             "completer against an empty set would validate nothing")
+
+    # AND THE MILESTONES THAT COME AFTER THE PINNED PACKAGE.
+    #
+    # The package specifies PHASE 1 and names M0 through M6. Every one has landed. Three
+    # partial closures terminate in something no gate of Phase 1 can produce — ink leaving
+    # a real printer — so there was nowhere unlanded for them to name, and closing them
+    # would have recorded an untested path as exercised.
+    #
+    # planning/post_phase_1_milestones.json declares those milestones. It is a FILE rather
+    # than a list in this module for the reason this module avoids lists: a hardcoded gate
+    # in the checker is a second source of truth the checker cannot see changing. It is
+    # also not edited into the package, because the package's sha256 is quoted in README.md
+    # and the architecture plan as the pin, and editing it would make both statements false
+    # while nothing checked.
+    #
+    # Absent, it contributes nothing. A repository with no post-Phase-1 milestone is a
+    # repository whose completers must all be package gates, which is where this started.
+    gates |= _declared_post_phase_1_gates()
     return gates
+
+
+def _declared_post_phase_1_gates() -> set[str]:
+    """Gates this repository declares beyond the pinned package. Optional by design."""
+    path = REPO / "planning" / "post_phase_1_milestones.json"
+    if not path.is_file():
+        return set()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        # LOUD RATHER THAN EMPTY. A file that exists and cannot be parsed is a declaration
+        # somebody made and this tool silently ignored, which is how a completer nobody
+        # agreed to would slip in.
+        raise RegisterUnreadable(
+            f"planning/post_phase_1_milestones.json exists and could not be parsed: "
+            f"{exc}") from exc
+    return {m["gate"] for m in payload.get("milestones", []) if m.get("gate")}
 
 
 def landed_gates(gates: set[str] | None = None) -> set[str]:
@@ -203,7 +238,33 @@ def gate_order() -> list[str]:
             f"{path.name} lists no milestone, so gate order cannot be derived. An order "
             f"derived from nothing would rank every completer equal and the "
             f"moved-later rule would never fire")
+
+    # AND THE POST-PHASE-1 MILESTONES, AFTER THE PACKAGE'S, in the order they declare.
+    #
+    # They come last by construction rather than by a rule about their names: a milestone
+    # that happens after Phase 1 is after every gate Phase 1 names, and appending is the
+    # only ordering that statement permits. Anything already in the package's list is not
+    # appended again — a declaration that repeated M6 would otherwise make M6 rank later
+    # than itself, and completer_rank() would start disagreeing with the package about
+    # what follows what, which is the exact drift this function was written to avoid.
+    for gate in _declared_post_phase_1_order():
+        if gate not in order:
+            order.append(gate)
     return order
+
+
+def _declared_post_phase_1_order() -> list[str]:
+    """The order this repository declares for milestones beyond the pinned package."""
+    declared = REPO / "planning" / "post_phase_1_milestones.json"
+    if not declared.is_file():
+        return []
+    try:
+        payload = json.loads(declared.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RegisterUnreadable(
+            f"planning/post_phase_1_milestones.json exists and could not be parsed: "
+            f"{exc}") from exc
+    return [m["gate"] for m in payload.get("milestones", []) if m.get("gate")]
 
 
 def completer_rank(completer: str) -> tuple[int, str]:

@@ -187,6 +187,31 @@ body {
 .allergen-glyph { flex: none; }
 .allergen-text { min-inline-size: 0; }
 
+/*
+ * OP-D. What the dish IS (FR-MNU-004), between the name and the allergens.
+ *
+ * Quieter than the name, not smaller than readable: --ink-quiet at full body size rather
+ * than black at 0.8rem, because the ingredient line is the one a guest avoiding a food
+ * reads and shrinking it is the opposite of what that requires. Nothing here is truncated
+ * and nothing is behind a control — menu.translatable_field marks
+ * customer_visible_ingredients safety-critical, and a safety-critical string with an
+ * ellipsis in it is a string somebody did not finish reading.
+ */
+.item-description {
+  margin: 0.25rem 0 0;
+  color: var(--ink-quiet);
+}
+
+.item-facts {
+  margin: 0.25rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  color: var(--ink-quiet);
+}
+
+.item-facts .item-prep { font-variant-numeric: tabular-nums; }
+
 .add {
   font: inherit;
   min-block-size: 44px;
@@ -206,6 +231,30 @@ body {
   flex-wrap: wrap;
   padding-block: var(--space-2);
   border-block-end: 1px solid var(--edge);
+}
+
+/*
+ * OP-C. Taking a line back out.
+ *
+ * Deliberately QUIETER than .add: outlined rather than filled, and in the ordinary ink
+ * rather than the accent. Adding is what the guest came to do and removing is the repair,
+ * so the two should not compete for the same tap — but it carries the SAME 44px floor,
+ * because a control small enough to be safe from a mis-tap is also small enough to be
+ * unusable on purpose.
+ *
+ * No colour carries the meaning. The word is the signal (FR-UX-005), which is why there
+ * is no red here and no icon standing in for one.
+ */
+.cart-line-remove {
+  font: inherit;
+  min-block-size: 44px;
+  min-inline-size: 44px;
+  padding-inline: var(--space-3);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  background: var(--ground-raised);
+  color: var(--ink);
+  cursor: pointer;
 }
 
 .empty { color: var(--ink-quiet); }

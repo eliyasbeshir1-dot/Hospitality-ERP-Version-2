@@ -56,8 +56,8 @@ Counted from `active_requirements` in the pinned package, by `introduced_at`.
 
 ## The migrations this repository has
 
-32 of them, `0001_organizational_model_and_rls.sql` through `0032_the_null_sink_cannot_claim_paper.sql`, across
-20 domains. The owning domain of each is read out of its own SQL — the
+66 of them, `0001_organizational_model_and_rls.sql` through `0066_a_pilot_has_a_checklist_an_owner_and_a_way_back.sql`, across
+22 domains. The owning domain of each is read out of its own SQL — the
 schemas it creates and the schemas it creates tables in — and the gate from the header
 comment every migration in this repository carries.
 
@@ -95,6 +95,40 @@ comment every migration in this repository carries.
 | `0030_receipt_composition_preview_and_the_counter_terminal.sql` | pos | config · docs · ordering | M4-C |
 | `0031_a_null_device_is_not_a_printer.sql` | — | docs | M4-C |
 | `0032_the_null_sink_cannot_claim_paper.sql` | — | docs | M4-C |
+| `0033_a_chosen_secret_must_be_key_stretched.sql` | — | identity | M1-B |
+| `0034_a_printer_test_records_what_the_agent_did.sql` | — | docs | M4-C |
+| `0035_a_table_can_be_seated.sql` | — | service · pos | M2-B |
+| `0036_seating_is_an_action_and_actions_are_graded.sql` | — | pos | M3-D |
+| `0037_a_menu_says_what_a_dish_is_and_an_order_can_be_admitted.sql` | — | menu · pos | M2-A |
+| `0038_a_successful_login_is_not_a_failed_one.sql` | — | identity | M1-B |
+| `0039_an_outlet_has_a_node_and_the_node_has_an_identity.sql` | edge | — | M5a |
+| `0040_an_outlet_knows_what_hardware_it_has.sql` | ops | — | M5a |
+| `0041_an_outlet_can_speak_to_the_cloud_without_losing_anything.sql` | integration | — | M5a |
+| `0042_an_append_only_table_says_why_it_is_one.sql` | — | app | M4-C |
+| `0043_a_disagreement_is_shown_to_somebody_rather_than_settled_quietly.sql` | integration | app | M5a |
+| `0044_a_receipt_asked_for_is_printed_exactly_once.sql` | docs | app | M5a |
+| `0045_what_the_node_holds_what_it_may_do_alone_and_what_it_says.sql` | edge | — | M5a |
+| `0046_a_node_at_the_wrong_outlet_is_told_so.sql` | — | edge | M5a |
+| `0047_the_room_is_told_which_way_the_outlet_is_running.sql` | — | edge | M5a |
+| `0048_an_update_is_checked_before_it_lands_and_leaves_the_queues_alone.sql` | edge | — | M5a |
+| `0049_the_cloud_and_the_outlet_each_prove_the_other_is_there.sql` | edge | app | M5b |
+| `0050_only_one_writer_and_the_old_one_is_fenced_before_the_new_one_starts.sql` | edge | app | M5b |
+| `0051_a_standby_may_exist_because_authority_now_says_who_writes.sql` | — | edge | M5b |
+| `0052_replacing_the_writer_is_a_governed_action.sql` | — | identity · edge | M1-B |
+| `0053_one_hostname_per_outlet_a_key_that_never_leaves_and_four_things_that_may_not_exist.sql` | edge | — | M5b |
+| `0054_the_four_ways_a_real_phone_resolves_a_name_and_what_each_one_is_told.sql` | edge | — | M5b |
+| `0055_a_certificate_is_requested_by_an_action_not_written_as_configuration.sql` | — | edge | M5b |
+| `0056_the_bypass_check_was_never_actually_checking.sql` | — | edge | M5b |
+| `0057_a_session_that_started_on_cellular_is_answerable_in_the_dining_room.sql` | edge | — | M5b |
+| `0058_the_continuity_apply_named_a_type_that_does_not_exist.sql` | — | edge | M5b |
+| `0059_a_revoked_session_is_refused_at_the_node_not_merely_left_out_at_the_cloud.sql` | — | edge | M5b |
+| `0060_a_notice_may_be_about_a_node.sql` | — | ordering | M3-C |
+| `0061_the_edge_finally_tells_somebody.sql` | — | notify · edge | M5b |
+| `0062_a_notice_about_a_node_needs_words_for_what_a_node_has.sql` | — | notify · edge | M3-C |
+| `0063_a_node_is_not_an_ordering_artifact_and_the_rebuild_rule_says_so.sql` | — | ordering | M3-D |
+| `0064_a_backup_is_a_thing_that_happened_on_a_schedule_and_was_verified.sql` | ops | — | M6-B |
+| `0065_an_export_is_a_governed_action_and_somebody_finally_asks.sql` | report | — | M6-D |
+| `0066_a_pilot_has_a_checklist_an_owner_and_a_way_back.sql` | ops | — | M6-E |
 
 ---
 
@@ -106,6 +140,7 @@ comment every migration in this repository carries.
 - **`cash`** — drawer shifts, movements, counts, custody and exceptions
 - **`config`** — policies, configuration versions, numbering and retention
 - **`docs`** — documents somebody outside this system reads: receipts, their revisions and reprints, the registered printers and what was put on paper
+- **`edge`** — the outlet continuity node: its deployment profile, its binding to one outlet, its five services, its identity and its health
 - **`fiscal`** — the fiscal-document port: a request against a receipt, its lifecycle and its reconciliation status, with no provider's schema inside it
 - **`fulfillment`** — routing, station tickets and the fulfillment state machine
 - **`identity`** — users, roles, memberships, sessions and step-up
@@ -113,6 +148,7 @@ comment every migration in this repository carries.
 - **`menu`** — items, variants, modifiers, prices, dayparts and translation
 - **`money`** — exact amounts, rates, rounding and allocation
 - **`notify`** — notification templates, deliveries and status wording
+- **`ops`** — the outlet's physical estate — the node, routers, access points, terminals, KDS devices and printers — with location and support owner
 - **`ordering`** — the order aggregate, its ledger and its projections
 - **`org`** — tenants, outlets, the node tree and device registration
 - **`payments`** — adapters and the live/simulated boundary, intents, capture, verification, dual allocation and reversal

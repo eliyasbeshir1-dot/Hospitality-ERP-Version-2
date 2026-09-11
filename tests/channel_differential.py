@@ -84,6 +84,28 @@ def strip_comments(source: str) -> str:
     return re.sub(r"(?m)^\s*//.*$", " ", source)
 
 
+# EVERY VERB, AND THE REASON THIS IS NOT `get|post`.
+#
+# A handler block ends at the NEXT registration, so a verb this pattern does not know is a
+# registration that does not end the block — and the handler then swallows the one after
+# it. OP-C added the first DELETE route this repository has ever had, immediately after
+# POST /c/v1/cart/lines, and the block for "a priced cart line" quietly grew to include it:
+# the guest channel appeared to name service.remove_cart_line() as part of pricing a line,
+# the staff channel did not, and this instrument reported a divergent order path that did
+# not exist.
+#
+# It reported it CONFIDENTLY, which is the part worth recording. The message says "there is
+# no second implementation for the two to agree about" — a claim about the code — while the
+# real difference was in the reader.
+#
+# THE VERBS ARE STATED ONCE, HERE. route_paths() below used to carry its own copy of the
+# list and the two disagreed twice over: this one knew get and post, that one knew get,
+# post, patch and delete, and NEITHER knew put — which customer.ts has registered
+# /c/v1/locale with since M2-C. Three readers of one fact in two files. Both now read this.
+_VERBS = "get|post|put|patch|delete"
+_REGISTRATION = re.compile(rf"app\.(?:{_VERBS})\s*[<(]")
+
+
 def handler_block(source: str, path: str) -> str:
     """The source of one route handler: from its path literal to the next registration."""
     marker = f"'{path}'"
@@ -92,8 +114,7 @@ def handler_block(source: str, path: str) -> str:
             f"no route registered at {path}; the comparison would otherwise pass by "
             f"having nothing to compare")
     start = source.index(marker)
-    following = [m.start() for m in re.finditer(r"app\.(get|post)[<(]", source)
-                 if m.start() > start]
+    following = [m.start() for m in _REGISTRATION.finditer(source) if m.start() > start]
     return source[start:following[0] if following else len(source)]
 
 
@@ -104,7 +125,7 @@ def named_rules(block: str, universe: set[str]) -> list[str]:
 
 def route_paths(source: str) -> list[str]:
     """Every path this file registers a route at, in registration order."""
-    return re.findall(r"app\.(?:get|post|patch|delete)\s*(?:<[^>]*>)?\s*\(\s*'([^']+)'",
+    return re.findall(rf"app\.(?:{_VERBS})\s*(?:<[^>]*>)?\s*\(\s*'([^']+)'",
                       source, flags=re.S)
 
 

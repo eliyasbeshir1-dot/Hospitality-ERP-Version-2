@@ -85,7 +85,7 @@ END;
 $$;
 SQL
 
-psql "$M1A_ADMIN_DSN" -v ON_ERROR_STOP=1 -q -f "$REPO/tools/bootstrap_database.sql"
+psql "$M1A_ADMIN_DSN" -v ON_ERROR_STOP=1 -q -v db_name="$DB" \n  -f "$REPO/tools/bootstrap_database.sql"
 psql "$M1A_ADMIN_DSN" -v ON_ERROR_STOP=1 -q \
   -c "GRANT CONNECT ON DATABASE $DB TO hospitality_bypassrls;"
 echo "database recreated; roles provisioned"

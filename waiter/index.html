@@ -7,12 +7,40 @@
 <link rel="stylesheet" href="/app/waiter.css">
 </head>
 <body>
+<div id="continuity-banner" hidden></div>
+<script src="/app/continuity.js" type="module"></script>
 <a class="skip" href="#next">Skip to what needs doing</a>
 <header>
   <h1>Floor</h1>
   <button id="accessibility" type="button" aria-pressed="false">Accessibility mode</button>
 </header>
+<!--
+  THE WAY IN (F-OPB-12).
+
+  OP-B gave this surface a network layer and no way to reach it: waiter.ts exported
+  signIn() and rendered nothing, so with no session the screen was blank and the only way
+  in was the browser console. The station board and the till each rendered a form; this
+  one did not, and it shipped that way.
+
+  Its own section rather than a form drawn into #next, because M3-B and M3-D measure this
+  page with no service behind it by calling render() directly — and render() replaces the
+  contents of #next. A sign-in form living there would be wiped by the first measurement
+  and present in none of them, which is the same "exists but is never reached" defect one
+  layer further in.
+-->
+<p id="notice" role="status" hidden></p>
+<section id="sign-in-panel" aria-label="Sign in"></section>
 <main id="next" tabindex="-1" aria-label="What needs doing next"></main>
+<!--
+  Orders waiting to be admitted to the kitchen (FR-ORD-004).
+
+  ABOVE the tables, because FR-POS-002 makes the order of this screen the priority and a
+  guest whose food has not started outranks a table that merely exists. Hidden by default
+  and drawn only when the list is non-empty: where the outlet accepts guest_qr orders
+  automatically it is permanently empty, and a permanent empty heading is one a waiter
+  learns to stop reading.
+-->
+<section id="pending-orders" aria-label="Orders waiting to be confirmed" hidden></section>
 <section id="tables" aria-label="Tables"></section>
 <section id="notifications" aria-label="Notifications"></section>
 <section id="search-panel" aria-label="Find an item">
