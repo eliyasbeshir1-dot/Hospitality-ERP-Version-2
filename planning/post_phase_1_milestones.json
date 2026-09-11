@@ -1,0 +1,24 @@
+{
+ "purpose": "Milestones that exist AFTER the pinned Phase 1 package, declared by this repository rather than by the package.",
+ "why_this_file_exists": [
+  "tools/partial_closures.py derives every gate name from the pinned requirements package, and that is right: a completing gate a requirement does not name is a completer nobody agreed to. But the package specifies PHASE 1, and it names M0 through M6. Every one of them has landed.",
+  "Three partial closures terminate in something no gate of Phase 1 can produce: ink leaving a real printer. FR-FUL-008 (allergy salience surviving physical printing), FR-FUL-014 (physical printing and deduplication) and FR-BIL-017 (paper out of a physical machine) are one hardware dependency wearing three faces. Everything up to the last inch is built and proved; the paper is not a thing this repository can observe.",
+  "They could not be closed honestly — this register's own FR-INT-007 entry refused to close on 'a transport now exists' because that would record an untested path as exercised — and they could not be moved, because there was nowhere unlanded to move them to.",
+  "So the milestone is declared HERE rather than edited into the package. Two reasons. The package's sha256 is quoted in README.md and planning/ARCHITECTURE_CONFORMANCE_PLAN.md as the pin; editing the package would make both statements false while nothing checked. And a pilot that happens after Phase 1 is not part of the Phase 1 specification — it is a fact about how this repository intends to finish, which is exactly what planning/ holds.",
+  "It is a FILE rather than a list inside tools/partial_closures.py for the reason that tool avoids lists: a hardcoded gate in the checker is a second source of truth the checker cannot see changing. A declaration here is derived from, reviewable on its own, and visible in a diff."
+ ],
+ "how_a_milestone_here_closes": [
+  "It cannot land from this repository. landed_gates() reads tests/ and matches m<digit><letter>, so no directory name can make PILOT landed, and that is deliberate rather than an oversight: a milestone whose evidence is a physical act should not be closable by adding a test file.",
+  "An entry naming PILOT closes when somebody runs the thing on real hardware and records what they observed in closed_by_evidence, naming the machine and what came out of it."
+ ],
+ "milestones": [
+  {
+   "gate": "PILOT",
+   "name": "Pilot on real hardware",
+   "purpose": "Verify the aspects of Phase 1 whose evidence is physical: paper leaving a printer, and anything else no build can observe.",
+   "depends_on": ["M6"],
+   "exit_criterion": "A receipt and a station ticket come out of a supported production printer at a real outlet, legible, with allergy emphasis intact and no duplicate on retry across a restart.",
+   "aspects_waiting_here": ["FR-FUL-008", "FR-FUL-014", "FR-BIL-017"]
+  }
+ ]
+}

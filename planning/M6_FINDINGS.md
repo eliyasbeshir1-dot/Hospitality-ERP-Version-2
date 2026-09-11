@@ -8,8 +8,8 @@ question a founder asks before letting a guest in.
 Three migrations (0064–0066), four seeds (0018, 0020, 0021), eleven runbooks, three tools,
 five suites, 132 checks and eighteen negative controls.
 
-**M6 IS NOT CLOSED.** Four partial closures are open and I declined to close them. See
-F-M6-9, which is the finding that matters most in this document.
+**Three partial closures remain open, all at `PILOT`**, which cannot land from this
+repository. They are the aspects whose evidence is ink on paper. See F-M6-9.
 
 ---
 
@@ -165,52 +165,85 @@ wrong reason.
 
 ---
 
-## F-M6-9 · Four partial closures I declined to close, and why that blocks the gate
+## F-M6-9 · Four partial closures, and what was done with each
 
-**This is the finding that matters.** Four entries name M6-E as their completing gate, M6-E
-has landed, and `PARTIAL_CLOSURE_NOT_REVISITED` fired for all four.
+Four entries named M6-E, it landed, and `PARTIAL_CLOSURE_NOT_REVISITED` fired for all four.
+I declined to close any of them on the mechanism being complete, and put three options to
+the founder. **Both were ruled on: build FR-TST-005A, and move the printer entries to a
+pilot milestone.** What follows is what that took.
 
-**Three of them are one hardware dependency wearing three faces.** FR-FUL-008 (allergy
-salience surviving physical printing), FR-FUL-014 (physical printing and dedup) and
-FR-BIL-017 (paper out of a physical machine) all terminate in the same thing: **ink leaving
-a real printer.** Everything up to the last inch is built and proved — the durable queue,
-the lease, the retry, exactly-once delivery, 576-dot rasterisation, allergy lines first and
-in words. There is no printer on this machine.
+### FR-TST-005A — built, and closed at M6-E
 
-**FR-TST-005A needs no hardware and is simply not built.** It asks for the five settlement
-journeys at the BROWSER tier rather than through the HTTP calls a screen would issue. GJ-10
-walks the till in a browser for its first settlement, which is more than the service tier
-and still not five journeys.
+The entry's stated blocker was *"there is no cashier settlement surface... no button reaches
+these routes and no browser test can be written against one."* That was true when written
+and **OP-B removed it without the entry being updated.** By M6-E the till already had Take
+cash, Card on the terminal, and Telebirr and CBE Birr proof buttons, and the journey probe
+already drove `.pay-cash`, `.pay-terminal` and `.pay-proof`.
 
-I could close all four with evidence saying the mechanism is complete. **I did not.** This
-register's own FR-INT-007 entry refused to close on *"a transport now exists"* because that
-would "record an untested path as exercised", and three aspects terminating in ink on paper
-are the same case.
+Three of the five were still passing `method="none"` — walking the cashier's VIEW and
+stopping — so the half a person touches was measured while the money was still taken by the
+suite issuing the calls a screen would issue.
 
-There is also nowhere to move them. The requirements register knows `M0` through `M6` and
-every one has landed. `tools/partial_closures.py` permits exactly two states, and its own
-header records that somebody already tried inventing a third to silence it.
+**The part that was not a parameter flip was GJ-02B.** That journey proves an unverified
+proof settles nothing, and the till cannot demonstrate it: its Telebirr button raises,
+attests and captures in one act, so its flow offers an unverified proof **no moment at
+which to be presented**. That is a virtue of the screen rather than a gap in it. So the
+rule keeps its service-tier proof, on its own proof object, and runs BEFORE the till; the
+money is then taken by pressing a button. Ordered the other way the till would have closed
+the bill and the refusal would have been for the wrong reason.
 
-**The consequence, stated plainly:** the register fails, so `tests/m3b` fails, so the chain
-cannot go green. The README generator also consults the register, so its gate line is stuck
-at M6-D and `tests/m1a` fails too. Nothing downstream can be green until this is ruled on.
+**GJ-06's second payer is deliberately left at the service tier.** What that journey
+uniquely proves is that two payments settle two shares INDEPENDENTLY. Driving both through
+the same screen in the same run would make the second payment's independence a property of
+the till's state handling rather than of the allocation rules under test. One of each proves
+both claims: a cashier can do it, and the rules hold whoever does it.
 
-That is the true state of the gate. It is a scope ruling rather than an engineering step,
-and it belongs to the founder.
+All five report browser tier — derived from the journey body calling `walk()`, never
+declared — and `PASS GOLDEN_JOURNEY_VERIFICATION` across 13 journeys.
 
-**The options, as I see them:**
+### FR-FUL-008, FR-FUL-014, FR-BIL-017 — moved to PILOT
 
-1. **Accept the residual and close all four**, with evidence naming exactly what is
-   unverified. Fastest; records an untested path as exercised, which this project has
-   refused before.
-2. **Build FR-TST-005A** (five browser settlement journeys — real work, no hardware) and
-   close that one; leave the three printer entries open until a pilot with hardware.
-3. **Extend the requirements register with a pilot milestone after M6** and move the three
-   there. Cleanest conceptually; edits the requirements package, which is the source of
-   truth I have not touched.
+One hardware dependency wearing three faces: **ink leaving a real printer.** Everything up
+to the last inch is built and proved — the durable queue, the lease, the retry,
+exactly-once delivery across a restart, 576-dot rasterisation, allergy lines first and in
+words.
 
-My recommendation is **2 for FR-TST-005A and 3 for the three printer entries**, because it
-is the only combination where nothing is recorded as proved that was not.
+`PILOT` is declared in `planning/post_phase_1_milestones.json` rather than edited into the
+pinned package, for a reason found while doing it: **the package's sha256 is quoted in
+README.md and this directory's architecture plan as the pin, and nothing verifies it.**
+Editing the package would have made both statements false while no check noticed. And a
+pilot that happens after Phase 1 is not part of the Phase 1 specification — it is a fact
+about how this repository intends to finish, which is what `planning/` holds.
+
+It is a file rather than a list inside `tools/partial_closures.py` for that tool's own
+stated reason: a hardcoded gate in the checker is a second source of truth the checker
+cannot see changing.
+
+**`PILOT` cannot land from this repository.** `landed_gates()` reads `tests/` and matches
+`m<digit><letter>`, so no directory name makes it landed. That is deliberate: a milestone
+whose evidence is a physical act should not become closable by adding a test file. It
+closes when somebody runs it on hardware and records what came out of the machine.
+
+Extending `known_gates()` was not enough — `gate_order()` derives independently from the
+manifest's milestone list, so it needed the same treatment, appending after the package's
+gates because "after Phase 1" is after every gate Phase 1 names.
+
+---
+
+## F-M6-10 · The pinned package's sha256 is asserted and never checked
+
+Found while deciding whether to edit the package. `PACKAGE_SHA` is a hardcoded constant in
+`tools/generate_readme.py` and `tools/generate_architecture_plan.py`, and it is printed in
+both documents as **the pin**. Nothing computes it from the package files and compares.
+
+So the pin is a claim rather than a lock: anybody could edit the package and both documents
+would keep asserting the old digest. It is not exploited here — the package is untouched,
+which is why `PILOT` lives in `planning/` — but a pin that cannot detect a change is not
+doing the job its name claims.
+
+**Not fixed in this gate, deliberately.** Computing it would either confirm the existing
+value or reveal it is already wrong, and the second outcome needs a decision about which
+package is authoritative rather than a quiet edit to make a check pass. Recorded as work.
 
 ---
 
@@ -284,4 +317,5 @@ recorded before the bytes leave and immutable afterwards.
 alert, and a cutover that cannot go live unaudited or be reviewed by the person who
 performed it.
 
-Four partial closures remain open and M6 is not closed.
+FR-TST-005A closed at M6-E. Three remain open at PILOT, where a real printer
+is what closes them.

@@ -263,15 +263,15 @@
    "requirement": "FR-FUL-008",
    "aspect": "salience on real paper",
    "opened_at": "M3-B",
-   "completing_gate": "M6-E",
+   "completing_gate": "PILOT",
    "state": "open",
    "completed_by": "FR-CFG-001E",
    "why": "Allergy emphasis is measured non-colour-only on the KDS and expo surfaces, and the generated station ticket document carries its allergy lines first and in words. That the salience survives PHYSICAL printing needs the print path, which is M5a; this gate proves the document, not the paper.",
    "completer_moved": {
-    "from": "M6",
-    "to": "M6-E",
-    "at": "M6-A",
-    "why": "Refined from the bare gate M6 to the slice that genuinely completes it. M6-E is where pilot hardware is exercised, and this aspect terminates in a PHYSICAL PRINTER — ink leaving a real machine onto real paper. No earlier M6 slice touches one: M6-A builds the artifact, M6-B backs the estate up, M6-C destroys and restores it, M6-D is reporting and exports. Naming a bare gate made this come due on tests/m6a, which is the register working — an entry that names a gate comes due on that gate's FIRST slice, and this one was never about the first slice."
+    "from": "M6-E",
+    "to": "PILOT",
+    "at": "M6-E",
+    "why": "Refined from M6-E to PILOT, which is declared in planning/post_phase_1_milestones.json rather than in the pinned package. This aspect terminates in a PHYSICAL ACT — ink leaving a real printer onto real paper — and no gate of Phase 1 can produce one. M6-E built and proved everything up to the last inch: the durable queue, the lease that expires, the retry, exactly-once delivery across a restart, 576-dot rasterisation, and allergy lines first and in words. IT WAS NOT CLOSED INSTEAD, and that was the decision. This register's own FR-INT-007 entry refused to close on 'a transport now exists' because that would record an untested path as exercised, and an aspect ending in ink on paper is the same case. PILOT cannot land from this repository: landed_gates() reads tests/ and matches m<digit><letter>, so no directory name makes it landed. That is deliberate — a milestone whose evidence is a physical act should not become closable by adding a test file. It closes when somebody runs it on real hardware and records what came out of the machine."
    }
   },
   {
@@ -307,15 +307,15 @@
    "requirement": "FR-FUL-014",
    "aspect": "physical printing and dedup across restart",
    "opened_at": "M3-B",
-   "completing_gate": "M6-E",
+   "completing_gate": "PILOT",
    "state": "open",
    "completed_by": "FR-CFG-001E",
    "why": "Station ticket documents are generated and deduplicated by a unique key on (ticket, revision), where the revision ignores document generation itself. Physical printing, print-agent delivery and deduplication across a restart are the local print path, which is M5a.",
    "completer_moved": {
-    "from": "M6",
-    "to": "M6-E",
-    "at": "M6-A",
-    "why": "Refined from the bare gate M6 to the slice that genuinely completes it. M6-E is where pilot hardware is exercised, and this aspect terminates in a PHYSICAL PRINTER — ink leaving a real machine onto real paper. No earlier M6 slice touches one: M6-A builds the artifact, M6-B backs the estate up, M6-C destroys and restores it, M6-D is reporting and exports. Naming a bare gate made this come due on tests/m6a, which is the register working — an entry that names a gate comes due on that gate's FIRST slice, and this one was never about the first slice."
+    "from": "M6-E",
+    "to": "PILOT",
+    "at": "M6-E",
+    "why": "Refined from M6-E to PILOT, which is declared in planning/post_phase_1_milestones.json rather than in the pinned package. This aspect terminates in a PHYSICAL ACT — ink leaving a real printer onto real paper — and no gate of Phase 1 can produce one. M6-E built and proved everything up to the last inch: the durable queue, the lease that expires, the retry, exactly-once delivery across a restart, 576-dot rasterisation, and allergy lines first and in words. IT WAS NOT CLOSED INSTEAD, and that was the decision. This register's own FR-INT-007 entry refused to close on 'a transport now exists' because that would record an untested path as exercised, and an aspect ending in ink on paper is the same case. PILOT cannot land from this repository: landed_gates() reads tests/ and matches m<digit><letter>, so no directory name makes it landed. That is deliberate — a milestone whose evidence is a physical act should not become closable by adding a test file. It closes when somebody runs it on real hardware and records what came out of the machine."
    }
   },
   {
@@ -640,15 +640,15 @@
    "requirement": "FR-BIL-017",
    "aspect": "paper out of a physical machine",
    "opened_at": "M4-C",
-   "completing_gate": "M6-E",
+   "completing_gate": "PILOT",
    "state": "open",
    "completed_by": "FR-CFG-001E",
    "why": "FR-BIL-017 asks that a completed settlement produces a real physical customer receipt through a supported minimum production printer path, and M4-C built all of that path except its last inch. The receipt is composed from the bill's own figures in the bill's own locale, rasterised at 576 dots by the printer path's own rendering engine, checked per glyph against the font this repository ships, encoded into ESC/POS and written to a sink that refuses anything which is not a character device. One settlement produces one original print, refused twice over by a partial unique index and by a trigger. WHAT IS NOT PROVED is that a physical machine took those bytes and produced legible paper: no printer exists in the build container or on either CI runner and no pilot device has been chosen, so the command set is the published generic one and no vendor's extension. This is recorded here rather than in a footnote because it is the difference between a path and an artifact, and planning/M4C_LIMITATIONS.md states it against the commit it was true at. It closes at M5a, which is the first gate that has hardware — and if M5a selects a different rasteriser, NC-M4-005 must be run against that engine, because glyph coverage is a property of the rasteriser and of the font together and does not transfer.",
    "completer_moved": {
-    "from": "M6",
-    "to": "M6-E",
-    "at": "M6-A",
-    "why": "Refined from the bare gate M6 to the slice that genuinely completes it. M6-E is where pilot hardware is exercised, and this aspect terminates in a PHYSICAL PRINTER — ink leaving a real machine onto real paper. No earlier M6 slice touches one: M6-A builds the artifact, M6-B backs the estate up, M6-C destroys and restores it, M6-D is reporting and exports. Naming a bare gate made this come due on tests/m6a, which is the register working — an entry that names a gate comes due on that gate's FIRST slice, and this one was never about the first slice."
+    "from": "M6-E",
+    "to": "PILOT",
+    "at": "M6-E",
+    "why": "Refined from M6-E to PILOT, which is declared in planning/post_phase_1_milestones.json rather than in the pinned package. This aspect terminates in a PHYSICAL ACT — ink leaving a real printer onto real paper — and no gate of Phase 1 can produce one. M6-E built and proved everything up to the last inch: the durable queue, the lease that expires, the retry, exactly-once delivery across a restart, 576-dot rasterisation, and allergy lines first and in words. IT WAS NOT CLOSED INSTEAD, and that was the decision. This register's own FR-INT-007 entry refused to close on 'a transport now exists' because that would record an untested path as exercised, and an aspect ending in ink on paper is the same case. PILOT cannot land from this repository: landed_gates() reads tests/ and matches m<digit><letter>, so no directory name makes it landed. That is deliberate — a milestone whose evidence is a physical act should not become closable by adding a test file. It closes when somebody runs it on real hardware and records what came out of the machine."
    }
   },
   {
@@ -656,7 +656,7 @@
    "aspect": "settlement proved at the service tier, not the browser tier",
    "opened_at": "M4-C",
    "completing_gate": "M6-E",
-   "state": "open",
+   "state": "closed",
    "completed_by": "FR-POS-002",
    "why": "The five settlement journeys are driven by the HTTP calls a cashier's screen would issue, against the running service: checks, allocations, splits, bills, the guest's tip through the guest's own credential, payment intents, cash, terminal results, proofs, receipts, revisions, overrides and reversals. That proves each route exists, is registered, authorises its caller and returns what the caller needs — the thing M4-A shipped without, and the reason the first HTTP call ever made to POST /s/v1/checks failed on two production defects. What it does NOT prove is that a person can reach any of it: there is no cashier settlement surface. waiter/src contains no bill, payment, receipt or tip affordance of any kind, so no button reaches these routes and no browser test can be written against one. DISTINCT FROM THE TWO PRINTING-ADJACENT ENTRIES, deliberately, because all three would otherwise be closed together by whichever gate arrived first: FR-BIL-017's open half is PAPER out of a physical machine, M5a's resilient print queue is DURABILITY of a print across restart and outage, and this one is a SCREEN a cashier can touch. A gate could deliver any one and leave the other two exactly as absent.",
    "completer_moved": {
@@ -664,7 +664,9 @@
     "to": "M6-E",
     "at": "M6-A",
     "why": "Refined from the bare gate M6 to the slice that completes it. The aspect asks for the FIVE settlement journeys at the BROWSER tier rather than through the HTTP calls a screen would issue, and M6-E is where the floor is walked as a person walks it. It is deliberately not M6-A: that slice proves the artifact executes, which is FR-TST-018's 'against built artifacts' and a different claim from FR-TST-005A's 'at the browser tier'."
-   }
+   },
+   "closed_at": "M6-E",
+   "closed_by_evidence": "All five settlement journeys now TAKE THE MONEY through the till in a browser, and that is the change: GJ-01B cash, GJ-02B a Telebirr proof raised-attested-captured on the screen, GJ-03B a card on the terminal, GJ-06's first payer, GJ-07 cash. Every one reports browser tier, derived from the journey's own body calling walk() rather than declared. Verified end to end: PASS GOLDEN_JOURNEY_VERIFICATION, 13 journeys, the five settlement ones at 10, 11, 9, 10 and 10 steps.\n\nTHE ENTRY'S STATED BLOCKER WAS REMOVED BY OP-B AND THE ENTRY WAS NEVER UPDATED. It said 'there is no cashier settlement surface... no button reaches these routes and no browser test can be written against one'. That was true when written. OP-B built the till, and by M6-E it already had Take cash, Card on the terminal, and Telebirr and CBE Birr proof buttons, and the probe already drove .pay-cash, .pay-terminal and .pay-proof. Three of the five were still passing method='none' — walking the cashier's VIEW and stopping — so the half a person touches was measured and the money was still taken by this suite issuing the calls a screen would issue.\n\nWHAT ACTUALLY HAD TO BE SOLVED was GJ-02B, and it is worth recording because the answer is not 'flip the parameter'. That journey proves an unverified proof settles nothing, and the till cannot demonstrate it — its Telebirr button raises, attests and captures in one act, so its flow offers an unverified proof no moment at which to be presented. That is a virtue of the screen rather than a gap in it. So the rule keeps its service-tier proof, on its OWN proof object, and runs BEFORE the till; the money is then taken by pressing a button. Ordered the other way the till would have closed the bill first and the refusal would have been for the wrong reason.\n\nAND GJ-06'S SECOND PAYER IS DELIBERATELY LEFT AT THE SERVICE TIER. What that journey uniquely proves is that two payments settle two shares INDEPENDENTLY, and the allocation assertions read both. Driving both through the same screen in the same run would make the second payment's independence a property of the till's state handling rather than of the allocation rules under test. One of each proves both claims at once: a cashier can do it, and the rules hold whoever does it.\n\nThe receipts are the ones the TILL made rather than a second set: FR-BIL-010 allows one original per bill revision, so a journey that issued one at the screen and another through the route would be refused — correctly, and confusingly, because it would look unable to produce a receipt when it had already produced one."
   }
  ],
  "gate_decomposition": {

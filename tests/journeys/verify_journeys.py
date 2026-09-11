@@ -1184,10 +1184,13 @@ def settle_at_the_till(journey: str, settled: dict, *, method: str, prompts: lis
                        receipt_method: str | None = None) -> dict:
     """Walk the settlement through the till, in a browser, and record what it showed.
 
-    method="none" walks the cashier's VIEW and stops: some journeys prove a payment rule
-    the screen cannot express — that an unverified proof settles nothing — and those keep
-    their service-tier payment while the half a person looks at is measured here. The
-    record says which half is which rather than letting "browser tier" imply more.
+    method="none" walks the cashier's VIEW and stops. NO SETTLEMENT JOURNEY USES IT ANY
+    MORE: until M6-E three of the five did, because a payment rule the screen cannot
+    express — that an unverified proof settles nothing — was being proved by the same call
+    that settled the bill. FR-TST-005A is the entry that asked for the difference, and the
+    answer was to separate them: the rule keeps its service-tier proof on its own artifact
+    and runs BEFORE the till, and the money is taken by somebody pressing a button. The
+    parameter stays because "walk the view and stop" is still a legitimate thing to ask for.
 
     THIS IS WHAT MAKES THESE JOURNEYS BROWSER TIER. Until OP-B they issued the HTTP calls
     a cashier's screen would issue, because there was no screen; the tier line in the
@@ -1428,50 +1431,73 @@ def gj_02b() -> None:
     settled = a_settled_check(journey, predecessor["session"], locale="am",
                               tip_minor=2500, method="telebirr_proof",
                               provider="telebirr_proof")
-    settle_at_the_till(journey, settled, method="none", prompts=[])
     record(journey, "the Amharic check offers a tip box and the guest adds a tip",
            settled["tip"] > 0 and bool(settled["tip_id"]),
            f"tip {settled['tip']} minor units on its own share, separate from the bill "
            f"total of {settled['total']}. FR-BIL-013 keeps the box beside the summary "
            f"and never inside it, and nothing is preselected")
 
-    # THE PROOF IS PENDING UNTIL A PERSON VERIFIES IT, and the person is read from the
-    # session rather than passed — M4-B's NC-M4-004, reached here through settlement.
+    # THE RULE THE SCREEN CANNOT EXPRESS, PROVED FIRST AND ON ITS OWN PROOF.
+    #
+    # An unverified proof must settle nothing. The till cannot demonstrate that, and the
+    # reason is a virtue rather than a gap: its Telebirr button raises, attests and
+    # captures in one act, so its flow gives an unverified proof no moment at which to be
+    # presented. Showing the refusal needs the service tier.
+    #
+    # It runs BEFORE the till, and against a proof of its own, so the refusal leaves the
+    # bill settleable for the browser. Ordered the other way the till would have closed
+    # the bill first and this would have been a refusal for the wrong reason.
     due = settled["total"] + settled["tip"]
     raised = service("POST", "/s/v1/proofs",
                      {"provider": "telebirr_proof", "currencyCode": "ETB",
                       "amountMinor": due,
-                      "providerReference": f"{journey}-{RUN_NONCE}"},
+                      "providerReference": f"{journey}-{RUN_NONCE}-unverified"},
                      token=cashier())
     if not ok(raised):
         raise ProbeFailed("POST /s/v1/proofs", why(raised))
-    proof = raised["proofId"]
 
     premature = service("POST", f"/s/v1/payments/{settled['intent']}/proof",
-                        {"proofId": proof, "tenderedMinor": due}, token=cashier(),
-                        key=f"{journey}-{RUN_NONCE}-early")
+                        {"proofId": raised["proofId"], "tenderedMinor": due},
+                        token=cashier(), key=f"{journey}-{RUN_NONCE}-early")
     record(journey, "an unverified proof cannot settle anything",
            not ok(premature),
-           why(premature) or "money was recorded as received on a claim nobody had "
-                             "checked in the provider's own app")
+           (why(premature) or "money was recorded as received on a claim nobody had "
+                              "checked in the provider's own app")
+           + ". Proved through the route rather than the screen because the till's own "
+             "flow offers an unverified proof no moment at which to be presented")
 
-    # THE VERIFIER IS THE MANAGER'S OWN TOKEN, not a parameter. The route reads who is
-    # attesting from the session the bearer token establishes, so there is no field on
-    # this request by which one person could attest on another's behalf.
-    verified = service("POST", f"/s/v1/proofs/{proof}/verify",
-                       {"whatYouSaw": "the amount and the reference matched the provider "
-                                      "app on my own screen"},
-                       token=as_manager())
-    captured = service("POST", f"/s/v1/payments/{settled['intent']}/proof",
-                       {"proofId": proof, "tenderedMinor": due}, token=cashier(),
-                       key=f"{journey}-{RUN_NONCE}-proof")
-    record(journey, "and once a named person verifies it in the provider's app, it settles",
-           ok(verified) and ok(captured),
-           f"{why(verified) or 'verified'}; {why(captured) or 'captured'}. The verifier "
-           f"is whoever owns the bearer token, so there is no parameter by which "
-           f"somebody could attest on another person's behalf")
+    # AND THE SETTLEMENT IS WALKED, WHICH IS WHAT FR-TST-005A ASKED FOR.
+    #
+    # The cashier presses Telebirr proof. The screen asks for the provider reference and
+    # for what they saw on the payer's screen — FR-PAY-006 wants an attestation rather
+    # than a checkbox — and then raises, verifies and captures. The verifier is still read
+    # from the session rather than passed as a parameter; it is the cashier's own session
+    # the browser carries, rather than a token this suite hands over.
+    at_the_till = settle_at_the_till(
+        journey, settled, method="proof",
+        prompts=[f"{journey}-{RUN_NONCE}-telebirr",
+                 "the amount and the reference matched the provider app on my own screen"],
+        receipt_method="telebirr_proof")
 
-    receipt = a_receipt(journey, settled["bill"], "telebirr_proof")
+    paid = count(APP, f"""
+        SELECT count(*) FROM payments.payment p
+          JOIN payments.payment_intent i ON i.id = p.intent_id
+         WHERE i.bill_id = '{settled["bill"]}';""", **CTX)
+    attested = count(ADMIN, f"""
+        SELECT count(*) FROM payments.proof_confirmation
+         WHERE tenant_id = '{fx.TENANT}' AND verified_at IS NOT NULL;""")
+    record(journey, "and a named person verifies it on the till, and it settles",
+           paid > 0 and attested > 0,
+           f"{paid} payment(s) against bill {settled['bill'][:8]}…, {attested} verified "
+           f"proof(s). Raised, attested and captured by somebody pressing a button in a "
+           f"browser rather than by this suite issuing the three calls that button makes")
+
+    # THE RECEIPT THE TILL MADE, not a second one. FR-BIL-010 allows one original per bill
+    # revision, so issuing another here would be refused — and the journey would look
+    # unable to produce a receipt when in fact it had already produced one.
+    receipt = at_the_till["receipt"]
+    if not receipt:
+        raise ProbeFailed("GJ-02B receipt", "the till produced no receipt to read")
     labels = [r[0] for r in rows(f"""
         SELECT l.label FROM docs.receipt_line l WHERE l.receipt_id = '{receipt}';""")]
     record(journey, "the receipt is in Amharic, every line",
@@ -1524,24 +1550,42 @@ def gj_03b() -> None:
                               tip_minor=1800, method="external_terminal",
                               provider="external_terminal")
     due = settled["total"] + settled["tip"]
-    settle_at_the_till(journey, settled, method="none", prompts=[])
-    slip = service("POST", "/s/v1/terminal-results",
-                   {"terminalReference": f"{journey}-{RUN_NONCE}", "scheme": "visa",
-                    "currencyCode": "ETB", "amountMinor": due, "outcome": "approved",
-                    "panLastFour": "4242", "authorizationCode": f"A{RUN_NONCE[:5]}"},
-                   token=cashier())
-    if not ok(slip):
-        raise ProbeFailed("POST /s/v1/terminal-results", why(slip))
-    captured = service("POST", f"/s/v1/payments/{settled['intent']}/terminal",
-                       {"terminalResultId": slip["terminalResultId"],
-                        "tenderedMinor": due}, token=cashier(),
-                       key=f"{journey}-{RUN_NONCE}-terminal")
-    record(journey, "the guest chooses a tip and pays on a permitted live method",
-           ok(captured) and settled["tip"] > 0,
-           f"{why(captured) or 'captured'} against an external terminal slip carrying a "
-           f"scheme and four digits and no card number anywhere")
 
-    receipt = a_receipt(journey, settled["bill"], "external_terminal")
+    # THE CARD IS TAKEN ON THE TILL, IN A BROWSER. The cashier presses "Card on the
+    # terminal", the screen asks for the terminal reference, and it records the slip and
+    # captures against it. Until M6-E this journey issued those two calls itself and the
+    # cashier's half stopped at looking; FR-TST-005A is the entry that asked for the
+    # difference, and the till has had the button since OP-B.
+    at_the_till = settle_at_the_till(
+        journey, settled, method="terminal",
+        prompts=[f"{journey}-{RUN_NONCE}-terminal"],
+        receipt_method="external_terminal")
+
+    paid = count(APP, f"""
+        SELECT count(*) FROM payments.payment p
+          JOIN payments.payment_intent i ON i.id = p.intent_id
+         WHERE i.bill_id = '{settled["bill"]}';""", **CTX)
+    record(journey, "the guest chooses a tip and the cashier takes the card, in a browser",
+           paid > 0 and settled["tip"] > 0,
+           f"{paid} payment(s) against bill {settled['bill'][:8]}…, tip {settled['tip']} "
+           f"minor units. Recorded and captured by somebody pressing a button rather than "
+           f"by this suite issuing the two calls that button makes")
+
+    # AND WHAT WAS STORED CARRIES NO CARD NUMBER. A property of the row rather than of the
+    # request, so it is read back from the database rather than asserted about what was
+    # sent — a slip that could hold a card number would be a card number this system keeps.
+    slip = rows(f"""
+        SELECT scheme::text, coalesce(masked_tail, '-')
+          FROM payments.terminal_result
+         WHERE tenant_id = '{fx.TENANT}'
+         ORDER BY recorded_at DESC LIMIT 1;""", dsn=ADMIN)
+    record(journey, "and the slip carries a scheme and at most four digits",
+           bool(slip) and len(slip[0][1].strip("-")) <= 4,
+           f"{slip[0] if slip else 'no slip'}")
+
+    receipt = at_the_till["receipt"]
+    if not receipt:
+        raise ProbeFailed("GJ-03B receipt", "the till produced no receipt to read")
     figures = {r[0]: r[1] for r in rows(f"""
         SELECT l.kind::text, coalesce(l.amount_minor::text, '-')
           FROM docs.receipt_line l WHERE l.receipt_id = '{receipt}';""")}
@@ -1654,13 +1698,41 @@ def gj_06() -> None:
             tip_id = scalar(f"""
                 SELECT id FROM billing.tip WHERE bill_share_id = '{share}'
                  ORDER BY chosen_at DESC LIMIT 1;""")
-        # THE FIRST PAYER'S BILL IS OPENED ON THE TILL, in a browser. A split bill is the
-        # case where "the tip box is beside the bill" matters most: there are two bills,
-        # two shares and two tips, and a screen that commingled them would produce two
-        # wrong totals rather than one. The payments themselves stay here, where the split
-        # rules they exercise are proved.
+        # THE FIRST PAYER IS SETTLED ON THE TILL, IN A BROWSER, and the second through the
+        # routes. A split bill is the case where "the tip box is beside the bill" matters
+        # most — two bills, two shares, two tips, and a screen that commingled them would
+        # produce two wrong totals rather than one — so the screen is where the first
+        # payer's money is taken.
+        #
+        # THE SECOND PAYER STAYS AT THE SERVICE TIER ON PURPOSE, and it is not laziness.
+        # What this journey proves that no other does is that two payments settle two
+        # shares INDEPENDENTLY, and the allocation assertions below read both. Driving both
+        # through the same screen in the same run would make the second payment's
+        # independence a property of the till's state handling rather than of the
+        # allocation rules, which is the thing under test. One of each is the shape that
+        # proves both claims at once: the cashier can do it, and the rules hold whoever
+        # does it.
         if label == "A":
-            settle_at_the_till(journey, {"bill": bill}, method="none", prompts=[])
+            at_the_till = settle_at_the_till(
+                journey, {"bill": bill}, method="cash",
+                prompts=[str(total + tip_minor)], receipt_method="cash")
+            settled_here = count(APP, f"""
+                SELECT count(*) FROM payments.payment p
+                  JOIN payments.payment_intent i ON i.id = p.intent_id
+                 WHERE i.bill_id = '{bill}';""", **CTX)
+            record(journey, f"payer {label}'s share is settled on the till, in a browser",
+                   settled_here > 0,
+                   f"{settled_here} payment(s) against payer {label}'s own bill "
+                   f"{bill[:8]}…, taken by somebody pressing a button rather than by this "
+                   f"suite issuing the request that button makes")
+            receipt = at_the_till["receipt"]
+            if not receipt:
+                raise ProbeFailed(f"payer {label} receipt",
+                                  "the till produced no receipt for the first payer")
+            payers.append({"label": label, "bill": bill, "total": total,
+                           "tip": tip_minor, "method": method, "receipt": receipt})
+            continue
+
         intended = service("POST", "/s/v1/payments/intents",
                            {"billId": bill, "billAmountMinor": total,
                             "tipAmountMinor": tip_minor,
